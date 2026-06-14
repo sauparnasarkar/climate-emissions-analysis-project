@@ -1,0 +1,361 @@
+# Climate Change Trend Analysis and Forecasting — Project Specification
+
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · June 2026 · v3**
+
+---
+
+## 1. Project Overview
+
+### Goal
+
+Build an end-to-end analytical project that ingests open Greenhouse Gas (GHG) emissions datasets, performs exploratory data analysis, trains forecasting models to project future emissions, and assembles findings into a well-documented Jupyter Notebook and an optional interactive Streamlit dashboard.
+
+> **Scope note:** This project deliberately focuses on classical machine learning and time-series methods — specifically regression models and Holt's Damped Trend (ETS) forecasting. These approaches are well-suited to structured tabular data and annual time-series with a limited number of data points.
+
+### Core Deliverables
+
+| Deliverable | Required? |
+|-------------|-----------|
+| Jupyter Notebook (fully documented with markdown cells) | Yes |
+| Final Presentation to mentor (1 hour) | Yes |
+| Streamlit interactive dashboard | Stretch goal only |
+
+### Datasets
+
+| Dataset | Source | Format |
+|---------|--------|--------|
+| OWID CO₂ and GHG Emissions | github.com/owid/co2-data | CSV |
+| Climate Watch Historical Emissions | climatewatchdata.org | CSV |
+
+### Countries of Focus
+
+**China · USA · India · Russia · Japan · Germany · Brazil · United Kingdom · South Africa · Australia**
+
+These represent a mix of major emitters, economies at different stages of development, and countries with documented emissions reduction trajectories (e.g. UK, Germany).
+
+### Tools and Libraries
+
+| Tool / Library | Purpose |
+|----------------|---------|
+| Python 3.x, Jupyter Notebook | Primary development environment |
+| Pandas, NumPy | Data loading, cleaning, feature engineering |
+| Matplotlib, Plotly Express | Visualisation (static and interactive) |
+| Scikit-learn | Linear Regression, Random Forest (Week 3) |
+| Statsmodels — ExponentialSmoothing | ETS(A,Ad,N) Holt Damped Trend forecasting (Week 4) |
+| Streamlit | Interactive dashboard (Week 6 stretch goal only) |
+| GitHub | Version control — commit at end of every week |
+
+---
+
+## 2. Weekly Breakdown
+
+### Week 1: Data Acquisition, Exploration and Understanding
+
+*Learning Objective: Understand the structure and content of GHG datasets and produce a clean, profiled dataset ready for analysis.*
+
+**1.1 Data Loading**
+- Download the OWID CO₂ dataset from GitHub (owid/co2-data) as a CSV file
+- Load into a Pandas DataFrame and display the first 10 rows, column names, data types, and shape
+- Write a markdown cell explaining what each key column represents: `co2`, `co2_per_capita`, `methane`, `nitrous_oxide`, `total_ghg`, `year`, `country`
+
+**1.2 Data Profiling**
+- Report the number of null values per column as a percentage of total rows
+- Identify which countries and years have the most complete data coverage
+- Filter dataset to retain only rows where `year ≥ 1990` and `country` is a sovereign nation (exclude aggregates like World, Asia, Europe)
+- Document filtering decisions in a markdown cell with justification
+
+**1.3 Exploratory Data Analysis (EDA)**
+- Plot a line chart of global CO₂ emissions from 1990 to the latest year available
+- Plot a multi-line chart comparing CO₂ emission trends for the top 5 emitting countries: China, USA, India, Russia, Japan
+- Plot a stacked bar or area chart showing share of total global GHG by gas type (CO₂, CH₄, N₂O) per decade: 1990s, 2000s, 2010s, 2020s
+- Write a 3–5 sentence summary of key patterns observed in each chart
+
+**1.4 Notebook Standards (apply from Week 1 onward)**
+- Every code cell must be preceded by a markdown cell explaining what the code does and why
+- All charts must have titles, axis labels, and legends
+- All variable names must be descriptive (no single-letter names except loop counters)
+- Commit notebook to GitHub at end of every week
+
+**Week 1 Checkpoint:** Loaded and profiled dataset demonstrated in notebook · Three completed EDA charts with written observations · GitHub repository set up with first commit
+
+---
+
+### Week 2: Feature Engineering
+
+*Learning Objective: Transform raw emissions data into a structured, model-ready feature set that captures temporal patterns and relationships between variables.*
+
+**2.1 Time-Based Features**
+- Add a `decade` column derived from the `year` column (e.g. 1990 → 1990s)
+- Add a `years_since_1990` column as a simple numeric time index for regression modelling
+- For each country, compute a `co2_5yr_rolling_mean` column using a 5-year rolling average on annual CO₂ values
+
+**2.2 Lag Features**
+- For each country, create `co2_lag1` (previous year CO₂), `co2_lag2`, and `co2_lag3` columns
+- Write a markdown cell explaining what lag features are and why they are useful for time-series prediction
+
+**2.3 Per-Capita and Intensity Features**
+- Verify `co2_per_capita` is correctly computed by cross-checking against `co2` and `population` for at least 3 countries and 3 years
+- Create a `ghg_intensity` column defined as `total_ghg / gdp` where both columns are available
+- Note countries and years where `ghg_intensity` cannot be computed due to missing GDP data
+
+**2.4 Growth Rate Features**
+- Compute annual `co2_yoy_change` (year-on-year absolute change) and `co2_yoy_pct_change` for each country
+- Identify and list the top 5 countries with the highest average annual CO₂ growth rate since 1990
+- Identify and list the top 5 countries with the largest CO₂ reductions since 1990
+
+**2.5 Final Feature Dataset**
+
+Produce a clean modelling DataFrame for the 10 project countries. Required columns:
+
+`country · year · co2 · co2_per_capita · co2_5yr_rolling_mean · co2_lag1 · co2_lag2 · co2_lag3 · co2_yoy_pct_change · ghg_intensity (where available)`
+
+- Save as `ghg_features.csv` and commit to GitHub
+
+**Week 2 Checkpoint:** Demonstrate the feature DataFrame with all engineered columns · Walk through the rolling mean and lag feature logic · Show the top 5 growth and top 5 reduction countries
+
+---
+
+### Week 3: Baseline ML Models — Regression
+
+*Learning Objective: Train, evaluate, and compare supervised regression models to predict future CO₂ emissions; understand model evaluation metrics.*
+
+**3.1 Problem Framing**
+- Write a markdown cell clearly stating the prediction task: *Given features X for country C in year Y, predict CO₂ emissions for year Y+1*
+- Identify the target variable (`co2`) and input features from the Week 2 feature set
+- Explain the choice of a supervised regression approach in a markdown cell
+
+**3.2 Train-Test Split**
+- For each of the 10 countries, use years **1990–2018** for training and **2019 onward** for testing
+- The 2019–2023 test window is deliberately chosen to include the COVID-19 pandemic emissions dip (2020) and subsequent recovery
+- Do NOT use random splitting — explain in a markdown cell why temporal splitting is essential for time-series data
+- Report the number of training and test samples per country
+
+**3.3 Naive Baseline Model**
+- Implement a naive baseline: predict next year CO₂ = current year CO₂ (no-change model)
+- Compute MAE and RMSE for the baseline on the test set for each country
+- Plot actual vs predicted values for the baseline for 3 countries
+
+**3.4 Linear Regression**
+- Train a Linear Regression model using scikit-learn on the training set for each of the 10 countries
+- Compute MAE and RMSE on the test set
+- Plot regression line alongside actual test values for 3 countries
+- Print model coefficients and write a markdown cell interpreting which features most influence predictions
+
+**3.5 Random Forest Regressor**
+- Train a Random Forest Regressor (`n_estimators=100`, `random_state=42`) on the same training set
+- Compute MAE and RMSE on the test set
+- Plot feature importance as a horizontal bar chart for at least one country
+
+**3.6 Model Comparison Table**
+
+Produce a results table with columns:
+
+`Country · Baseline MAE · LR MAE · RF MAE · Baseline RMSE · LR RMSE · RF RMSE · Best Model`
+
+- Write a 3–5 sentence conclusion interpreting the results
+
+**Week 3 Checkpoint:** Demonstrate train-test split logic and explain why temporal splitting was used · Walk through the model comparison table and interpret at least one country result · Show the feature importance chart
+
+---
+
+### Week 4: Time-Series Forecasting with ETS(A,Ad,N) — Holt's Damped Trend
+
+*Learning Objective: Apply ETS(A,Ad,N) to generate multi-year emissions forecasts with confidence intervals; understand why a damped trend model is well-suited to long-range annual emissions data.*
+
+> **v3 change:** ARIMA replaced by ETS(A,Ad,N). Rationale: the damping parameter prevents unbounded trend extrapolation over a 20-year horizon, which is more realistic for emissions data — particularly for countries with documented slowdowns (UK, Germany). The implementation is also simpler, requiring no stationarity testing or order selection.
+
+**4.1 Concept Introduction**
+
+Write a markdown cell explaining the ETS (Error, Trend, Seasonality) state space framework:
+
+- **E (Error):** additive — the model's residuals are added to the state
+- **T (Trend):** additive damped — the trend decays toward zero over the forecast horizon via a damping parameter φ (0 < φ < 1)
+- **S (Seasonality):** none — annual data has no within-year seasonal cycle
+
+Explain why ETS(A,Ad,N) is appropriate for annual emissions data:
+- No within-year seasonality to model
+- Damped trend prevents unbounded long-range projections
+- Works reliably with ~30 data points — fewer free parameters than alternatives
+- Physically sensible: emissions trajectories tend to slow, plateau, or gradually reverse
+
+**4.2 Model Fitting**
+
+For each of the 10 countries, fit on the 1990–2018 training series:
+
+```python
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+
+model = ExponentialSmoothing(
+    train_co2,
+    trend='add',
+    damped_trend=True,
+    seasonal=None
+)
+fit = model.fit(optimized=True)
+```
+
+Print the fitted smoothing level (α), smoothing trend (β\*), and damping (φ) parameters for at least 3 countries. Write a markdown cell interpreting what a high vs low φ value implies for that country's emissions trajectory.
+
+**4.3 Forecasting to 2043**
+- Generate out-of-sample forecasts from **2024 to 2043** (20 years beyond the test period) for each of the 10 countries
+- Include 95% confidence intervals using `fit.forecast()` or `fit.get_forecast()`
+- Produce a forecast plot per country showing: historical actuals (1990–2018), fitted values, 2019–2023 holdout actuals overlaid, out-of-sample forecast to 2043 with CI shading
+- Use distinct colours for actuals, fitted, holdout, and forecast
+
+**4.4 Trend Interpretation**
+- For at least 3 countries, write a markdown cell interpreting the forecast trend
+- Discuss whether the damped projection aligns with known real-world context (e.g. UK carbon legislation, India's growth trajectory, China's peak-emissions target)
+- Comment on whether the CI widens significantly over the 20-year horizon and what that implies
+
+**4.5 Forecast Summary Table**
+
+Produce a summary table with columns:
+
+`Country · 2030 Forecast (MtCO₂) · 2035 Forecast · 2040 Forecast · 2020 Actual · % Change 2020 → 2040`
+
+**4.6 Model Validation**
+- Compute MAE and RMSE of ETS forecasts against the 2019–2023 holdout values for each country
+- Add ETS MAE and ETS RMSE to the model comparison table from Week 3, creating a consolidated four-model table:
+
+**Naive Baseline · Linear Regression · Random Forest · ETS(A,Ad,N)**
+
+- Write a 3–5 sentence conclusion comparing model performance across the four approaches
+
+**Week 4 Checkpoint:** Show fitted α, β\*, φ parameters for 3 countries and interpret the damping values · Show forecast plots for at least 3 countries with holdout overlay · Walk through the forecast summary table · Present the consolidated four-model comparison table
+
+---
+
+### Week 5: Scenario Analysis *(Optional — Complete Only if Time Permits)*
+
+*Proceed to Week 5 only if Weeks 3 and 4 are fully complete, documented, and committed to GitHub. If time is limited, skip directly to Week 6.*
+
+*Learning Objective: Build a what-if scenario module to simulate the emissions impact of policy interventions; develop skills in parameterised analysis and result interpretation.*
+
+**5.1 Scenario Design**
+
+- **Scenario A – Business as Usual (BAU):** No policy change; use the ETS(A,Ad,N) baseline forecast from Week 4
+- **Scenario B – Moderate Mitigation:** Apply a linear annual reduction rate of 2% per year to the BAU forecast starting from 2025
+- **Scenario C – Aggressive Mitigation:** Apply a linear annual reduction rate of 5% per year to the BAU forecast starting from 2025
+
+Write a markdown cell explaining the basis and limitations of each scenario; note these are illustrative, not scientifically calibrated.
+
+**5.2 Scenario Calculation**
+- For each of the 10 countries and each scenario, compute projected annual CO₂ values from 2025 to 2040
+- Store results in a tidy DataFrame with columns: `country · year · scenario · co2_projected`
+- Save as `scenario_projections.csv` and commit to GitHub
+
+**5.3 Scenario Visualisations**
+- For each of the 10 countries, produce a single line chart overlaying all 3 scenarios from 2020 to 2040 with historical actuals from 1990 to 2024 as a grey reference line
+- Colours: blue for BAU, orange for Moderate, green for Aggressive
+- Add a horizontal reference line indicating the country's 1990 emissions level as a policy benchmark
+- Produce one global aggregate chart showing the sum of all 10 countries' projections under each scenario
+
+**5.4 Impact Summary**
+- For each country and scenario, compute total cumulative CO₂ emissions from 2025 to 2040
+- Produce a grouped bar chart comparing cumulative emissions per country across the 3 scenarios
+- Write a 3–5 sentence interpretation: which countries benefit most from aggressive mitigation?
+
+**Week 5 Checkpoint:** Walk through the scenario DataFrame and explain the calculation logic · Show the per-country overlay charts and global aggregate chart · Present the cumulative emissions grouped bar chart with written interpretation
+
+---
+
+### Week 6: Notebook Finalisation and Optional Streamlit Dashboard
+
+*Learning Objective: Finalise the notebook to professional documentation standards; optionally assemble analytical outputs into an interactive Streamlit dashboard.*
+
+**6.1 Notebook Finalisation**
+- Ensure every section from Weeks 1–4 (and Week 5 if completed) has a clear markdown introduction and written summary conclusion
+- Add a Table of Contents cell at the top of the notebook with links to each section
+- Ensure all charts have consistent colour schemes, font sizes, and labelling style throughout
+- Remove all debugging print statements and dead code cells
+
+**6.2 Streamlit App *(Stretch Goal)***
+
+*Attempt only if Weeks 3–4 are complete and time remains. Notebook quality takes priority.*
+
+Sections to include:
+- **Overview:** title, project description, headline KPIs (total global CO₂ latest year, % change since 1990, number of countries analysed)
+- **Historical Trends:** multi-line chart for user-selected countries; stacked area chart of GHG by gas type
+- **Country Profile:** select a country to show emissions trend, per-capita trend, YoY change chart, key stats table
+- **Forecasts:** select a country to show ETS(A,Ad,N) forecast chart to 2040 with CI and forecast summary table
+- **Scenario Comparison** (if Week 5 complete): overlay chart of 3 scenarios and cumulative emissions bar chart
+- **About:** data sources, methodology summary, internship attribution
+
+**6.3 Interactivity Requirements (if building Streamlit app)**
+- At minimum: one `st.selectbox` for country selection, one `st.multiselect` for gas type, one `st.radio` for scenario selection
+- All charts must use Plotly Express (not static Matplotlib)
+- App must run without errors with `streamlit run app.py` on a fresh environment
+
+**6.4 GitHub Repository Requirements (by end of Week 6)**
+
+| File / Folder | Contents |
+|---------------|----------|
+| `notebook/ghg_analysis.ipynb` | Complete Jupyter Notebook |
+| `app.py` | Streamlit application (if built) |
+| `data/` | Downloaded CSV datasets |
+| `requirements.txt` | All Python dependencies with version numbers |
+| `README.md` | Project description, setup instructions, data sources |
+
+**Week 6 Checkpoint:** Walk through the finalised notebook — all sections, charts, and written summaries · Live demo of Streamlit app if completed · Review GitHub repository structure and README
+
+---
+
+### Week 7: Final Presentation
+
+*Learning Objective: Deliver a structured presentation to the mentor demonstrating the full analytical workflow and consolidated findings.*
+
+**Format**
+- Duration: 1 hour
+- Format: Slides with live notebook walkthrough
+
+**Content to Cover**
+- Project objective and dataset overview
+- EDA key findings (Week 1)
+- Feature engineering decisions (Week 2)
+- Model comparison results — Naive Baseline · Linear Regression · Random Forest · ETS(A,Ad,N) (Weeks 3–4)
+- ETS forecast plots and summary table (Week 4)
+- Scenario analysis findings (Week 5, if completed)
+- Key takeaways and limitations
+
+**Final Submission Checklist**
+- [ ] Jupyter Notebook: fully documented, all cells run cleanly from top to bottom
+- [ ] Streamlit app (if built): runs without errors, `requirements.txt` complete
+- [ ] GitHub repository: all files committed, README complete, link shared with mentor before session
+- [ ] Presentation slides: shared with mentor before the session
+- [ ] Project report: submitted in IDEAS TIH template format (template provided by course administration)
+
+---
+
+## 3. Pre-Read Resource List
+
+### Tier 1 — Must Read Before Starting
+
+| Resource | Est. Time |
+|----------|-----------|
+| Kaggle: Intro to Machine Learning — kaggle.com/learn/intro-to-machine-learning | ~3 hrs |
+| Dataquest: Pandas Time Series Tutorial — dataquest.io/blog/tutorial-time-series-analysis-with-pandas | ~1.5 hrs |
+| Scikit-learn Beginner Tutorial — scikit-learn.org/stable/tutorial/basic/tutorial.html | ~1 hr |
+| Statsmodels Exponential Smoothing docs — statsmodels.org/stable/tsa.html#exponential-smoothing | Reference (Week 4) |
+
+### Tier 2 — Pick Up During Project as Needed
+
+- Hyndman & Athanasopoulos, *Forecasting: Principles and Practice* Ch 7–8 (ETS models) — otexts.com/fpp3/ets.html
+- Plotly Express documentation — plotly.com/python/plotly-express (Week 6)
+- Streamlit Get Started tutorial — docs.streamlit.io/get-started (Week 6, if attempting Streamlit)
+- W3Schools Python Machine Learning — w3schools.com/python/python_ml_getting_started.asp
+
+### Domain Reference
+
+- Our World in Data: CO₂ and GHG Emissions — ourworldindata.org/co2-and-greenhouse-gas-emissions
+- Machine Learning for Climate Change — Rolnick et al. (2022), arXiv:1906.05433
+- IPCC AR6 Summary for Policymakers — ipcc.ch/report/ar6/wg1
+
+---
+
+## 4. Version History
+
+| Version | Date | Change |
+|---------|------|--------|
+| v1 | Jun 2026 | Initial scope document |
+| v2 | Jun 2026 | Train/test split rationale added; Week 5 marked optional; Streamlit marked stretch goal |
+| v3 | Jun 2026 | Week 4 forecasting model changed from ARIMA(1,1,1) to ETS(A,Ad,N) Holt Damped Trend. Rationale: damped trend prevents unbounded long-range extrapolation and better captures emissions slowdowns. Pre-read updated to FPP3 Ch 7–8 (ETS) in place of ARIMA tutorial. |
