@@ -76,9 +76,16 @@ ghg-trend-analysis-forecasting/
 │   └── scenario_projections.csv ← Generated in Week 5 (optional)
 ├── app.py                     ← Streamlit dashboard (Week 6 stretch goal)
 ├── requirements.txt           ← Python dependencies
+├── SPEC.md                    ← Full project specification (weekly requirements)
 ├── .gitignore
 └── README.md
 ```
+
+---
+
+## Project Specification
+
+Full weekly requirements, deliverables, checkpoints, and pre-read resources are in [`SPEC.md`](SPEC.md).
 
 ---
 
