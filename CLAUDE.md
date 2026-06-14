@@ -1,4 +1,4 @@
-# CLAUDE.md — GHG Trend Analysis & Forecasting (Intern Template)
+# CLAUDE.md — GHG Trend Analysis & Forecasting
 
 ## Project Context
 
@@ -9,9 +9,9 @@
 
 ## What This Repo Is
 
-Template scaffold for interns to fork and fill in week by week. Contains:
-- `notebook/ghg_analysis.ipynb` — main analysis notebook (skeleton, interns fill in)
-- `app.py` — Streamlit dashboard (Week 6 stretch goal, already built)
+The mentor's working repository for the GHG trend analysis and forecasting project. Contains:
+- `notebook/ghg_analysis.ipynb` — main analysis notebook
+- `app.py` — Streamlit dashboard (Week 6 stretch goal)
 - `data/` — gitignored CSVs; interns download OWID dataset manually
 - `requirements.txt` — pinned Python deps (pandas, scikit-learn, statsmodels, streamlit, etc.)
 
@@ -59,7 +59,7 @@ Template scaffold for interns to fork and fill in week by week. Contains:
 ## When Helping With This Project
 
 - Reference design decisions above before suggesting model or methodology changes.
-- Intern code goes in `notebook/ghg_analysis.ipynb`; `app.py` is the mentor-built dashboard.
+- Analysis code lives in `notebook/ghg_analysis.ipynb`; `app.py` is the Streamlit dashboard.
 - The `data/` CSVs are not committed — interns download OWID dataset per README instructions.
 - Weekly commits follow the convention in README.md.
 - Avoid suggesting Prophet, deep learning, or LLM-based approaches — out of scope by design.

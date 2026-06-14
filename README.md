@@ -10,20 +10,6 @@ This project builds an end-to-end analytical pipeline on open Greenhouse Gas (GH
 
 ---
 
-## Team
-
-| Name | Institute | Stream |
-|------|-----------|--------|
-| [YOUR NAME] | [YOUR INSTITUTE] | [YOUR STREAM] |
-| [YOUR NAME] | [YOUR INSTITUTE] | [YOUR STREAM] |
-| [YOUR NAME] | [YOUR INSTITUTE] | [YOUR STREAM] |
-| [YOUR NAME] | [YOUR INSTITUTE] | [YOUR STREAM] |
-| [YOUR NAME] | [YOUR INSTITUTE] | [YOUR STREAM] |
-| [YOUR NAME] | [YOUR INSTITUTE] | [YOUR STREAM] |
-| [YOUR NAME] | [YOUR INSTITUTE] | [YOUR STREAM] |
-
----
-
 ## Setup
 
 ### 1. Clone the repository
@@ -111,7 +97,7 @@ git push
 | 1 | `Week 1: data loading, profiling, and EDA complete` |
 | 2 | `Week 2: feature engineering complete, ghg_features.csv added` |
 | 3 | `Week 3: regression models and comparison table complete` |
-| 4 | `Week 4: ARIMA forecasting complete` |
+| 4 | `Week 4: ETS(A,Ad,N) Holt Damped forecasting complete` |
 | 5 | `Week 5: scenario analysis complete` *(if applicable)* |
 | 6 | `Week 6: notebook finalised, Streamlit app added` |
 
