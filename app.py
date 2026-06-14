@@ -86,7 +86,7 @@ if page == "Overview":
     st.title("Climate Change Trend Analysis and Forecasting")
     st.markdown(
         "An end-to-end analysis of greenhouse gas emissions for 10 major countries "
-        "using the OWID CO₂ dataset, regression models, and ARIMA forecasting.\n\n"
+        "using the OWID CO₂ dataset, regression models, and ETS(A,Ad,N) forecasting.\n\n"
         "*IDEAS TIH Summer Internship 2026*"
     )
     st.divider()
@@ -215,9 +215,9 @@ elif page == "Country Profile":
 # FORECASTS
 # ─────────────────────────────────────────────────────────────────────────────
 elif page == "Forecasts":
-    st.title("ARIMA Emissions Forecasts (2019–2043)")
+    st.title("ETS(A,Ad,N) Emissions Forecasts (2019–2043)")
     st.markdown(
-        "Forecasts from ARIMA(1,1,1) trained on 1990–2018, "
+        "Forecasts from Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, "
         "with 95% confidence intervals extending to 2043."
     )
 
@@ -225,17 +225,20 @@ elif page == "Forecasts":
 
     st.subheader(f"Forecast — {country}")
     st.info(
-        "📊 **TODO:** Add ARIMA forecast chart here.\n\n"
+        "📊 **TODO:** Add ETS(A,Ad,N) forecast chart here.\n\n"
         "**Hint:** In Week 4 of the notebook, save your per-country forecast results "
-        "(mean + confidence interval) to a CSV (e.g. `data/arima_forecasts.csv`), "
-        "then load and plot them here using `px.line` for the mean and `go.Scatter` "
-        "with `fill='tonexty'` for the confidence band."
+        "to a CSV (e.g. `data/ets_forecasts.csv`) with columns: "
+        "`country, year, mean, ci_lower, ci_upper`. "
+        "Then load and plot them here using `px.line` for the mean and `go.Scatter` "
+        "with `fill='tonexty'` for the confidence band.\n\n"
+        "The `forecasts` dict built in §4.3 contains `forecasts[country]['mean']`, "
+        "`forecasts[country]['lower']`, and `forecasts[country]['upper']`."
     )
 
     st.divider()
     st.subheader("Forecast Summary — All 10 Countries")
     st.info(
-        "📋 **TODO:** Load and display the forecast summary table from Week 4 §4.6.\n\n"
+        "📋 **TODO:** Load and display the forecast summary table from Week 4 §4.5.\n\n"
         "Columns: Country | 2030 Forecast | 2035 Forecast | 2040 Forecast | 2020 Actual | % Change 2020–2040"
     )
 
@@ -300,8 +303,8 @@ This dashboard presents findings from a 7-week data science project conducted as
 | Countries | China, United States, India, Russia, Japan, Germany, Brazil, United Kingdom, South Africa, Australia |
 | Feature Engineering | Lag features (1–3 yrs), 5-yr rolling mean, YoY % change, GHG intensity |
 | Train / Test Split | Temporal — train 1990–2018, test 2019–2023 |
-| Models | Naive Baseline · Linear Regression · Random Forest · ARIMA(1,1,1) |
-| Forecasting | ARIMA trained on 1990–2018, forecast to 2043 with 95% CI |
+| Models | Naive Baseline · Linear Regression · Random Forest · ETS(A,Ad,N) |
+| Forecasting | Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, forecast to 2043 with 95% CI |
 | Scenarios | BAU · Moderate (−2%/yr) · Aggressive (−5%/yr) from 2025 |
 
 ---
