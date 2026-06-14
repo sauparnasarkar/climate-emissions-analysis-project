@@ -28,8 +28,8 @@ This project builds an end-to-end analytical pipeline on open Greenhouse Gas (GH
 
 ### 1. Clone the repository
 ```bash
-git clone <your-repo-url>
-cd ghg-trend-analysis-forecasting
+git clone https://github.com/sauparnasarkar/intern-template-ghg-analysis.git
+cd intern-template-ghg-analysis
 ```
 
 ### 2. Create a virtual environment (recommended)
