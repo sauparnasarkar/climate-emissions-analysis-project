@@ -6,6 +6,7 @@ Week 6 Stretch Goal: Fill in the # TODO sections for each page.
 
 Prerequisites:
   - data/ghg_features.csv          (generated in Week 2)
+  - data/ets_forecasts.csv         (generated in Week 4, for Forecasts page)
   - data/scenario_projections.csv  (generated in Week 5, optional)
 
 Run with:
@@ -16,6 +17,7 @@ import os
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 COUNTRIES = [
@@ -54,6 +56,15 @@ def load_features():
 
 
 @st.cache_data
+def load_forecasts():
+    """Load ETS(A,Ad,N) forecast results produced in Week 4."""
+    path = "data/ets_forecasts.csv"
+    if not os.path.exists(path):
+        return None
+    return pd.read_csv(path)
+
+
+@st.cache_data
 def load_scenarios():
     """Load scenario projections produced in Week 5 (optional)."""
     path = "data/scenario_projections.csv"
@@ -77,6 +88,7 @@ st.sidebar.caption("Mentor: Sauparna Sarkar")
 
 # ── Load data ─────────────────────────────────────────────────────────────────
 df           = load_features()
+df_forecasts = load_forecasts()
 df_scenarios = load_scenarios()
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -221,26 +233,30 @@ elif page == "Forecasts":
         "with 95% confidence intervals extending to 2043."
     )
 
-    country = st.selectbox("Select a country", options=COUNTRIES)
+    if df_forecasts is None:
+        st.warning(
+            "⚠️ `data/ets_forecasts.csv` not found.\n\n"
+            "Complete **Week 4** of the notebook and save your forecast results, "
+            "then restart the app."
+        )
+    else:
+        country = st.selectbox("Select a country", options=COUNTRIES)
 
-    st.subheader(f"Forecast — {country}")
-    st.info(
-        "📊 **TODO:** Add ETS(A,Ad,N) forecast chart here.\n\n"
-        "**Hint:** In Week 4 of the notebook, save your per-country forecast results "
-        "to a CSV (e.g. `data/ets_forecasts.csv`) with columns: "
-        "`country, year, mean, ci_lower, ci_upper`. "
-        "Then load and plot them here using `px.line` for the mean and `go.Scatter` "
-        "with `fill='tonexty'` for the confidence band.\n\n"
-        "The `forecasts` dict built in §4.3 contains `forecasts[country]['mean']`, "
-        "`forecasts[country]['lower']`, and `forecasts[country]['upper']`."
-    )
+        st.subheader(f"Forecast — {country}")
+        st.info(
+            "📊 **TODO:** Add ETS(A,Ad,N) forecast chart here.\n\n"
+            "**Hint:** Filter `df_forecasts` to the selected country and plot using "
+            "`px.line` for `mean` and `go.Scatter` with `fill='tonexty'` for the CI band.\n\n"
+            "The `forecasts` dict built in §4.3 uses keys `'mean'`, `'ci_lower'`, `'ci_upper'`. "
+            "Save to `data/ets_forecasts.csv` with columns: `country, year, mean, ci_lower, ci_upper`."
+        )
 
-    st.divider()
-    st.subheader("Forecast Summary — All 10 Countries")
-    st.info(
-        "📋 **TODO:** Load and display the forecast summary table from Week 4 §4.5.\n\n"
-        "Columns: Country | 2030 Forecast | 2035 Forecast | 2040 Forecast | 2020 Actual | % Change 2020–2040"
-    )
+        st.divider()
+        st.subheader("Forecast Summary — All 10 Countries")
+        st.info(
+            "📋 **TODO:** Load and display the forecast summary table from Week 4 §4.5.\n\n"
+            "Columns: Country | 2030 Forecast | 2035 Forecast | 2040 Forecast | 2020 Actual | % Change 2020–2040"
+        )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SCENARIO COMPARISON
