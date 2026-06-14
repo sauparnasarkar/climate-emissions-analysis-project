@@ -3,11 +3,7 @@
 ## Project Context
 
 **IDEAS TIH Summer Internship 2026** — Mentor: Sauparna Sarkar  
-Internship coordinator: Bidisha Dobe (bidisha@ideas-tih.org)  
-7 interns, 7-week project starting mid-June 2026. Interns completed a 3-week online theory course before project work begins. Completion confirmed by mentor is required for intern certificates.
-
-**Interns:** Neeladrish Sahoo, Saicharan Yandrapu, Mallikarjun, Haindavi Paladugu, Maulik Pratap Singhal, Trina Khanra, Tumuluri Varshini.  
-Mix of CS/AI/ML and Mathematics & Computing backgrounds.
+7-week project. Interns completed a 3-week online theory course before project work begins. Completion confirmed by mentor is required for intern certificates.
 
 ---
 
@@ -35,7 +31,7 @@ Template scaffold for interns to fork and fill in week by week. Contains:
 
 ## Mentor Commitment
 
-2 hrs/week review session with interns. Sauparna confirms completion for certificates.
+2 hrs/week review session with interns. Mentor confirms completion for certificates.
 
 ---
 

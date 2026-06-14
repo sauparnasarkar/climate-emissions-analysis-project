@@ -6,7 +6,7 @@
 
 ## Project Overview
 
-This project builds an end-to-end analytical pipeline on open Greenhouse Gas (GHG) emissions data. Over 7 weeks, the team ingests the OWID CO₂ dataset, performs exploratory data analysis, engineers time-series features, trains regression and ARIMA forecasting models, and (optionally) assembles an interactive Streamlit dashboard. The focus is on classical ML and time-series methods applied to structured annual emissions data for 10 countries across 1990–2023.
+This project builds an end-to-end analytical pipeline on open Greenhouse Gas (GHG) emissions data. The team ingests the OWID CO₂ dataset, performs exploratory data analysis, engineers time-series features, trains regression and forecasting models, and (optionally) assembles an interactive Streamlit dashboard. The focus is on classical ML and time-series methods applied to structured annual emissions data for 10 countries across 1990–2023.
 
 ---
 
