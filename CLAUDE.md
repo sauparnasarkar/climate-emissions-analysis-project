@@ -37,8 +37,10 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 
 ## Reference Documents
 
+- **Project specification (v3, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements
 - Project brief v1: Google Doc ID `1fcVx1dBr3mNZkNVgX42iCfsmiYrVtdFw`
-- Project brief v2 (current): Google Doc ID `1cBMazlkGQ2WvYnp4KGB_skEobZbZClOimW6-ACW3tlQ`
+- Project brief v2: Google Doc ID `1cBMazlkGQ2WvYnp4KGB_skEobZbZClOimW6-ACW3tlQ`
+- Project brief v3 (source of SPEC.md): Google Doc ID `17wcMXnhYk_SKfPtiINOLD-Og-e5kUovoHQH25VA9_QE`
 
 ---
 
@@ -59,6 +61,7 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 ## When Helping With This Project
 
 - Reference design decisions above before suggesting model or methodology changes.
+- For detailed weekly requirements and deliverables, refer to [`SPEC.md`](SPEC.md).
 - Analysis code lives in `notebook/ghg_analysis.ipynb`; `app.py` is the Streamlit dashboard.
 - The `data/` CSVs are not committed — interns download OWID dataset per README instructions.
 - Weekly commits follow the convention in README.md.
