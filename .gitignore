@@ -33,3 +33,4 @@ data/*.csv
 # Generated artefacts — not part of the intern template
 *.pptx
 make_*.py
+.claude/settings.local.json
