@@ -20,6 +20,7 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 ## Key Design Decisions
 
 - **Forecasting model: ETS(A,Ad,N) — Holt's Damped Trend (statsmodels `ExponentialSmoothing`), NOT Prophet and NOT ARIMA.** Prophet is inappropriate for annual data. ARIMA was the original choice but was replaced: the damped trend in ETS(A,Ad,N) prevents unbounded long-range extrapolation and better captures emissions slowdowns in developed countries (UK, Germany). Implemented via `ExponentialSmoothing(train, trend='add', damped_trend=True, seasonal=None)`.
+- **Random Forest training: pooled (v4), NOT per-country.** ~26 rows per country (1990–2018) is too small for reliable RF — results in overfitting and unstable feature importances. A single RF is trained on all 10 countries pooled (~260 rows) with `country_encoded` (via `LabelEncoder`) as an additional feature. Evaluation is still per country. Linear Regression remains per-country (26 rows is adequate). This distinction must be documented in a mandatory limitations cell in §3.5.
 - **Train/test split:** 1990–2018 train, 2019–2023 test. This captures the COVID-19 emissions dip in 2020 in the test set.
 - **10 focus countries (pre-specified):** China, USA, India, Russia, Japan, Germany, Brazil, UK, South Africa, Australia.
 - **Scope:** Classical ML only (Linear Regression, Random Forest, ETS). No deep learning or LLMs — intentional to keep scope manageable for interns.
@@ -37,10 +38,11 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 
 ## Reference Documents
 
-- **Project specification (v3, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements
+- **Project specification (v4, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements
 - Project brief v1: Google Doc ID `1fcVx1dBr3mNZkNVgX42iCfsmiYrVtdFw`
 - Project brief v2: Google Doc ID `1cBMazlkGQ2WvYnp4KGB_skEobZbZClOimW6-ACW3tlQ`
-- Project brief v3 (source of SPEC.md): Google Doc ID `17wcMXnhYk_SKfPtiINOLD-Og-e5kUovoHQH25VA9_QE`
+- Project brief v3: Google Doc ID `17wcMXnhYk_SKfPtiINOLD-Og-e5kUovoHQH25VA9_QE`
+- Project brief v4 (source of SPEC.md): Google Doc ID `1qj3fZzH3QTDb_7w8NWdq9ofjnOG4NwUxWb5Na3TW1No`
 
 ---
 
