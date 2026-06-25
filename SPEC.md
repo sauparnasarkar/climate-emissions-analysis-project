@@ -146,8 +146,11 @@ Produce a clean modelling DataFrame for the 10 project countries. Required colum
 
 > **v4 change:** RF training strategy changed from per-country to pooled (all 10 countries, ~260 rows). Rationale: ~26 rows per country is insufficient for reliable RF; pooling provides adequate training data. `country_encoded` added as RF feature. Mandatory limitations cell added to this section.
 
-- **Pooled Training Approach:** With only ~26 rows per country (years 1990–2018), training Random Forest per country risks severe overfitting and produces unreliable feature importance scores. Instead, train a **single** Random Forest Regressor (`n_estimators=100`, `random_state=42`) on the pooled dataset of all 10 countries combined (~260 training rows). Add a `country_encoded` feature (using `LabelEncoder`) so the model can distinguish between countries of different emissions scales
-- Evaluate the pooled RF model per country: compute MAE and RMSE on each country's test set (2019 onward) using the `country_encoded` feature for that country, keeping results directly comparable to the per-country Linear Regression evaluation
+- **Pooled Training Approach:** With only ~26 rows per country (years 1990–2018), training Random Forest per country risks severe overfitting and produces unreliable feature importance scores. Instead, train a **single** Random Forest Regressor (`n_estimators=100`, `random_state=42`) on the pooled `train` DataFrame (all 10 countries, ~260 rows). Implementation notes:
+  - Fit a `LabelEncoder` on `train['country']` to create `country_encoded`; add this column to `train`, then apply the **same fitted encoder object** to `test['country']` to add `country_encoded` to `test`. Do **not** refit the encoder on test data — refitting on a single-country slice always returns 0 and silently corrupts evaluation.
+  - Do **not** extend the shared `FEATURES` constant — it is also used by the per-country Linear Regression, which has no `country_encoded` column. Instead define `RF_FEATURES = FEATURES + ['country_encoded']` and use it exclusively for the pooled RF.
+  - Train on `train[RF_FEATURES]` with `train[TARGET]` as the label.
+- Evaluate the pooled RF model per country: for each country filter `test` to that country's rows (`test_c`), pass `test_c[RF_FEATURES]` to the fitted model (using the pre-computed `country_encoded` values from the same encoder), then compute MAE and RMSE against `test_c[TARGET]`; results are directly comparable to the per-country Linear Regression evaluation
 - Plot feature importance from the pooled RF model as a horizontal bar chart (one chart for the single pooled model, not per country); write a markdown cell interpreting which features drive cross-country emissions predictions
 - **Mandatory limitations cell:** Include a notebook cell immediately before the RF training code that explains (1) why ~26 rows per country is insufficient for per-country RF (overfitting, unstable bootstrap samples, unreliable feature importance), (2) what pooling achieves and its trade-offs (learns cross-country patterns but cannot capture purely country-specific dynamics), and (3) the key teaching point that model complexity must match data availability — simple models trained on small data often outperform complex models that lack sufficient training examples
 
@@ -159,7 +162,7 @@ Produce a results table with columns:
 
 *Note: LR MAE/RMSE reflect per-country Linear Regression models; RF MAE/RMSE reflect the single pooled Random Forest model evaluated per country.*
 
-- Write a 3–5 sentence conclusion interpreting the results
+- Write a 3–5 sentence conclusion interpreting the results; **acknowledge the LR-vs-RF training asymmetry** — LR is per-country (~26 rows) while RF is pooled (~260 rows), so a country where RF wins may partly reflect RF having access to more training data, not superior model design; note this in the conclusion alongside the metric comparison
 
 **Week 3 Checkpoint:** Demonstrate train-test split logic and explain why temporal splitting was used · Walk through the model comparison table and interpret at least one country result · Show the feature importance chart
 
