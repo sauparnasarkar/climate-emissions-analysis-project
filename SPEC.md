@@ -166,7 +166,7 @@ Produce a results table with columns:
 
 `Country · Baseline MAE · LR MAE · RF-PC MAE · RF MAE · Baseline RMSE · LR RMSE · RF-PC RMSE · RF RMSE · Best Model`
 
-*Note: LR = per-country Linear Regression; RF-PC = Random Forest trained per country (~25 rows); RF = single pooled Random Forest (~250 rows). Best Model is selected by lowest MAE across LR, RF-PC, and RF.*
+*Note: LR = per-country Linear Regression; RF-PC = Random Forest trained per country (~25 rows); RF = single pooled Random Forest (~250 rows). Best Model is selected by lowest MAE across all four models (Baseline, LR, RF-PC, RF).*
 
 - Write a 3–5 sentence conclusion interpreting the results; compare all four models; note that RF-PC vs RF directly illustrates the impact of training data size on ensemble methods
 
