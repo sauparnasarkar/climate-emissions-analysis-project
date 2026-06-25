@@ -1,6 +1,6 @@
 # Climate Change Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · June 2026 · v4**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · June 2026 · v5**
 
 ---
 
@@ -122,7 +122,7 @@ Produce a clean modelling DataFrame for the 10 project countries. Required colum
 **3.1 Problem Framing**
 - Write a markdown cell clearly stating the prediction task: *Given features X for country C in year Y, predict CO₂ emissions for year Y+1*
 - Identify the target variable (`co2`) and input features from the Week 2 feature set
-- Note on training strategy: models in this week use two different training approaches — Linear Regression is trained per country (works reliably with ~26 rows), while Random Forest is trained on the pooled dataset of all 10 countries (~260 rows) to avoid overfitting from small per-country sample sizes; both are evaluated per country for direct comparison
+- Note on training strategy: three models are trained this week using two approaches — Linear Regression is trained per country (~25 rows each, adequate for a 6-feature linear model); two Random Forest variants are trained: one per country (~25 rows, §3.5, intentionally included to demonstrate overfitting on small data) and one pooled across all 10 countries (~250 rows, §3.6, the production approach); all models are evaluated per country on the 2019–2023 test set for direct comparison
 - Explain the choice of a supervised regression approach in a markdown cell
 
 **3.2 Train-Test Split**
@@ -142,27 +142,33 @@ Produce a clean modelling DataFrame for the 10 project countries. Required colum
 - Plot regression line alongside actual test values for 3 countries
 - Print model coefficients and write a markdown cell interpreting which features most influence predictions
 
-**3.5 Random Forest Regressor**
+**3.5 Random Forest Regressor — Per Country**
 
-> **v4 change:** RF training strategy changed from per-country to pooled (all 10 countries, ~260 rows). Rationale: ~26 rows per country is insufficient for reliable RF; pooling provides adequate training data. `country_encoded` added as RF feature. Mandatory limitations cell added to this section.
+Train a separate `RandomForestRegressor(n_estimators=100, random_state=42)` for each of the 10 countries using only that country's ~25 training rows and `FEATURES` (no `country_encoded`). Evaluate per country on the 2019–2023 test set. Store results in `rf_pc_results` and `rf_pc_preds` dictionaries. Display the results table.
 
-- **Pooled Training Approach:** With only ~26 rows per country (years 1990–2018), training Random Forest per country risks severe overfitting and produces unreliable feature importance scores. Instead, train a **single** Random Forest Regressor (`n_estimators=100`, `random_state=42`) on the pooled `train` DataFrame (all 10 countries, ~260 rows). Implementation notes:
-  - Fit a `LabelEncoder` on `train['country']` to create `country_encoded`; add this column to `train`, then apply the **same fitted encoder object** to `test['country']` to add `country_encoded` to `test`. Do **not** refit the encoder on test data — refitting on a single-country slice always returns 0 and silently corrupts evaluation.
+> **Pedagogical intent:** This section is intentionally included to demonstrate the consequences of training a 100-tree ensemble on insufficient data. Compare these results against §3.6 (pooled RF) in the §3.7 comparison table to make the case for pooling.
+
+**3.6 Random Forest Regressor — Pooled**
+
+> **v4 change:** RF production training strategy is pooled (all 10 countries, ~250 rows), not per-country. Rationale: ~25 rows per country is insufficient for reliable RF; pooling provides adequate training data. `country_encoded` added as RF feature. Mandatory limitations cell added before this section.
+
+- **Pooled Training Approach:** With only ~25 rows per country (years 1990–2018), training Random Forest per country risks severe overfitting and produces unreliable feature importance scores. Instead, train a **single** Random Forest Regressor (`n_estimators=100`, `random_state=42`) on the pooled `train` DataFrame (all 10 countries, ~250 rows). Implementation notes:
+  - Fit a `LabelEncoder` on the full `COUNTRIES` constant to create `country_encoded`; add this column to `train` and `test` using `.loc[:, 'country_encoded']` (CoW-safe). Do **not** refit the encoder on test data — refitting on a single-country slice always returns 0 and silently corrupts evaluation.
   - Do **not** extend the shared `FEATURES` constant — it is also used by the per-country Linear Regression, which has no `country_encoded` column. Instead define `RF_FEATURES = FEATURES + ['country_encoded']` and use it exclusively for the pooled RF.
   - Train on `train[RF_FEATURES]` with `train[TARGET]` as the label.
 - Evaluate the pooled RF model per country: for each country filter `test` to that country's rows (`test_c`), pass `test_c[RF_FEATURES]` to the fitted model (using the pre-computed `country_encoded` values from the same encoder), then compute MAE and RMSE against `test_c[TARGET]`; results are directly comparable to the per-country Linear Regression evaluation
 - Plot feature importance from the pooled RF model as a horizontal bar chart (one chart for the single pooled model, not per country); write a markdown cell interpreting which features drive cross-country emissions predictions
-- **Mandatory limitations cell:** Include a notebook cell immediately before the RF training code that explains (1) why ~26 rows per country is insufficient for per-country RF (overfitting, unstable bootstrap samples, unreliable feature importance), (2) what pooling achieves and its trade-offs (learns cross-country patterns but cannot capture purely country-specific dynamics), and (3) the key teaching point that model complexity must match data availability — simple models trained on small data often outperform complex models that lack sufficient training examples
+- **Mandatory limitations cell:** Include a notebook cell immediately before the RF training code that explains (1) why ~25 rows per country is insufficient for per-country RF (overfitting, unstable bootstrap samples, unreliable feature importance), (2) what pooling achieves and its trade-offs (learns cross-country patterns but cannot capture purely country-specific dynamics), and (3) the key teaching point that model complexity must match data availability — simple models trained on small data often outperform complex models that lack sufficient training examples
 
-**3.6 Model Comparison Table**
+**3.7 Model Comparison Table**
 
 Produce a results table with columns:
 
-`Country · Baseline MAE · LR MAE · RF MAE · Baseline RMSE · LR RMSE · RF RMSE · Best Model`
+`Country · Baseline MAE · LR MAE · RF-PC MAE · RF MAE · Baseline RMSE · LR RMSE · RF-PC RMSE · RF RMSE · Best Model`
 
-*Note: LR MAE/RMSE reflect per-country Linear Regression models; RF MAE/RMSE reflect the single pooled Random Forest model evaluated per country.*
+*Note: LR = per-country Linear Regression; RF-PC = Random Forest trained per country (~25 rows); RF = single pooled Random Forest (~250 rows). Best Model is selected by lowest MAE across all four models (Baseline, LR, RF-PC, RF).*
 
-- Write a 3–5 sentence conclusion interpreting the results; **acknowledge the LR-vs-RF training asymmetry** — LR is per-country (~26 rows) while RF is pooled (~260 rows), so a country where RF wins may partly reflect RF having access to more training data, not superior model design; note this in the conclusion alongside the metric comparison
+- Write a 3–5 sentence conclusion interpreting the results; compare all four models; note that RF-PC vs RF directly illustrates the impact of training data size on ensemble methods
 
 **Week 3 Checkpoint:** Demonstrate train-test split logic and explain why temporal splitting was used · Walk through the model comparison table and interpret at least one country result · Show the feature importance chart
 
@@ -225,13 +231,13 @@ Produce a summary table with columns:
 
 **4.6 Model Validation**
 - Compute MAE and RMSE of ETS forecasts against the 2019–2023 holdout values for each country
-- Add ETS MAE and ETS RMSE to the model comparison table from Week 3, creating a consolidated four-model table:
+- Add ETS MAE and ETS RMSE to the model comparison table from Week 3, creating a consolidated five-model table:
 
-**Naive Baseline · Linear Regression · Random Forest · ETS(A,Ad,N)**
+**Naive Baseline · Linear Regression · RF Per-Country · RF Pooled · ETS(A,Ad,N)**
 
-- Write a 3–5 sentence conclusion comparing model performance across the four approaches
+- Write a 3–5 sentence conclusion comparing model performance across the five approaches
 
-**Week 4 Checkpoint:** Show fitted α, β\*, φ parameters for 3 countries and interpret the damping values · Show forecast plots for at least 3 countries with holdout overlay · Walk through the forecast summary table · Present the consolidated four-model comparison table
+**Week 4 Checkpoint:** Show fitted α, β\*, φ parameters for 3 countries and interpret the damping values · Show forecast plots for at least 3 countries with holdout overlay · Walk through the forecast summary table · Present the consolidated five-model comparison table
 
 ---
 
@@ -322,7 +328,7 @@ Sections to include:
 - Project objective and dataset overview
 - EDA key findings (Week 1)
 - Feature engineering decisions (Week 2)
-- Model comparison results — Naive Baseline · Linear Regression · Random Forest · ETS(A,Ad,N) (Weeks 3–4)
+- Model comparison results — Naive Baseline · Linear Regression · RF Per-Country · RF Pooled · ETS(A,Ad,N) (Weeks 3–4)
 - ETS forecast plots and summary table (Week 4)
 - Scenario analysis findings (Week 5, if completed)
 - Key takeaways and limitations
@@ -369,4 +375,5 @@ Sections to include:
 | v1 | Jun 2026 | Initial scope document |
 | v2 | Jun 2026 | Train/test split rationale added; Week 5 marked optional; Streamlit marked stretch goal |
 | v3 | Jun 2026 | Week 4 forecasting model changed from ARIMA(1,1,1) to ETS(A,Ad,N) Holt Damped Trend. Rationale: damped trend prevents unbounded long-range extrapolation and better captures emissions slowdowns. Pre-read updated to FPP3 Ch 7–8 (ETS) in place of ARIMA tutorial. |
-| v4 | Jun 2026 | Week 3 Random Forest training strategy changed from per-country to pooled (all 10 countries, ~260 rows). Rationale: ~26 rows per country is insufficient for reliable RF; pooling provides adequate training data. `country_encoded` added as RF feature. Mandatory limitations markdown cell added to §3.5. Model comparison table updated to note LR is per-country and RF is pooled. |
+| v4 | Jun 2026 | Week 3 Random Forest training strategy changed from per-country to pooled (all 10 countries, ~250 rows). Rationale: ~25 rows per country is insufficient for reliable RF; pooling provides adequate training data. `country_encoded` added as RF feature. Mandatory limitations markdown cell added to §3.6. Model comparison table updated to note LR is per-country and RF is pooled. |
+| v5 | Jun 2026 | Added §3.5 RF Per-Country as an intentional pedagogical comparison step. Renumbered previous §3.5 (RF Pooled) → §3.6, §3.6 (Comparison) → §3.7. Comparison table expanded to 4 models (Baseline, LR, RF-PC, RF Pooled); §4.6 extended to 5-model table when ETS is added. |
