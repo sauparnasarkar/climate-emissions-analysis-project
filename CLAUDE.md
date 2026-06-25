@@ -20,7 +20,7 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 ## Key Design Decisions
 
 - **Forecasting model: ETS(A,Ad,N) — Holt's Damped Trend (statsmodels `ExponentialSmoothing`), NOT Prophet and NOT ARIMA.** Prophet is inappropriate for annual data. ARIMA was the original choice but was replaced: the damped trend in ETS(A,Ad,N) prevents unbounded long-range extrapolation and better captures emissions slowdowns in developed countries (UK, Germany). Implemented via `ExponentialSmoothing(train, trend='add', damped_trend=True, seasonal=None)`.
-- **Random Forest training: pooled (v4), NOT per-country.** ~26 rows per country (1990–2018) is too small for reliable RF — results in overfitting and unstable feature importances. A single RF is trained on all 10 countries pooled (~260 rows) with `country_encoded` (via `LabelEncoder`) as an additional feature. The encoder must be **fitted on `train['country']` only** and the same fitted object reused to transform test rows — never refit on test data. `country_encoded` is **RF-only**: do NOT add it to the shared `FEATURES` constant (used by LR); use `RF_FEATURES = FEATURES + ['country_encoded']` instead. Evaluation is still per country. Linear Regression remains per-country (26 rows is adequate). This distinction must be documented in a mandatory limitations cell in §3.5.
+- **Random Forest: two variants in Week 3 (v5).** §3.5 trains RF per country (~25 rows each, bare `FEATURES`) — intentionally included to demonstrate overfitting on small data; do NOT add `country_encoded` here. §3.6 trains a single pooled RF on all 10 countries combined (~250 rows) with `country_encoded` (via `LabelEncoder`) as an additional feature — this is the production approach. The encoder must be **fitted on the full `COUNTRIES` constant** and the same fitted object reused to transform test rows — never refit on test data. `country_encoded` is **§3.6 RF-only**: do NOT add it to the shared `FEATURES` constant (used by LR and §3.5 RF-PC); use `RF_FEATURES = FEATURES + ['country_encoded']` exclusively for §3.6. Both RF variants are evaluated per country; all four models (Baseline, LR, RF-PC, RF Pooled) appear in the §3.7 comparison table. The mandatory limitations cell explaining why pooling is necessary sits immediately before the §3.6 code cell.
 - **Train/test split:** 1990–2018 train, 2019–2023 test. This captures the COVID-19 emissions dip in 2020 in the test set.
 - **10 focus countries (pre-specified):** China, USA, India, Russia, Japan, Germany, Brazil, UK, South Africa, Australia.
 - **Scope:** Classical ML only (Linear Regression, Random Forest, ETS). No deep learning or LLMs — intentional to keep scope manageable for interns.
@@ -38,7 +38,7 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 
 ## Reference Documents
 
-- **Project specification (v4, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements
+- **Project specification (v5, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements
 - Project brief v1: Google Doc ID `1fcVx1dBr3mNZkNVgX42iCfsmiYrVtdFw`
 - Project brief v2: Google Doc ID `1cBMazlkGQ2WvYnp4KGB_skEobZbZClOimW6-ACW3tlQ`
 - Project brief v3: Google Doc ID `17wcMXnhYk_SKfPtiINOLD-Og-e5kUovoHQH25VA9_QE`
@@ -52,7 +52,7 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 |------|-------|-----------|
 | 1 | Data loading, profiling, EDA | Yes |
 | 2 | Feature engineering → `ghg_features.csv` | Yes |
-| 3 | Regression models (LR, RF) + comparison table | Yes |
+| 3 | Regression models (LR, RF per-country, RF pooled) + 4-model comparison table | Yes |
 | 4 | ETS(A,Ad,N) Holt Damped forecasting | Yes |
 | 5 | Scenario analysis | Optional |
 | 6 | Notebook finalised + Streamlit app | Stretch |
