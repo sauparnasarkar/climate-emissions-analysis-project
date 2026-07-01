@@ -221,7 +221,7 @@ elif page == "Country Profile":
         st.warning("Complete Week 2 to enable this page.")
     else:
         country    = st.selectbox("Select a country", options=COUNTRIES)
-        df_country = df[df["country"] == country].sort_values("year")
+        df_country = df[df["country"] == country].sort_values("year").copy()
 
         col1, col2 = st.columns(2)
 
