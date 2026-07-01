@@ -1,6 +1,6 @@
 # Climate Change Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · June 2026 · v5**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · June 2026 · v6**
 
 ---
 
@@ -170,7 +170,19 @@ Produce a results table with columns:
 
 - Write a 3–5 sentence conclusion interpreting the results; compare all four models; note that RF-PC vs RF directly illustrates the impact of training data size on ensemble methods
 
-**Week 3 Checkpoint:** Demonstrate train-test split logic and explain why temporal splitting was used · Walk through the model comparison table and interpret at least one country result · Show the feature importance chart
+**3.8 Regression Model Forecasts to 2043**
+
+Extend the trained **RF Pooled** model beyond the 2019–2023 test set using **recursive (iterative) forecasting**: predict one year at a time, feed each prediction back as the next step's lag feature, and repeat to 2043.
+
+Implementation notes:
+- Use the same `build_forecast_features(history, yr)` helper that assembles one `FEATURES` row from a running `history` dict `{year: co2}`
+- At each step append the prediction to `history` before computing the next row
+- Use `RF_FEATURES = FEATURES + ['country_encoded']` with the pre-fitted `LabelEncoder`
+- Plot results in a 5×2 subplot grid (matching §4.3 layout): train actuals (blue), holdout actuals (orange), RF forecast (purple)
+
+> **Why RF, not LR?** LR can predict negative CO₂ values for countries with declining trends (UK, Germany, Japan). Negative lag values feed back into subsequent predictions and cause rapid divergence. RF cannot extrapolate below its training range, so its recursive predictions stay bounded — making it far more stable at long horizons despite LR's superior 5-year holdout performance.
+
+**Week 3 Checkpoint:** Demonstrate train-test split logic and explain why temporal splitting was used · Walk through the model comparison table and interpret at least one country result · Show the feature importance chart · Show the §3.8 recursive RF forecast plot and explain why LR is unsuitable for long-horizon recursive prediction
 
 ---
 
@@ -377,3 +389,4 @@ Sections to include:
 | v3 | Jun 2026 | Week 4 forecasting model changed from ARIMA(1,1,1) to ETS(A,Ad,N) Holt Damped Trend. Rationale: damped trend prevents unbounded long-range extrapolation and better captures emissions slowdowns. Pre-read updated to FPP3 Ch 7–8 (ETS) in place of ARIMA tutorial. |
 | v4 | Jun 2026 | Week 3 Random Forest training strategy changed from per-country to pooled (all 10 countries, ~250 rows). Rationale: ~25 rows per country is insufficient for reliable RF; pooling provides adequate training data. `country_encoded` added as RF feature. Mandatory limitations markdown cell added to §3.6. Model comparison table updated to note LR is per-country and RF is pooled. |
 | v5 | Jun 2026 | Added §3.5 RF Per-Country as an intentional pedagogical comparison step. Renumbered previous §3.5 (RF Pooled) → §3.6, §3.6 (Comparison) → §3.7. Comparison table expanded to 4 models (Baseline, LR, RF-PC, RF Pooled); §4.6 extended to 5-model table when ETS is added. |
+| v6 | Jul 2026 | Added §3.8 RF Pooled Recursive Forecasts to 2043. LR excluded from recursive forecasting due to numerical instability (negative lag feedback causes divergence on declining-trend countries). RF is naturally bounded by training range and stable at long horizons. |
