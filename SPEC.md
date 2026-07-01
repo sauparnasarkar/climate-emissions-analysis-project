@@ -1,6 +1,6 @@
 # Climate Change Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · June 2026 · v6**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v7**
 
 ---
 
@@ -152,10 +152,10 @@ Train a separate `RandomForestRegressor(n_estimators=100, random_state=42)` for 
 
 > **v4 change:** RF production training strategy is pooled (all 10 countries, ~250 rows), not per-country. Rationale: ~25 rows per country is insufficient for reliable RF; pooling provides adequate training data. `country_encoded` added as RF feature. Mandatory limitations cell added before this section.
 
-- **Pooled Training Approach:** With only ~25 rows per country (years 1990–2018), training Random Forest per country risks severe overfitting and produces unreliable feature importance scores. Instead, train a **single** Random Forest Regressor (`n_estimators=100`, `random_state=42`) on the pooled `train` DataFrame (all 10 countries, ~250 rows). Implementation notes:
+- **Pooled Training Approach:** With only ~25 rows per country (years 1990–2018 after dropna), training Random Forest per country risks severe overfitting and produces unreliable feature importance scores. Instead, train a **single** Random Forest Regressor (`n_estimators=100`, `random_state=42`) on a pooled dataset covering all 10 countries. Implementation notes:
   - Fit a `LabelEncoder` on the full `COUNTRIES` constant to create `country_encoded`; add this column to `train` and `test` using `.loc[:, 'country_encoded']` (CoW-safe). Do **not** refit the encoder on test data — refitting on a single-country slice always returns 0 and silently corrupts evaluation.
   - Do **not** extend the shared `FEATURES` constant — it is also used by the per-country Linear Regression, which has no `country_encoded` column. Instead define `RF_FEATURES = FEATURES + ['country_encoded']` and use it exclusively for the pooled RF.
-  - Train on `train[RF_FEATURES]` with `train[TARGET]` as the label.
+  - **Extended training data (v7):** Load raw `owid-co2-data.csv` back to `year >= 1975` inline in §3.6 and compute features on the fly to build `_train_ext` (years 1979–2018, ~40 rows/country, ~400 rows total). Train on `_train_ext[RF_FEATURES]`. LR and ETS are unaffected — they continue to use `train` (from `ghg_features.csv`, year ≥ 1990) and `df_filtered` respectively. *Rationale: full-notebook experiment (`experiment/1980-start` branch) showed RF Pooled MAE improves for all 10 countries with extended data; LR and ETS worsen for most due to pre-1990 structural breaks (German reunification, Soviet collapse).*
 - Evaluate the pooled RF model per country: for each country filter `test` to that country's rows (`test_c`), pass `test_c[RF_FEATURES]` to the fitted model (using the pre-computed `country_encoded` values from the same encoder), then compute MAE and RMSE against `test_c[TARGET]`; results are directly comparable to the per-country Linear Regression evaluation
 - Plot feature importance from the pooled RF model as a horizontal bar chart (one chart for the single pooled model, not per country); write a markdown cell interpreting which features drive cross-country emissions predictions
 - **Mandatory limitations cell:** Include a notebook cell immediately before the RF training code that explains (1) why ~25 rows per country is insufficient for per-country RF (overfitting, unstable bootstrap samples, unreliable feature importance), (2) what pooling achieves and its trade-offs (learns cross-country patterns but cannot capture purely country-specific dynamics), and (3) the key teaching point that model complexity must match data availability — simple models trained on small data often outperform complex models that lack sufficient training examples
@@ -390,3 +390,4 @@ Sections to include:
 | v4 | Jun 2026 | Week 3 Random Forest training strategy changed from per-country to pooled (all 10 countries, ~250 rows). Rationale: ~25 rows per country is insufficient for reliable RF; pooling provides adequate training data. `country_encoded` added as RF feature. Mandatory limitations markdown cell added to §3.6. Model comparison table updated to note LR is per-country and RF is pooled. |
 | v5 | Jun 2026 | Added §3.5 RF Per-Country as an intentional pedagogical comparison step. Renumbered previous §3.5 (RF Pooled) → §3.6, §3.6 (Comparison) → §3.7. Comparison table expanded to 4 models (Baseline, LR, RF-PC, RF Pooled); §4.6 extended to 5-model table when ETS is added. |
 | v6 | Jul 2026 | Added §3.8 RF Pooled Recursive Forecasts to 2043. LR excluded from recursive forecasting due to numerical instability (negative lag feedback causes divergence on declining-trend countries). RF is naturally bounded by training range and stable at long horizons. |
+| v7 | Jul 2026 | RF Pooled (§3.6) now trains on extended 1975+ dataset (~400 rows, 1979–2018) built inline from raw OWID data, up from ~250 rows (1994–2018). LR and ETS training windows unchanged. Validated via `experiment/1980-start` branch. |
