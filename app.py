@@ -73,6 +73,26 @@ def load_scenarios():
     return pd.read_csv(path)
 
 
+@st.cache_data
+def load_raw():
+    """OWID raw data for methane/N₂O columns, filtered to 10 countries 1990+."""
+    path = "data/owid-co2-data.csv"
+    if not os.path.exists(path):
+        return None
+    cols = ["country", "year", "co2", "methane", "nitrous_oxide"]
+    df_r = pd.read_csv(path, usecols=cols)
+    return df_r[(df_r["country"].isin(COUNTRIES)) & (df_r["year"] >= 1990)].copy()
+
+
+@st.cache_data
+def load_model_comparison():
+    """Load five-model MAE/RMSE comparison table produced in Week 4 §4.6."""
+    path = "data/model_comparison.csv"
+    if not os.path.exists(path):
+        return None
+    return pd.read_csv(path)
+
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 st.sidebar.title("🌍 GHG Trend Analysis")
 st.sidebar.markdown("**IDEAS TIH Summer Internship 2026**")
@@ -90,6 +110,8 @@ st.sidebar.caption("Mentor: Sauparna Sarkar")
 df           = load_features()
 df_forecasts = load_forecasts()
 df_scenarios = load_scenarios()
+df_raw       = load_raw()
+df_model_cmp = load_model_comparison()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OVERVIEW
@@ -108,22 +130,15 @@ if page == "Overview":
 
         latest_year = int(df["year"].max())
 
+        latest_co2 = df[(df["year"] == latest_year) & (df["country"].isin(COUNTRIES))]["co2"].sum()
+        co2_1990   = df[(df["year"] == 1990)        & (df["country"].isin(COUNTRIES))]["co2"].sum()
+        pct_change = (latest_co2 - co2_1990) / co2_1990 * 100
+
         with col1:
-            # TODO: Compute sum of co2 across COUNTRIES for the latest_year
-            # latest_co2 = df[(df["year"] == latest_year) & (df["country"].isin(COUNTRIES))]["co2"].sum()
-            # st.metric(f"Global CO₂ ({latest_year}, 10 countries)", f"{latest_co2:,.0f} MtCO₂")
-            st.metric(
-                label=f"Global CO₂ ({latest_year}, 10 countries)",
-                value="— MtCO₂",
-                help="Sum of CO₂ across the 10 focus countries for the latest year. Fill in the TODO above."
-            )
+            st.metric(f"10-Country CO₂ ({latest_year})", f"{latest_co2:,.0f} MtCO₂")
 
         with col2:
-            # TODO: Compute % change from 1990 to latest_year for the same 10 countries
-            # co2_1990   = df[(df["year"] == 1990) & (df["country"].isin(COUNTRIES))]["co2"].sum()
-            # pct_change = (latest_co2 - co2_1990) / co2_1990 * 100
-            # st.metric("% Change since 1990", f"{pct_change:+.1f}%")
-            st.metric(label="% Change since 1990", value="—%")
+            st.metric("% Change since 1990", f"{pct_change:+.1f}%")
 
         with col3:
             st.metric(label="Countries Analysed", value=len(COUNTRIES))
@@ -131,6 +146,13 @@ if page == "Overview":
         st.divider()
         st.subheader("Focus Countries")
         st.markdown("  |  ".join(COUNTRIES))
+
+        df_bar = (df[df["year"] == latest_year][["country", "co2"]]
+                  .sort_values("co2", ascending=False))
+        fig = px.bar(df_bar, x="country", y="co2",
+                     labels={"co2": "CO₂ (MtCO₂)", "country": "Country"},
+                     title=f"CO₂ Emissions by Country ({latest_year})")
+        st.plotly_chart(fig, use_container_width=True)
 
     else:
         st.warning(
@@ -158,33 +180,37 @@ elif page == "Historical Trends":
 
         st.subheader(f"{gas_label} Emissions Over Time")
         if selected_countries:
-            # TODO: Filter df to selected_countries and plot a Plotly line chart
-            # df_plot = df[df["country"].isin(selected_countries)]
-            # fig = px.line(
-            #     df_plot, x="year", y=gas_col, color="country",
-            #     title=f"{gas_label} Emissions by Country",
-            #     labels={"year": "Year", gas_col: f"{gas_label} (MtCO₂e)"},
-            # )
-            # fig.update_layout(legend_title="Country")
-            # st.plotly_chart(fig, use_container_width=True)
-            st.info("📊 **TODO:** Add Plotly line chart here (see commented code above).")
+            if df_raw is not None:
+                df_plot = (df_raw[df_raw["country"].isin(selected_countries)]
+                           .dropna(subset=[gas_col]))
+                fig = px.line(df_plot, x="year", y=gas_col, color="country",
+                              title=f"{gas_label} Emissions by Country",
+                              labels={"year": "Year", gas_col: f"{gas_label} (MtCO₂e)"})
+                fig.update_layout(legend_title="Country")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("⚠️ `data/owid-co2-data.csv` not found.")
         else:
             st.warning("Select at least one country.")
 
         st.divider()
         st.subheader("GHG Share by Gas Type per Decade")
-        # TODO: Add decade column, group by decade, compute % share of each gas, stacked bar
-        # decade_group = df.copy()
-        # decade_group["decade"] = (decade_group["year"] // 10) * 10
-        # gas_cols = list(GAS_COLUMNS.values())
-        # agg = decade_group.groupby("decade")[gas_cols].sum()
-        # agg_pct = agg.div(agg.sum(axis=1), axis=0) * 100
-        # agg_pct_long = agg_pct.reset_index().melt(id_vars="decade", var_name="gas", value_name="share_%")
-        # fig2 = px.bar(agg_pct_long, x="decade", y="share_%", color="gas", barmode="stack",
-        #               title="GHG Composition by Decade (% share)",
-        #               labels={"decade": "Decade", "share_%": "Share (%)", "gas": "Gas"})
-        # st.plotly_chart(fig2, use_container_width=True)
-        st.info("📊 **TODO:** Add stacked bar chart here (see commented code above).")
+        if df_raw is not None:
+            gas_cols_list = list(GAS_COLUMNS.values())
+            dg = df_raw.copy()
+            dg["decade"] = (dg["year"] // 10) * 10
+            agg = dg.groupby("decade")[gas_cols_list].sum()
+            agg_pct = agg.div(agg.sum(axis=1), axis=0) * 100
+            gas_labels_inv = {v: k for k, v in GAS_COLUMNS.items()}
+            agg_long = (agg_pct.reset_index()
+                        .melt(id_vars="decade", var_name="gas", value_name="share"))
+            agg_long["gas"] = agg_long["gas"].map(gas_labels_inv)
+            fig2 = px.bar(agg_long, x="decade", y="share", color="gas", barmode="stack",
+                          title="GHG Composition by Decade — 10 Countries (% share)",
+                          labels={"decade": "Decade", "share": "Share (%)", "gas": "Gas"})
+            st.plotly_chart(fig2, use_container_width=True)
+        else:
+            st.warning("⚠️ `data/owid-co2-data.csv` not found.")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # COUNTRY PROFILE
@@ -202,26 +228,33 @@ elif page == "Country Profile":
 
         with col1:
             st.subheader(f"CO₂ Emissions")
-            # TODO: px.line(df_country, x="year", y="co2", title=f"CO₂ Emissions — {country}",
-            #               labels={"year": "Year", "co2": "CO₂ (MtCO₂)"})
-            st.info("📊 **TODO:** CO₂ emissions trend chart.")
+            fig = px.line(df_country, x="year", y="co2",
+                          title=f"CO₂ Emissions — {country}",
+                          labels={"year": "Year", "co2": "CO₂ (MtCO₂)"})
+            st.plotly_chart(fig, use_container_width=True)
 
         with col2:
             st.subheader("CO₂ per Capita")
-            # TODO: px.line(df_country, x="year", y="co2_per_capita", ...)
-            st.info("📊 **TODO:** CO₂ per capita trend chart.")
+            fig = px.line(df_country, x="year", y="co2_per_capita",
+                          title=f"CO₂ per Capita — {country}",
+                          labels={"year": "Year", "co2_per_capita": "tCO₂/person"})
+            st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Year-on-Year Change (%)")
-        # TODO: px.bar(df_country, x="year", y="co2_yoy_pct_change", ...)
-        # Color bars: red if negative, blue if positive
-        # df_country["color"] = df_country["co2_yoy_pct_change"].apply(lambda v: "decrease" if v < 0 else "increase")
-        st.info("📊 **TODO:** Year-on-year % change bar chart.")
+        df_yoy = df_country.dropna(subset=["co2_yoy_pct_change"]).copy()
+        df_yoy["direction"] = df_yoy["co2_yoy_pct_change"].apply(
+            lambda v: "Decrease" if v < 0 else "Increase")
+        fig = px.bar(df_yoy, x="year", y="co2_yoy_pct_change", color="direction",
+                     color_discrete_map={"Increase": "steelblue", "Decrease": "crimson"},
+                     title=f"Year-on-Year CO₂ Change — {country}",
+                     labels={"year": "Year", "co2_yoy_pct_change": "YoY % Change"})
+        fig.update_layout(showlegend=True)
+        st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Key Statistics")
         display_cols = ["year", "co2", "co2_per_capita", "co2_yoy_pct_change", "ghg_intensity"]
         available    = [c for c in display_cols if c in df_country.columns]
-        # TODO: st.dataframe(df_country[available].set_index("year").round(2))
-        st.info("📋 **TODO:** Add summary data table.")
+        st.dataframe(df_country[available].set_index("year").round(2), use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FORECASTS
@@ -243,20 +276,57 @@ elif page == "Forecasts":
         country = st.selectbox("Select a country", options=COUNTRIES)
 
         st.subheader(f"Forecast — {country}")
-        st.info(
-            "📊 **TODO:** Add ETS(A,Ad,N) forecast chart here.\n\n"
-            "**Hint:** Filter `df_forecasts` to the selected country and plot using "
-            "`px.line` for `mean` and `go.Scatter` with `fill='tonexty'` for the CI band.\n\n"
-            "The `forecasts` dict built in §4.3 uses keys `'mean'`, `'ci_lower'`, `'ci_upper'`. "
-            "Save to `data/ets_forecasts.csv` with columns: `country, year, mean, ci_lower, ci_upper`."
-        )
+        fc_c   = df_forecasts[df_forecasts["country"] == country].sort_values("year")
+        hist_c = df[(df["country"] == country) & (df["year"] <= 2018)].sort_values("year")
+        hold_c = df[(df["country"] == country) & (df["year"] >  2018)].sort_values("year")
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=hist_c["year"], y=hist_c["co2"],
+            name="Historical (1990–2018)", line=dict(color="steelblue", width=2)))
+        fig.add_trace(go.Scatter(
+            x=hold_c["year"], y=hold_c["co2"],
+            name="Holdout actuals (2019–2023)", line=dict(color="darkorange", width=2)))
+        fig.add_trace(go.Scatter(
+            x=fc_c["year"], y=fc_c["mean"],
+            name="ETS Forecast", line=dict(color="green", width=2)))
+        fig.add_trace(go.Scatter(
+            x=pd.concat([fc_c["year"], fc_c["year"].iloc[::-1]]),
+            y=pd.concat([fc_c["ci_upper"], fc_c["ci_lower"].iloc[::-1]]),
+            fill="toself", fillcolor="rgba(0,128,0,0.15)",
+            line=dict(color="rgba(255,255,255,0)"), name="95% CI"))
+        fig.update_layout(
+            title=f"ETS(A,Ad,N) Forecast — {country}",
+            xaxis_title="Year", yaxis_title="CO₂ (MtCO₂)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        st.plotly_chart(fig, use_container_width=True)
 
         st.divider()
         st.subheader("Forecast Summary — All 10 Countries")
-        st.info(
-            "📋 **TODO:** Load and display the forecast summary table from Week 4 §4.5.\n\n"
-            "Columns: Country | 2030 Forecast | 2035 Forecast | 2040 Forecast | 2020 Actual | % Change 2020–2040"
-        )
+        rows = []
+        for c in COUNTRIES:
+            fc = df_forecasts[df_forecasts["country"] == c].set_index("year")["mean"]
+            actual_2020 = df[(df["country"] == c) & (df["year"] == 2020)]["co2"].values
+            if len(actual_2020) == 0:
+                continue
+            a2020 = actual_2020[0]
+            f2040 = fc.get(2040, float("nan"))
+            rows.append({
+                "Country":               c,
+                "2030 Forecast (MtCO₂)": round(fc.get(2030, float("nan")), 1),
+                "2035 Forecast":         round(fc.get(2035, float("nan")), 1),
+                "2040 Forecast":         round(f2040, 1),
+                "2020 Actual":           round(a2020, 1),
+                "% Change 2020→2040":    round((f2040 - a2020) / a2020 * 100, 1),
+            })
+        df_fc_summary = (pd.DataFrame(rows)
+                         .set_index("Country")
+                         .sort_values("2040 Forecast", ascending=False))
+        st.dataframe(df_fc_summary, use_container_width=True)
+
+        if df_model_cmp is not None:
+            with st.expander("Five-Model Comparison Table (MAE / RMSE)"):
+                st.dataframe(df_model_cmp.set_index("country"), use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SCENARIO COMPARISON
@@ -268,35 +338,13 @@ elif page == "Scenario Comparison":
         "and **Aggressive Mitigation (−5%/yr)** starting from 2025."
     )
 
-    if df_scenarios is None:
-        st.warning(
-            "⚠️ `data/scenario_projections.csv` not found.\n\n"
-            "Complete **Week 5** of the notebook (optional) to generate this file."
-        )
-    else:
-        country_option  = st.selectbox("Country", options=["All 10 countries"] + COUNTRIES)
-        scenario_filter = st.radio(
-            "Show scenarios", options=["All", "BAU", "Moderate", "Aggressive"], horizontal=True
-        )
-
-        # TODO: Filter df_scenarios, overlay line chart with SCENARIO_COLORS
-        # Also overlay historical actuals from df as a grey line
-        # Example:
-        # df_plot = df_scenarios.copy()
-        # if country_option != "All 10 countries":
-        #     df_plot = df_plot[df_plot["country"] == country_option]
-        # if scenario_filter != "All":
-        #     df_plot = df_plot[df_plot["scenario"] == scenario_filter]
-        # fig = px.line(df_plot, x="year", y="co2_projected", color="scenario",
-        #               color_discrete_map=SCENARIO_COLORS, ...)
-        # st.plotly_chart(fig, use_container_width=True)
-        st.info("📊 **TODO:** Add scenario overlay chart (see SCENARIO_COLORS and commented code above).")
-
-        st.divider()
-        st.subheader("Cumulative CO₂ Emissions 2025–2040")
-        # TODO: Compute df_scenarios.groupby(["country","scenario"])["co2_projected"].sum()
-        # Then px.bar(..., barmode="group")
-        st.info("📊 **TODO:** Add cumulative emissions grouped bar chart.")
+    st.info(
+        "**Scenario Analysis — Coming Soon**\n\n"
+        "This page will show Business-as-Usual, Moderate Mitigation (−2%/yr), "
+        "and Aggressive Mitigation (−5%/yr) projections from 2025 to 2040.\n\n"
+        "Week 5 scenario analysis has not been completed yet. "
+        "Rerun `streamlit run app.py` after completing Week 5 in the notebook."
+    )
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ABOUT
