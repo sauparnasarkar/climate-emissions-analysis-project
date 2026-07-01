@@ -197,14 +197,13 @@ elif page == "Historical Trends":
         st.subheader("GHG Share by Gas Type per Decade")
         if df_raw is not None:
             gas_cols_list = list(GAS_COLUMNS.values())
-            dg = df_raw.copy()
-            dg["decade"] = (dg["year"] // 10) * 10
+            dg = df_raw.assign(decade=(df_raw["year"] // 10) * 10)
             agg = dg.groupby("decade")[gas_cols_list].sum()
             agg_pct = agg.div(agg.sum(axis=1), axis=0) * 100
             gas_labels_inv = {v: k for k, v in GAS_COLUMNS.items()}
             agg_long = (agg_pct.reset_index()
                         .melt(id_vars="decade", var_name="gas", value_name="share"))
-            agg_long["gas"] = agg_long["gas"].map(gas_labels_inv)
+            agg_long = agg_long.assign(gas=agg_long["gas"].map(gas_labels_inv))
             fig2 = px.bar(agg_long, x="decade", y="share", color="gas", barmode="stack",
                           title="GHG Composition by Decade — 10 Countries (% share)",
                           labels={"decade": "Decade", "share": "Share (%)", "gas": "Gas"})
@@ -241,9 +240,9 @@ elif page == "Country Profile":
             st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Year-on-Year Change (%)")
-        df_yoy = df_country.dropna(subset=["co2_yoy_pct_change"]).copy()
-        df_yoy["direction"] = df_yoy["co2_yoy_pct_change"].apply(
-            lambda v: "Decrease" if v < 0 else "Increase")
+        df_yoy = df_country.dropna(subset=["co2_yoy_pct_change"]).assign(
+            direction=lambda d: d["co2_yoy_pct_change"].apply(
+                lambda v: "Decrease" if v < 0 else "Increase"))
         fig = px.bar(df_yoy, x="year", y="co2_yoy_pct_change", color="direction",
                      color_discrete_map={"Increase": "steelblue", "Decrease": "crimson"},
                      title=f"Year-on-Year CO₂ Change — {country}",
