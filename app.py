@@ -14,10 +14,15 @@ Run with:
 """
 
 import os
+import warnings
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+
+# Plotly internally modifies DataFrames it receives, triggering pandas CoW
+# FutureWarnings. Our code is already CoW-safe; suppress library noise.
+warnings.filterwarnings("ignore", message="ChainedAssignmentError", category=FutureWarning)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 COUNTRIES = [
