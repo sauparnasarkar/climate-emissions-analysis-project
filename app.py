@@ -240,9 +240,9 @@ elif page == "Country Profile":
             st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("Year-on-Year Change (%)")
-        df_yoy = df_country.dropna(subset=["co2_yoy_pct_change"]).assign(
-            direction=lambda d: d["co2_yoy_pct_change"].apply(
-                lambda v: "Decrease" if v < 0 else "Increase"))
+        df_yoy = df_country.dropna(subset=["co2_yoy_pct_change"]).copy()
+        df_yoy.loc[:, "direction"] = df_yoy["co2_yoy_pct_change"].apply(
+            lambda v: "Decrease" if v < 0 else "Increase")
         fig = px.bar(df_yoy, x="year", y="co2_yoy_pct_change", color="direction",
                      color_discrete_map={"Increase": "steelblue", "Decrease": "crimson"},
                      title=f"Year-on-Year CO₂ Change — {country}",
