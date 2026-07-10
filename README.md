@@ -49,8 +49,8 @@ by every notebook, e.g. `COUNTRIES`, `FEATURES`, `TRAIN_CUTOFF`):
 ```bash
 jupyter notebook notebook/week1_eda.ipynb              # → data/ghg_filtered.csv
 jupyter notebook notebook/week2_features.ipynb          # → data/ghg_features.csv
-jupyter notebook notebook/week3_regression.ipynb         # → data/model_comparison_regression.csv
-jupyter notebook notebook/week4_ets_forecasting.ipynb    # → data/ets_forecasts.csv, data/model_comparison.csv
+jupyter notebook notebook/week3_regression.ipynb         # → data/model_comparison_regression.csv, data/feature_importance.csv
+jupyter notebook notebook/week4_ets_forecasting.ipynb    # → data/ets_forecasts.csv, data/ets_parameters.csv, data/model_comparison.csv
 jupyter notebook notebook/week5_scenarios.ipynb          # → data/scenario_projections.csv (optional)
 ```
 
@@ -91,7 +91,9 @@ ghg-trend-analysis-forecasting/
 │   ├── ghg_filtered.csv        ← Generated in Week 1
 │   ├── ghg_features.csv        ← Generated in Week 2
 │   ├── model_comparison_regression.csv ← Generated in Week 3 (4-model table, extended in Week 4)
+│   ├── feature_importance.csv  ← Generated in Week 3 §3.6 (RF pooled importances)
 │   ├── ets_forecasts.csv       ← Generated in Week 4
+│   ├── ets_parameters.csv      ← Generated in Week 4 (α, β*, φ per country)
 │   ├── model_comparison.csv    ← Generated in Week 4 (final 5-model table)
 │   └── scenario_projections.csv ← Generated in Week 5 (optional)
 ├── app.py                     ← Streamlit dashboard (Week 6 stretch goal)
