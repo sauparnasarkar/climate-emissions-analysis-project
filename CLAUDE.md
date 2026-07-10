@@ -10,9 +10,11 @@
 ## What This Repo Is
 
 The mentor's working repository for the GHG trend analysis and forecasting project. Contains:
-- `notebook/ghg_analysis.ipynb` — main analysis notebook
+- `notebook/week1_eda.ipynb` … `notebook/week5_scenarios.ipynb` — one notebook per week (split from the original single combined notebook, v8); each runs independently, loading CSVs saved by the previous week
+- `notebook/constants.py` — shared constants (`COUNTRIES`, `NON_SOVEREIGN`, `FEATURES`, `TARGET`, `TRAIN_CUTOFF`, `FORECAST_END`, etc.) imported by every week's notebook via `from constants import *` — single source of truth, do not redefine these inline in a notebook
+- `notebook/archive/ghg_analysis_combined.ipynb` — the original all-in-one notebook, kept only as an inert backup; not maintained, not referenced by docs
 - `app.py` — Streamlit dashboard (Week 6 stretch goal)
-- `data/` — gitignored CSVs; interns download OWID dataset manually
+- `data/` — gitignored CSVs; interns download OWID dataset manually, all other CSVs (`ghg_filtered.csv`, `ghg_features.csv`, `model_comparison_regression.csv`, `ets_forecasts.csv`, `model_comparison.csv`, `scenario_projections.csv`) are regenerated locally by running the week notebooks in order
 - `requirements.txt` — pinned Python deps (pandas, scikit-learn, statsmodels, streamlit, etc.)
 
 ---
@@ -40,7 +42,7 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 
 ## Reference Documents
 
-- **Project specification (v7, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements
+- **Project specification (v8, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements
 - Project brief v1: Google Doc ID `1fcVx1dBr3mNZkNVgX42iCfsmiYrVtdFw`
 - Project brief v2: Google Doc ID `1cBMazlkGQ2WvYnp4KGB_skEobZbZClOimW6-ACW3tlQ`
 - Project brief v3: Google Doc ID `17wcMXnhYk_SKfPtiINOLD-Og-e5kUovoHQH25VA9_QE`
@@ -66,7 +68,7 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 
 - Reference design decisions above before suggesting model or methodology changes.
 - For detailed weekly requirements and deliverables, refer to [`SPEC.md`](SPEC.md).
-- Analysis code lives in `notebook/ghg_analysis.ipynb`; `app.py` is the Streamlit dashboard.
-- The `data/` CSVs are not committed — interns download OWID dataset per README instructions.
+- Analysis code lives in the per-week notebooks (`notebook/week1_eda.ipynb` … `notebook/week5_scenarios.ipynb`), with shared constants in `notebook/constants.py`; `app.py` is the Streamlit dashboard.
+- The `data/` CSVs are not committed — interns download the OWID dataset per README instructions and regenerate the rest by running the week notebooks in order.
 - Weekly commits follow the convention in README.md.
 - Avoid suggesting Prophet, deep learning, or LLM-based approaches — out of scope by design.

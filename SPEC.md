@@ -1,6 +1,6 @@
 # Climate Change Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v7**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v8**
 
 ---
 
@@ -318,7 +318,8 @@ Sections to include:
 
 | File / Folder | Contents |
 |---------------|----------|
-| `notebook/ghg_analysis.ipynb` | Complete Jupyter Notebook |
+| `notebook/week1_eda.ipynb` … `notebook/week5_scenarios.ipynb` | Complete Jupyter Notebooks, one per week (v8: split from the original single combined notebook) |
+| `notebook/constants.py` | Shared constants imported by every week notebook |
 | `app.py` | Streamlit application (if built) |
 | `data/` | Downloaded CSV datasets |
 | `requirements.txt` | All Python dependencies with version numbers |
@@ -391,3 +392,4 @@ Sections to include:
 | v5 | Jun 2026 | Added §3.5 RF Per-Country as an intentional pedagogical comparison step. Renumbered previous §3.5 (RF Pooled) → §3.6, §3.6 (Comparison) → §3.7. Comparison table expanded to 4 models (Baseline, LR, RF-PC, RF Pooled); §4.6 extended to 5-model table when ETS is added. |
 | v6 | Jul 2026 | Added §3.8 RF Pooled Recursive Forecasts to 2043. LR excluded from recursive forecasting due to numerical instability (negative lag feedback causes divergence on declining-trend countries). RF is naturally bounded by training range and stable at long horizons. |
 | v7 | Jul 2026 | RF Pooled (§3.6) now trains on extended 1975+ dataset (~400 rows, 1979–2018) built inline from raw OWID data, up from ~250 rows (1994–2018). LR and ETS training windows unchanged. Validated via `experiment/1980-start` branch. |
+| v8 | Jul 2026 | Notebook split from a single `notebook/ghg_analysis.ipynb` into one notebook per week (`week1_eda.ipynb` … `week5_scenarios.ipynb`), each runnable independently. Shared constants (`COUNTRIES`, `NON_SOVEREIGN`, `FEATURES`, `TARGET`, `TRAIN_CUTOFF`, `FORECAST_END`) extracted into `notebook/constants.py`. New intermediate artifacts `data/ghg_filtered.csv` (Week 1 output) and `data/model_comparison_regression.csv` (Week 3's 4-model table, extended with ETS in Week 4) persist hand-offs that were previously in-memory only. Original combined notebook kept as an inert backup at `notebook/archive/ghg_analysis_combined.ipynb`. |
