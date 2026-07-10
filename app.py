@@ -185,13 +185,15 @@ if page == "Overview":
 
         co2_1990_by_country   = df[(df["year"] == 1990) & (df["country"].isin(COUNTRIES))].set_index("country")["co2"]
         co2_latest_by_country = df[(df["year"] == latest_year) & (df["country"].isin(COUNTRIES))].set_index("country")["co2"]
+        absolute_change = co2_latest_by_country - co2_1990_by_country
+        pct_change_by_country = absolute_change / co2_1990_by_country * 100
+
         movers = pd.DataFrame({
             "1990 (MtCO₂)": co2_1990_by_country,
             f"{latest_year} (MtCO₂)": co2_latest_by_country,
-        }).dropna()
-        movers["Absolute Change (MtCO₂)"] = movers[f"{latest_year} (MtCO₂)"] - movers["1990 (MtCO₂)"]
-        movers["% Change"] = movers["Absolute Change (MtCO₂)"] / movers["1990 (MtCO₂)"] * 100
-        movers = movers.sort_values("% Change", ascending=False)
+            "Absolute Change (MtCO₂)": absolute_change,
+            "% Change": pct_change_by_country,
+        }).dropna().sort_values("% Change", ascending=False)
 
         col_growth, col_reduction = st.columns(2)
         with col_growth:
