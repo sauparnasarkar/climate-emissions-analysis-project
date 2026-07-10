@@ -40,9 +40,18 @@ curl -o data/owid-co2-data.csv \
 
 Or download manually from: https://github.com/owid/co2-data
 
-### 5. Run the notebook
+### 5. Run the notebooks
+
+The analysis is split into one notebook per week. Run them **in order** — each week
+loads CSVs saved by the previous one (`notebook/constants.py` holds constants shared
+by every notebook, e.g. `COUNTRIES`, `FEATURES`, `TRAIN_CUTOFF`):
+
 ```bash
-jupyter notebook notebook/ghg_analysis.ipynb
+jupyter notebook notebook/week1_eda.ipynb              # → data/ghg_filtered.csv
+jupyter notebook notebook/week2_features.ipynb          # → data/ghg_features.csv
+jupyter notebook notebook/week3_regression.ipynb         # → data/model_comparison_regression.csv
+jupyter notebook notebook/week4_ets_forecasting.ipynb    # → data/ets_forecasts.csv, data/model_comparison.csv
+jupyter notebook notebook/week5_scenarios.ipynb          # → data/scenario_projections.csv (optional)
 ```
 
 ### 6. Run the Streamlit app (Week 6 stretch goal)
@@ -68,11 +77,22 @@ streamlit run app.py
 ```
 ghg-trend-analysis-forecasting/
 ├── notebook/
-│   └── ghg_analysis.ipynb     ← Main analysis notebook (fill in week by week)
+│   ├── constants.py                  ← Shared constants (COUNTRIES, FEATURES, TRAIN_CUTOFF, ...)
+│   ├── week1_eda.ipynb                ← Week 1: data loading, profiling, EDA
+│   ├── week2_features.ipynb           ← Week 2: feature engineering
+│   ├── week3_regression.ipynb         ← Week 3: regression models + comparison table
+│   ├── week4_ets_forecasting.ipynb    ← Week 4: ETS(A,Ad,N) Holt Damped forecasting
+│   ├── week5_scenarios.ipynb          ← Week 5: scenario analysis (optional)
+│   └── archive/
+│       └── ghg_analysis_combined.ipynb ← Original single-file notebook, kept as a backup only
 ├── data/
-│   ├── .gitkeep               ← Keeps the folder in git; actual CSVs are gitignored
-│   ├── owid-co2-data.csv      ← Download manually (see Setup above)
-│   ├── ghg_features.csv       ← Generated in Week 2
+│   ├── .gitkeep                ← Keeps the folder in git; actual CSVs are gitignored
+│   ├── owid-co2-data.csv       ← Download manually (see Setup above)
+│   ├── ghg_filtered.csv        ← Generated in Week 1
+│   ├── ghg_features.csv        ← Generated in Week 2
+│   ├── model_comparison_regression.csv ← Generated in Week 3 (4-model table, extended in Week 4)
+│   ├── ets_forecasts.csv       ← Generated in Week 4
+│   ├── model_comparison.csv    ← Generated in Week 4 (final 5-model table)
 │   └── scenario_projections.csv ← Generated in Week 5 (optional)
 ├── app.py                     ← Streamlit dashboard (Week 6 stretch goal)
 ├── requirements.txt           ← Python dependencies
@@ -91,22 +111,22 @@ Full weekly requirements, deliverables, checkpoints, and pre-read resources are 
 
 ## Weekly Commit Schedule
 
-Commit your notebook to GitHub at the end of every week using a clear message:
+Commit that week's notebook to GitHub at the end of every week using a clear message:
 
 ```bash
-git add notebook/ghg_analysis.ipynb
+git add notebook/week1_eda.ipynb
 git commit -m "Week 1: data loading, profiling, and EDA complete"
 git push
 ```
 
-| Week | Commit message convention |
-|------|--------------------------|
-| 1 | `Week 1: data loading, profiling, and EDA complete` |
-| 2 | `Week 2: feature engineering complete, ghg_features.csv added` |
-| 3 | `Week 3: regression models and comparison table complete` |
-| 4 | `Week 4: ETS(A,Ad,N) Holt Damped forecasting complete` |
-| 5 | `Week 5: scenario analysis complete` *(if applicable)* |
-| 6 | `Week 6: notebook finalised, Streamlit app added` |
+| Week | Commit | Commit message convention |
+|------|--------|--------------------------|
+| 1 | `notebook/week1_eda.ipynb` | `Week 1: data loading, profiling, and EDA complete` |
+| 2 | `notebook/week2_features.ipynb` | `Week 2: feature engineering complete, ghg_features.csv added` |
+| 3 | `notebook/week3_regression.ipynb` | `Week 3: regression models and comparison table complete` |
+| 4 | `notebook/week4_ets_forecasting.ipynb` | `Week 4: ETS(A,Ad,N) Holt Damped forecasting complete` |
+| 5 | `notebook/week5_scenarios.ipynb` | `Week 5: scenario analysis complete` *(if applicable)* |
+| 6 | `app.py` (and any notebook cleanup) | `Week 6: notebook finalised, Streamlit app added` |
 
 ---
 
