@@ -8,6 +8,8 @@ Prerequisites:
   - data/ghg_features.csv          (generated in Week 2)
   - data/ets_forecasts.csv         (generated in Week 4, for Forecasts page)
   - data/scenario_projections.csv  (generated in Week 5, optional)
+  - data/ets_parameters.csv        (generated in Week 4, optional — Forecasts page insights)
+  - data/feature_importance.csv    (generated in Week 3, optional — Forecasts page insights)
 
 Run with:
     streamlit run app.py
@@ -93,6 +95,24 @@ def load_model_comparison():
     return pd.read_csv(path)
 
 
+@st.cache_data
+def load_ets_parameters():
+    """Load ETS(A,Ad,N) fitted smoothing parameters (α, β*, φ) for all 10 countries — Week 4."""
+    path = "data/ets_parameters.csv"
+    if not os.path.exists(path):
+        return None
+    return pd.read_csv(path)
+
+
+@st.cache_data
+def load_feature_importance():
+    """Load pooled Random Forest feature importances produced in Week 3 §3.6."""
+    path = "data/feature_importance.csv"
+    if not os.path.exists(path):
+        return None
+    return pd.read_csv(path)
+
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 st.sidebar.title("🌍 GHG Trend Analysis")
 st.sidebar.markdown("**IDEAS TIH Summer Internship 2026**")
@@ -107,11 +127,13 @@ st.sidebar.divider()
 st.sidebar.caption("Mentor: Sauparna Sarkar")
 
 # ── Load data ─────────────────────────────────────────────────────────────────
-df           = load_features()
-df_forecasts = load_forecasts()
-df_scenarios = load_scenarios()
-df_raw       = load_raw()
-df_model_cmp = load_model_comparison()
+df            = load_features()
+df_forecasts  = load_forecasts()
+df_scenarios  = load_scenarios()
+df_raw        = load_raw()
+df_model_cmp  = load_model_comparison()
+df_ets_params = load_ets_parameters()
+df_feat_imp   = load_feature_importance()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OVERVIEW
@@ -153,6 +175,47 @@ if page == "Overview":
                      labels={"co2": "CO₂ (MtCO₂)", "country": "Country"},
                      title=f"CO₂ Emissions by Country ({latest_year})")
         st.plotly_chart(fig, use_container_width=True)
+
+        st.divider()
+        st.subheader("Top Movers Since 1990 (10 Focus Countries)")
+        st.caption(
+            "Fastest growth and largest reduction in CO₂ emissions, 1990 → "
+            f"{latest_year}, among the 10 focus countries."
+        )
+
+        co2_1990_by_country   = df[(df["year"] == 1990) & (df["country"].isin(COUNTRIES))].set_index("country")["co2"]
+        co2_latest_by_country = df[(df["year"] == latest_year) & (df["country"].isin(COUNTRIES))].set_index("country")["co2"]
+        movers = pd.DataFrame({
+            "1990 (MtCO₂)": co2_1990_by_country,
+            f"{latest_year} (MtCO₂)": co2_latest_by_country,
+        }).dropna()
+        movers["Absolute Change (MtCO₂)"] = movers[f"{latest_year} (MtCO₂)"] - movers["1990 (MtCO₂)"]
+        movers["% Change"] = movers["Absolute Change (MtCO₂)"] / movers["1990 (MtCO₂)"] * 100
+        movers = movers.sort_values("% Change", ascending=False)
+
+        col_growth, col_reduction = st.columns(2)
+        with col_growth:
+            top_growth = movers.iloc[0]
+            st.metric(
+                f"Fastest Growth — {movers.index[0]}",
+                f"{top_growth['% Change']:+.1f}%",
+                f"{top_growth['Absolute Change (MtCO₂)']:+,.0f} MtCO₂",
+            )
+        with col_reduction:
+            top_reduction = movers.iloc[-1]
+            st.metric(
+                f"Largest Reduction — {movers.index[-1]}",
+                f"{top_reduction['% Change']:+.1f}%",
+                f"{top_reduction['Absolute Change (MtCO₂)']:+,.0f} MtCO₂",
+            )
+
+        fig_movers = px.bar(
+            movers.reset_index(), x="country", y="% Change",
+            labels={"country": "Country", "% Change": f"% Change in CO₂ (1990→{latest_year})"},
+            title=f"CO₂ % Change by Country, 1990–{latest_year}",
+            color="% Change", color_continuous_scale=["green", "lightgrey", "crimson"],
+        )
+        st.plotly_chart(fig_movers, use_container_width=True)
 
     else:
         st.warning(
@@ -327,6 +390,27 @@ elif page == "Forecasts":
             with st.expander("Five-Model Comparison Table (MAE / RMSE)"):
                 st.dataframe(df_model_cmp.set_index("country"), use_container_width=True)
 
+        if df_ets_params is not None:
+            with st.expander("ETS(A,Ad,N) Fitted Parameters — All 10 Countries"):
+                st.markdown(
+                    "**α** (level smoothing), **β\\*** (trend smoothing), and **φ** (damping) "
+                    "for each country's Holt's Damped Trend model, fit on 1990–2018."
+                )
+                df_params_display = df_ets_params.rename(columns={
+                    "alpha": "α (level)", "beta_star": "β* (trend)", "phi": "φ (damping)",
+                }).set_index("country")
+                st.dataframe(df_params_display.round(4), use_container_width=True)
+
+        if df_feat_imp is not None:
+            with st.expander("Random Forest Feature Importance (Pooled Model)"):
+                fig = px.bar(
+                    df_feat_imp.sort_values("importance"),
+                    x="importance", y="feature", orientation="h",
+                    labels={"importance": "Importance (mean decrease in impurity)", "feature": "Feature"},
+                    title="RF Pooled Feature Importances — All 10 Countries",
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SCENARIO COMPARISON
 # ─────────────────────────────────────────────────────────────────────────────
@@ -337,13 +421,95 @@ elif page == "Scenario Comparison":
         "and **Aggressive Mitigation (−5%/yr)** starting from 2025."
     )
 
-    st.info(
-        "**Scenario Analysis — Coming Soon**\n\n"
-        "This page will show Business-as-Usual, Moderate Mitigation (−2%/yr), "
-        "and Aggressive Mitigation (−5%/yr) projections from 2025 to 2040.\n\n"
-        "Week 5 scenario analysis has not been completed yet. "
-        "Rerun `streamlit run app.py` after completing Week 5 in the notebook."
-    )
+    if df_scenarios is None:
+        st.warning(
+            "⚠️ `data/scenario_projections.csv` not found.\n\n"
+            "Complete **Week 5** of the notebook to generate this file, then restart the app."
+        )
+    else:
+        def bau_segment(country_filter, start, end):
+            """BAU (ETS mean), summed across the given countries, restricted to a year range."""
+            if df_forecasts is None:
+                return pd.Series(dtype=float)
+            fc = df_forecasts[df_forecasts["country"].isin(country_filter)]
+            fc = fc[(fc["year"] >= start) & (fc["year"] <= end)]
+            return fc.groupby("year")["mean"].sum()
+
+        view_mode = st.radio("View", ["Single Country", "Global Aggregate"], horizontal=True)
+
+        if view_mode == "Single Country":
+            country = st.selectbox("Select a country", options=COUNTRIES)
+            countries_in_view = [country]
+            title_suffix = country
+        else:
+            countries_in_view = COUNTRIES
+            title_suffix = "All 10 Countries"
+
+        hist = (
+            df[(df["country"].isin(countries_in_view)) & (df["year"] <= 2024)]
+            .groupby("year")["co2"].sum()
+            if df is not None else pd.Series(dtype=float)
+        )
+        level_1990 = hist.loc[1990] if 1990 in hist.index else None
+        bau_2020_2024 = bau_segment(countries_in_view, 2020, 2024)
+
+        fig = go.Figure()
+        if not hist.empty:
+            fig.add_trace(go.Scatter(
+                x=hist.index, y=hist.values,
+                name="Historical (1990–2024)", line=dict(color="grey", width=2)))
+        for scenario, color in SCENARIO_COLORS.items():
+            if scenario == "BAU":
+                series = bau_segment(countries_in_view, 2020, 2040)
+            else:
+                future = (
+                    df_scenarios[
+                        (df_scenarios["country"].isin(countries_in_view)) &
+                        (df_scenarios["scenario"] == scenario)
+                    ].groupby("year")["co2_projected"].sum()
+                )
+                series = pd.concat([bau_2020_2024, future])
+            fig.add_trace(go.Scatter(
+                x=series.index, y=series.values,
+                name=scenario, line=dict(color=color, width=2)))
+        if level_1990 is not None:
+            fig.add_hline(
+                y=level_1990, line_dash="dot", line_color="gray",
+                annotation_text="1990 level", annotation_position="bottom right")
+        fig.update_layout(
+            title=f"CO₂ Emissions Scenarios — {title_suffix}",
+            xaxis_title="Year", yaxis_title="CO₂ (MtCO₂)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.divider()
+        st.subheader("Cumulative Emissions Impact, 2025–2040")
+        sort_scenario = st.radio(
+            "Sort by cumulative emissions under scenario",
+            list(SCENARIO_COLORS.keys()), horizontal=True,
+        )
+        cumulative = (
+            df_scenarios.groupby(["country", "scenario"])["co2_projected"].sum()
+            .reset_index().rename(columns={"co2_projected": "cumulative_co2"})
+        )
+        order = (
+            cumulative[cumulative["scenario"] == sort_scenario]
+            .sort_values("cumulative_co2", ascending=False)["country"].tolist()
+        )
+        fig2 = px.bar(
+            cumulative, x="country", y="cumulative_co2", color="scenario", barmode="group",
+            category_orders={"country": order, "scenario": list(SCENARIO_COLORS.keys())},
+            color_discrete_map=SCENARIO_COLORS,
+            labels={"country": "Country", "cumulative_co2": "Cumulative CO₂, 2025–2040 (MtCO₂)",
+                    "scenario": "Scenario"},
+            title=f"Cumulative CO₂ Emissions by Scenario, 2025–2040 (sorted by {sort_scenario})",
+        )
+        st.plotly_chart(fig2, use_container_width=True)
+
+        table = cumulative.pivot(index="country", columns="scenario", values="cumulative_co2")
+        table = table[list(SCENARIO_COLORS.keys())].loc[order].round(0)
+        st.dataframe(table, use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ABOUT
