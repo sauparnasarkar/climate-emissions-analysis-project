@@ -20,7 +20,7 @@ import os
 # Work around a segfault in pyarrow's bundled mimalloc allocator, hit when Streamlit
 # converts a DataFrame containing NaNs to Arrow for st.dataframe() (observed crashing in
 # arrow::py::NumPyNullsConverter::Convert on macOS 26 / Python 3.14 / pyarrow 25.0.0).
-# Must be set before streamlit (and therefore pyarrow) is imported.
+# Must be set before pyarrow is imported / initializes its default memory pool.
 os.environ.setdefault("ARROW_DEFAULT_MEMORY_POOL", "system")
 
 import streamlit as st
