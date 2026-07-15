@@ -529,7 +529,7 @@ elif page == "About":
 ## Climate Change Trend Analysis and Forecasting
 
 This dashboard presents findings from a 7-week data science project conducted as part of the
-**IDEAS TIH Summer Internship 2026**, mentored by Sauparna Sarkar.
+**IDEAS TIH Summer Internship 2026**.
 
 ---
 
@@ -553,20 +553,6 @@ This dashboard presents findings from a 7-week data science project conducted as
 |---------|-----|
 | OWID CO₂ and GHG Emissions | https://github.com/owid/co2-data |
 | Climate Watch Historical Emissions | https://climatewatchdata.org |
-
----
-
-### Team
-
-| Name | Institute |
-|------|-----------|
-| [YOUR NAME] | [YOUR INSTITUTE] |
-| [YOUR NAME] | [YOUR INSTITUTE] |
-| [YOUR NAME] | [YOUR INSTITUTE] |
-| [YOUR NAME] | [YOUR INSTITUTE] |
-| [YOUR NAME] | [YOUR INSTITUTE] |
-| [YOUR NAME] | [YOUR INSTITUTE] |
-| [YOUR NAME] | [YOUR INSTITUTE] |
 
 ---
 
