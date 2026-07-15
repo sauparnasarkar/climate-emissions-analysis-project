@@ -8,6 +8,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Set DEPLOY_BASE_PATH=/ghg-emissions-analysis/ when building/previewing for the
+  // Cloudflare Tunnel deployment (labs.syena.io/ghg-emissions-analysis). Defaults to
+  // root so local `npm run dev` / `npm run build` behavior is unchanged.
+  base: process.env.DEPLOY_BASE_PATH || '/',
   resolve: {
     alias: {
       // design-system has no main/exports/dist — alias straight to its source so
