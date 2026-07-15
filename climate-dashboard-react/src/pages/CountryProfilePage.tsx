@@ -20,7 +20,7 @@ export default function CountryProfilePage() {
 
   return (
     <div>
-      <h1 className="sy-headline4" style={{ margin: '0 0 16px' }}>Country Profile</h1>
+      <h1 className="sy-headline2" style={{ margin: '0 0 16px' }}>Country Profile</h1>
 
       <Select
         label="Select a country"

@@ -34,7 +34,7 @@ export default function ScenarioComparisonPage() {
 
   return (
     <div>
-      <h1 className="sy-headline4" style={{ margin: '0 0 8px' }}>Scenario Comparison (2025–2040)</h1>
+      <h1 className="sy-headline2" style={{ margin: '0 0 8px' }}>Scenario Comparison (2025–2040)</h1>
       <p className="sy-body3-short" style={{ marginBottom: 16, color: 'var(--sy-static-text-weak)' }}>
         Compare <strong>Business as Usual (BAU)</strong>, <strong>Moderate Mitigation (−2%/yr)</strong>, and{' '}
         <strong>Aggressive Mitigation (−5%/yr)</strong> starting from 2025.

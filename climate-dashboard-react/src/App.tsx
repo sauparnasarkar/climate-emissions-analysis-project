@@ -28,8 +28,30 @@ function App() {
   }));
 
   return (
-    <div data-theme="climate" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <Header logo="🌍 GHG Trend Analysis" showNotifications={false} showAppSwitcher={false} showUserMenu={false} />
+    <div
+      data-theme="analytics"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100vh',
+        background: 'var(--sy-static-background-weak)',
+      }}
+    >
+      <Header
+        logo={
+          <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, textAlign: 'left' }}>
+            <span style={{ fontSize: '1.375rem', fontWeight: 600 }}>🌍 GHG Emissions Analysis</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--sy-static-text-weak)' }}>
+              IDEAS TIH Summer Internship 2026
+            </span>
+          </span>
+        }
+        searchPlaceholder=""
+        showNotifications={false}
+        showAppSwitcher={false}
+        showUserMenu={false}
+        style={{ height: 68 }}
+      />
       <div style={{ display: 'flex', flex: 1 }}>
         <SidebarNav
           items={items}

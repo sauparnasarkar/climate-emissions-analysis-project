@@ -85,7 +85,7 @@ export default function ForecastsPage() {
 
   return (
     <div>
-      <h1 className="sy-headline4" style={{ margin: '0 0 8px' }}>ETS(A,Ad,N) Emissions Forecasts (2019–2043)</h1>
+      <h1 className="sy-headline2" style={{ margin: '0 0 8px' }}>ETS(A,Ad,N) Emissions Forecasts (2019–2043)</h1>
       <p className="sy-body3-short" style={{ marginBottom: 16, color: 'var(--sy-static-text-weak)' }}>
         Forecasts from Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, with 95% confidence intervals extending to 2043.
       </p>

@@ -1,4 +1,4 @@
-# Climate Change Trend Analysis and Forecasting
+# GHG Emissions Trend Analysis and Forecasting
 
 **IDEAS TIH Summer Internship 2026 | Mentor: Sauparna Sarkar**
 
@@ -65,7 +65,7 @@ streamlit run app.py
 
 An alternative to the Streamlit app: a FastAPI backend (`api/`) exposing the same
 computations as JSON, consumed by a React + TypeScript dashboard (`climate-dashboard-react/`)
-built on the Climate Theme of the (separate, sibling) Syena design system. Two processes,
+built on the Analytics Theme of the (separate, sibling) Syena design system. Two processes,
 two terminals, both from the repo root:
 
 ```bash
@@ -125,7 +125,7 @@ ghg-trend-analysis-forecasting/
 │   ├── data_loaders.py            ← @lru_cache CSV loaders (replaces @st.cache_data)
 │   ├── schemas.py                 ← Pydantic response models
 │   └── routers/                   ← One router per dashboard page
-├── climate-dashboard-react/    ← React + TS dashboard (stretch) — consumes api/, Climate Theme
+├── climate-dashboard-react/    ← React + TS dashboard (stretch) — consumes api/, Analytics Theme
 │   └── src/
 │       ├── api/                   ← Typed fetch client + response types (mirrors api/schemas.py)
 │       └── pages/                 ← One page per route, 1:1 with app.py's pages

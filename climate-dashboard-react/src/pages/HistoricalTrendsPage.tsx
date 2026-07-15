@@ -18,7 +18,7 @@ export default function HistoricalTrendsPage() {
 
   return (
     <div>
-      <h1 className="sy-headline4" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
+      <h1 className="sy-headline2" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
         <MultiSelect

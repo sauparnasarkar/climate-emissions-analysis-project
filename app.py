@@ -1,5 +1,5 @@
 """
-GHG Trend Analysis & Forecasting — Streamlit Dashboard
+GHG Emissions Trend Analysis & Forecasting — Streamlit Dashboard
 IDEAS TIH Summer Internship 2026
 
 Week 6 Stretch Goal: Fill in the # TODO sections for each page.
@@ -48,7 +48,7 @@ SCENARIO_COLORS = {
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="GHG Trend Analysis",
+    page_title="GHG Emissions Analysis",
     page_icon="🌍",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -121,7 +121,7 @@ def load_feature_importance():
 
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
-st.sidebar.title("🌍 GHG Trend Analysis")
+st.sidebar.title("🌍 GHG Emissions Analysis")
 st.sidebar.markdown("**IDEAS TIH Summer Internship 2026**")
 st.sidebar.divider()
 
@@ -146,7 +146,7 @@ df_feat_imp   = load_feature_importance()
 # OVERVIEW
 # ─────────────────────────────────────────────────────────────────────────────
 if page == "Overview":
-    st.title("Climate Change Trend Analysis and Forecasting")
+    st.title("GHG Emissions Trend Analysis and Forecasting")
     st.markdown(
         "An end-to-end analysis of greenhouse gas emissions for 10 major countries "
         "using the OWID CO₂ dataset, regression models, and ETS(A,Ad,N) forecasting.\n\n"
@@ -529,9 +529,9 @@ elif page == "Scenario Comparison":
 elif page == "About":
     st.title("About This Project")
     st.markdown("""
-## Climate Change Trend Analysis and Forecasting
+## GHG Emissions Trend Analysis and Forecasting
 
-This dashboard presents findings from a 7-week data science project conducted as part of the
+This dashboard is a reference implementation for the 7-week data science project conducted as part of the
 **IDEAS TIH Summer Internship 2026**.
 
 ---
