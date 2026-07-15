@@ -28,7 +28,7 @@ function App() {
   }));
 
   return (
-    <div data-theme="climate" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <div data-theme="analytics" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <Header logo="🌍 GHG Trend Analysis" showNotifications={false} showAppSwitcher={false} showUserMenu={false} />
       <div style={{ display: 'flex', flex: 1 }}>
         <SidebarNav
