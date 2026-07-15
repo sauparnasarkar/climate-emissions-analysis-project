@@ -5,13 +5,24 @@ import react from '@vitejs/plugin-react'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+// Set DEPLOY_BASE_PATH=/ghg-emissions-analysis/ when building/previewing for the
+// Cloudflare Tunnel deployment (labs.syena.io/ghg-emissions-analysis). Defaults to
+// root so local `npm run dev` / `npm run build` behavior is unchanged.
+const base = process.env.DEPLOY_BASE_PATH || '/'
+
+// Proxied under the same prefix as the app itself, matching how Cloudflare Tunnel
+// forwards the full request path with no automatic prefix-stripping — the backend's
+// own routes are mounted at plain /api/..., so strip `base` back off before forwarding.
+const apiProxy = {
+  target: 'http://localhost:8081',
+  changeOrigin: true,
+  rewrite: (p: string) => p.replace(base, '/'),
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // Set DEPLOY_BASE_PATH=/ghg-emissions-analysis/ when building/previewing for the
-  // Cloudflare Tunnel deployment (labs.syena.io/ghg-emissions-analysis). Defaults to
-  // root so local `npm run dev` / `npm run build` behavior is unchanged.
-  base: process.env.DEPLOY_BASE_PATH || '/',
+  base,
   resolve: {
     alias: {
       // design-system has no main/exports/dist — alias straight to its source so
@@ -28,7 +39,13 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:8081',
+      [`${base}api`]: apiProxy,
+    },
+  },
+  preview: {
+    port: 4173,
+    proxy: {
+      [`${base}api`]: apiProxy,
     },
   },
 })
