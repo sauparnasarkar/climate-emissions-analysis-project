@@ -1,7 +1,7 @@
 from typing import Literal
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException
 
 from ..constants import COUNTRIES, SCENARIO_COLORS
 from ..data_loaders import DataNotFoundError, load_features, load_forecasts, load_scenarios
