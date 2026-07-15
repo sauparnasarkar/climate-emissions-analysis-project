@@ -11,7 +11,7 @@ const COLUMNS: ColDef<CountryProfileTableRow>[] = [
   { field: 'co2', headerName: 'CO₂ (MtCO₂)' },
   { field: 'co2_per_capita', headerName: 'CO₂ per Capita (t/person)' },
   { field: 'co2_yoy_pct_change', headerName: 'YoY % Change' },
-  { field: 'ghg_intensity', headerName: 'GHG Intensity' },
+  { field: 'ghg_intensity', headerName: 'GHG Intensity (kg CO₂e/$ GDP)' },
 ];
 
 export default function CountryProfilePage() {

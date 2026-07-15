@@ -325,7 +325,10 @@ elif page == "Country Profile":
         st.subheader("Key Statistics")
         display_cols = ["year", "co2", "co2_per_capita", "co2_yoy_pct_change", "ghg_intensity"]
         available    = [c for c in display_cols if c in df_country.columns]
-        st.dataframe(df_country[available].set_index("year").round(2), use_container_width=True)
+        df_display = df_country[available].set_index("year").round(2).rename(
+            columns={"ghg_intensity": "ghg_intensity (kg CO₂e/$ GDP)"}
+        )
+        st.dataframe(df_display, use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FORECASTS
