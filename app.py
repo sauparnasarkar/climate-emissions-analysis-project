@@ -531,7 +531,7 @@ elif page == "About":
     st.markdown("""
 ## GHG Emissions Trend Analysis and Forecasting
 
-This dashboard presents findings from a 7-week data science project conducted as part of the
+This dashboard is a reference implementation for the 7-week data science project conducted as part of the
 **IDEAS TIH Summer Internship 2026**.
 
 ---
