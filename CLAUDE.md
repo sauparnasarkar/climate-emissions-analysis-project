@@ -14,8 +14,10 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 - `notebook/constants.py` — shared constants (`COUNTRIES`, `NON_SOVEREIGN`, `FEATURES`, `TARGET`, `TRAIN_CUTOFF`, `FORECAST_END`, etc.) imported by every week's notebook via `from constants import *` — single source of truth, do not redefine these inline in a notebook
 - `notebook/archive/ghg_analysis_combined.ipynb` — the original all-in-one notebook, kept only as an inert backup; not maintained, not referenced by docs
 - `app.py` — Streamlit dashboard (Week 6 stretch goal)
+- `api/` — FastAPI backend (stretch, alongside the Streamlit app), exposing the same page computations as JSON for `climate-dashboard-react/`; mirrors `app.py`'s pandas logic 1:1 endpoint-by-endpoint, `@lru_cache` in place of `@st.cache_data`
+- `climate-dashboard-react/` — React + TypeScript dashboard (stretch) consuming `api/`, themed via the Climate Theme of the `design-system` project (a separate, sibling checkout at `../design-system` relative to this repo — not part of this monorepo since it's shared across other projects too; `climate-dashboard-react/vite.config.ts` aliases straight to its `src/`)
 - `data/` — gitignored CSVs; interns download OWID dataset manually, all other CSVs (`ghg_filtered.csv`, `ghg_features.csv`, `model_comparison_regression.csv`, `ets_forecasts.csv`, `model_comparison.csv`, `scenario_projections.csv`) are regenerated locally by running the week notebooks in order
-- `requirements.txt` — pinned Python deps (pandas, scikit-learn, statsmodels, streamlit, etc.)
+- `requirements.txt` — pinned Python deps (pandas, scikit-learn, statsmodels, streamlit, fastapi, uvicorn, etc.)
 
 ---
 

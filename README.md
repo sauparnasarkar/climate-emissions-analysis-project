@@ -61,6 +61,29 @@ jupyter notebook notebook/week5_scenarios.ipynb          # → data/scenario_pro
 streamlit run app.py
 ```
 
+### 7. Run the FastAPI backend + React dashboard (stretch)
+
+An alternative to the Streamlit app: a FastAPI backend (`api/`) exposing the same
+computations as JSON, consumed by a React + TypeScript dashboard (`climate-dashboard-react/`)
+built on the Climate Theme of the (separate, sibling) Syena design system. Two processes,
+two terminals, both from the repo root:
+
+```bash
+# Terminal 1 — backend
+pip install -r requirements.txt
+uvicorn api.main:app --reload --port 8081
+
+# Terminal 2 — frontend
+cd climate-dashboard-react
+npm install
+npm run dev            # → http://localhost:5173, proxies /api to :8081
+```
+
+> **Note:** `climate-dashboard-react` resolves the design system via a Vite alias to
+> `../../design-system/src` — it expects a sibling `design-system/` checkout one level
+> above this repo (i.e. `design-system` and `climate-emissions-analysis-project` are both
+> under the same parent directory).
+
 ---
 
 ## Data Sources
@@ -96,6 +119,16 @@ ghg-trend-analysis-forecasting/
 │   ├── ets_parameters.csv      ← Generated in Week 4 (α, β*, φ per country)
 │   ├── model_comparison.csv    ← Generated in Week 4 (final 5-model table)
 │   └── scenario_projections.csv ← Generated in Week 5 (optional)
+├── api/                        ← FastAPI backend (stretch) — same computations as app.py, as JSON
+│   ├── main.py                  ← FastAPI() instance, CORS, router includes, /api/health
+│   ├── constants.py              ← COUNTRIES, GAS_COLUMNS, SCENARIO_COLORS (mirrors app.py)
+│   ├── data_loaders.py            ← @lru_cache CSV loaders (replaces @st.cache_data)
+│   ├── schemas.py                 ← Pydantic response models
+│   └── routers/                   ← One router per dashboard page
+├── climate-dashboard-react/    ← React + TS dashboard (stretch) — consumes api/, Climate Theme
+│   └── src/
+│       ├── api/                   ← Typed fetch client + response types (mirrors api/schemas.py)
+│       └── pages/                 ← One page per route, 1:1 with app.py's pages
 ├── app.py                     ← Streamlit dashboard (Week 6 stretch goal)
 ├── requirements.txt           ← Python dependencies
 ├── SPEC.md                    ← Full project specification (weekly requirements)
