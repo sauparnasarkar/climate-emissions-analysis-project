@@ -38,7 +38,7 @@ function App() {
       }}
     >
       <Header
-        logo={<span style={{ fontSize: '1.375rem', fontWeight: 600 }}>🌍 GHG Trend Analysis</span>}
+        logo={<span style={{ fontSize: '1.375rem', fontWeight: 600 }}>🌍 GHG Emissions Analysis</span>}
         searchPlaceholder=""
         showNotifications={false}
         showAppSwitcher={false}

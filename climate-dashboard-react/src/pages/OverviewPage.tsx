@@ -17,7 +17,7 @@ export default function OverviewPage() {
 
   return (
     <div>
-      <h1 className="sy-headline2" style={{ margin: 0 }}>Climate Change Trend Analysis and Forecasting</h1>
+      <h1 className="sy-headline2" style={{ margin: 0 }}>GHG Emissions Trend Analysis and Forecasting</h1>
       <p className="sy-body3-short" style={{ margin: '4px 0 16px', color: 'var(--sy-static-text-weak)' }}>
         An end-to-end analysis of greenhouse gas emissions for 10 major countries using the OWID CO₂ dataset,
         regression models, and ETS(A,Ad,N) forecasting.

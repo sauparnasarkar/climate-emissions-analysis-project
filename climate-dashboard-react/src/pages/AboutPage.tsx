@@ -19,9 +19,9 @@ export default function AboutPage() {
   return (
     <div>
       <h1 className="sy-headline2" style={{ margin: '0 0 8px' }}>About This Project</h1>
-      <h2 className="sy-headline5" style={{ margin: '16px 0 8px' }}>Climate Change Trend Analysis and Forecasting</h2>
+      <h2 className="sy-headline5" style={{ margin: '16px 0 8px' }}>GHG Emissions Trend Analysis and Forecasting</h2>
       <p className="sy-body3-short" style={{ marginBottom: 24 }}>
-        This dashboard presents findings from a 7-week data science project conducted as part of the{' '}
+        This dashboard is a reference implementation for the 7-week data science project conducted as part of the{' '}
         <strong>IDEAS TIH Summer Internship 2026</strong>.
       </p>
 
