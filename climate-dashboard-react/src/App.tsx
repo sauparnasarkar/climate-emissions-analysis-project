@@ -38,11 +38,19 @@ function App() {
       }}
     >
       <Header
-        logo={<span style={{ fontSize: '1.375rem', fontWeight: 600 }}>🌍 GHG Emissions Analysis</span>}
+        logo={
+          <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, textAlign: 'left' }}>
+            <span style={{ fontSize: '1.375rem', fontWeight: 600 }}>🌍 GHG Emissions Analysis</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--sy-static-text-weak)' }}>
+              IDEAS TIH Summer Internship 2026
+            </span>
+          </span>
+        }
         searchPlaceholder=""
         showNotifications={false}
         showAppSwitcher={false}
         showUserMenu={false}
+        style={{ height: 68 }}
       />
       <div style={{ display: 'flex', flex: 1 }}>
         <SidebarNav
