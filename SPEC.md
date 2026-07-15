@@ -1,4 +1,4 @@
-# Climate Change Trend Analysis and Forecasting — Project Specification
+# GHG Emissions Trend Analysis and Forecasting — Project Specification
 
 **IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v8**
 

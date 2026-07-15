@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .routers import country_profile, forecasts, historical, overview, scenarios
 from .schemas import HealthResponse
 
-app = FastAPI(title="GHG Trend Analysis API")
+app = FastAPI(title="GHG Emissions Analysis API")
 
 app.add_middleware(
     CORSMiddleware,
