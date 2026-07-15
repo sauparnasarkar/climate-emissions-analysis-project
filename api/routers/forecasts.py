@@ -64,7 +64,9 @@ def get_forecast_summary():
             )
         )
 
-    rows.sort(key=lambda r: (r.forecast_2040 is None, r.forecast_2040), reverse=True)
+    # Descending by forecast_2040, with missing values sorted last (matches
+    # pandas' sort_values(..., ascending=False) na_position="last" default).
+    rows.sort(key=lambda r: -r.forecast_2040 if r.forecast_2040 is not None else float("inf"))
     return ForecastSummaryResponse(rows=rows)
 
 
