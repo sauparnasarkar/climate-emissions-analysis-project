@@ -18,7 +18,7 @@ const DATA_SOURCE_ROWS = [
 export default function AboutPage() {
   return (
     <div>
-      <h1 className="sy-headline4" style={{ margin: '0 0 8px' }}>About This Project</h1>
+      <h1 className="sy-headline2" style={{ margin: '0 0 8px' }}>About This Project</h1>
       <h2 className="sy-headline5" style={{ margin: '16px 0 8px' }}>Climate Change Trend Analysis and Forecasting</h2>
       <p className="sy-body3-short" style={{ marginBottom: 24 }}>
         This dashboard presents findings from a 7-week data science project conducted as part of the{' '}

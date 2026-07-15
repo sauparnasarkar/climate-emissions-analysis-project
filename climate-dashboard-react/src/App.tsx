@@ -37,7 +37,13 @@ function App() {
         background: 'var(--sy-static-background-weak)',
       }}
     >
-      <Header logo="🌍 GHG Trend Analysis" showNotifications={false} showAppSwitcher={false} showUserMenu={false} />
+      <Header
+        logo={<span style={{ fontSize: '1.375rem', fontWeight: 600 }}>🌍 GHG Trend Analysis</span>}
+        searchPlaceholder=""
+        showNotifications={false}
+        showAppSwitcher={false}
+        showUserMenu={false}
+      />
       <div style={{ display: 'flex', flex: 1 }}>
         <SidebarNav
           items={items}
