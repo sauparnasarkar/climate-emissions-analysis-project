@@ -95,7 +95,7 @@ These represent a mix of major emitters, economies at different stages of develo
 
 **2.3 Per-Capita and Intensity Features**
 - Verify `co2_per_capita` is correctly computed by cross-checking against `co2` and `population` for at least 3 countries and 3 years
-- Create a `ghg_intensity` column defined as `total_ghg / gdp` where both columns are available
+- Create a `ghg_intensity` column defined as `total_ghg / gdp * 1e9` where both columns are available — `total_ghg` is in MtCO₂e (1 Mt = 1e9 kg), so this expresses intensity in **kg CO₂e per $ of GDP**, a standard, comparable unit (the unscaled ratio is ~1e-9 and rounds to 0.00 at any sane display precision)
 - Note countries and years where `ghg_intensity` cannot be computed due to missing GDP data
 
 **2.4 Growth Rate Features**
@@ -107,7 +107,7 @@ These represent a mix of major emitters, economies at different stages of develo
 
 Produce a clean modelling DataFrame for the 10 project countries. Required columns:
 
-`country · year · co2 · co2_per_capita · co2_5yr_rolling_mean · co2_lag1 · co2_lag2 · co2_lag3 · co2_yoy_pct_change · ghg_intensity (where available)`
+`country · year · co2 · co2_per_capita · co2_5yr_rolling_mean · co2_lag1 · co2_lag2 · co2_lag3 · co2_yoy_pct_change · ghg_intensity (kg CO₂e/$ GDP, where available)`
 
 - Save as `ghg_features.csv` and commit to GitHub
 
