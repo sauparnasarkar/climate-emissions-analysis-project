@@ -76,6 +76,7 @@ export default function ForecastsPage() {
             xTitle="Importance (mean decrease in impurity)"
             yTitle="Feature"
             showLegend={false}
+            ariaLabel={`Horizontal bar chart ranking ${rows.length} features by importance in the pooled Random Forest model, from ${rows[0]?.feature} (highest) to ${rows[rows.length - 1]?.feature} (lowest)`}
             series={[{ name: 'Importance', x: rows.map((r) => r.feature), y: rows.map((r) => r.importance), kind: 'bar' }]}
           />
         </ChartCard>
@@ -103,6 +104,7 @@ export default function ForecastsPage() {
               height={340}
               xTitle="Year"
               yTitle="CO₂ (MtCO₂)"
+              ariaLabel={`Line chart for ${country}: historical CO₂ emissions 1990 to 2018, holdout actuals 2019 to 2023, and ETS forecast with 95% confidence interval extending to 2043`}
               series={[
                 { name: 'Historical (1990–2018)', x: forecast.data.hist_years, y: forecast.data.hist_co2, kind: 'line', color: 'steelblue' },
                 { name: 'Holdout actuals (2019–2023)', x: forecast.data.holdout_years, y: forecast.data.holdout_co2, kind: 'line', color: 'darkorange' },

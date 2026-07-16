@@ -50,7 +50,7 @@ export default function ScenarioComparisonPage() {
           onChange={(v) => setView(v as ViewMode)}
         />
         {view === 'single' && (
-          <Select options={COUNTRIES.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
+          <Select label="Select a country" options={COUNTRIES.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
         )}
       </div>
 
@@ -65,6 +65,7 @@ export default function ScenarioComparisonPage() {
             xTitle="Year"
             yTitle="CO₂ (MtCO₂)"
             referenceY={timeseries.data.level_1990 != null ? { value: timeseries.data.level_1990, label: '1990 level' } : undefined}
+            ariaLabel={`Line chart of CO₂ emissions for ${timeseries.data.title_suffix}: historical trend plus BAU, Moderate Mitigation, and Aggressive Mitigation scenarios from 2025 to 2040`}
             series={[
               ...(timeseries.data.historical
                 ? [{ name: timeseries.data.historical.name, x: timeseries.data.historical.years, y: timeseries.data.historical.values, kind: 'line' as const, color: 'grey' }]
@@ -108,6 +109,7 @@ export default function ScenarioComparisonPage() {
                 barmode="group"
                 xTitle="Country"
                 yTitle="Cumulative CO₂, 2025–2040 (MtCO₂)"
+                ariaLabel={`Grouped bar chart of cumulative CO₂ emissions from 2025 to 2040 under BAU, Moderate, and Aggressive mitigation scenarios, sorted by ${sortBy}`}
                 series={cumulative.data.scenarios.map((scenario) => ({
                   name: scenario,
                   x: cumulative.data!.rows.map((r) => r.country),

@@ -29,7 +29,7 @@ export default function AboutPage() {
       <Table
         columns={[
           { key: 'step', header: 'Step' },
-          { key: 'detail', header: 'Detail' },
+          { key: 'detail', header: 'Detail', wrap: true },
         ]}
         rows={METHODOLOGY_ROWS}
         withBorder
@@ -39,7 +39,7 @@ export default function AboutPage() {
       <Table
         columns={[
           { key: 'dataset', header: 'Dataset' },
-          { key: 'url', header: 'URL', render: (row) => <Link href={row.url} target="_blank" rel="noreferrer">{row.url}</Link> },
+          { key: 'url', header: 'URL', wrap: true, render: (row) => <Link href={row.url} target="_blank" rel="noreferrer">{row.url}</Link> },
         ]}
         rows={DATA_SOURCE_ROWS}
         withBorder

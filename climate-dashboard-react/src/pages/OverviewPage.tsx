@@ -42,6 +42,7 @@ export default function OverviewPage() {
           xTitle="Country"
           yTitle="CO₂ (MtCO₂)"
           showLegend={false}
+          ariaLabel={`Bar chart of total CO₂ emissions in ${data.latest_year} for ${barSeries.length} countries, ranging from ${Math.min(...barValues).toLocaleString()} to ${Math.max(...barValues).toLocaleString()} MtCO₂`}
           series={[{ name: 'CO₂', x: barSeries, y: barValues, kind: 'bar' }]}
         />
       </ChartCard>
@@ -75,6 +76,7 @@ export default function OverviewPage() {
             xTitle="Country"
             yTitle={`% Change in CO₂ (1990→${data.latest_year})`}
             showLegend={false}
+            ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${data.latest_year} for ${moverCountries.length} countries, colored on a gradient from green (decrease) to crimson (increase)`}
             series={[{
               name: '% Change',
               x: moverCountries,

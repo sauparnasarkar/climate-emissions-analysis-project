@@ -100,7 +100,10 @@ function App() {
           </Routes>
         </main>
       </div>
-      <Footer copyright="IDEAS TIH Summer Internship 2026 · Mentor: Sauparna Sarkar" />
+      {/* Footer's default `links` renders a "Policies" placeholder pointing at
+          href="#" — this app has no policies page, so suppress it rather than
+          ship a dead link. */}
+      <Footer copyright="IDEAS TIH Summer Internship 2026 · Mentor: Sauparna Sarkar" links={[]} />
     </div>
   );
 }
