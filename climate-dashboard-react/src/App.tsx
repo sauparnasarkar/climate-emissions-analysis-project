@@ -50,7 +50,7 @@ function App() {
         showNotifications={false}
         showAppSwitcher={false}
         showUserMenu={false}
-        style={{ height: 68 }}
+        style={{ height: 'auto', minHeight: 68 }}
       />
       <div style={{ display: 'flex', flex: 1 }}>
         <SidebarNav
