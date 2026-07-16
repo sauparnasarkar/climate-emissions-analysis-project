@@ -4,9 +4,10 @@ matplotlib==3.11.0
 plotly==5.24.1
 scikit-learn==1.6.1
 statsmodels==0.14.4
-streamlit==1.45.0
-notebook==7.4.3
+streamlit==1.59.2
+notebook==7.5.6
+jupyterlab>=4.5.9
 nbformat==5.10.4
 ipykernel==6.29.5
-fastapi==0.115.6
-uvicorn[standard]==0.34.0
+fastapi==0.139.2
+uvicorn[standard]==0.51.0
