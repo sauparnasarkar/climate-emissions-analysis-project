@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 import { stripTrailingSlash } from './src/lib/basePath.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -67,9 +68,56 @@ const apiProxy = {
 
 const apiProxyEntry = { [`${base}api`]: apiProxy }
 
+// PWA manifest colors match the app shell's own background tokens
+// (App.tsx's --sy-static-background-weak) — not redeclared here since the
+// theme CSS isn't parsed at build time, so keep these two in sync by hand if
+// the analytics theme's background token ever changes.
+const APP_BACKGROUND = '#121e35'
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), redirectBareBasePlugin()],
+  plugins: [
+    react(),
+    redirectBareBasePlugin(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.svg'],
+      manifest: {
+        name: 'GHG Emissions Trend Analysis and Forecasting',
+        short_name: 'GHG Emissions',
+        description: 'An end-to-end analysis of greenhouse gas emissions for 10 major countries using the OWID CO₂ dataset, regression models, and ETS(A,Ad,N) forecasting.',
+        theme_color: APP_BACKGROUND,
+        background_color: APP_BACKGROUND,
+        display: 'standalone',
+        icons: [
+          { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+        ],
+      },
+      workbox: {
+        // The main JS bundle is ~6MB unminified (pre-existing — this app isn't
+        // code-split yet, a separate concern from PWA setup) and exceeds
+        // Workbox's 2MB default precache ceiling. Raised with headroom rather
+        // than blocking PWA support on an unrelated bundle-splitting project.
+        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        // Data freshness matters more than offline access for a live emissions
+        // dashboard — go to the network first for API calls (short timeout
+        // before falling back to any cached copy), and let Workbox's default
+        // precache-then-serve behavior handle the built JS/CSS/icons as-is.
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }: { url: URL }) => url.pathname.includes('/api/'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              networkTimeoutSeconds: 5,
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+      },
+    }),
+  ],
   base,
   resolve: {
     alias: {
