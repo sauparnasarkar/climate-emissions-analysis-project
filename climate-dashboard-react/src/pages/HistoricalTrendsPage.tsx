@@ -43,6 +43,7 @@ export default function HistoricalTrendsPage() {
             height={320}
             xTitle="Year"
             yTitle={`${GAS_COLUMNS[gas]} (MtCO₂e)`}
+            ariaLabel={`Line chart of ${GAS_COLUMNS[gas]} emissions over time for ${selectedCountries.join(', ')}`}
             series={(timeseries.data?.series ?? []).map((s) => ({ name: s.name, x: s.years, y: s.values, kind: 'line' as const }))}
           />
         </ChartCard>
@@ -61,6 +62,7 @@ export default function HistoricalTrendsPage() {
               barmode="stack"
               xTitle="Decade"
               yTitle="Share (%)"
+              ariaLabel="Stacked bar chart of greenhouse gas composition by decade across the 10 focus countries, showing CO2, methane, and nitrous oxide share of total emissions"
               series={(composition.data?.series ?? []).map((s) => ({
                 name: s.gas_label,
                 x: composition.data!.decades,

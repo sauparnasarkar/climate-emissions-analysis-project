@@ -35,12 +35,15 @@ export default function CountryProfilePage() {
         <InlineAlert variant="warning">{error}</InlineAlert>
       ) : data ? (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, margin: '16px 0' }}>
+          {/* min(280px, 100%) — not a bare 280px floor — since a track that can never
+              shrink below 280px still overflows a ~272px content area on the narrowest
+              real phones (320px viewport, e.g. Galaxy S9+), even with auto-fit. */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, margin: '16px 0' }}>
             <ChartCard title={`CO₂ Emissions — ${country}`}>
-              <SyChart height={280} xTitle="Year" yTitle="CO₂ (MtCO₂)" showLegend={false} series={[{ name: 'CO₂', x: data.years, y: data.co2, kind: 'line' }]} />
+              <SyChart height={280} xTitle="Year" yTitle="CO₂ (MtCO₂)" showLegend={false} ariaLabel={`Line chart of total CO₂ emissions for ${country} from ${data.years[0]} to ${data.years[data.years.length - 1]}`} series={[{ name: 'CO₂', x: data.years, y: data.co2, kind: 'line' }]} />
             </ChartCard>
             <ChartCard title={`CO₂ per Capita — ${country}`}>
-              <SyChart height={280} xTitle="Year" yTitle="tCO₂/person" showLegend={false} series={[{ name: 'CO₂ per Capita', x: data.years, y: data.co2_per_capita, kind: 'line' }]} />
+              <SyChart height={280} xTitle="Year" yTitle="tCO₂/person" showLegend={false} ariaLabel={`Line chart of CO₂ emissions per capita for ${country} from ${data.years[0]} to ${data.years[data.years.length - 1]}`} series={[{ name: 'CO₂ per Capita', x: data.years, y: data.co2_per_capita, kind: 'line' }]} />
             </ChartCard>
           </div>
 
@@ -50,6 +53,7 @@ export default function CountryProfilePage() {
               xTitle="Year"
               yTitle="YoY % Change"
               showLegend={false}
+              ariaLabel={`Bar chart of year-over-year percent change in CO₂ emissions for ${country}, colored red for decreases and blue for increases`}
               series={[{
                 name: 'YoY % Change',
                 x: data.yoy_years,
