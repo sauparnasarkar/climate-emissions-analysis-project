@@ -18,6 +18,7 @@ def _normalize_deploy_prefix(raw: str | None) -> str:
 
 
 DEPLOY_PATH_PREFIX = _normalize_deploy_prefix(os.environ.get("DEPLOY_BASE_PATH"))
+DEPLOY_PATH_PREFIX_BYTES = DEPLOY_PATH_PREFIX.encode("utf-8")
 
 
 class StripDeployPrefixMiddleware:
@@ -38,14 +39,17 @@ class StripDeployPrefixMiddleware:
             if path == DEPLOY_PATH_PREFIX or path.startswith(DEPLOY_PATH_PREFIX + "/"):
                 scope["path"] = path[len(DEPLOY_PATH_PREFIX):] or "/"
                 raw_path = scope.get("raw_path")
-                if raw_path is not None:
-                    prefix_bytes = DEPLOY_PATH_PREFIX.encode("utf-8")
-                    if raw_path.startswith(prefix_bytes):
-                        scope["raw_path"] = raw_path[len(prefix_bytes):] or b"/"
+                if raw_path is not None and raw_path.startswith(DEPLOY_PATH_PREFIX_BYTES):
+                    scope["raw_path"] = raw_path[len(DEPLOY_PATH_PREFIX_BYTES):] or b"/"
         await self.app(scope, receive, send)
 
 
-app = FastAPI(title="GHG Emissions Analysis API")
+# redirect_slashes (Starlette's default-on trailing-slash 307) builds its Location
+# header from scope["path"] alone and is never aware of the deploy prefix stripped
+# above — confirmed (via manual scope["root_path"] testing too) that it redirects to
+# a broken, prefix-less URL. None of our routes need slash-forgiving matching, so
+# disable it outright rather than risk a broken redirect through the tunnel.
+app = FastAPI(title="GHG Emissions Analysis API", redirect_slashes=False)
 
 app.add_middleware(StripDeployPrefixMiddleware)
 
