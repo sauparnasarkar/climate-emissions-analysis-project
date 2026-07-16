@@ -44,12 +44,27 @@ class StripDeployPrefixMiddleware:
         await self.app(scope, receive, send)
 
 
-# redirect_slashes (Starlette's default-on trailing-slash 307) builds its Location
-# header from scope["path"] alone and is never aware of the deploy prefix stripped
-# above — confirmed (via manual scope["root_path"] testing too) that it redirects to
-# a broken, prefix-less URL. None of our routes need slash-forgiving matching, so
-# disable it outright rather than risk a broken redirect through the tunnel.
-app = FastAPI(title="GHG Emissions Analysis API", redirect_slashes=False)
+# root_path=DEPLOY_PATH_PREFIX makes FastAPI/Starlette's own URL generation
+# prefix-aware — notably /docs and /redoc compute their openapi.json URL from
+# scope["root_path"] (see FastAPI.setup()'s swagger_ui_html/redoc_html closures),
+# and openapi.json's "servers" entry is populated from it too. Confirmed empirically
+# (constructed ASGI scopes directly) that this combination — root_path set here,
+# StripDeployPrefixMiddleware still doing the actual path-stripping below — produces
+# a correctly-prefixed openapi.json reference without any double-stripping: once our
+# middleware strips DEPLOY_PATH_PREFIX from scope["path"], Starlette's own
+# root_path-aware route matching (starlette._utils.get_route_path) is a no-op since
+# path no longer starts with root_path by the time it runs.
+#
+# redirect_slashes (Starlette's default-on trailing-slash 307) is a separate matter:
+# it builds its Location header from scope["path"] alone and is NOT root_path-aware
+# regardless of the above — confirmed via direct source reading of
+# starlette/routing.py — so it still redirects to a broken, prefix-less URL. None of
+# our routes need slash-forgiving matching, so it stays disabled outright.
+app = FastAPI(
+    title="GHG Emissions Analysis API",
+    redirect_slashes=False,
+    root_path=DEPLOY_PATH_PREFIX,
+)
 
 app.add_middleware(StripDeployPrefixMiddleware)
 
