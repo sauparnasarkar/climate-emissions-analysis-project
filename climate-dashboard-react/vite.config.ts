@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -9,6 +9,27 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // Cloudflare Tunnel deployment (labs.syena.io/ghg-emissions-analysis). Defaults to
 // root so local `npm run dev` / `npm run build` behavior is unchanged.
 const base = process.env.DEPLOY_BASE_PATH || '/'
+
+// vite preview 404s on the bare base path with no trailing slash (e.g. /ghg-emissions-analysis
+// instead of /ghg-emissions-analysis/) rather than redirecting — a URL people will naturally
+// type/share. Redirect it ourselves, before vite's own handling kicks in.
+function redirectBareBasePlugin(base: string): Plugin {
+  const bareBase = base.replace(/\/$/, '')
+  return {
+    name: 'redirect-bare-base-to-trailing-slash',
+    configurePreviewServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (bareBase && req.url === bareBase) {
+          res.statusCode = 301
+          res.setHeader('Location', base)
+          res.end()
+          return
+        }
+        next()
+      })
+    },
+  }
+}
 
 // Proxied under the same prefix as the app itself, matching how Cloudflare Tunnel
 // forwards the full request path with no automatic prefix-stripping — the backend's
@@ -21,7 +42,7 @@ const apiProxy = {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), redirectBareBasePlugin(base)],
   base,
   resolve: {
     alias: {
