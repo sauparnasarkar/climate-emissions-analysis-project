@@ -92,6 +92,12 @@ export default defineConfig({
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          // Same source image reused for the maskable slot — it already has generous
+          // padding around the mark, so it clears Android's 80% safe-zone circle
+          // without needing a separately-authored asset. Without at least one
+          // maskable icon, Android's adaptive-icon shell adds its own default
+          // background, clashing with the dark #121e35 shell.
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
@@ -106,7 +112,10 @@ export default defineConfig({
         // precache-then-serve behavior handle the built JS/CSS/icons as-is.
         runtimeCaching: [
           {
-            urlPattern: ({ url }: { url: URL }) => url.pathname.includes('/api/'),
+            // Anchored to the app's actual API mount point — a bare .includes('/api/')
+            // would also match an unrelated path that happens to contain that
+            // substring anywhere (e.g. a future /myapi/ or /analytics/ route).
+            urlPattern: ({ url }: { url: URL }) => url.pathname.startsWith(`${base}api/`),
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
