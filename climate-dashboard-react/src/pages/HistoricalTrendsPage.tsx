@@ -20,7 +20,7 @@ export default function HistoricalTrendsPage() {
     <div>
       <h1 className="sy-headline2" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <MultiSelect
           label="Select countries"
           options={COUNTRIES.map((c) => ({ value: c, label: c }))}

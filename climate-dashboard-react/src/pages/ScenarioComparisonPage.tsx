@@ -40,7 +40,7 @@ export default function ScenarioComparisonPage() {
         <strong>Aggressive Mitigation (−5%/yr)</strong> starting from 2025.
       </p>
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', marginBottom: 16 }}>
         <SegmentedControl
           items={[
             { value: 'single', label: 'Single Country' },
@@ -84,7 +84,7 @@ export default function ScenarioComparisonPage() {
       <div style={{ marginTop: 24 }}>
         <h2 className="sy-headline6">Cumulative Emissions Impact, 2025–2040</h2>
         <p className="sy-label2" style={{ marginBottom: 8 }}>Sort by cumulative emissions under scenario</p>
-        <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
           {Object.keys(SCENARIO_COLORS).map((scenario) => (
             <Radio
               key={scenario}
