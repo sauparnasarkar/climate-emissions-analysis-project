@@ -50,7 +50,7 @@ export default function ScenarioComparisonPage() {
           onChange={(v) => setView(v as ViewMode)}
         />
         {view === 'single' && (
-          <Select options={COUNTRIES.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
+          <Select label="Select a country" options={COUNTRIES.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
         )}
       </div>
 
