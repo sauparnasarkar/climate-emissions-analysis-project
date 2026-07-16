@@ -35,7 +35,7 @@ export default function CountryProfilePage() {
         <InlineAlert variant="warning">{error}</InlineAlert>
       ) : data ? (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '16px 0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, margin: '16px 0' }}>
             <ChartCard title={`CO₂ Emissions — ${country}`}>
               <SyChart height={280} xTitle="Year" yTitle="CO₂ (MtCO₂)" showLegend={false} series={[{ name: 'CO₂', x: data.years, y: data.co2, kind: 'line' }]} />
             </ChartCard>

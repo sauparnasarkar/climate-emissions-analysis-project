@@ -1,4 +1,4 @@
-import { Table } from 'design-system';
+import { Link, Table } from 'design-system';
 
 const METHODOLOGY_ROWS = [
   { step: 'Dataset', detail: 'OWID CO₂ dataset, filtered to sovereign nations from 1990 onwards' },
@@ -39,7 +39,7 @@ export default function AboutPage() {
       <Table
         columns={[
           { key: 'dataset', header: 'Dataset' },
-          { key: 'url', header: 'URL', render: (row) => <a href={row.url} target="_blank" rel="noreferrer">{row.url}</a> },
+          { key: 'url', header: 'URL', render: (row) => <Link href={row.url} target="_blank" rel="noreferrer">{row.url}</Link> },
         ]}
         rows={DATA_SOURCE_ROWS}
         withBorder

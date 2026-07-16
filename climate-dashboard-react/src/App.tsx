@@ -55,6 +55,7 @@ function App() {
       <div style={{ display: 'flex', flex: 1 }}>
         <SidebarNav
           items={items}
+          mobileToggleSide="right"
           onItemClick={(id) => {
             const target = NAV_ITEMS.find((item) => item.id === id);
             if (target) navigate(target.path);

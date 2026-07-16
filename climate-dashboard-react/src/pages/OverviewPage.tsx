@@ -23,7 +23,7 @@ export default function OverviewPage() {
         regression models, and ETS(A,Ad,N) forecasting.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 16 }}>
         <KpiStat card label={`10-Country CO₂ (${data.latest_year})`} value={`${data.latest_co2_total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} />
         <KpiStat
           card
@@ -52,7 +52,7 @@ export default function OverviewPage() {
           Fastest growth and largest reduction in CO₂ emissions, 1990 → {data.latest_year}, among the 10 focus countries.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, margin: '12px 0 16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, margin: '12px 0 16px' }}>
           <KpiStat
             card
             label={`Fastest Growth — ${data.fastest_growth.country}`}
