@@ -25,9 +25,16 @@ function redirectBareBasePlugin(base: string): Plugin {
     name: 'redirect-bare-base-to-trailing-slash',
     configurePreviewServer(server) {
       server.middlewares.use((req, res, next) => {
-        if (bareBase && req.url === bareBase) {
+        if (!bareBase || !req.url) return next()
+        // Compare against the pathname only — req.url includes the query string,
+        // and a URL like /ghg-emissions-analysis?utm_source=x is exactly the kind
+        // of link people share, so it needs to redirect too (preserving the query).
+        const queryIndex = req.url.indexOf('?')
+        const pathname = queryIndex === -1 ? req.url : req.url.slice(0, queryIndex)
+        if (pathname === bareBase) {
+          const query = queryIndex === -1 ? '' : req.url.slice(queryIndex)
           res.statusCode = 301
-          res.setHeader('Location', base)
+          res.setHeader('Location', base + query)
           res.end()
           return
         }
@@ -79,7 +86,9 @@ export default defineConfig({
     },
     // Vite blocks unrecognized Host headers by default (DNS-rebinding protection) —
     // the Cloudflare Tunnel forwards requests with Host: labs.syena.io, which needs
-    // an explicit allow. Only added when actually building for that deployment.
-    allowedHosts: process.env.DEPLOY_BASE_PATH ? ['labs.syena.io'] : undefined,
+    // an explicit allow. Gated on the *normalized* base (not the raw env var) so
+    // e.g. DEPLOY_BASE_PATH=/ (which normalizes to root) doesn't unexpectedly
+    // restrict preview access even though it isn't really a prefixed deploy.
+    allowedHosts: base !== '/' ? ['labs.syena.io'] : undefined,
   },
 })
