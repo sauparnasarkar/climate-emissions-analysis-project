@@ -1,10 +1,23 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routers import country_profile, forecasts, historical, overview, scenarios
 from .schemas import HealthResponse
 
-DEPLOY_PATH_PREFIX = "/ghg-emissions-analysis"
+
+def _normalize_deploy_prefix(raw: str | None) -> str:
+    """Mirrors vite.config.ts's normalizeBase — reads the *same* DEPLOY_BASE_PATH env
+    var the frontend build uses, so the two can't drift out of sync on what prefix is
+    being stripped. Returned with no trailing slash (this strips a leading path
+    segment, unlike the frontend's use of it as a base URL)."""
+    if not raw or raw == "/":
+        return ""
+    return "/" + raw.strip("/")
+
+
+DEPLOY_PATH_PREFIX = _normalize_deploy_prefix(os.environ.get("DEPLOY_BASE_PATH"))
 
 
 class StripDeployPrefixMiddleware:
@@ -18,7 +31,7 @@ class StripDeployPrefixMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] == "http":
+        if scope["type"] == "http" and DEPLOY_PATH_PREFIX:
             path = scope["path"]
             # Path-boundary check — a plain startswith() would also match e.g.
             # /ghg-emissions-analysis-foo, which isn't actually under this prefix.
