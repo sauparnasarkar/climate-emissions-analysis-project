@@ -18,8 +18,17 @@ class StripDeployPrefixMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] == "http" and scope["path"].startswith(DEPLOY_PATH_PREFIX):
-            scope["path"] = scope["path"][len(DEPLOY_PATH_PREFIX):] or "/"
+        if scope["type"] == "http":
+            path = scope["path"]
+            # Path-boundary check — a plain startswith() would also match e.g.
+            # /ghg-emissions-analysis-foo, which isn't actually under this prefix.
+            if path == DEPLOY_PATH_PREFIX or path.startswith(DEPLOY_PATH_PREFIX + "/"):
+                scope["path"] = path[len(DEPLOY_PATH_PREFIX):] or "/"
+                raw_path = scope.get("raw_path")
+                if raw_path is not None:
+                    prefix_bytes = DEPLOY_PATH_PREFIX.encode("utf-8")
+                    if raw_path.startswith(prefix_bytes):
+                        scope["raw_path"] = raw_path[len(prefix_bytes):] or b"/"
         await self.app(scope, receive, send)
 
 

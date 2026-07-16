@@ -7,8 +7,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Set DEPLOY_BASE_PATH=/ghg-emissions-analysis/ when building/previewing for the
 // Cloudflare Tunnel deployment (labs.syena.io/ghg-emissions-analysis). Defaults to
-// root so local `npm run dev` / `npm run build` behavior is unchanged.
-const base = process.env.DEPLOY_BASE_PATH || '/'
+// root so local `npm run dev` / `npm run build` behavior is unchanged. Normalized so a
+// value given without leading/trailing slashes (or with only one) can't produce a
+// malformed base/proxy key downstream.
+function normalizeBase(raw: string | undefined): string {
+  if (!raw || raw === '/') return '/'
+  return `/${raw.replace(/^\/+|\/+$/g, '')}/`
+}
+const base = normalizeBase(process.env.DEPLOY_BASE_PATH)
 
 // vite preview 404s on the bare base path with no trailing slash (e.g. /ghg-emissions-analysis
 // instead of /ghg-emissions-analysis/) rather than redirecting — a URL people will naturally
@@ -37,7 +43,10 @@ function redirectBareBasePlugin(base: string): Plugin {
 const apiProxy = {
   target: 'http://localhost:8081',
   changeOrigin: true,
-  rewrite: (p: string) => p.replace(base, '/'),
+  // Anchored to the leading prefix specifically — a plain p.replace(base, '/') would
+  // rewrite the *first* occurrence of `base` anywhere in the path, not necessarily
+  // the leading one.
+  rewrite: (p: string) => (p.startsWith(base) ? p.slice(base.length - 1) : p),
 }
 
 // https://vite.dev/config/
