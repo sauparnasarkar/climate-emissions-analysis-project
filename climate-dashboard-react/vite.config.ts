@@ -47,5 +47,9 @@ export default defineConfig({
     proxy: {
       [`${base}api`]: apiProxy,
     },
+    // Vite blocks unrecognized Host headers by default (DNS-rebinding protection) —
+    // the Cloudflare Tunnel forwards requests with Host: labs.syena.io, which needs
+    // an explicit allow. Only added when actually building for that deployment.
+    allowedHosts: process.env.DEPLOY_BASE_PATH ? ['labs.syena.io'] : undefined,
   },
 })
