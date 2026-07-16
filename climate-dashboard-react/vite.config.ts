@@ -68,6 +68,10 @@ const apiProxy = {
 
 const apiProxyEntry = { [`${base}api`]: apiProxy }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 // PWA manifest colors match the app shell's own background tokens
 // (App.tsx's --sy-static-background-weak) — not redeclared here since the
 // theme CSS isn't parsed at build time, so keep these two in sync by hand if
@@ -112,10 +116,18 @@ export default defineConfig({
         // precache-then-serve behavior handle the built JS/CSS/icons as-is.
         runtimeCaching: [
           {
-            // Anchored to the app's actual API mount point — a bare .includes('/api/')
-            // would also match an unrelated path that happens to contain that
-            // substring anywhere (e.g. a future /myapi/ or /analytics/ route).
-            urlPattern: ({ url }: { url: URL }) => url.pathname.startsWith(`${base}api/`),
+            // A regex literal, not a function closing over `base` — vite-plugin-pwa
+            // serializes this urlPattern into the standalone sw.js file as a string;
+            // a function referencing an outer build-time variable ships with that
+            // identifier intact but nothing to resolve it against in the service
+            // worker's own JS context, throwing "ReferenceError: base is not defined"
+            // on every single fetch event once the worker actually controls a page.
+            // Confirmed via a real browser's Service Worker console (not caught by
+            // any of this session's automated testing — a worker only controls a
+            // page from its *second* load onward, which fresh single-load test
+            // contexts never reach). A regex's value is `base` baked in as a plain
+            // string at build time, with nothing left to resolve at runtime.
+            urlPattern: new RegExp(`^${escapeRegExp(base)}api/`),
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
