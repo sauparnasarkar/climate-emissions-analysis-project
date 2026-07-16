@@ -1,10 +1,57 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routers import country_profile, forecasts, historical, overview, scenarios
 from .schemas import HealthResponse
 
-app = FastAPI(title="GHG Emissions Analysis API")
+
+def _normalize_deploy_prefix(raw: str | None) -> str:
+    """Mirrors vite.config.ts's normalizeBase — reads the *same* DEPLOY_BASE_PATH env
+    var the frontend build uses, so the two can't drift out of sync on what prefix is
+    being stripped. Returned with no trailing slash (this strips a leading path
+    segment, unlike the frontend's use of it as a base URL)."""
+    if not raw or raw == "/":
+        return ""
+    return "/" + raw.strip("/")
+
+
+DEPLOY_PATH_PREFIX = _normalize_deploy_prefix(os.environ.get("DEPLOY_BASE_PATH"))
+DEPLOY_PATH_PREFIX_BYTES = DEPLOY_PATH_PREFIX.encode("utf-8")
+
+
+class StripDeployPrefixMiddleware:
+    """Cloudflare Tunnel forwards the full request path (e.g.
+    /ghg-emissions-analysis/api/overview) with no prefix-stripping, but our routes
+    are mounted at plain /api/... — strip the deploy prefix before routing, so the
+    same app works both directly (Tailscale/local, no prefix) and behind the tunnel.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] == "http" and DEPLOY_PATH_PREFIX:
+            path = scope["path"]
+            # Path-boundary check — a plain startswith() would also match e.g.
+            # /ghg-emissions-analysis-foo, which isn't actually under this prefix.
+            if path == DEPLOY_PATH_PREFIX or path.startswith(DEPLOY_PATH_PREFIX + "/"):
+                scope["path"] = path[len(DEPLOY_PATH_PREFIX):] or "/"
+                raw_path = scope.get("raw_path")
+                if raw_path is not None and raw_path.startswith(DEPLOY_PATH_PREFIX_BYTES):
+                    scope["raw_path"] = raw_path[len(DEPLOY_PATH_PREFIX_BYTES):] or b"/"
+        await self.app(scope, receive, send)
+
+
+# redirect_slashes (Starlette's default-on trailing-slash 307) builds its Location
+# header from scope["path"] alone and is never aware of the deploy prefix stripped
+# above — confirmed (via manual scope["root_path"] testing too) that it redirects to
+# a broken, prefix-less URL. None of our routes need slash-forgiving matching, so
+# disable it outright rather than risk a broken redirect through the tunnel.
+app = FastAPI(title="GHG Emissions Analysis API", redirect_slashes=False)
+
+app.add_middleware(StripDeployPrefixMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

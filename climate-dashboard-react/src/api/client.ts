@@ -14,7 +14,10 @@ import type {
 import { ApiError } from './types';
 
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`/api${path}`);
+  // BASE_URL is "/" locally and "/ghg-emissions-analysis/" in the tunnel deployment
+  // (see vite.config.ts DEPLOY_BASE_PATH) — Cloudflare Tunnel forwards the full
+  // request path to the origin, so /api must be nested under it in production.
+  const res = await fetch(`${import.meta.env.BASE_URL}api${path}`);
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     throw new ApiError(res.status, body.detail ?? res.statusText);
