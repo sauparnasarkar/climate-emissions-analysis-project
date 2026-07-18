@@ -19,6 +19,10 @@ venv/
 # Data files — download locally, do not commit large CSVs
 data/*.csv
 
+# Weekly data-refresh artefacts — local backups + validation status marker
+data/*.bak-*
+data/.refresh_status
+
 # macOS
 .DS_Store
 .AppleDouble
