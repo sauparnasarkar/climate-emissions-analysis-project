@@ -12,5 +12,8 @@ ipykernel==6.29.5
 fastapi==0.139.2
 uvicorn[standard]==0.51.0
 pytest==8.3.4
+# httpx: transitive dep of jupyterlab, kept explicit since api/tests relies on it being
+# present. httpx2: what starlette.testclient.TestClient now prefers (avoids a
+# StarletteDeprecationWarning) — not a duplicate, both are genuinely needed.
 httpx==0.28.1
 httpx2==2.7.0

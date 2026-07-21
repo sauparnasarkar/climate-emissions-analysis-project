@@ -13,6 +13,7 @@ def test_timeseries_default_params(client):
     names = {s["name"] for s in body["series"]}
     assert names == {"China", "United States"}
     for s in body["series"]:
+        # owid_raw_df() (conftest) gives every fixture country 5 years: 1990/1995/2000/2005/2010.
         assert len(s["years"]) == len(s["values"]) == 5
 
 
