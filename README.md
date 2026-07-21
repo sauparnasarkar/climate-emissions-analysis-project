@@ -89,6 +89,11 @@ Library) — API client URL/param construction plus a loading/data/error smoke t
 page, mocking `api/client.ts` rather than hitting a live backend. `npm run test:watch`
 for watch mode.
 
+**Backend tests**: `pytest api/tests` from the repo root (pytest + FastAPI's `TestClient`)
+— every endpoint's happy path, 4xx/503 error paths, and pandas edge cases (NaN handling,
+sort ordering, the deploy-prefix middleware), all against small fixture CSVs written to a
+temp dir rather than the real (gitignored) data.
+
 ---
 
 ## Data Sources
