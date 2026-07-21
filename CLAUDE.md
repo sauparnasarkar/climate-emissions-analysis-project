@@ -72,5 +72,6 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 - For detailed weekly requirements and deliverables, refer to [`SPEC.md`](SPEC.md).
 - Analysis code lives in the per-week notebooks (`notebook/week1_eda.ipynb` … `notebook/week5_scenarios.ipynb`), with shared constants in `notebook/constants.py`; `app.py` is the Streamlit dashboard.
 - The `data/` CSVs are not committed — interns download the OWID dataset per README instructions and regenerate the rest by running the week notebooks in order.
-- Weekly commits follow the convention in README.md.
+- Weekly commits follow the convention in README.md (this is the interns' own end-of-week submission convention).
+- When Claude is the one implementing notebook work broken into sections (e.g. Week 1's §1.1/§1.2/§1.3), use a feature branch **per section**, not one branch for the whole week: branch → implement → commit → push → open PR → mentor reviews and approves → merge → move to the next section. This is separate from the interns' own weekly-commit convention above — it's specifically how the mentor wants to review Claude-authored notebook changes incrementally rather than as one large diff.
 - Avoid suggesting Prophet, deep learning, or LLM-based approaches — out of scope by design.
