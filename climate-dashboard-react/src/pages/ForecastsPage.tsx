@@ -53,7 +53,7 @@ export default function ForecastsPage() {
       title: 'ETS(A,Ad,N) Fitted Parameters — All 10 Countries',
       content: (
         <>
-          <p className="sy-body4" style={{ marginBottom: 12 }}>
+          <p className="__s9cmpx-body4" style={{ marginBottom: 12 }}>
             <strong>α</strong> (level smoothing), <strong>β*</strong> (trend smoothing), and <strong>φ</strong> (damping)
             for each country's Holt's Damped Trend model, fit on 1990–2018.
           </p>
@@ -86,8 +86,8 @@ export default function ForecastsPage() {
 
   return (
     <div>
-      <h1 className="sy-headline2" style={{ margin: '0 0 8px' }}>ETS(A,Ad,N) Emissions Forecasts (2019–2043)</h1>
-      <p className="sy-body3-short" style={{ marginBottom: 16, color: 'var(--sy-static-text-weak)' }}>
+      <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>ETS(A,Ad,N) Emissions Forecasts (2019–2043)</h1>
+      <p className="__s9cmpx-body3-short" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Forecasts from Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, with 95% confidence intervals extending to 2043.
       </p>
 
@@ -116,7 +116,7 @@ export default function ForecastsPage() {
         ) : null}
       </div>
 
-      <h2 className="sy-headline6">Forecast Summary — All 10 Countries</h2>
+      <h2 className="__s9cmpx-headline6">Forecast Summary — All 10 Countries</h2>
       {summary.loading ? (
         <Spinner />
       ) : summary.error ? (

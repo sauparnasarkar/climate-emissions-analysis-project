@@ -18,7 +18,7 @@ export default function HistoricalTrendsPage() {
 
   return (
     <div>
-      <h1 className="sy-headline2" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
+      <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <MultiSelect
@@ -30,7 +30,7 @@ export default function HistoricalTrendsPage() {
         <Select label="Emissions metric" options={GAS_OPTIONS} value={gas} onChange={setGas} />
       </div>
 
-      <h2 className="sy-headline6">{GAS_COLUMNS[gas]} Emissions Over Time</h2>
+      <h2 className="__s9cmpx-headline6">{GAS_COLUMNS[gas]} Emissions Over Time</h2>
       {selectedCountries.length === 0 ? (
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>
       ) : timeseries.loading ? (
@@ -50,7 +50,7 @@ export default function HistoricalTrendsPage() {
       )}
 
       <div style={{ marginTop: 24 }}>
-        <h2 className="sy-headline6">GHG Share by Gas Type per Decade</h2>
+        <h2 className="__s9cmpx-headline6">GHG Share by Gas Type per Decade</h2>
         {composition.loading ? (
           <Spinner />
         ) : composition.error ? (

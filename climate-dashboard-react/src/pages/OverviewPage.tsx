@@ -17,8 +17,8 @@ export default function OverviewPage() {
 
   return (
     <div>
-      <h1 className="sy-headline2" style={{ margin: 0 }}>GHG Emissions Trend Analysis and Forecasting</h1>
-      <p className="sy-body3-short" style={{ margin: '4px 0 16px', color: 'var(--sy-static-text-weak)' }}>
+      <h1 className="__s9cmpx-headline2" style={{ margin: 0 }}>GHG Emissions Trend Analysis and Forecasting</h1>
+      <p className="__s9cmpx-body3-short" style={{ margin: '4px 0 16px', color: 'var(--__s9cmpx-static-text-weak)' }}>
         An end-to-end analysis of greenhouse gas emissions for 10 major countries using the OWID CO₂ dataset,
         regression models, and ETS(A,Ad,N) forecasting.
       </p>
@@ -34,7 +34,7 @@ export default function OverviewPage() {
         <KpiStat card label="Countries Analysed" value={data.countries_count} />
       </div>
 
-      <p className="sy-label2" style={{ marginBottom: 16 }}>{data.focus_countries.join('  |  ')}</p>
+      <p className="__s9cmpx-label2" style={{ marginBottom: 16 }}>{data.focus_countries.join('  |  ')}</p>
 
       <ChartCard title={`CO₂ Emissions by Country (${data.latest_year})`}>
         <SyChart
@@ -48,8 +48,8 @@ export default function OverviewPage() {
       </ChartCard>
 
       <div style={{ marginTop: 24 }}>
-        <h2 className="sy-headline6">Top Movers Since 1990 (10 Focus Countries)</h2>
-        <p className="sy-body4" style={{ color: 'var(--sy-static-text-weak)' }}>
+        <h2 className="__s9cmpx-headline6">Top Movers Since 1990 (10 Focus Countries)</h2>
+        <p className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
           Fastest growth and largest reduction in CO₂ emissions, 1990 → {data.latest_year}, among the 10 focus countries.
         </p>
 

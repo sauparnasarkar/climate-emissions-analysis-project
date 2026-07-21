@@ -34,7 +34,7 @@ function App() {
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',
-        background: 'var(--sy-static-background-weak)',
+        background: 'var(--__s9cmpx-static-background-weak)',
       }}
     >
       <Header
@@ -55,7 +55,7 @@ function App() {
               style={{
                 fontSize: '0.75rem',
                 fontWeight: 400,
-                color: 'var(--sy-static-text-weak)',
+                color: 'var(--__s9cmpx-static-text-weak)',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -83,10 +83,10 @@ function App() {
         <main
           style={{
             flex: 1,
-            background: 'var(--sy-static-background-weak)',
+            background: 'var(--__s9cmpx-static-background-weak)',
             padding: 24,
-            fontFamily: 'var(--sy-font-families-primary)',
-            color: 'var(--sy-static-text-standard)',
+            fontFamily: 'var(--__s9cmpx-font-families-primary)',
+            color: 'var(--__s9cmpx-static-text-standard)',
           }}
         >
           <Routes>

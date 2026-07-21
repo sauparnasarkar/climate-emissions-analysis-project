@@ -20,7 +20,7 @@ export default function CountryProfilePage() {
 
   return (
     <div>
-      <h1 className="sy-headline2" style={{ margin: '0 0 16px' }}>Country Profile</h1>
+      <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Country Profile</h1>
 
       <Select
         label="Select a country"
@@ -65,7 +65,7 @@ export default function CountryProfilePage() {
           </ChartCard>
 
           <div style={{ marginTop: 24 }}>
-            <h2 className="sy-headline6">Key Statistics</h2>
+            <h2 className="__s9cmpx-headline6">Key Statistics</h2>
             <DataTable columns={COLUMNS} rows={data.table} />
           </div>
         </>
