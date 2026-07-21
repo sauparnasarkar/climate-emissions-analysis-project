@@ -18,14 +18,14 @@ const DATA_SOURCE_ROWS = [
 export default function AboutPage() {
   return (
     <div>
-      <h1 className="sy-headline2" style={{ margin: '0 0 8px' }}>About This Project</h1>
-      <h2 className="sy-headline5" style={{ margin: '16px 0 8px' }}>GHG Emissions Trend Analysis and Forecasting</h2>
-      <p className="sy-body3-short" style={{ marginBottom: 24 }}>
+      <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>About This Project</h1>
+      <h2 className="__s9cmpx-headline5" style={{ margin: '16px 0 8px' }}>GHG Emissions Trend Analysis and Forecasting</h2>
+      <p className="__s9cmpx-body3-short" style={{ marginBottom: 24 }}>
         This dashboard is a reference implementation for the 7-week data science project conducted as part of the{' '}
         <strong>IDEAS TIH Summer Internship 2026</strong>.
       </p>
 
-      <h3 className="sy-headline6" style={{ marginBottom: 8 }}>Methodology Summary</h3>
+      <h3 className="__s9cmpx-headline6" style={{ marginBottom: 8 }}>Methodology Summary</h3>
       <Table
         columns={[
           { key: 'step', header: 'Step' },
@@ -35,7 +35,7 @@ export default function AboutPage() {
         withBorder
       />
 
-      <h3 className="sy-headline6" style={{ margin: '24px 0 8px' }}>Data Sources</h3>
+      <h3 className="__s9cmpx-headline6" style={{ margin: '24px 0 8px' }}>Data Sources</h3>
       <Table
         columns={[
           { key: 'dataset', header: 'Dataset' },
@@ -45,7 +45,7 @@ export default function AboutPage() {
         withBorder
       />
 
-      <p className="sy-body4" style={{ marginTop: 24, color: 'var(--sy-static-text-weak)' }}>
+      <p className="__s9cmpx-body4" style={{ marginTop: 24, color: 'var(--__s9cmpx-static-text-weak)' }}>
         <em>IDEAS TIH Summer Internship 2026 · Mentor: Sauparna Sarkar</em>
       </p>
     </div>

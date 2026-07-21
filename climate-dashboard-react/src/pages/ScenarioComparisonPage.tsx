@@ -34,8 +34,8 @@ export default function ScenarioComparisonPage() {
 
   return (
     <div>
-      <h1 className="sy-headline2" style={{ margin: '0 0 8px' }}>Scenario Comparison (2025–2040)</h1>
-      <p className="sy-body3-short" style={{ marginBottom: 16, color: 'var(--sy-static-text-weak)' }}>
+      <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Scenario Comparison (2025–2040)</h1>
+      <p className="__s9cmpx-body3-short" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Compare <strong>Business as Usual (BAU)</strong>, <strong>Moderate Mitigation (−2%/yr)</strong>, and{' '}
         <strong>Aggressive Mitigation (−5%/yr)</strong> starting from 2025.
       </p>
@@ -83,8 +83,8 @@ export default function ScenarioComparisonPage() {
       ) : null}
 
       <div style={{ marginTop: 24 }}>
-        <h2 className="sy-headline6">Cumulative Emissions Impact, 2025–2040</h2>
-        <p className="sy-label2" style={{ marginBottom: 8 }}>Sort by cumulative emissions under scenario</p>
+        <h2 className="__s9cmpx-headline6">Cumulative Emissions Impact, 2025–2040</h2>
+        <p className="__s9cmpx-label2" style={{ marginBottom: 8 }}>Sort by cumulative emissions under scenario</p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
           {Object.keys(SCENARIO_COLORS).map((scenario) => (
             <Radio
