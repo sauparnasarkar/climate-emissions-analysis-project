@@ -55,7 +55,11 @@ jupyter notebook notebook/week5_scenarios.ipynb          # → data/scenario_pro
 ```
 
 ### 6. Run the Streamlit app (Week 6 stretch goal)
-> **Prerequisite:** Complete Week 2 first so that `data/ghg_features.csv` exists.
+> **Prerequisite:** Complete Week 2 first so that `data/ghg_features.csv` exists — that's
+> the only file the app requires to start. Weeks 3–5's outputs are all optional: without
+> them, the Forecasts and Scenario Comparison pages just show a "file not found" message
+> in place of real data rather than crashing. Complete Week 5 too if you want the Scenario
+> Comparison page to actually show scenario projections.
 
 ```bash
 streamlit run app.py
