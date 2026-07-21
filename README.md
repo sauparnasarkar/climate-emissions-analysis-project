@@ -84,6 +84,11 @@ npm run dev            # → http://localhost:5173, proxies /api to :8081
 > above this repo (i.e. `design-system` and `climate-emissions-analysis-project` are both
 > under the same parent directory).
 
+**Frontend tests**: `cd climate-dashboard-react && npm test` (Vitest + React Testing
+Library) — API client URL/param construction plus a loading/data/error smoke test per
+page, mocking `api/client.ts` rather than hitting a live backend. `npm run test:watch`
+for watch mode.
+
 ---
 
 ## Data Sources

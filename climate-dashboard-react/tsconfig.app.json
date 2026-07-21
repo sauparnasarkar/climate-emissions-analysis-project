@@ -28,5 +28,9 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  /* Test files have their own project (tsconfig.test.json) with vitest/testing-library
+     globals in scope — excluded here so `tsc -b` (the production build) doesn't choke
+     on `vi`/`describe`/`expect` being undefined ambient types. */
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test"]
 }
