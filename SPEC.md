@@ -1,6 +1,6 @@
 # GHG Emissions Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v8**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v9**
 
 ---
 
@@ -19,6 +19,10 @@ Build an end-to-end analytical project that ingests open Greenhouse Gas (GHG) em
 | Jupyter Notebook (fully documented with markdown cells) | Yes |
 | Final Presentation to mentor (1 hour) | Yes |
 | Streamlit interactive dashboard | Stretch goal only |
+
+> This table is the complete list of internship deliverables. A separate FastAPI + React
+> stack also exists in this repo, built by the mentor after the internship's own scope — see
+> §5 for that addendum. It is not a deliverable for interns.
 
 ### Datasets
 
@@ -393,3 +397,62 @@ Sections to include:
 | v6 | Jul 2026 | Added §3.8 RF Pooled Recursive Forecasts to 2043. LR excluded from recursive forecasting due to numerical instability (negative lag feedback causes divergence on declining-trend countries). RF is naturally bounded by training range and stable at long horizons. |
 | v7 | Jul 2026 | RF Pooled (§3.6) now trains on extended 1975+ dataset (~400 rows, 1979–2018) built inline from raw OWID data, up from ~250 rows (1994–2018). LR and ETS training windows unchanged. Validated via `experiment/1980-start` branch. |
 | v8 | Jul 2026 | Notebook split from a single `notebook/ghg_analysis.ipynb` into one notebook per week (`week1_eda.ipynb` … `week5_scenarios.ipynb`), each runnable independently. Shared constants (`COUNTRIES`, `NON_SOVEREIGN`, `FEATURES`, `TARGET`, `TRAIN_CUTOFF`, `FORECAST_END`) extracted into `notebook/constants.py`. New intermediate artifacts `data/ghg_filtered.csv` (Week 1 output) and `data/model_comparison_regression.csv` (Week 3's 4-model table, extended with ETS in Week 4) persist hand-offs that were previously in-memory only. Original combined notebook kept as an inert backup at `notebook/archive/ghg_analysis_combined.ipynb`. |
+| v9 | Jul 2026 | Added §5, documenting the mentor's `api/` (FastAPI) + `climate-dashboard-react/` (React) reference architecture. This is a **post-internship addendum, not a scope change** — §5 is explicitly *not* part of the internship curriculum (§§1–2 are unchanged); it exists here only so the mentor's own further work on this repo is specified somewhere, clearly separated from what interns are asked to build. |
+
+---
+
+## 5. Post-Internship Addendum: FastAPI + React Reference Architecture *(Not Part of Internship Scope)*
+
+> **This section is not an internship requirement.** Everything in §§1–4 above is the
+> complete internship specification — the notebooks (Weeks 1–5) and, as the internship's
+> *only* stretch goal, the Streamlit app (§2, Week 6 §6.2). Nothing in this section is
+> assigned to interns, graded, or required for certification. It documents a separate body of
+> work the mentor has since built on top of the internship's own output (the same `data/*.csv`
+> files produced by Weeks 1–5), turning this project into a reference example of a
+> production-shaped data engineering + front-end dashboard stack. It's specified here, in its
+> own section, precisely so it doesn't get conflated with §§1–2's actual internship scope.
+
+### 5.1 Rationale
+
+The Streamlit app (§6.2) is the fastest path from a finished notebook to an interactive
+dashboard — one file, no separate server. The FastAPI + React stack instead demonstrates a
+real client/server split: an API layer with its own typed contract, and a UI built from a
+proper shared component library rather than a fixed widget set. Both read the exact same
+`data/*.csv` outputs of Weeks 1–5 and implement the same page-by-page computations; neither
+depends on the other.
+
+### 5.2 Python API Backend (`api/`)
+
+| Aspect | Detail |
+|---|---|
+| Framework | FastAPI + Pydantic (response models = the API's actual contract), served via `uvicorn` |
+| Structure | One router per dashboard page concept (`overview`, `historical`, `country_profile`, `forecasts`, `scenarios`), plus `main.py` (app instance, CORS, deploy-path middleware), `data_loaders.py` (`@lru_cache` CSV loaders), `schemas.py` (Pydantic models), `constants.py` (hand-mirrors `notebook/constants.py`) |
+| Data source | Reads the same `data/*.csv` files Weeks 1–5 produce — no new data pipeline of its own |
+| Missing-data behavior | A required CSV not yet generated → `HTTPException(503)` with a message naming which week produces it (mirrors `app.py`'s in-page warning) |
+| Endpoints | `GET /api/health`; `/api/overview`; `/api/historical/timeseries`, `/decade-composition`; `/api/countries/{country}/profile`; `/api/forecasts/summary`, `/model-comparison`, `/ets-parameters`, `/feature-importance`, `/{country}`; `/api/scenarios/timeseries`, `/cumulative` |
+| Deployment | Served behind a Cloudflare Tunnel at `labs.syena.io/ghg-emissions-analysis/api/...`; `main.py`'s `StripDeployPrefixMiddleware` strips that deploy prefix so the same app also works unprefixed for local/Tailscale access |
+
+### 5.3 React Front-End (`climate-dashboard-react/`)
+
+| Aspect | Detail |
+|---|---|
+| Framework | Vite + React 19 + `react-router-dom` |
+| UI components | The sibling `design-system` project (a separate checkout at `../design-system`, shared across other products, not built for this project) — `Header`, `SidebarNav`, `Footer`, `KpiStat`, `ChartCard`, `SyChart` (Plotly), themed via its Analytics theme |
+| Structure | One page per nav item (`OverviewPage`, `HistoricalTrendsPage`, `CountryProfilePage`, `ForecastsPage`, `ScenarioComparisonPage`, `AboutPage`), each following the same `useAsync(() => api.xxx())` → loading/error/data pattern |
+| Data source | `src/api/client.ts` — a typed `fetch` wrapper calling `api/` exclusively; never reads a CSV directly, never talks to `app.py` |
+| Deployment | Same Cloudflare Tunnel deployment as `api/` (`labs.syena.io/ghg-emissions-analysis`); `vite.config.ts` handles the same deploy-prefix concern on the client side (build-time `base`, dev/preview proxy to `api/`), plus PWA/service-worker configuration |
+
+### 5.4 Test Requirements (this addendum, not the internship)
+
+Unlike the internship notebooks (verified by "Restart & Run All" + written markdown
+observations, not automated tests) and unlike `app.py` (which currently has **no** automated
+test suite at all — verified manually via `streamlit run app.py`), this addendum's two
+components each carry their own automated suite:
+
+| Component | Suite | Run with |
+|---|---|---|
+| `api/` | pytest — every endpoint's happy path, 4xx/503 error paths, pandas edge cases, against fixture CSVs (never the real gitignored data) | `pytest api/tests` |
+| `climate-dashboard-react/` | Vitest + React Testing Library — API client contract tests, one loading/data/error smoke test per page (`api.client` always mocked, never a live backend) | `npm test` (from `climate-dashboard-react/`) |
+
+See `docs/training/02-python-api-backend/` and `docs/training/04-react-frontend/` for the
+full training curricula covering both.

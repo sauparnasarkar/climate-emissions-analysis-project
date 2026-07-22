@@ -9,15 +9,25 @@
 
 ## What This Repo Is
 
-The mentor's working repository for the GHG trend analysis and forecasting project. Contains:
+The mentor's working repository for the GHG trend analysis and forecasting project.
+
+> **Scope note:** Only the notebooks (Weeks 1–5) and the Streamlit app (`app.py`, Week 6
+> stretch goal) are part of the internship curriculum — see `SPEC.md` §§1–2 for what interns
+> are actually asked to build. `api/` and `climate-dashboard-react/` are a **separate, later
+> expansion built by the mentor**, turning this project into a reference example of a
+> production-shaped data engineering + front-end dashboard stack — **not** an internship
+> deliverable, not graded, not part of intern certification. See `SPEC.md` §5 for that
+> addendum, documented separately from the internship spec for exactly this reason.
+
+Contains:
 - `notebook/week1_eda.ipynb` … `notebook/week5_scenarios.ipynb` — one notebook per week (split from the original single combined notebook, v8); each runs independently, loading CSVs saved by the previous week
 - `notebook/constants.py` — shared constants (`COUNTRIES`, `NON_SOVEREIGN`, `FEATURES`, `TARGET`, `TRAIN_CUTOFF`, `FORECAST_END`, etc.) imported by every week's notebook via `from constants import *` — single source of truth, do not redefine these inline in a notebook
 - `notebook/archive/ghg_analysis_combined.ipynb` — the original all-in-one notebook, kept only as an inert backup; not maintained, not referenced by docs
-- `app.py` — Streamlit dashboard (Week 6 stretch goal)
-- `api/` — FastAPI backend (stretch, alongside the Streamlit app), exposing the same page computations as JSON for `climate-dashboard-react/`; mirrors `app.py`'s pandas logic 1:1 endpoint-by-endpoint, `@lru_cache` in place of `@st.cache_data`. Has a pytest suite (`api/tests/`, run via `pytest api/tests`) covering every endpoint's happy path, 4xx/503 error paths, and pandas edge cases, against fixture CSVs written to a temp dir rather than the real (gitignored) data
-- `climate-dashboard-react/` — React + TypeScript dashboard (stretch) consuming `api/`, themed via the Analytics Theme of the `design-system` project (a separate, sibling checkout at `../design-system` relative to this repo — not part of this monorepo since it's shared across other projects too; `climate-dashboard-react/vite.config.ts` aliases straight to its `src/`). Has a Vitest + React Testing Library suite (`npm test`) — API client tests plus a loading/data/error smoke test per page; `SyChart` is stubbed in page tests since Plotly's DOM lifecycle is `design-system`'s own test suite's concern, not this app's
+- `app.py` — Streamlit dashboard (Week 6 stretch goal — the internship's only stretch goal)
+- `api/` — FastAPI backend (mentor's post-internship reference-architecture expansion, not internship scope — see the scope note above), exposing the same page computations as JSON for `climate-dashboard-react/`; mirrors `app.py`'s pandas logic 1:1 endpoint-by-endpoint, `@lru_cache` in place of `@st.cache_data`. Has a pytest suite (`api/tests/`, run via `pytest api/tests`) covering every endpoint's happy path, 4xx/503 error paths, and pandas edge cases, against fixture CSVs written to a temp dir rather than the real (gitignored) data
+- `climate-dashboard-react/` — React + TypeScript dashboard (mentor's post-internship reference-architecture expansion, not internship scope) consuming `api/`, themed via the Analytics Theme of the `design-system` project (a separate, sibling checkout at `../design-system` relative to this repo — not part of this monorepo since it's shared across other projects too; `climate-dashboard-react/vite.config.ts` aliases straight to its `src/`). Has a Vitest + React Testing Library suite (`npm test`) — API client tests plus a loading/data/error smoke test per page; `SyChart` is stubbed in page tests since Plotly's DOM lifecycle is `design-system`'s own test suite's concern, not this app's
 - `data/` — gitignored CSVs; interns download OWID dataset manually, all other CSVs (`ghg_filtered.csv`, `ghg_features.csv`, `model_comparison_regression.csv`, `ets_forecasts.csv`, `model_comparison.csv`, `scenario_projections.csv`) are regenerated locally by running the week notebooks in order
-- `requirements.txt` — pinned Python deps (pandas, scikit-learn, statsmodels, streamlit, fastapi, uvicorn, etc.)
+- `requirements.txt` — pinned Python deps (pandas, scikit-learn, statsmodels, streamlit, fastapi, uvicorn, etc.) — shared across the internship code and the post-internship `api/` expansion alike
 
 ---
 
@@ -32,6 +42,7 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 - **Scope:** Classical ML only (Linear Regression, Random Forest, ETS). No deep learning or LLMs — intentional to keep scope manageable for interns.
 - **Week 5 (Scenario Analysis) is optional** — only attempt if Weeks 3–4 are complete.
 - **Streamlit dashboard is a stretch goal**, not required for certificate.
+- **`api/` and `climate-dashboard-react/` are not internship scope at all** — unlike the Streamlit stretch goal, they're a separate expansion the mentor built afterward as a production-architecture reference. Don't treat them as intern deliverables, and don't imply interns are expected to build or extend them. See `SPEC.md` §5.
 - **Week 7 is final presentation only** — report template provided separately by course admin.
 
 ---
@@ -44,7 +55,7 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 
 ## Reference Documents
 
-- **Project specification (v8, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements
+- **Project specification (v9, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements (§§1–2); §5 separately documents the mentor's post-internship `api/`/`climate-dashboard-react/` reference architecture, explicitly out of internship scope
 - Project brief v1: Google Doc ID `1fcVx1dBr3mNZkNVgX42iCfsmiYrVtdFw`
 - Project brief v2: Google Doc ID `1cBMazlkGQ2WvYnp4KGB_skEobZbZClOimW6-ACW3tlQ`
 - Project brief v3: Google Doc ID `17wcMXnhYk_SKfPtiINOLD-Og-e5kUovoHQH25VA9_QE`
