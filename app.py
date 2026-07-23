@@ -596,12 +596,12 @@ elif page == "Data Explorer":
                 mime="text/csv",
             )
 
-        st.subheader("Dataset Summary")
-        st.write(f"Rows: {explorer_filtered.shape[0]}")
-        st.write(f"Columns: {explorer_filtered.shape[1]}")
+            st.subheader("Dataset Summary")
+            st.write(f"Rows: {explorer_filtered.shape[0]}")
+            st.write(f"Columns: {len(selected_columns)}")
 
-        st.subheader("Summary Statistics")
-        st.dataframe(explorer_filtered.describe(include="all"), use_container_width=True)
+            st.subheader("Summary Statistics")
+            st.dataframe(explorer_filtered[selected_columns].describe(include="all"), use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ABOUT
