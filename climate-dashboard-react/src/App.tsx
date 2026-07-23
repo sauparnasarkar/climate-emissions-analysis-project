@@ -7,6 +7,7 @@ import HistoricalTrendsPage from './pages/HistoricalTrendsPage';
 import CountryProfilePage from './pages/CountryProfilePage';
 import ForecastsPage from './pages/ForecastsPage';
 import ScenarioComparisonPage from './pages/ScenarioComparisonPage';
+import DataExplorerPage from './pages/DataExplorerPage';
 import AboutPage from './pages/AboutPage';
 
 const NAV_ITEMS: Array<Omit<SidebarNavItem, 'active'> & { path: string }> = [
@@ -15,6 +16,7 @@ const NAV_ITEMS: Array<Omit<SidebarNavItem, 'active'> & { path: string }> = [
   { id: 'country-profile', label: 'Country Profile', icon: 'user', path: '/country-profile' },
   { id: 'forecasts', label: 'Forecasts', icon: 'calendar', path: '/forecasts' },
   { id: 'scenarios', label: 'Scenario Comparison', icon: 'grid', path: '/scenarios' },
+  { id: 'data-explorer', label: 'Data Explorer', icon: 'search', path: '/data-explorer' },
   { id: 'about', label: 'About', icon: 'info', path: '/about' },
 ];
 
@@ -95,6 +97,7 @@ function App() {
             <Route path="/country-profile" element={<CountryProfilePage />} />
             <Route path="/forecasts" element={<ForecastsPage />} />
             <Route path="/scenarios" element={<ScenarioComparisonPage />} />
+            <Route path="/data-explorer" element={<DataExplorerPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

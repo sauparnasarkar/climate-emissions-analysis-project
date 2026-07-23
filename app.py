@@ -94,6 +94,17 @@ def load_raw():
 
 
 @st.cache_data
+def load_filtered():
+    """Week 1 output: all ~220 sovereign countries (NON_SOVEREIGN aggregates excluded),
+    year >= 1990 — the full raw+derived OWID panel, not reduced to the 10 focus countries
+    or the 10-column feature set. Backs the Data Explorer page."""
+    path = "data/ghg_filtered.csv"
+    if not os.path.exists(path):
+        return None
+    return pd.read_csv(path)
+
+
+@st.cache_data
 def load_model_comparison():
     """Load five-model MAE/RMSE comparison table produced in Week 4 §4.6."""
     path = "data/model_comparison.csv"
@@ -127,7 +138,7 @@ st.sidebar.divider()
 
 page = st.sidebar.radio(
     "Navigate",
-    ["Overview", "Historical Trends", "Country Profile", "Forecasts", "Scenario Comparison", "About"],
+    ["Overview", "Historical Trends", "Country Profile", "Forecasts", "Scenario Comparison", "Data Explorer", "About"],
 )
 
 st.sidebar.divider()
@@ -138,6 +149,7 @@ df            = load_features()
 df_forecasts  = load_forecasts()
 df_scenarios  = load_scenarios()
 df_raw        = load_raw()
+df_filtered   = load_filtered()
 df_model_cmp  = load_model_comparison()
 df_ets_params = load_ets_parameters()
 df_feat_imp   = load_feature_importance()
@@ -522,6 +534,74 @@ elif page == "Scenario Comparison":
         table = cumulative.pivot(index="country", columns="scenario", values="cumulative_co2")
         table = table[list(SCENARIO_COLORS.keys())].loc[order].round(0)
         st.dataframe(table, use_container_width=True)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DATA EXPLORER
+# ─────────────────────────────────────────────────────────────────────────────
+elif page == "Data Explorer":
+    st.title("Data Explorer")
+    st.markdown(
+        "Browse the full underlying dataset behind this dashboard: **every sovereign "
+        "country** (regional and income-group aggregates like \"World\" or \"European "
+        "Union\" excluded), from **1990 onward** — the raw and derived OWID columns, not "
+        "just the 10 focus countries or the reduced feature set used elsewhere in this app."
+    )
+
+    if df_filtered is None:
+        st.warning(
+            "⚠️ `data/ghg_filtered.csv` not found.\n\n"
+            "Complete **Week 1** of the notebook to generate this file, then restart the app."
+        )
+    else:
+        selected_countries = st.multiselect(
+            "Countries (leave empty to show all)",
+            options=sorted(df_filtered["country"].unique()),
+        )
+
+        data_year_min = int(df_filtered["year"].min())
+        data_year_max = int(df_filtered["year"].max())
+        year_range = st.slider(
+            "Year range",
+            min_value=data_year_min,
+            max_value=data_year_max,
+            value=(data_year_min, data_year_max),
+        )
+
+        default_columns = [
+            c for c in ["country", "year", "co2", "co2_per_capita", "population", "gdp", "total_ghg"]
+            if c in df_filtered.columns
+        ]
+        selected_columns = st.multiselect(
+            "Columns",
+            options=df_filtered.columns.tolist(),
+            default=default_columns,
+        )
+
+        explorer_filtered = df_filtered[
+            (df_filtered["year"] >= year_range[0]) & (df_filtered["year"] <= year_range[1])
+        ]
+        if selected_countries:
+            explorer_filtered = explorer_filtered[explorer_filtered["country"].isin(selected_countries)]
+
+        if len(selected_columns) == 0:
+            st.info("Select at least one column to preview the data.")
+        else:
+            st.subheader("Dataset Preview")
+            st.dataframe(explorer_filtered[selected_columns], use_container_width=True)
+
+            st.download_button(
+                "Download filtered data as CSV",
+                data=explorer_filtered[selected_columns].to_csv(index=False).encode("utf-8"),
+                file_name="ghg_filtered_export.csv",
+                mime="text/csv",
+            )
+
+            st.subheader("Dataset Summary")
+            st.write(f"Rows: {explorer_filtered.shape[0]}")
+            st.write(f"Columns: {len(selected_columns)}")
+
+            st.subheader("Summary Statistics")
+            st.dataframe(explorer_filtered[selected_columns].describe(include="all"), use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ABOUT

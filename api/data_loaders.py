@@ -57,6 +57,18 @@ def load_raw() -> pd.DataFrame:
 
 
 @lru_cache(maxsize=1)
+def load_filtered() -> pd.DataFrame:
+    """Week 1 output: all ~220 sovereign countries (NON_SOVEREIGN aggregates excluded),
+    year >= 1990 — the full raw+derived OWID panel, not reduced to the 10 focus countries
+    or the 10-column feature set. Backs the Data Explorer endpoints. Deliberately does NOT
+    apply load_raw()'s COUNTRIES restriction — exposing the wider country set is the point."""
+    path = _path("ghg_filtered.csv")
+    if not os.path.exists(path):
+        raise DataNotFoundError("data/ghg_filtered.csv not found. Complete Week 1 of the notebook.")
+    return pd.read_csv(path)
+
+
+@lru_cache(maxsize=1)
 def load_model_comparison() -> pd.DataFrame:
     path = _path("model_comparison.csv")
     if not os.path.exists(path):

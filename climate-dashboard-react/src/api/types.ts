@@ -142,6 +142,21 @@ export interface ScenarioCumulativeResponse {
   rows: ScenarioCumulativeRow[];
 }
 
+export interface ExplorerMetaResponse {
+  countries: string[];
+  columns: string[];
+  year_min: number;
+  year_max: number;
+}
+
+export interface ExplorerDataResponse {
+  columns: string[];
+  rows: Array<Record<string, unknown>>;
+  total_rows: number;
+  page: number;
+  page_size: number;
+}
+
 export class ApiError extends Error {
   status: number;
 
