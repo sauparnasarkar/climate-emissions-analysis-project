@@ -1,6 +1,6 @@
 # GHG Emissions Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v9**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v10**
 
 ---
 
@@ -313,6 +313,9 @@ Sections to include:
 - **Scenario Comparison** (if Week 5 complete): overlay chart of 3 scenarios and cumulative emissions bar chart
 - **About:** data sources, methodology summary, internship attribution
 
+> **Note:** `app.py` also has a further "Data Explorer" page beyond this list — a mentor
+> addition, not a required §6.2 section (see §5.5).
+
 **6.3 Interactivity Requirements (if building Streamlit app)**
 - At minimum: one `st.selectbox` for country selection, one `st.multiselect` for gas type, one `st.radio` for scenario selection
 - All charts must use Plotly Express (not static Matplotlib)
@@ -398,6 +401,7 @@ Sections to include:
 | v7 | Jul 2026 | RF Pooled (§3.6) now trains on extended 1975+ dataset (~400 rows, 1979–2018) built inline from raw OWID data, up from ~250 rows (1994–2018). LR and ETS training windows unchanged. Validated via `experiment/1980-start` branch. |
 | v8 | Jul 2026 | Notebook split from a single `notebook/ghg_analysis.ipynb` into one notebook per week (`week1_eda.ipynb` … `week5_scenarios.ipynb`), each runnable independently. Shared constants (`COUNTRIES`, `NON_SOVEREIGN`, `FEATURES`, `TARGET`, `TRAIN_CUTOFF`, `FORECAST_END`) extracted into `notebook/constants.py`. New intermediate artifacts `data/ghg_filtered.csv` (Week 1 output) and `data/model_comparison_regression.csv` (Week 3's 4-model table, extended with ETS in Week 4) persist hand-offs that were previously in-memory only. Original combined notebook kept as an inert backup at `notebook/archive/ghg_analysis_combined.ipynb`. |
 | v9 | Jul 2026 | Added §5, documenting the mentor's `api/` (FastAPI) + `climate-dashboard-react/` (React) reference architecture. This is a **post-internship addendum, not a scope change** — §5 is explicitly *not* part of the internship curriculum (§§1–2 are unchanged); it exists here only so the mentor's own further work on this repo is specified somewhere, clearly separated from what interns are asked to build. |
+| v10 | Jul 2026 | Added §5.5, documenting a new "Data Explorer" page (`app.py`, `api/`, `climate-dashboard-react/`) browsing the full ~220-country Week 1 output (`data/ghg_filtered.csv`) instead of the 10-focus-country dataset every other page uses — another mentor addition, not an internship requirement (§6.2 cross-references it). Required two `design-system` additions: a new `RangeSlider` component (dual-thumb year-range filter) and type-to-search added to the existing `MultiSelect` (on by default for all consumers, not just this page). |
 
 ---
 
@@ -429,7 +433,7 @@ depends on the other.
 | Structure | One router per dashboard page concept (`overview`, `historical`, `country_profile`, `forecasts`, `scenarios`), plus `main.py` (app instance, CORS, deploy-path middleware), `data_loaders.py` (`@lru_cache` CSV loaders), `schemas.py` (Pydantic models), `constants.py` (hand-mirrors `notebook/constants.py`) |
 | Data source | Reads the same `data/*.csv` files Weeks 1–5 produce — no new data pipeline of its own |
 | Missing-data behavior | A required CSV not yet generated → `HTTPException(503)` with a message naming which week produces it (mirrors `app.py`'s in-page warning) |
-| Endpoints | `GET /api/health`; `/api/overview`; `/api/historical/timeseries`, `/decade-composition`; `/api/countries/{country}/profile`; `/api/forecasts/summary`, `/model-comparison`, `/ets-parameters`, `/feature-importance`, `/{country}`; `/api/scenarios/timeseries`, `/cumulative` |
+| Endpoints | `GET /api/health`; `/api/overview`; `/api/historical/timeseries`, `/decade-composition`; `/api/countries/{country}/profile`; `/api/forecasts/summary`, `/model-comparison`, `/ets-parameters`, `/feature-importance`, `/{country}`; `/api/scenarios/timeseries`, `/cumulative`; `/api/explorer/meta`, `/data`, `/summary`, `/download` (see §5.5) |
 | Deployment | Served behind a Cloudflare Tunnel at `labs.syena.io/ghg-emissions-analysis/api/...`; `main.py`'s `StripDeployPrefixMiddleware` strips that deploy prefix so the same app also works unprefixed for local/Tailscale access |
 
 ### 5.3 React Front-End (`climate-dashboard-react/`)
@@ -437,8 +441,8 @@ depends on the other.
 | Aspect | Detail |
 |---|---|
 | Framework | Vite + React 19 + `react-router-dom` |
-| UI components | The sibling `design-system` project (a separate checkout at `../design-system`, shared across other products, not built for this project) — `Header`, `SidebarNav`, `Footer`, `KpiStat`, `ChartCard`, `SyChart` (Plotly), themed via its Analytics theme |
-| Structure | One page per nav item (`OverviewPage`, `HistoricalTrendsPage`, `CountryProfilePage`, `ForecastsPage`, `ScenarioComparisonPage`, `AboutPage`), each following the same `useAsync(() => api.xxx())` → loading/error/data pattern |
+| UI components | The sibling `design-system` project (a separate checkout at `../design-system`, shared across other products, not built for this project) — `Header`, `SidebarNav`, `Footer`, `KpiStat`, `ChartCard`, `SyChart` (Plotly), `DataTable` (AG Grid), `MultiSelect` (type-to-search built in), `RangeSlider` (dual-thumb, added for §5.5), themed via its Analytics theme |
+| Structure | One page per nav item (`OverviewPage`, `HistoricalTrendsPage`, `CountryProfilePage`, `ForecastsPage`, `ScenarioComparisonPage`, `DataExplorerPage` — see §5.5, `AboutPage`), each following the same `useAsync(() => api.xxx())` → loading/error/data pattern |
 | Data source | `src/api/client.ts` — a typed `fetch` wrapper calling `api/` exclusively; never reads a CSV directly, never talks to `app.py` |
 | Deployment | Same Cloudflare Tunnel deployment as `api/` (`labs.syena.io/ghg-emissions-analysis`); `vite.config.ts` handles the same deploy-prefix concern on the client side (build-time `base`, dev/preview proxy to `api/`), plus PWA/service-worker configuration |
 
@@ -456,3 +460,19 @@ components each carry their own automated suite:
 
 See `docs/training/02-python-api-backend/` and `docs/training/04-react-frontend/` for the
 full training curricula covering both.
+
+### 5.5 Data Explorer Page
+
+A further mentor addition (`app.py`, `api/`, and `climate-dashboard-react/` alike) beyond
+§6.2's required Streamlit sections and beyond every other page in this addendum: it browses
+the **full Week 1 output** (`data/ghg_filtered.csv` — all ~220 sovereign countries, year
+≥ 1990, `NON_SOVEREIGN` aggregates already excluded), not the 10-focus-country dataset every
+other page uses.
+
+| Aspect | Detail |
+|---|---|
+| Filters | Country (multiselect, empty = all), year range (continuous slider/range, or a single year with both ends equal), columns (multiselect, defaults to a representative 7-column subset of the ~79 available) |
+| `app.py` | Sidebar page after "Scenario Comparison": preview table, `.describe(include="all")` summary stats, CSV download — both the preview and summary respect the column selection |
+| `api/` | `GET /api/explorer/meta` (available countries/columns/year range); `/data` (paginated, `page`/`page_size`); `/summary` (full-filtered-set `describe()`, reuses `ModelComparisonResponse`'s `{columns, rows}` shape); `/download` (CSV file, `StreamingResponse`) — all four `503` the same way as every other endpoint if `ghg_filtered.csv` is missing |
+| `climate-dashboard-react/` | `DataExplorerPage`, paginated `DataTable`, CSV download link; the year-range filter uses `design-system`'s new `RangeSlider` (dual-thumb, APG multi-thumb slider pattern) — built for this page specifically, since no range-selecting control previously existed in `design-system` |
+| Country/column pickers | Both use `design-system`'s `MultiSelect`, which now opens with a type-to-search box filtering the option list by label — added directly because of this page's ~220-entry country list, but on by default for every `MultiSelect` consumer |
