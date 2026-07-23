@@ -1,6 +1,8 @@
 import type {
   CountryProfileResponse,
   EtsParametersResponse,
+  ExplorerDataResponse,
+  ExplorerMetaResponse,
   FeatureImportanceResponse,
   ForecastCountryResponse,
   ForecastSummaryResponse,
@@ -23,6 +25,15 @@ async function get<T>(path: string): Promise<T> {
     throw new ApiError(res.status, body.detail ?? res.statusText);
   }
   return res.json() as Promise<T>;
+}
+
+function buildExplorerParams(countries: string[], yearMin: number | null, yearMax: number | null, columns: string[]): URLSearchParams {
+  const params = new URLSearchParams();
+  countries.forEach((c) => params.append('countries', c));
+  if (yearMin !== null) params.set('year_min', String(yearMin));
+  if (yearMax !== null) params.set('year_max', String(yearMax));
+  columns.forEach((c) => params.append('columns', c));
+  return params;
 }
 
 export const api = {
@@ -56,4 +67,26 @@ export const api = {
   },
 
   scenarioCumulative: (sortBy: string) => get<ScenarioCumulativeResponse>(`/scenarios/cumulative?sort_by=${encodeURIComponent(sortBy)}`),
+
+  explorerMeta: () => get<ExplorerMetaResponse>('/explorer/meta'),
+
+  explorerData: (
+    countries: string[],
+    yearMin: number | null,
+    yearMax: number | null,
+    columns: string[],
+    page: number,
+    pageSize: number,
+  ) => {
+    const params = buildExplorerParams(countries, yearMin, yearMax, columns);
+    params.set('page', String(page));
+    params.set('page_size', String(pageSize));
+    return get<ExplorerDataResponse>(`/explorer/data?${params}`);
+  },
+
+  explorerSummary: (countries: string[], yearMin: number | null, yearMax: number | null, columns: string[]) =>
+    get<ModelComparisonResponse>(`/explorer/summary?${buildExplorerParams(countries, yearMin, yearMax, columns)}`),
+
+  explorerDownloadUrl: (countries: string[], yearMin: number | null, yearMax: number | null, columns: string[]) =>
+    `${import.meta.env.BASE_URL}api/explorer/download?${buildExplorerParams(countries, yearMin, yearMax, columns)}`,
 };

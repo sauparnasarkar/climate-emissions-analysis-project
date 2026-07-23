@@ -25,6 +25,7 @@ _LOADERS = [
     data_loaders.load_forecasts,
     data_loaders.load_scenarios,
     data_loaders.load_raw,
+    data_loaders.load_filtered,
     data_loaders.load_model_comparison,
     data_loaders.load_ets_parameters,
     data_loaders.load_feature_importance,
@@ -117,6 +118,27 @@ def owid_raw_df() -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["country", "year", "co2", "methane", "nitrous_oxide"])
 
 
+def ghg_filtered_df() -> pd.DataFrame:
+    # Kenya is outside both FIXTURE_COUNTRIES and the real api.constants.COUNTRIES focus
+    # list — load_filtered() deliberately does NOT restrict to COUNTRIES (unlike load_raw),
+    # so it must appear in /explorer results, proving that non-restriction.
+    rows = [
+        ("China", 1990, 2400, 1_150_000_000),
+        ("China", 2010, 8500, 1_340_000_000),
+        ("China", 2023, 11000, 1_410_000_000),
+        ("United States", 1990, 5000, 250_000_000),
+        ("United States", 2010, 5300, 309_000_000),
+        ("United States", 2023, 4700, 335_000_000),
+        ("Germany", 1990, 1000, 79_000_000),
+        ("Germany", 2010, 800, 81_000_000),
+        ("Germany", 2023, 600, 84_000_000),
+        ("Kenya", 1990, 5, 24_000_000),
+        ("Kenya", 2010, 12, 41_000_000),
+        ("Kenya", 2023, 18, 55_000_000),
+    ]
+    return pd.DataFrame(rows, columns=["country", "year", "co2", "population"])
+
+
 def model_comparison_df() -> pd.DataFrame:
     rows = [
         ("China", "Linear Regression", 120.5, 150.2),
@@ -151,6 +173,7 @@ FIXTURE_BUILDERS = {
     "ets_forecasts.csv": ets_forecasts_df,
     "scenario_projections.csv": scenario_projections_df,
     "owid-co2-data.csv": owid_raw_df,
+    "ghg_filtered.csv": ghg_filtered_df,
     "model_comparison.csv": model_comparison_df,
     "ets_parameters.csv": ets_parameters_df,
     "feature_importance.csv": feature_importance_df,

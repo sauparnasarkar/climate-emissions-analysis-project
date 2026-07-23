@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import country_profile, forecasts, historical, overview, scenarios
+from .routers import country_profile, explorer, forecasts, historical, overview, scenarios
 from .schemas import HealthResponse
 
 
@@ -80,6 +80,7 @@ app.include_router(historical.router, prefix="/api")
 app.include_router(country_profile.router, prefix="/api")
 app.include_router(forecasts.router, prefix="/api")
 app.include_router(scenarios.router, prefix="/api")
+app.include_router(explorer.router, prefix="/api")
 
 
 @app.get("/api/health", response_model=HealthResponse)

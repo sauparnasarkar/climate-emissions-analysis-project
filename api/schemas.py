@@ -149,3 +149,18 @@ class ScenarioCumulativeResponse(BaseModel):
     order: list[str]
     scenarios: list[str]
     rows: list[ScenarioCumulativeRow]
+
+
+class ExplorerMetaResponse(BaseModel):
+    countries: list[str]
+    columns: list[str]
+    year_min: int
+    year_max: int
+
+
+class ExplorerDataResponse(BaseModel):
+    columns: list[str]
+    rows: list[dict]
+    total_rows: int
+    page: int
+    page_size: int
