@@ -12,6 +12,9 @@ export default function AboutPage() {
   const methodologyRows = [
     { step: 'Dataset', detail: 'OWID CO₂ dataset, filtered to sovereign nations from 1990 onwards' },
     {
+      // Unlike other pages, this renders the table immediately rather than blocking on
+      // useCountries() with a top-level Spinner — everything else here is static, so only
+      // this one cell should show a brief "Loading…" rather than delaying the whole page.
       step: 'Countries',
       detail: countries.data
         ? `${countries.data.expanded.length} countries analyzed (data-quality coverage + emissions-materiality selection). `

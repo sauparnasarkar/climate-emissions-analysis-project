@@ -64,9 +64,9 @@ describe('ForecastsPage', () => {
     render(<ForecastsPage />);
 
     expect(await screen.findByText('ETS(A,Ad,N) Forecast — China')).toBeInTheDocument();
-    expect(screen.getByText('Forecast Summary — 1 Countries')).toBeInTheDocument();
+    expect(screen.getByText('Forecast Summary — 1 Country')).toBeInTheDocument();
     expect(await screen.findByText('Five-Model Comparison Table (MAE / RMSE)')).toBeInTheDocument();
-    expect(screen.getByText('ETS(A,Ad,N) Fitted Parameters — 1 Countries')).toBeInTheDocument();
+    expect(screen.getByText('ETS(A,Ad,N) Fitted Parameters — 1 Country')).toBeInTheDocument();
     expect(screen.getByText('Random Forest Feature Importance (Pooled Model)')).toBeInTheDocument();
 
     expect(vi.mocked(api.forecast)).toHaveBeenCalledWith('China');
@@ -86,7 +86,7 @@ describe('ForecastsPage', () => {
     render(<ForecastsPage />);
 
     expect(await screen.findByText('Five-Model Comparison Table (MAE / RMSE)')).toBeInTheDocument();
-    expect(screen.queryByText('ETS(A,Ad,N) Fitted Parameters — 1 Countries')).not.toBeInTheDocument();
+    expect(screen.queryByText('ETS(A,Ad,N) Fitted Parameters — 1 Country')).not.toBeInTheDocument();
     expect(screen.queryByText('Random Forest Feature Importance (Pooled Model)')).not.toBeInTheDocument();
   });
 
@@ -100,7 +100,7 @@ describe('ForecastsPage', () => {
     render(<ForecastsPage />);
 
     expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
-    expect(await screen.findByText('Forecast Summary — 1 Countries')).toBeInTheDocument();
+    expect(await screen.findByText('Forecast Summary — 1 Country')).toBeInTheDocument();
   });
 
   it('renders an inline error instead of crashing when listCountries fails', async () => {

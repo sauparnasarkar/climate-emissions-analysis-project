@@ -27,6 +27,10 @@ function humanize(field: string): string {
   return field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+function countryCount(n: number): string {
+  return `${n} ${n === 1 ? 'Country' : 'Countries'}`;
+}
+
 // Split out so the forecast fetch only ever starts once the expanded country list (and its
 // featured-default seed) are already known — avoiding a wasted initial fetch for an
 // undefined country before GET /api/countries resolves.
@@ -53,7 +57,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
   if (etsParams.data) {
     accordionItems.push({
       id: 'ets-params',
-      title: `ETS(A,Ad,N) Fitted Parameters — ${etsParams.data.rows.length} Countries`,
+      title: `ETS(A,Ad,N) Fitted Parameters — ${countryCount(etsParams.data.rows.length)}`,
       content: (
         <>
           <p className="__s9cmpx-body4" style={{ marginBottom: 12 }}>
@@ -120,7 +124,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
       </div>
 
       <h2 className="__s9cmpx-headline6">
-        {summary.data ? `Forecast Summary — ${summary.data.rows.length} Countries` : 'Forecast Summary'}
+        {summary.data ? `Forecast Summary — ${countryCount(summary.data.rows.length)}` : 'Forecast Summary'}
       </h2>
       {summary.loading ? (
         <Spinner />
