@@ -98,9 +98,9 @@ def get_expanded_countries():
     with open(path) as f:
         data = json.load(f)
     expanded = data.get("expanded")
-    if not expanded:
+    if not isinstance(expanded, list) or not expanded:
         warnings.warn(
-            "data/selected_countries.json has no 'expanded' key or is empty. "
+            "data/selected_countries.json 'expanded' key is missing, not a list, or empty. "
             "Falling back to FEATURED_COUNTRIES only."
         )
         return FEATURED_COUNTRIES
