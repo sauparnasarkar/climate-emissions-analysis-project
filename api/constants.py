@@ -1,9 +1,10 @@
 """Mirrors the constants block in app.py — single source of truth for the API."""
 
-COUNTRIES = [
+FEATURED_COUNTRIES = [
     "China", "United States", "India", "Russia", "Japan",
     "Germany", "Brazil", "United Kingdom", "South Africa", "Australia",
 ]
+COUNTRIES = FEATURED_COUNTRIES  # back-compat alias — nothing new should reference this name
 
 GAS_COLUMNS = {
     "co2": "CO₂",

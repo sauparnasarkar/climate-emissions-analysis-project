@@ -2,7 +2,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 
-from ..constants import COUNTRIES, GAS_COLUMNS
+from ..constants import FEATURED_COUNTRIES, GAS_COLUMNS
 from ..data_loaders import DataNotFoundError, load_raw
 from ..schemas import (
     DecadeGasShare,
@@ -26,7 +26,10 @@ def get_timeseries(
     except DataNotFoundError as e:
         raise HTTPException(status_code=503, detail=e.message)
 
-    selected = countries if countries else COUNTRIES[:5]
+    # No expanded-country validation here (unlike country_profile.py) -- this endpoint
+    # already accepts an arbitrary explicit `countries` list and silently omits any that
+    # don't match, a pre-existing lenient convention this Release doesn't change.
+    selected = countries if countries else FEATURED_COUNTRIES[:5]
     df_plot = df_raw[df_raw["country"].isin(selected)].dropna(subset=[gas])
 
     series = []

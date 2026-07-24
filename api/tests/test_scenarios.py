@@ -35,7 +35,27 @@ def test_scenario_timeseries_single_rejects_unknown_country(client):
 def test_scenario_timeseries_global_view(client):
     resp = client.get("/api/scenarios/timeseries", params={"view": "global"})
     assert resp.status_code == 200
+    # scope defaults to "featured"; with no selected_countries.json fixture,
+    # load_expanded_countries() falls back to the real 10 FEATURED_COUNTRIES either way.
     assert resp.json()["title_suffix"] == "All 10 Countries"
+
+
+def test_scenario_timeseries_global_view_scope_expanded(full_data):
+    from .conftest import write_selected_countries_json
+
+    write_selected_countries_json(full_data)  # expanded = FIXTURE_COUNTRIES + France, 4 total
+    resp = TestClient(app).get("/api/scenarios/timeseries", params={"view": "global", "scope": "expanded"})
+    assert resp.status_code == 200
+    assert resp.json()["title_suffix"] == "All 4 Countries"
+
+
+def test_scenario_timeseries_single_view_expanded_but_not_featured_succeeds(full_data):
+    from .conftest import write_selected_countries_json
+
+    write_selected_countries_json(full_data)  # expanded = FIXTURE_COUNTRIES + France
+    resp = TestClient(app).get("/api/scenarios/timeseries", params={"view": "single", "country": "France"})
+    assert resp.status_code == 200
+    assert resp.json()["title_suffix"] == "France"
 
 
 def test_scenario_timeseries_invalid_view_is_422(client):

@@ -69,6 +69,24 @@ def test_forecast_by_country_unknown_is_404(client):
     assert resp.status_code == 404
 
 
+def test_forecast_by_country_expanded_but_not_featured_succeeds(full_data):
+    from .conftest import write_selected_countries_json
+
+    write_selected_countries_json(full_data)  # expanded = FIXTURE_COUNTRIES + France
+    resp = TestClient(app).get("/api/forecasts/France")
+    assert resp.status_code == 200
+    assert resp.json()["country"] == "France"
+
+
+def test_forecast_summary_scope_expanded_matches_featured_without_persisted_selection(client):
+    """Without a selected_countries.json fixture, load_expanded_countries() falls back to
+    the real FEATURED_COUNTRIES -- scope=expanded and scope=featured must produce identical
+    results in that case, since they resolve to the same country list."""
+    featured_resp = client.get("/api/forecasts/summary", params={"scope": "featured"})
+    expanded_resp = client.get("/api/forecasts/summary", params={"scope": "expanded"})
+    assert featured_resp.json() == expanded_resp.json()
+
+
 def test_static_routes_are_not_shadowed_by_dynamic_country_route(client):
     """Regression test for the route-ordering comment in forecasts.py: the static routes
     must be declared before /forecasts/{country}, or Starlette would match e.g. "summary" as

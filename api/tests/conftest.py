@@ -26,6 +26,7 @@ _LOADERS = [
     data_loaders.load_scenarios,
     data_loaders.load_raw,
     data_loaders.load_filtered,
+    data_loaders.load_expanded_countries,
     data_loaders.load_model_comparison,
     data_loaders.load_ets_parameters,
     data_loaders.load_feature_importance,
@@ -183,6 +184,31 @@ FIXTURE_BUILDERS = {
 def write_fixture(data_dir, filename: str) -> None:
     """Writes a single named fixture CSV (see FIXTURE_BUILDERS) into data_dir."""
     FIXTURE_BUILDERS[filename]().to_csv(data_dir / filename, index=False)
+
+
+def selected_countries_json_data() -> dict:
+    """France (present in ghg_features.csv/owid-co2-data.csv fixtures but not in the real
+    api.constants.FEATURED_COUNTRIES) is included in "expanded" here, so tests can exercise
+    the expanded-but-not-featured access path. Deliberately NOT opted into `full_data` —
+    most tests should keep exercising load_expanded_countries()'s real fallback-to-
+    FEATURED_COUNTRIES behavior; only tests that explicitly call write_selected_countries_json
+    get this custom expanded set."""
+    return {
+        "generated": "2026-01-01",
+        "source_year": 2023,
+        "coverage_threshold_pct": 90,
+        "mt_floor": 100,
+        "expanded": [*FIXTURE_COUNTRIES, OUT_OF_SCOPE_COUNTRY],
+        "expanded_count": len(FIXTURE_COUNTRIES) + 1,
+        "expanded_global_share_pct": 92.2,
+    }
+
+
+def write_selected_countries_json(data_dir) -> None:
+    import json
+
+    with open(data_dir / "selected_countries.json", "w") as f:
+        json.dump(selected_countries_json_data(), f)
 
 
 @pytest.fixture

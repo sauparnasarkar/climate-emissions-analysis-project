@@ -1,11 +1,13 @@
 import math
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException
 
-from ..constants import COUNTRIES
+from ..constants import FEATURED_COUNTRIES
 from ..data_loaders import (
     DataNotFoundError,
     load_ets_parameters,
+    load_expanded_countries,
     load_feature_importance,
     load_features,
     load_forecasts,
@@ -24,6 +26,8 @@ from ..schemas import (
 
 router = APIRouter()
 
+Scope = Literal["featured", "expanded"]
+
 
 def _nan_to_none(v):
     return None if v is None or (isinstance(v, float) and math.isnan(v)) else v
@@ -38,15 +42,17 @@ def _snake_case(col: str) -> str:
 
 
 @router.get("/forecasts/summary", response_model=ForecastSummaryResponse)
-def get_forecast_summary():
+def get_forecast_summary(scope: Scope = "featured"):
     try:
         df_forecasts = load_forecasts()
         df = load_features()
     except DataNotFoundError as e:
         raise HTTPException(status_code=503, detail=e.message)
 
+    countries_in_scope = FEATURED_COUNTRIES if scope == "featured" else load_expanded_countries()
+
     rows = []
-    for c in COUNTRIES:
+    for c in countries_in_scope:
         fc = df_forecasts[df_forecasts["country"] == c].set_index("year")["mean"]
         actual_2020 = df[(df["country"] == c) & (df["year"] == 2020)]["co2"].values
         if len(actual_2020) == 0:
@@ -113,7 +119,7 @@ def get_feature_importance():
 
 @router.get("/forecasts/{country}", response_model=ForecastCountryResponse)
 def get_forecast(country: str):
-    if country not in COUNTRIES:
+    if country not in load_expanded_countries():
         raise HTTPException(status_code=404, detail=f"Unknown country: {country}")
 
     try:

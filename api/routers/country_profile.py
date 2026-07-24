@@ -2,8 +2,7 @@ import math
 
 from fastapi import APIRouter, HTTPException
 
-from ..constants import COUNTRIES
-from ..data_loaders import DataNotFoundError, load_features
+from ..data_loaders import DataNotFoundError, load_expanded_countries, load_features
 from ..schemas import CountryProfileResponse, CountryProfileTableRow
 
 router = APIRouter()
@@ -17,7 +16,7 @@ def _nan_to_none(v):
 
 @router.get("/countries/{country}/profile", response_model=CountryProfileResponse)
 def get_country_profile(country: str):
-    if country not in COUNTRIES:
+    if country not in load_expanded_countries():
         raise HTTPException(status_code=404, detail=f"Unknown country: {country}")
 
     try:
