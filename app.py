@@ -350,29 +350,36 @@ if page == "Overview":
                 "% Change": pct_change_by_country,
             }).dropna().sort_values("% Change", ascending=False)
 
-            col_growth, col_reduction = st.columns(2)
-            with col_growth:
-                top_growth = movers.iloc[0]
-                st.metric(
-                    f"Fastest Growth — {movers.index[0]}",
-                    f"{top_growth['% Change']:+.1f}%",
-                    f"{top_growth['Absolute Change (MtCO₂)']:+,.0f} MtCO₂",
-                )
-            with col_reduction:
-                top_reduction = movers.iloc[-1]
-                st.metric(
-                    f"Largest Reduction — {movers.index[-1]}",
-                    f"{top_reduction['% Change']:+.1f}%",
-                    f"{top_reduction['Absolute Change (MtCO₂)']:+,.0f} MtCO₂",
-                )
+            if movers.empty:
+                # Every real expanded country currently has both a 1990 and latest-year
+                # row (verified against live data), so this can't happen today -- but
+                # selected_countries is arbitrary user input, and a future
+                # selected_countries.json regeneration isn't guaranteed to preserve that.
+                st.info("Not enough data to compute Top Movers for this selection.")
+            else:
+                col_growth, col_reduction = st.columns(2)
+                with col_growth:
+                    top_growth = movers.iloc[0]
+                    st.metric(
+                        f"Fastest Growth — {movers.index[0]}",
+                        f"{top_growth['% Change']:+.1f}%",
+                        f"{top_growth['Absolute Change (MtCO₂)']:+,.0f} MtCO₂",
+                    )
+                with col_reduction:
+                    top_reduction = movers.iloc[-1]
+                    st.metric(
+                        f"Largest Reduction — {movers.index[-1]}",
+                        f"{top_reduction['% Change']:+.1f}%",
+                        f"{top_reduction['Absolute Change (MtCO₂)']:+,.0f} MtCO₂",
+                    )
 
-            fig_movers = px.bar(
-                movers.reset_index(), x="country", y="% Change",
-                labels={"country": "Country", "% Change": f"% Change in CO₂ (1990→{latest_year})"},
-                title=f"CO₂ % Change by Country, 1990–{latest_year}",
-                color="% Change", color_continuous_scale=["green", "lightgrey", "crimson"],
-            )
-            st.plotly_chart(fig_movers, use_container_width=True)
+                fig_movers = px.bar(
+                    movers.reset_index(), x="country", y="% Change",
+                    labels={"country": "Country", "% Change": f"% Change in CO₂ (1990→{latest_year})"},
+                    title=f"CO₂ % Change by Country, 1990–{latest_year}",
+                    color="% Change", color_continuous_scale=["green", "lightgrey", "crimson"],
+                )
+                st.plotly_chart(fig_movers, use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HISTORICAL TRENDS
