@@ -471,12 +471,16 @@ defaulting to `featured` once `useCountries()` resolves. `MAX_SELECTED_COUNTRIES
 shared `src/constants.ts` (mirroring `api/constants.py`) rather than staying duplicated in
 `HistoricalTrendsPage.tsx` alone, since a second page now needs the same number.
 
-### 2.2.6 — Frontend: three stacked KPI rows
+### 2.2.6 — Frontend: three tiers in one compact table
 
-Replaces the single KPI row with three (`All Countries` / `Expanded (Coverage + ≥100 Mt)` /
-`Selected`), each showing the same three metrics (CO₂ total, % change since 1990, countries
-analyzed) at that tier's scope, via a small local render helper (not a new design-system
-component).
+Replaces the single KPI row with all three tiers (`All Countries` / `Expanded (Coverage +
+≥100 Mt)` / `Selected`) in one bordered `Table` — Tier / Countries / CO₂ / % Change since
+1990 — instead of three separate headed rows of `KpiStat` cards. **Revised post-launch**: the
+original shipped design used three stacked KPI-card rows (one heading + three `KpiStat` cards
+each, nine cards total); user feedback that this took up too much vertical space led to
+condensing it into the single table described here, in a follow-up PR. `% Change since 1990`
+keeps its color-coded up/down styling (green/red) via a custom column `render`, reusing
+`KpiStat`'s own color tokens rather than introducing new ones.
 
 ### 2.2.7 — Frontend: picker + chart/Top-Movers wiring, empty-selection behavior
 
