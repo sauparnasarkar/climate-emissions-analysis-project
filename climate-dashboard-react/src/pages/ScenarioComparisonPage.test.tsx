@@ -59,7 +59,7 @@ describe('ScenarioComparisonPage', () => {
     expect(await screen.findByText('CO₂ Emissions Scenarios — All 40 Countries')).toBeInTheDocument();
     expect(vi.mocked(api.scenarioTimeseries)).toHaveBeenLastCalledWith('global', undefined);
     // The per-country Select should disappear entirely in Global Aggregate view.
-    expect(screen.queryByLabelText('Select a country')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Select a country/)).not.toBeInTheDocument();
   });
 
   it('re-sorts the cumulative table when a different scenario radio is selected', async () => {

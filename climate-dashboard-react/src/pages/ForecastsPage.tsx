@@ -98,7 +98,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
         Forecasts from Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, with 95% confidence intervals extending to 2043.
       </p>
 
-      <Select label="Select a country" options={expanded.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
+      <Select label={`Select a country (${expanded.length} available)`} options={expanded.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
 
       <div style={{ margin: '16px 0' }}>
         {forecast.loading ? (

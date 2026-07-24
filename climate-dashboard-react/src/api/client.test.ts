@@ -19,10 +19,25 @@ afterEach(() => {
 });
 
 describe('api client', () => {
-  it('overview() fetches /api/overview', async () => {
+  it('overview() with no countries fetches plain /api/overview', async () => {
     mockFetchOnce({ latest_year: 2024 });
     await api.overview();
     expect(fetch).toHaveBeenCalledWith('/api/overview');
+  });
+
+  it('overview() with an empty countries array also fetches plain /api/overview', async () => {
+    mockFetchOnce({ latest_year: 2024 });
+    await api.overview([]);
+    expect(fetch).toHaveBeenCalledWith('/api/overview');
+  });
+
+  it('overview() with countries encodes them as repeated query params', async () => {
+    mockFetchOnce({ latest_year: 2024 });
+    await api.overview(['China', 'India']);
+    const calledUrl = vi.mocked(fetch).mock.calls[0][0] as string;
+    const [path, query] = calledUrl.split('?');
+    expect(path).toBe('/api/overview');
+    expect(new URLSearchParams(query).getAll('countries')).toEqual(['China', 'India']);
   });
 
   it('historicalTimeseries() encodes repeated countries + gas as query params', async () => {

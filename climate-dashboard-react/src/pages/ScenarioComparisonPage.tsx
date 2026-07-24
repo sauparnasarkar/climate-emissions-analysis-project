@@ -54,7 +54,7 @@ function ScenarioComparisonContent({ expanded, seedCountry }: { expanded: string
           onChange={(v) => setView(v as ViewMode)}
         />
         {view === 'single' && (
-          <Select label="Select a country" options={expanded.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
+          <Select label={`Select a country (${expanded.length} available)`} options={expanded.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
         )}
       </div>
 

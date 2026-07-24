@@ -26,7 +26,7 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Country Profile</h1>
 
       <Select
-        label="Select a country"
+        label={`Select a country (${expanded.length} available)`}
         options={expanded.map((c) => ({ value: c, label: c }))}
         value={country}
         onChange={setCountry}

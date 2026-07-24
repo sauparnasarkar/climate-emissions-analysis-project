@@ -51,7 +51,7 @@ describe('CountryProfilePage', () => {
     await screen.findByText('CO₂ Emissions — China');
 
     vi.mocked(api.countryProfile).mockResolvedValue({ ...RESPONSE, country: 'Vietnam' });
-    await user.click(screen.getByLabelText('Select a country'));
+    await user.click(screen.getByLabelText('Select a country (4 available)'));
     await user.click(await screen.findByRole('option', { name: 'Vietnam' }));
 
     expect(await screen.findByText('CO₂ Emissions — Vietnam')).toBeInTheDocument();

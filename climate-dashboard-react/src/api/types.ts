@@ -13,14 +13,20 @@ export interface MoverRow {
   pct_change: number | null;
 }
 
-export interface OverviewResponse {
+export interface OverviewTierMetrics {
+  label: 'All Countries' | 'Expanded' | 'Selected';
+  countries_count: number;
   latest_year: number;
   latest_co2_total: number;
   co2_1990_total: number;
   pct_change_since_1990: number;
-  countries_count: number;
-  focus_countries: string[];
-  total_countries_analyzed: number;
+}
+
+export interface OverviewResponse {
+  all_countries: OverviewTierMetrics;
+  expanded_countries: OverviewTierMetrics;
+  selected: OverviewTierMetrics;
+  selected_country_list: string[];
   latest_year_bar: CountryValue[];
   top_movers: MoverRow[];
   fastest_growth: MoverRow;

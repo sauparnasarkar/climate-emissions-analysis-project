@@ -38,7 +38,12 @@ function buildExplorerParams(countries: string[], yearMin: number | null, yearMa
 }
 
 export const api = {
-  overview: () => get<OverviewResponse>('/overview'),
+  overview: (countries?: string[]) => {
+    if (!countries || countries.length === 0) return get<OverviewResponse>('/overview');
+    const params = new URLSearchParams();
+    countries.forEach((c) => params.append('countries', c));
+    return get<OverviewResponse>(`/overview?${params}`);
+  },
 
   listCountries: () => get<CountriesResponse>('/countries'),
 

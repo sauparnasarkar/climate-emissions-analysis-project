@@ -3,10 +3,9 @@ import { ChartCard, SyChart, MultiSelect, Select, InlineAlert, Spinner } from 'd
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
-import { GAS_COLUMNS } from '../constants';
+import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
 
 const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value, label }));
-const MAX_SELECTED_COUNTRIES = 10;
 
 // Split out so the timeseries fetch only ever starts once the expanded country list (and
 // its featured-default seed) are already known — avoiding a wasted initial fetch before
@@ -27,7 +26,7 @@ function HistoricalTrendsContent({ expanded, seedCountries }: { expanded: string
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <MultiSelect
-          label="Select countries (up to 10)"
+          label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
           options={expanded.map((c) => ({ value: c, label: c }))}
           value={selectedCountries}
           onChange={setSelectedCountries}
