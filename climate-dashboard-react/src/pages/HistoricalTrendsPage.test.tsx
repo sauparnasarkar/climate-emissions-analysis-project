@@ -87,7 +87,7 @@ describe('HistoricalTrendsPage', () => {
 
     // 5 featured countries are preselected by default; select 5 more (the whole rest of
     // the expanded pool except Vietnam) to land exactly at the maxSelected=10 cap.
-    await user.click(screen.getByLabelText('Select countries (up to 10)'));
+    await user.click(screen.getByLabelText('Select countries (up to 10/11)'));
     for (const country of ['Germany', 'Brazil', 'United Kingdom', 'South Africa', 'Australia']) {
       await user.click(await screen.findByRole('option', { name: country }));
     }

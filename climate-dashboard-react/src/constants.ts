@@ -4,6 +4,10 @@
 // data-driven now (data/selected_countries.json), fetched via GET /api/countries
 // (see api/client.ts's listCountries() and hooks/useCountries.ts).
 
+// Mirrors api/constants.py's MAX_SELECTED_COUNTRIES — shared by every capped MultiSelect
+// (Historical Trends, Overview) so the two never drift.
+export const MAX_SELECTED_COUNTRIES = 10;
+
 export const GAS_COLUMNS: Record<string, string> = {
   co2: 'CO₂',
   methane: 'Methane (CH₄)',
