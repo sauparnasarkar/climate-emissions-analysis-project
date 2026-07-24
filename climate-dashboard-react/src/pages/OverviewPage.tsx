@@ -1,26 +1,53 @@
 import { useState } from 'react';
-import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner } from 'design-system';
+import { KpiStat, ChartCard, SyChart, MultiSelect, Button, Table, InlineAlert, Spinner } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { MAX_SELECTED_COUNTRIES } from '../constants';
 import type { OverviewTierMetrics } from '../api/types';
 
-function TierKpiRow({ title, tier }: { title: string; tier: OverviewTierMetrics }) {
+const POSITIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-positive, #187254)';
+const NEGATIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-negative, #8d1a2a)';
+
+interface TierRow {
+  tier: string;
+  countries: number;
+  co2: string;
+  pctChange: number;
+}
+
+function tierRow(title: string, tier: OverviewTierMetrics): TierRow {
+  return {
+    tier: title,
+    countries: tier.countries_count,
+    co2: `${tier.latest_co2_total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂ (${tier.latest_year})`,
+    pctChange: tier.pct_change_since_1990,
+  };
+}
+
+// Three tiers, one compact table instead of three separate KPI-card rows — same numbers,
+// far less vertical space.
+function TierTable({ rows }: { rows: TierRow[] }) {
   return (
-    <div style={{ marginBottom: 16 }}>
-      <h2 className="__s9cmpx-headline6" style={{ margin: '0 0 8px' }}>{title}</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
-        <KpiStat card label={`CO₂ (${tier.latest_year})`} value={`${tier.latest_co2_total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} />
-        <KpiStat
-          card
-          label="% Change since 1990"
-          value={`${tier.pct_change_since_1990 >= 0 ? '+' : ''}${tier.pct_change_since_1990.toFixed(1)}%`}
-          deltaDirection={tier.pct_change_since_1990 >= 0 ? 'up' : 'down'}
-        />
-        <KpiStat card label="Countries" value={tier.countries_count} />
-      </div>
-    </div>
+    <Table
+      columns={[
+        { key: 'tier', header: 'Tier' },
+        { key: 'countries', header: 'Countries', align: 'right' },
+        { key: 'co2', header: 'CO₂', align: 'right' },
+        {
+          key: 'pctChange',
+          header: '% Change since 1990',
+          align: 'right',
+          render: (row) => (
+            <span style={{ color: row.pctChange >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR }}>
+              {row.pctChange >= 0 ? '+' : ''}{row.pctChange.toFixed(1)}%
+            </span>
+          ),
+        },
+      ]}
+      rows={rows}
+      withBorder
+    />
   );
 }
 
@@ -57,8 +84,15 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         regression models, and ETS(A,Ad,N) forecasting.
       </p>
 
-      <TierKpiRow title="All Countries" tier={data.all_countries} />
-      <TierKpiRow title="Expanded (Coverage + ≥100 Mt)" tier={data.expanded_countries} />
+      <div style={{ marginBottom: 16 }}>
+        <TierTable
+          rows={[
+            tierRow('All Countries', data.all_countries),
+            tierRow('Expanded (Coverage + ≥100 Mt)', data.expanded_countries),
+            ...(selected.length > 0 ? [tierRow('Selected', data.selected)] : []),
+          ]}
+        />
+      </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 12 }}>
         <MultiSelect
@@ -76,8 +110,6 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>
       ) : (
         <>
-          <TierKpiRow title="Selected" tier={data.selected} />
-
           <ChartCard title={`CO₂ Emissions by Country (${data.selected.latest_year})`}>
             <SyChart
               height={320}
