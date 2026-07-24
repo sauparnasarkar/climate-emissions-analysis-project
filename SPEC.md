@@ -37,6 +37,12 @@ Build an end-to-end analytical project that ingests open Greenhouse Gas (GHG) em
 
 These represent a mix of major emitters, economies at different stages of development, and countries with documented emissions reduction trajectories (e.g. UK, Germany).
 
+> These 10 remain the required internship curriculum baseline — nothing in §§1–2 changes.
+> Separately, the mentor's own reference implementation (notebooks + `app.py` + the §5
+> addendum) has since expanded per-country training/evaluation to a data-driven ~40-country
+> set alongside these 10, computed in Week 1 §1.2 and persisted to
+> `data/selected_countries.json`. See §5.6.
+
 ### Tools and Libraries
 
 | Tool / Library | Purpose |
@@ -402,6 +408,7 @@ Sections to include:
 | v8 | Jul 2026 | Notebook split from a single `notebook/ghg_analysis.ipynb` into one notebook per week (`week1_eda.ipynb` … `week5_scenarios.ipynb`), each runnable independently. Shared constants (`COUNTRIES`, `NON_SOVEREIGN`, `FEATURES`, `TARGET`, `TRAIN_CUTOFF`, `FORECAST_END`) extracted into `notebook/constants.py`. New intermediate artifacts `data/ghg_filtered.csv` (Week 1 output) and `data/model_comparison_regression.csv` (Week 3's 4-model table, extended with ETS in Week 4) persist hand-offs that were previously in-memory only. Original combined notebook kept as an inert backup at `notebook/archive/ghg_analysis_combined.ipynb`. |
 | v9 | Jul 2026 | Added §5, documenting the mentor's `api/` (FastAPI) + `climate-dashboard-react/` (React) reference architecture. This is a **post-internship addendum, not a scope change** — §5 is explicitly *not* part of the internship curriculum (§§1–2 are unchanged); it exists here only so the mentor's own further work on this repo is specified somewhere, clearly separated from what interns are asked to build. |
 | v10 | Jul 2026 | Added §5.5, documenting a new "Data Explorer" page (`app.py`, `api/`, `climate-dashboard-react/`) browsing the full ~220-country Week 1 output (`data/ghg_filtered.csv`) instead of the 10-focus-country dataset every other page uses — another mentor addition, not an internship requirement (§6.2 cross-references it). Required two `design-system` additions: a new `RangeSlider` component (dual-thumb year-range filter) and type-to-search added to the existing `MultiSelect` (on by default for all consumers, not just this page). |
+| v11 | Jul 2026 | Added §5.6 (Release 2.1, `ENHANCEMENTS.md`), documenting the mentor's expansion of per-country training/evaluation to a data-driven ~40-country set (`get_expanded_countries()` / `load_expanded_countries()`, computed in Week 1 §1.2, persisted to `data/selected_countries.json`) alongside the original 10 (`FEATURED_COUNTRIES`, still the default/narrative selection) — not an internship requirement change (§1's "Countries of Focus" cross-references it). `design-system`'s `Select` gained the same type-to-search pattern §5.5 gave `MultiSelect`; `MultiSelect` gained a `maxSelected` cap. |
 
 ---
 
@@ -476,3 +483,19 @@ other page uses.
 | `api/` | `GET /api/explorer/meta` (available countries/columns/year range); `/data` (paginated, `page`/`page_size`); `/summary` (full-filtered-set `describe()`, reuses `ModelComparisonResponse`'s `{columns, rows}` shape); `/download` (CSV file, `StreamingResponse`) — all four `503` the same way as every other endpoint if `ghg_filtered.csv` is missing |
 | `climate-dashboard-react/` | `DataExplorerPage`, paginated `DataTable`, CSV download link; the year-range filter uses `design-system`'s new `RangeSlider` (dual-thumb, APG multi-thumb slider pattern) — built for this page specifically, since no range-selecting control previously existed in `design-system` |
 | Country/column pickers | Both use `design-system`'s `MultiSelect`, which now opens with a type-to-search box filtering the option list by label — added directly because of this page's ~220-entry country list, but on by default for every `MultiSelect` consumer |
+
+### 5.6 Expanded Country Set (Release 2.1)
+
+Another mentor addition, tracked in `ENHANCEMENTS.md` — not a curriculum change. §1's
+"Countries of Focus" (the original 10) remains the internship's required baseline; this
+section documents the mentor's own reference implementation additionally analyzing a
+data-driven ~40-country set alongside it, across the notebooks, `app.py`, `api/`, and
+`climate-dashboard-react/` alike.
+
+| Aspect | Detail |
+|---|---|
+| Selection method | Week 1 §1.2: countries with a data-quality coverage score (min, not mean, across key columns) above a natural gap in the distribution, further floored to ≥100 Mt latest-year CO₂ (materiality) — ~40 countries, persisted to `data/selected_countries.json` |
+| Two-tier naming | `FEATURED_COUNTRIES` (the original 10, hardcoded) stays the default/narrative selection everywhere (Overview KPIs, the fixed-size 5×2 subplot grids in §3.8/§4.3, seeded dropdown defaults). A `get_expanded_countries()` function — in `notebook/constants.py`, `app.py`, and as `load_expanded_countries()` in `api/data_loaders.py` — loads the ~40-country set for per-country training/evaluation loops, aggregate sums, tables, and every interactive picker's searchable pool |
+| Missing-file behavior | The notebook version raises `FileNotFoundError` uncaught (Weeks 2–5 genuinely can't proceed without it); the `app.py`/`api/` versions degrade gracefully, falling back to `FEATURED_COUNTRIES` with a warning rather than crashing a live app |
+| Multi-country pickers | React `MultiSelect` and Streamlit's `st.multiselect` both cap simultaneous selections at 10 (`maxSelected` / `max_selections`) even though their searchable pool is the full ~40 — past 10 countries on one chart stops being readable. Single-country pickers (`Select` / `st.selectbox`) have no such cap and search the full ~40 |
+| `design-system` | `Select` gained the same type-to-search pattern §5.5 added to `MultiSelect`; `MultiSelect` gained the new `maxSelected` prop described above |
