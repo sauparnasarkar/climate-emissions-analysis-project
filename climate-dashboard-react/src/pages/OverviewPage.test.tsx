@@ -50,9 +50,10 @@ describe('OverviewPage', () => {
     expect(screen.getByText('All Countries')).toBeInTheDocument();
     expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
     expect(screen.getByText('Selected')).toBeInTheDocument();
-    expect(screen.getByText('37,406 MtCO₂ (2024)')).toBeInTheDocument();
-    expect(screen.getByText('34,477 MtCO₂ (2024)')).toBeInTheDocument();
-    expect(screen.getByText('25,324 MtCO₂ (2024)')).toBeInTheDocument();
+    expect(screen.getByText('CO₂ (2024)')).toBeInTheDocument();
+    expect(screen.getByText('37,406 MtCO₂')).toBeInTheDocument();
+    expect(screen.getByText('34,477 MtCO₂')).toBeInTheDocument();
+    expect(screen.getByText('25,324 MtCO₂')).toBeInTheDocument();
     expect(screen.getByText('+76.5%')).toBeInTheDocument();
     expect(screen.getByText(/China.*United States.*India/)).toBeInTheDocument();
     expect(screen.getByText('Top Movers Since 1990 (10 Selected Countries)')).toBeInTheDocument();
@@ -100,7 +101,7 @@ describe('OverviewPage', () => {
     await user.click(screen.getByLabelText('Select countries (up to 10/11)'));
     await user.click(screen.getByRole('option', { name: 'Vietnam' }));
 
-    expect(await screen.findByText('370 MtCO₂ (2024)')).toBeInTheDocument();
+    expect(await screen.findByText('370 MtCO₂')).toBeInTheDocument();
     expect(await screen.findByText('Fastest Growth — Vietnam')).toBeInTheDocument();
     expect(vi.mocked(api.overview)).toHaveBeenLastCalledWith(['Vietnam']);
   });

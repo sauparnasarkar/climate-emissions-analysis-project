@@ -20,34 +20,40 @@ function tierRow(title: string, tier: OverviewTierMetrics): TierRow {
   return {
     tier: title,
     countries: tier.countries_count,
-    co2: `${tier.latest_co2_total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂ (${tier.latest_year})`,
+    co2: `${tier.latest_co2_total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`,
     pctChange: tier.pct_change_since_1990,
   };
 }
 
 // Three tiers, one compact table instead of three separate KPI-card rows — same numbers,
-// far less vertical space.
-function TierTable({ rows }: { rows: TierRow[] }) {
+// far less vertical space. The header row background (scoped to this table only, via the
+// wrapper class below) distinguishes it from the body rows — Table itself has no prop for
+// this, and the three tiers' latest_year always agree in practice (same pipeline run), so
+// the year lives once in the CO₂ column header instead of repeated in every row's cell.
+function TierTable({ rows, year }: { rows: TierRow[]; year: number }) {
   return (
-    <Table
-      columns={[
-        { key: 'tier', header: 'Tier' },
-        { key: 'countries', header: 'Countries', align: 'right' },
-        { key: 'co2', header: 'CO₂', align: 'right' },
-        {
-          key: 'pctChange',
-          header: '% Change since 1990',
-          align: 'right',
-          render: (row) => (
-            <span style={{ color: row.pctChange >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR }}>
-              {row.pctChange >= 0 ? '+' : ''}{row.pctChange.toFixed(1)}%
-            </span>
-          ),
-        },
-      ]}
-      rows={rows}
-      withBorder
-    />
+    <div className="overview-tier-table">
+      <style>{'.overview-tier-table thead th { background: var(--__s9cmpx-static-layer-standard); }'}</style>
+      <Table
+        columns={[
+          { key: 'tier', header: 'Tier' },
+          { key: 'countries', header: 'Countries', align: 'right' },
+          { key: 'co2', header: `CO₂ (${year})`, align: 'right' },
+          {
+            key: 'pctChange',
+            header: '% Change since 1990',
+            align: 'right',
+            render: (row) => (
+              <span style={{ color: row.pctChange >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR }}>
+                {row.pctChange >= 0 ? '+' : ''}{row.pctChange.toFixed(1)}%
+              </span>
+            ),
+          },
+        ]}
+        rows={rows}
+        withBorder
+      />
+    </div>
   );
 }
 
@@ -86,6 +92,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
 
       <div style={{ marginBottom: 16 }}>
         <TierTable
+          year={data.all_countries.latest_year}
           rows={[
             tierRow('All Countries', data.all_countries),
             tierRow('Expanded (Coverage + ≥100 Mt)', data.expanded_countries),
