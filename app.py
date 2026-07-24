@@ -36,6 +36,37 @@ FEATURED_COUNTRIES = [
     "Germany", "Brazil", "United Kingdom", "South Africa", "Australia",
 ]
 
+MAX_SELECTED_COUNTRIES = 10
+
+# Mirrors notebook/constants.py's NON_SOVEREIGN verbatim — kept in sync by hand, same
+# three-way-mirror convention as FEATURED_COUNTRIES across notebook/, api/, and app.py.
+NON_SOVEREIGN = [
+    # Continental / regional aggregates (OWID)
+    "World", "Asia", "Europe", "Africa", "North America", "South America",
+    "Oceania",
+    # Continental / regional aggregates (GCP variants)
+    "Africa (GCP)", "Asia (GCP)", "Europe (GCP)",
+    "North America (GCP)", "South America (GCP)", "Oceania (GCP)",
+    "Central America (GCP)", "Middle East (GCP)",
+    # Sub-regional exclusion variants
+    "Asia (excl. China and India)",
+    "Europe (excl. EU-27)", "Europe (excl. EU-28)",
+    "North America (excl. USA)",
+    # European Union aggregates
+    "European Union (27)", "European Union (28)",
+    # Income / development groupings
+    "High-income countries", "Low-income countries",
+    "Upper-middle-income countries", "Lower-middle-income countries",
+    "Least developed countries (Jones et al.)",
+    # OECD / Non-OECD groupings
+    "OECD (GCP)", "OECD (Jones et al.)", "Non-OECD (GCP)",
+    # International transport (components — "International transport" does not exist in OWID)
+    "International aviation", "International shipping",
+    # Special / historical entries
+    "Kuwaiti Oil Fires", "Kuwaiti Oil Fires (GCP)",
+    "Ryukyu Islands (GCP)",
+]
+
 GAS_COLUMNS = {
     "CO₂":                 "co2",
     "Methane (CH₄)":       "methane",
@@ -119,6 +150,20 @@ def load_raw():
 
 
 @st.cache_data
+def load_raw_sovereign():
+    """All sovereign countries (NON_SOVEREIGN aggregates excluded), year >= 1990. Backs the
+    Overview page's "All Countries" tier only -- Expanded/Selected keep reading
+    load_features() (ghg_features.csv), unlike this loader which reads owid-co2-data.csv
+    directly since ghg_features.csv is already restricted to the ~40 expanded countries."""
+    path = "data/owid-co2-data.csv"
+    if not os.path.exists(path):
+        return None
+    cols = ["country", "year", "co2"]
+    df_r = pd.read_csv(path, usecols=cols)
+    return df_r[(~df_r["country"].isin(NON_SOVEREIGN)) & (df_r["year"] >= 1990)].copy()
+
+
+@st.cache_data
 def load_filtered():
     """Week 1 output: all ~220 sovereign countries (NON_SOVEREIGN aggregates excluded),
     year >= 1990 — the full raw+derived OWID panel, not reduced to the 10 focus countries
@@ -156,6 +201,46 @@ def load_feature_importance():
     return pd.read_csv(path)
 
 
+def overview_tier_metrics(df, countries, label):
+    """Mirrors api/routers/overview.py's _tier_metrics -- one dict of Overview KPI values
+    for a given (dataframe, country-list) pair. `df` is already the full backing dataframe
+    for the tier (load_raw_sovereign() for All Countries, load_features() for
+    Expanded/Selected). `countries=None` means "use the whole df, no further filtering" --
+    the All Countries tier, whose only filtering is already load_raw_sovereign()'s own
+    NON_SOVEREIGN exclusion."""
+    if countries is None:
+        df_tier = df
+        countries_count = df_tier["country"].nunique()
+    else:
+        df_tier = df[df["country"].isin(countries)]
+        countries_count = len(countries)
+    latest_year = int(df_tier["year"].max())
+    latest_total = float(df_tier[df_tier["year"] == latest_year]["co2"].sum())
+    base_total = float(df_tier[df_tier["year"] == 1990]["co2"].sum())
+    # A single selected country (possible via the Selected tier's multiselect) may have no
+    # 1990 row -- guard against division by zero rather than crashing the page.
+    pct_change = (latest_total - base_total) / base_total * 100 if base_total else 0.0
+    return {
+        "label": label,
+        "countries_count": countries_count,
+        "latest_year": latest_year,
+        "latest_co2_total": latest_total,
+        "co2_1990_total": base_total,
+        "pct_change_since_1990": pct_change,
+    }
+
+
+def render_tier_metrics(tier):
+    """Renders one overview_tier_metrics() dict as a 3-column st.metric row."""
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric(f"CO₂ ({tier['latest_year']})", f"{tier['latest_co2_total']:,.0f} MtCO₂")
+    with col2:
+        st.metric("% Change since 1990", f"{tier['pct_change_since_1990']:+.1f}%")
+    with col3:
+        st.metric("Countries", tier["countries_count"])
+
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 st.sidebar.title("🌍 GHG Emissions Analysis")
 st.sidebar.markdown("**IDEAS TIH Summer Internship 2026**")
@@ -174,6 +259,7 @@ df            = load_features()
 df_forecasts  = load_forecasts()
 df_scenarios  = load_scenarios()
 df_raw        = load_raw()
+df_raw_sov    = load_raw_sovereign()
 df_filtered   = load_filtered()
 df_model_cmp  = load_model_comparison()
 df_ets_params = load_ets_parameters()
@@ -191,83 +277,109 @@ if page == "Overview":
     )
     st.divider()
 
-    if df is not None:
-        col1, col2, col3 = st.columns(3)
-
-        latest_year = int(df["year"].max())
-
-        latest_co2 = df[(df["year"] == latest_year) & (df["country"].isin(FEATURED_COUNTRIES))]["co2"].sum()
-        co2_1990   = df[(df["year"] == 1990)        & (df["country"].isin(FEATURED_COUNTRIES))]["co2"].sum()
-        pct_change = (latest_co2 - co2_1990) / co2_1990 * 100
-
-        with col1:
-            st.metric(f"{len(FEATURED_COUNTRIES)}-Country CO₂ ({latest_year})", f"{latest_co2:,.0f} MtCO₂")
-
-        with col2:
-            st.metric("% Change since 1990", f"{pct_change:+.1f}%")
-
-        with col3:
-            st.metric(label="Countries Analysed", value=len(FEATURED_COUNTRIES))
-
-        st.divider()
-        st.subheader("Focus Countries")
-        st.markdown("  |  ".join(FEATURED_COUNTRIES))
-
-        df_bar = (df[df["year"] == latest_year][["country", "co2"]]
-                  .sort_values("co2", ascending=False))
-        fig = px.bar(df_bar, x="country", y="co2",
-                     labels={"co2": "CO₂ (MtCO₂)", "country": "Country"},
-                     title=f"CO₂ Emissions by Country ({latest_year})")
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.divider()
-        st.subheader(f"Top Movers Since 1990 ({len(FEATURED_COUNTRIES)} Focus Countries)")
-        st.caption(
-            "Fastest growth and largest reduction in CO₂ emissions, 1990 → "
-            f"{latest_year}, among the {len(FEATURED_COUNTRIES)} focus countries."
-        )
-
-        co2_1990_by_country   = df[(df["year"] == 1990) & (df["country"].isin(FEATURED_COUNTRIES))].set_index("country")["co2"]
-        co2_latest_by_country = df[(df["year"] == latest_year) & (df["country"].isin(FEATURED_COUNTRIES))].set_index("country")["co2"]
-        absolute_change = co2_latest_by_country - co2_1990_by_country
-        pct_change_by_country = absolute_change / co2_1990_by_country * 100
-
-        movers = pd.DataFrame({
-            "1990 (MtCO₂)": co2_1990_by_country,
-            f"{latest_year} (MtCO₂)": co2_latest_by_country,
-            "Absolute Change (MtCO₂)": absolute_change,
-            "% Change": pct_change_by_country,
-        }).dropna().sort_values("% Change", ascending=False)
-
-        col_growth, col_reduction = st.columns(2)
-        with col_growth:
-            top_growth = movers.iloc[0]
-            st.metric(
-                f"Fastest Growth — {movers.index[0]}",
-                f"{top_growth['% Change']:+.1f}%",
-                f"{top_growth['Absolute Change (MtCO₂)']:+,.0f} MtCO₂",
-            )
-        with col_reduction:
-            top_reduction = movers.iloc[-1]
-            st.metric(
-                f"Largest Reduction — {movers.index[-1]}",
-                f"{top_reduction['% Change']:+.1f}%",
-                f"{top_reduction['Absolute Change (MtCO₂)']:+,.0f} MtCO₂",
-            )
-
-        fig_movers = px.bar(
-            movers.reset_index(), x="country", y="% Change",
-            labels={"country": "Country", "% Change": f"% Change in CO₂ (1990→{latest_year})"},
-            title=f"CO₂ % Change by Country, 1990–{latest_year}",
-            color="% Change", color_continuous_scale=["green", "lightgrey", "crimson"],
-        )
-        st.plotly_chart(fig_movers, use_container_width=True)
-
-    else:
+    if df is None:
         st.warning(
             "⚠️ `data/ghg_features.csv` not found.\n\n"
             "Complete **Week 2** of the notebook to generate this file, then restart the app."
         )
+    elif df_raw_sov is None:
+        st.warning(
+            "⚠️ `data/owid-co2-data.csv` not found.\n\n"
+            "Download the OWID dataset per the README, then restart the app."
+        )
+    else:
+        expanded = get_expanded_countries()
+
+        st.subheader("All Countries")
+        render_tier_metrics(overview_tier_metrics(df_raw_sov, None, "All Countries"))
+
+        st.divider()
+        st.subheader("Expanded (Coverage + ≥100 Mt)")
+        render_tier_metrics(overview_tier_metrics(df, expanded, "Expanded"))
+
+        st.divider()
+        picker_col, reset_col = st.columns([4, 1])
+        with picker_col:
+            selected_countries = st.multiselect(
+                f"Select countries (up to {MAX_SELECTED_COUNTRIES}/{len(expanded)})",
+                options=expanded,
+                default=FEATURED_COUNTRIES,
+                max_selections=MAX_SELECTED_COUNTRIES,
+                key="overview_selected_countries",
+            )
+        with reset_col:
+            st.write("")  # vertical alignment spacer to match the multiselect's label row
+            st.button(
+                "Reset to default",
+                on_click=lambda: st.session_state.update(overview_selected_countries=FEATURED_COUNTRIES),
+            )
+        st.markdown("  |  ".join(selected_countries))
+
+        if not selected_countries:
+            st.warning("Select at least one country.")
+        else:
+            st.divider()
+            st.subheader("Selected")
+            selected_tier = overview_tier_metrics(df, selected_countries, "Selected")
+            render_tier_metrics(selected_tier)
+            latest_year = selected_tier["latest_year"]
+
+            df_bar = (df[(df["year"] == latest_year) & (df["country"].isin(selected_countries))][["country", "co2"]]
+                      .sort_values("co2", ascending=False))
+            fig = px.bar(df_bar, x="country", y="co2",
+                         labels={"co2": "CO₂ (MtCO₂)", "country": "Country"},
+                         title=f"CO₂ Emissions by Country ({latest_year})")
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.divider()
+            st.subheader(f"Top Movers Since 1990 ({len(selected_countries)} Selected Countries)")
+            st.caption(
+                "Fastest growth and largest reduction in CO₂ emissions, 1990 → "
+                f"{latest_year}, among the {len(selected_countries)} selected countries."
+            )
+
+            co2_1990_by_country   = df[(df["year"] == 1990) & (df["country"].isin(selected_countries))].set_index("country")["co2"]
+            co2_latest_by_country = df[(df["year"] == latest_year) & (df["country"].isin(selected_countries))].set_index("country")["co2"]
+            absolute_change = co2_latest_by_country - co2_1990_by_country
+            pct_change_by_country = absolute_change / co2_1990_by_country * 100
+
+            movers = pd.DataFrame({
+                "1990 (MtCO₂)": co2_1990_by_country,
+                f"{latest_year} (MtCO₂)": co2_latest_by_country,
+                "Absolute Change (MtCO₂)": absolute_change,
+                "% Change": pct_change_by_country,
+            }).dropna().sort_values("% Change", ascending=False)
+
+            if movers.empty:
+                # Every real expanded country currently has both a 1990 and latest-year
+                # row (verified against live data), so this can't happen today -- but
+                # selected_countries is arbitrary user input, and a future
+                # selected_countries.json regeneration isn't guaranteed to preserve that.
+                st.info("Not enough data to compute Top Movers for this selection.")
+            else:
+                col_growth, col_reduction = st.columns(2)
+                with col_growth:
+                    top_growth = movers.iloc[0]
+                    st.metric(
+                        f"Fastest Growth — {movers.index[0]}",
+                        f"{top_growth['% Change']:+.1f}%",
+                        f"{top_growth['Absolute Change (MtCO₂)']:+,.0f} MtCO₂",
+                    )
+                with col_reduction:
+                    top_reduction = movers.iloc[-1]
+                    st.metric(
+                        f"Largest Reduction — {movers.index[-1]}",
+                        f"{top_reduction['% Change']:+.1f}%",
+                        f"{top_reduction['Absolute Change (MtCO₂)']:+,.0f} MtCO₂",
+                    )
+
+                fig_movers = px.bar(
+                    movers.reset_index(), x="country", y="% Change",
+                    labels={"country": "Country", "% Change": f"% Change in CO₂ (1990→{latest_year})"},
+                    title=f"CO₂ % Change by Country, 1990–{latest_year}",
+                    color="% Change", color_continuous_scale=["green", "lightgrey", "crimson"],
+                )
+                st.plotly_chart(fig_movers, use_container_width=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HISTORICAL TRENDS
@@ -278,11 +390,12 @@ elif page == "Historical Trends":
     if df is None:
         st.warning("Complete Week 2 to enable this page.")
     else:
+        _expanded = get_expanded_countries()
         selected_countries = st.multiselect(
-            "Select countries (up to 10)",
-            options=get_expanded_countries(),
+            f"Select countries (up to {MAX_SELECTED_COUNTRIES}/{len(_expanded)})",
+            options=_expanded,
             default=FEATURED_COUNTRIES[:5],
-            max_selections=10,
+            max_selections=MAX_SELECTED_COUNTRIES,
         )
 
         gas_label = st.selectbox("Emissions metric", options=list(GAS_COLUMNS.keys()))
@@ -332,7 +445,7 @@ elif page == "Country Profile":
     else:
         expanded   = get_expanded_countries()
         _default_idx = next((i for i, c in enumerate(expanded) if c == FEATURED_COUNTRIES[0]), 0)
-        country    = st.selectbox("Select a country", options=expanded, index=_default_idx)
+        country    = st.selectbox(f"Select a country ({len(expanded)} available)", options=expanded, index=_default_idx)
         df_country = df[df["country"] == country].sort_values("year").copy()
 
         col1, col2 = st.columns(2)
@@ -389,7 +502,7 @@ elif page == "Forecasts":
     else:
         expanded = get_expanded_countries()
         _default_idx = next((i for i, c in enumerate(expanded) if c == FEATURED_COUNTRIES[0]), 0)
-        country = st.selectbox("Select a country", options=expanded, index=_default_idx)
+        country = st.selectbox(f"Select a country ({len(expanded)} available)", options=expanded, index=_default_idx)
 
         st.subheader(f"Forecast — {country}")
         fc_c   = df_forecasts[df_forecasts["country"] == country].sort_values("year")
@@ -494,7 +607,7 @@ elif page == "Scenario Comparison":
         if view_mode == "Single Country":
             expanded = get_expanded_countries()
             _default_idx = next((i for i, c in enumerate(expanded) if c == FEATURED_COUNTRIES[0]), 0)
-            country = st.selectbox("Select a country", options=expanded, index=_default_idx)
+            country = st.selectbox(f"Select a country ({len(expanded)} available)", options=expanded, index=_default_idx)
             countries_in_view = [country]
             title_suffix = country
         else:
