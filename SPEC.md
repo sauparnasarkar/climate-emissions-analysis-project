@@ -409,7 +409,7 @@ Sections to include:
 | v9 | Jul 2026 | Added §5, documenting the mentor's `api/` (FastAPI) + `climate-dashboard-react/` (React) reference architecture. This is a **post-internship addendum, not a scope change** — §5 is explicitly *not* part of the internship curriculum (§§1–2 are unchanged); it exists here only so the mentor's own further work on this repo is specified somewhere, clearly separated from what interns are asked to build. |
 | v10 | Jul 2026 | Added §5.5, documenting a new "Data Explorer" page (`app.py`, `api/`, `climate-dashboard-react/`) browsing the full ~220-country Week 1 output (`data/ghg_filtered.csv`) instead of the 10-focus-country dataset every other page uses — another mentor addition, not an internship requirement (§6.2 cross-references it). Required two `design-system` additions: a new `RangeSlider` component (dual-thumb year-range filter) and type-to-search added to the existing `MultiSelect` (on by default for all consumers, not just this page). |
 | v11 | Jul 2026 | Added §5.6 (Release 2.1, `ENHANCEMENTS.md`), documenting the mentor's expansion of per-country training/evaluation to a data-driven ~40-country set (`get_expanded_countries()` / `load_expanded_countries()`, computed in Week 1 §1.2, persisted to `data/selected_countries.json`) alongside the original 10 (`FEATURED_COUNTRIES`, still the default/narrative selection) — not an internship requirement change (§1's "Countries of Focus" cross-references it). `design-system`'s `Select` gained the same type-to-search pattern §5.5 gave `MultiSelect`; `MultiSelect` gained a `maxSelected` cap. |
-| v12 | Jul 2026 | Added §5.7 (Release 2.2, planned, `ENHANCEMENTS.md`), restructuring the Overview page into three simultaneous tiers (All Countries / Expanded / Selected) in place of §5.6's `scope=featured\|expanded` toggle. Mirrors `NON_SOVEREIGN` from `notebook/constants.py` into `api/constants.py`/`app.py` for the new unfiltered "All Countries" tier. Not an internship requirement change. |
+| v12 | Jul 2026 | Added §5.7 (Release 2.2, `ENHANCEMENTS.md`), restructuring the Overview page into three simultaneous tiers (All Countries / Expanded / Selected) in place of §5.6's `scope=featured\|expanded` toggle. Mirrors `NON_SOVEREIGN` from `notebook/constants.py` into `api/constants.py`/`app.py` for the new unfiltered "All Countries" tier. Not an internship requirement change. |
 
 ---
 
@@ -501,12 +501,12 @@ data-driven ~40-country set alongside it, across the notebooks, `app.py`, `api/`
 | Multi-country pickers | React `MultiSelect` and Streamlit's `st.multiselect` both cap simultaneous selections at 10 (`maxSelected` / `max_selections`) even though their searchable pool is the full ~40 — past 10 countries on one chart stops being readable. Single-country pickers (`Select` / `st.selectbox`) have no such cap and search the full ~40 |
 | `design-system` | `Select` gained the same type-to-search pattern §5.5 added to `MultiSelect`; `MultiSelect` gained the new `maxSelected` prop described above |
 
-### 5.7 Three-Tier Overview (Release 2.2, planned)
+### 5.7 Three-Tier Overview (Release 2.2)
 
-**Status: planned, implementation starting** — tracked in `ENHANCEMENTS.md`, not a curriculum
-change. Restructures the Overview page (`app.py`, `api/`, `climate-dashboard-react/`) from a
-single 10-country KPI row into three simultaneous tiers of increasing specificity, replacing
-the `scope=featured|expanded` query param §5.6 introduced (no UI ever exposed it as a toggle).
+**Status: shipped** — tracked in `ENHANCEMENTS.md`, not a curriculum change. Restructures the
+Overview page (`app.py`, `api/`, `climate-dashboard-react/`) from a single 10-country KPI row
+into three simultaneous tiers of increasing specificity, replacing the
+`scope=featured|expanded` query param §5.6 introduced (no UI ever exposed it as a toggle).
 
 | Aspect | Detail |
 |---|---|

@@ -370,7 +370,9 @@ latest-year global CO₂) before API/frontend work began.
 
 ## Release 2.2 — Three-Tier Overview: All Countries, Coverage-Filtered, User-Selected
 
-**Status: Planned — implementation starting.**
+**Status: Shipped** (Jul 2026, three sequential PRs — API, React, Streamlit — each
+individually reviewed and merged before the next began). See `SPEC.md` §5.7 for the durable
+reference; this section is kept as the historical planning record.
 
 **Goal:** Restructure the Overview page from a single 10-country KPI row into three
 simultaneous, always-visible tiers of increasing specificity — the true global total, the
@@ -520,6 +522,30 @@ default" restores the selection and refetches.
    once the API PR is merged, same precedent as Release 2.1 Phases 5/6.
 3. **Documentation** — this section, drafted before implementation starts and revised again
    once shipped (see Status above).
+
+**Shipped as:** three sequential PRs — API (#80), React (#81), Streamlit (#82) — each
+reviewed (Copilot review loop) and merged before the next began. Corrections found during
+implementation, beyond this section's original draft:
+- **`top_movers[0]`/`[-1]` `IndexError` risk.** `countries=` lets a caller select any subset
+  of the expanded set; if every selected country lacked a complete 1990-to-latest-year pair,
+  `movers.dropna()` would empty the list before the indexed access. Verified this can't
+  happen with today's real 40-country data (every one, including post-Soviet states like
+  Kazakhstan/Uzbekistan, has both rows) — but it's arbitrary user input, so both the API
+  (falls back to an `"N/A"` sentinel `MoverRow`) and `app.py` (falls back to `st.info()`,
+  since it re-derives movers independently rather than calling the API) now guard against it.
+- **Unknown-country validation was wrongly applied to the `FEATURED_COUNTRIES` default
+  itself**, not just an explicitly-supplied `countries` param — broke whenever a narrower
+  expanded set (only possible in test fixtures; production's is always a superset of
+  `FEATURED_COUNTRIES` by construction) didn't fully contain the default. Fixed to only
+  validate what the caller actually supplies.
+- **`OverviewTierMetrics.label`** tightened from `str` to
+  `Literal["All Countries", "Expanded", "Selected"]` (and the matching TS union type),
+  catching a label/call-site mismatch as a type/validation error instead of silent drift.
+- **React's `OverviewContent` was unmounting its own `MultiSelect` on every refetch** — a
+  top-level `if (loading) return <Spinner />` replaced the whole component (picker included)
+  each time the selection changed, since `useAsync` preserves the previous `data` during a
+  refetch and only flips `loading`. Fixed to only block on a spinner before any data has ever
+  loaded, matching every other page's pattern of gating just the data-dependent section.
 
 ### 2.2.11 — "(up to N/total)" / "(N available)" label on every country dropdown
 
