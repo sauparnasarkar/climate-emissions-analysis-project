@@ -1,4 +1,4 @@
-from .conftest import write_fixture
+from .conftest import write_fixture, write_selected_countries_json
 
 
 def test_overview_happy_path(client):
@@ -13,16 +13,48 @@ def test_overview_happy_path(client):
     assert round(body["pct_change_since_1990"], 2) == round((16300 - 8400) / 8400 * 100, 2)
 
 
-def test_overview_bar_is_not_filtered_by_focus_countries(client):
-    """Documents current behavior: unlike latest_co2_total/co2_1990_total/top_movers just
-    above it (which all explicitly filter to COUNTRIES), latest_year_bar has no such filter
-    — any country present in ghg_features.csv at the latest year appears in the bar, even one
-    outside the 10 focus countries. In production this can't surface as long as the notebook
-    only ever writes focus-country rows to ghg_features.csv; this test exists so a future
-    change to that filtering isn't silent either way."""
+def test_overview_bar_is_filtered_by_scope(client):
+    """latest_year_bar is now filtered consistently with latest_co2_total/co2_1990_total/
+    top_movers just above it — France (present in ghg_features.csv but outside the real
+    FEATURED_COUNTRIES fallback) must not appear in the default (scope=featured) bar."""
     resp = client.get("/api/overview")
     countries_in_bar = {row["country"] for row in resp.json()["latest_year_bar"]}
-    assert countries_in_bar == {"China", "United States", "Germany", "France"}
+    assert countries_in_bar == {"China", "United States", "Germany"}
+    assert "France" not in countries_in_bar
+
+
+def test_overview_scope_expanded_includes_out_of_scope_country(full_data):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    write_selected_countries_json(full_data)  # expanded = FIXTURE_COUNTRIES + France
+    resp = TestClient(app).get("/api/overview", params={"scope": "expanded"})
+    assert resp.status_code == 200
+    body = resp.json()
+
+    countries_in_bar = {row["country"] for row in body["latest_year_bar"]}
+    assert "France" in countries_in_bar
+    assert body["countries_count"] == 4
+    assert body["total_countries_analyzed"] == 4  # same expanded set in this fixture
+
+
+def test_overview_total_countries_analyzed_independent_of_scope(full_data):
+    """total_countries_analyzed always reflects the full expanded set, regardless of which
+    scope's data the rest of the response is scoped to."""
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    write_selected_countries_json(full_data)  # expanded_count = 4
+    client = TestClient(app)
+
+    featured_resp = client.get("/api/overview", params={"scope": "featured"})
+    expanded_resp = client.get("/api/overview", params={"scope": "expanded"})
+
+    assert featured_resp.json()["total_countries_analyzed"] == 4
+    assert expanded_resp.json()["total_countries_analyzed"] == 4
+    assert featured_resp.json()["countries_count"] != expanded_resp.json()["countries_count"]
 
 
 def test_overview_top_movers_ordering(client):

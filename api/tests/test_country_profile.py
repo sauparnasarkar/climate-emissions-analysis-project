@@ -25,8 +25,34 @@ def test_country_profile_unknown_country_is_404(client):
 
 
 def test_country_profile_out_of_scope_country_is_404(client):
-    # France is present in the fixture CSV but not in api.constants.COUNTRIES.
+    # France is present in the fixture CSV but not in the real FEATURED_COUNTRIES fallback
+    # load_expanded_countries() uses when no selected_countries.json fixture is present.
     resp = client.get("/api/countries/France/profile")
+    assert resp.status_code == 404
+
+
+def test_country_profile_expanded_but_not_featured_country_succeeds(full_data):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    from .conftest import write_selected_countries_json
+
+    write_selected_countries_json(full_data)  # expanded = FIXTURE_COUNTRIES + France
+    resp = TestClient(app).get("/api/countries/France/profile")
+    assert resp.status_code == 200
+    assert resp.json()["country"] == "France"
+
+
+def test_country_profile_outside_expanded_set_still_404s(full_data):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    from .conftest import write_selected_countries_json
+
+    write_selected_countries_json(full_data)  # expanded = FIXTURE_COUNTRIES + France, not Atlantis
+    resp = TestClient(app).get("/api/countries/Atlantis/profile")
     assert resp.status_code == 404
 
 

@@ -3,8 +3,8 @@ from typing import Literal
 import pandas as pd
 from fastapi import APIRouter, HTTPException
 
-from ..constants import COUNTRIES, SCENARIO_COLORS
-from ..data_loaders import DataNotFoundError, load_features, load_forecasts, load_scenarios
+from ..constants import FEATURED_COUNTRIES, SCENARIO_COLORS
+from ..data_loaders import DataNotFoundError, load_expanded_countries, load_features, load_forecasts, load_scenarios
 from ..schemas import (
     ScenarioCumulativeResponse,
     ScenarioCumulativeRow,
@@ -16,6 +16,7 @@ router = APIRouter()
 
 ViewMode = Literal["single", "global"]
 SortScenario = Literal["BAU", "Moderate", "Aggressive"]
+Scope = Literal["featured", "expanded"]
 
 
 def _bau_segment(df_forecasts, country_filter, start, end):
@@ -27,7 +28,7 @@ def _bau_segment(df_forecasts, country_filter, start, end):
 
 
 @router.get("/scenarios/timeseries", response_model=ScenarioTimeseriesResponse)
-def get_scenario_timeseries(view: ViewMode = "single", country: str | None = None):
+def get_scenario_timeseries(view: ViewMode = "single", country: str | None = None, scope: Scope = "featured"):
     try:
         df_scenarios = load_scenarios()
     except DataNotFoundError as e:
@@ -44,13 +45,13 @@ def get_scenario_timeseries(view: ViewMode = "single", country: str | None = Non
         df = None
 
     if view == "single":
-        if country is None or country not in COUNTRIES:
+        if country is None or country not in load_expanded_countries():
             raise HTTPException(status_code=400, detail="A valid country is required for view=single")
         countries_in_view = [country]
         title_suffix = country
     else:
-        countries_in_view = COUNTRIES
-        title_suffix = "All 10 Countries"
+        countries_in_view = FEATURED_COUNTRIES if scope == "featured" else load_expanded_countries()
+        title_suffix = f"All {len(countries_in_view)} Countries"
 
     hist = (
         df[(df["country"].isin(countries_in_view)) & (df["year"] <= 2024)].groupby("year")["co2"].sum()

@@ -1,11 +1,13 @@
 """@lru_cache loaders mirroring app.py's @st.cache_data loaders 1:1."""
 
+import json
 import os
+import warnings
 from functools import lru_cache
 
 import pandas as pd
 
-from .constants import COUNTRIES
+from .constants import FEATURED_COUNTRIES
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
@@ -47,13 +49,30 @@ def load_scenarios() -> pd.DataFrame:
 
 
 @lru_cache(maxsize=1)
+def load_expanded_countries() -> list[str]:
+    """Loads data/selected_countries.json (produced by week1_eda.ipynb §1.2's coverage +
+    materiality selection). Unlike every other loader here, falls back to
+    FEATURED_COUNTRIES with a warning rather than raising DataNotFoundError -- a missing
+    expanded-country list should degrade gracefully (routers using it keep working, just
+    scoped to the original 10) rather than 503 endpoints that don't otherwise need Week 1
+    to have been re-run. Cached like every other loader: a selected_countries.json update
+    needs a process restart to take effect."""
+    path = _path("selected_countries.json")
+    if not os.path.exists(path):
+        warnings.warn("data/selected_countries.json not found. Falling back to FEATURED_COUNTRIES only.")
+        return FEATURED_COUNTRIES
+    with open(path) as f:
+        return json.load(f)["expanded"]
+
+
+@lru_cache(maxsize=1)
 def load_raw() -> pd.DataFrame:
     path = _path("owid-co2-data.csv")
     if not os.path.exists(path):
         raise DataNotFoundError("data/owid-co2-data.csv not found.")
     cols = ["country", "year", "co2", "methane", "nitrous_oxide"]
     df_r = pd.read_csv(path, usecols=cols)
-    return df_r[(df_r["country"].isin(COUNTRIES)) & (df_r["year"] >= 1990)].copy()
+    return df_r[(df_r["country"].isin(load_expanded_countries())) & (df_r["year"] >= 1990)].copy()
 
 
 @lru_cache(maxsize=1)

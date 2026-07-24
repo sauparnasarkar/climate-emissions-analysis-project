@@ -29,6 +29,7 @@ class OverviewResponse(BaseModel):
     pct_change_since_1990: float
     countries_count: int
     focus_countries: list[str]
+    total_countries_analyzed: int
     latest_year_bar: list[CountryValue]
     top_movers: list[MoverRow]
     fastest_growth: MoverRow
@@ -149,6 +150,11 @@ class ScenarioCumulativeResponse(BaseModel):
     order: list[str]
     scenarios: list[str]
     rows: list[ScenarioCumulativeRow]
+
+
+class CountriesResponse(BaseModel):
+    featured: list[str]
+    expanded: list[str]
 
 
 class ExplorerMetaResponse(BaseModel):
