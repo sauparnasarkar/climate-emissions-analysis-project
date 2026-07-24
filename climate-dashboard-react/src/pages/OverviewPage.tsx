@@ -36,7 +36,7 @@ function TierTable({ rows, year }: { rows: TierRow[]; year: number }) {
       <style>{'.overview-tier-table thead th { background: var(--__s9cmpx-static-layer-standard); }'}</style>
       <Table
         columns={[
-          { key: 'tier', header: 'Tier' },
+          { key: 'tier', header: 'Country Group' },
           { key: 'countries', header: 'Countries', align: 'right' },
           { key: 'co2', header: `CO₂ (${year})`, align: 'right' },
           {
