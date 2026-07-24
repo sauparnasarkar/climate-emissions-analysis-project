@@ -9,7 +9,7 @@ import type { OverviewTierMetrics } from '../api/types';
 const POSITIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-positive, #187254)';
 const NEGATIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-negative, #8d1a2a)';
 
-interface TierRow {
+interface TierRow extends Record<string, unknown> {
   tier: string;
   countries: number;
   co2: string;
