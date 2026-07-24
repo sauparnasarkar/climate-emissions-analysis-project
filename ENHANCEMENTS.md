@@ -365,3 +365,170 @@ not originally broken out as its own phase), Phase 5 (React frontend, step 5), P
 documentation pass). All notebooks were executed end-to-end against live OWID data after
 Phases 1–2, confirming the real `data/selected_countries.json` (40 countries, ~92% of
 latest-year global CO₂) before API/frontend work began.
+
+---
+
+## Release 2.2 — Three-Tier Overview: All Countries, Coverage-Filtered, User-Selected
+
+**Status: Planned — implementation starting.**
+
+**Goal:** Restructure the Overview page from a single 10-country KPI row into three
+simultaneous, always-visible tiers of increasing specificity — the true global total, the
+Release 2.1 coverage(≥90%)+materiality(≥100 Mt)-filtered set (`get_expanded_countries()`,
+currently ~40), and a user-controlled selection capped at 10 countries (defaulted to
+`FEATURED_COUNTRIES`) — with the bar chart, % change chart, and Top Movers section reactive
+to the third tier only. Depends on the shipped Release 2.1 above
+(`get_expanded_countries()`/`load_expanded_countries()`, `FEATURED_COUNTRIES`,
+`useCountries()`, `GET /api/countries`).
+
+**Working definitions:**
+- **All Countries** — every sovereign country in the raw dataset (`NON_SOVEREIGN` aggregates
+  excluded), unfiltered by coverage or Mt. The true global total.
+- **Expanded** — the coverage+materiality-filtered set from Release 2.1
+  (`get_expanded_countries()`/`load_expanded_countries()`, currently 40 countries).
+- **Selected** — a user-chosen subset of at most 10 countries, defaulted to
+  `FEATURED_COUNTRIES`, chosen via a capped `MultiSelect`/`st.multiselect` (reusing the
+  `maxSelected`/`max_selections` cap Release 2.1 already added for Historical Trends). Drives
+  the bar chart, % change chart, and Top Movers section.
+
+Verified against the shipped 2.1 codebase before finalizing this plan (not just the original
+draft assumptions): there is no bespoke `CountrySelect` component (2.1 shipped by extending
+`Select`/`MultiSelect` with search + `maxSelected` directly); `NON_SOVEREIGN` exists in
+`notebook/constants.py` but was never mirrored to `api/constants.py` — a genuine gap, since no
+API code previously needed an unfiltered "all countries" view; `api/routers/overview.py`'s
+current `load_features()` (`ghg_features.csv`) already only contains the ~40 expanded
+countries (Week 2 computes features for `get_expanded_countries()`, not the original 10). A
+live sanity check (summing raw OWID `co2` for the latest year with the full `NON_SOVEREIGN`
+list excluded) landed within ~3% of OWID's own "World" row — confirming the exclusion list is
+complete and the "All Countries" tier concept is sound. (A partial exclusion — continents
+only — overcounts by ~4x from double-counted income/OECD/EU groupings, which is exactly why
+the full list matters.)
+
+Three design decisions made before implementation:
+1. **Expanded/Selected tiers keep reading `ghg_features.csv`** (today's `load_features()`),
+   not a new raw-OWID loader — only the new "All Countries" tier reads raw data via a new
+   `load_raw_sovereign()`. This keeps the existing `ghg_features.csv`-missing 503/Week-2-message
+   test valid as-is; a new prerequisite (the raw OWID file) is added only for the new tier.
+2. **Empty selection**: the fetch still fires even when the user's selection is empty
+   (`selected = countries or FEATURED_COUNTRIES` — an empty list is falsy in Python, so the API
+   defaults it server-side) — the frontend gates only the *rendering* of the Selected tier +
+   charts + Top Movers behind `selected.length > 0`, matching `HistoricalTrendsPage`'s existing
+   pattern, showing an inline "select at least one" warning there instead. Since All
+   Countries/Expanded don't depend on the selection at all, they stay visible throughout. A
+   "Reset to default" button next to the picker restores `FEATURED_COUNTRIES` in one click.
+3. **Label wording**: `"(N available)"` on the three single-select pickers (Country Profile,
+   Forecasts, Scenario Comparison — a cap of 1 is implicit in a single-value control),
+   `"(up to N/total)"` on multi-select pickers (Historical Trends, the new Overview picker).
+
+### 2.2.1 — `NON_SOVEREIGN` mirror + `MAX_SELECTED_COUNTRIES`
+
+`api/constants.py` gains `NON_SOVEREIGN` (verbatim copy from `notebook/constants.py`, kept in
+sync by hand — same three-way-mirror convention already established for `FEATURED_COUNTRIES`
+across `notebook/`, `api/`, and `app.py`) and `MAX_SELECTED_COUNTRIES = 10`. Without the
+`NON_SOVEREIGN` exclusion, summing raw per-country rows plus an unexcluded aggregate row would
+silently double- or quadruple-count — a correctness bug, not a style issue, so this is a
+blocking prerequisite for everything below.
+
+### 2.2.2 — New loader: all sovereign countries, unfiltered by coverage or Mt
+
+`load_raw()` stays scoped to `load_expanded_countries()` — it backs Historical Trends, which
+has no reason to widen. A new `load_raw_sovereign()` in `api/data_loaders.py` reads
+`owid-co2-data.csv` directly (`country`, `year`, `co2` only), filtered to
+`~isin(NON_SOVEREIGN) & year >= 1990`, `@lru_cache`d, raising `DataNotFoundError` like every
+other hard-required loader. Backs only the new "All Countries" tier — Expanded/Selected keep
+reading `ghg_features.csv` (decision #1 above).
+
+### 2.2.3 — `OverviewResponse` schema restructure (breaking change)
+
+Replaces the current flat shape with a nested per-tier one: `OverviewTierMetrics` (`label`,
+`countries_count`, `latest_year`, `latest_co2_total`, `co2_1990_total`,
+`pct_change_since_1990`), and `OverviewResponse` = `all_countries` / `expanded_countries` /
+`selected` (each an `OverviewTierMetrics`) + `selected_country_list` +
+`latest_year_bar`/`top_movers`/`fastest_growth`/`largest_reduction` (unchanged types, now
+unconditionally scoped to `selected`). Old flat fields (`latest_year`, `latest_co2_total`,
+`co2_1990_total`, `pct_change_since_1990`, `countries_count`, `focus_countries`,
+`total_countries_analyzed`) are removed, each folding into the tier it describes. `OverviewPage.tsx`
+and `app.py`'s Overview section both need a matching rewrite, not just a field addition.
+
+### 2.2.4 — `/overview` endpoint: tier computation + capped `countries` query param
+
+Drops `scope=featured|expanded` entirely, replaced by `countries: list[str] | None =
+Query(None)` (repeated `?countries=China&countries=India&...`, same pattern already used by
+`historical.py`/explorer endpoints). Server-side validation is the enforcement boundary, not
+the frontend's `maxSelected` (UX convenience only): `len(selected) > MAX_SELECTED_COUNTRIES` →
+422; any country not in `load_expanded_countries()` → 404. Default
+`selected = countries or FEATURED_COUNTRIES`. Bar chart, % change chart, and Top
+Movers/fastest-growth/largest-reduction are unconditionally computed on the `selected`-scoped
+dataframe — the two summary tiers above are context, not chart inputs.
+
+### 2.2.5 — Frontend: Overview's country picker, reusing 2.1's shipped pattern
+
+Not a new component — the exact pattern already established by `HistoricalTrendsPage.tsx`:
+`design-system`'s `MultiSelect`, sourced via `useCountries()`, capped with `maxSelected`,
+defaulting to `featured` once `useCountries()` resolves. `MAX_SELECTED_COUNTRIES` moves to a
+shared `src/constants.ts` (mirroring `api/constants.py`) rather than staying duplicated in
+`HistoricalTrendsPage.tsx` alone, since a second page now needs the same number.
+
+### 2.2.6 — Frontend: three stacked KPI rows
+
+Replaces the single KPI row with three (`All Countries` / `Expanded (Coverage + ≥100 Mt)` /
+`Selected`), each showing the same three metrics (CO₂ total, % change since 1990, countries
+analyzed) at that tier's scope, via a small local render helper (not a new design-system
+component).
+
+### 2.2.7 — Frontend: picker + chart/Top-Movers wiring, empty-selection behavior
+
+Below the three KPI rows: the `MultiSelect` from 2.2.5, a "Reset to default" button restoring
+`FEATURED_COUNTRIES`, and a pipe-separated `selected_country_list` line (same style as the
+existing `focus_countries` line). The bar chart, % change chart, and Top Movers/Fastest
+Growth/Largest Reduction cards read `data.latest_year_bar`/`data.top_movers`/etc. directly — no
+page-level filtering, since the API already scopes these to `selected`. Refetches `/overview`
+on every `MultiSelect` change. When `selected.length === 0`: the All Countries/Expanded KPI
+rows stay visible (they don't depend on the selection); only the Selected KPI row + charts +
+Top Movers are replaced with an inline "select at least one country" warning.
+
+### 2.2.8 — Streamlit (`app.py`) mirror
+
+Same restructure in the `if page == "Overview"` block: three `st.columns(3)` metric rows via a
+new `overview_tier_metrics(df, countries, label)` helper mirroring `_tier_metrics` (2.2.4);
+`st.multiselect(options=get_expanded_countries(), default=FEATURED_COUNTRIES,
+max_selections=MAX_SELECTED_COUNTRIES)` (native cap, consistent with how Release 2.1 Phase 6
+already used `max_selections` for Historical Trends); a `st.button("Reset to default
+countries")` resetting the multiselect's `st.session_state` value; bar chart/% change
+chart/Top Movers re-filtered to the selection — this also fixes a latent pre-existing bug
+where today's bar chart isn't filtered by `FEATURED_COUNTRIES` at all (only the KPI/movers
+calculations are), the same class of bug already fixed API-side in Release 2.1 Phase 3 but
+missed in the `app.py` port.
+
+### 2.2.9 — Tests
+
+API: each tier's metrics independently (`all_countries` reflects the full
+`NON_SOVEREIGN`-excluded universe; `expanded` matches `load_expanded_countries()`'s count;
+`selected` matches whatever `countries` param was passed); 422 at 11 countries; 404 on an
+unknown country; default to `FEATURED_COUNTRIES` when `countries` is omitted;
+`latest_year_bar`/`top_movers` change with `countries`, unaffected by tier 1/2 values.
+Frontend: default render shows `FEATURED_COUNTRIES` selected and all three KPI rows populated;
+an 11th selection is blocked; changing selection triggers a refetch and updates chart/Top
+Movers; deselecting to 0 shows the warning while the top two tiers remain visible; "Reset to
+default" restores the selection and refetches.
+
+### 2.2.10 — Rollout sequencing
+
+1. **API** (2.2.1–2.2.4, 2.2.9's API tests) — breaking change to `/overview`; one PR, since
+   schema/endpoint/loader all change together.
+2. **React** (2.2.5–2.2.7, plus 2.2.11 below bundled in) and **Streamlit** (2.2.8) — parallel
+   once the API PR is merged, same precedent as Release 2.1 Phases 5/6.
+3. **Documentation** — this section, drafted before implementation starts and revised again
+   once shipped (see Status above).
+
+### 2.2.11 — "(up to N/total)" / "(N available)" label on every country dropdown
+
+Adds the live expanded-count to every existing country picker's label — no component change
+needed, since every picker already sources options from `useCountries()`. Single-select pages
+(Country Profile, Forecasts, Scenario Comparison) get `"(N available)"`; multi-select pickers
+(Historical Trends, the new Overview picker) get `"(up to N/total)"`, reusing the shared
+`MAX_SELECTED_COUNTRIES` from 2.2.5. Streamlit's `st.selectbox`/`st.multiselect` calls get the
+equivalent treatment for parity. Falls back to today's static label text before
+`useCountries()` resolves, rather than rendering "(undefined available)" for a frame. Bundled
+into the React/Streamlit PRs above rather than a separate follow-up PR, since it touches the
+same files those phases already modify.

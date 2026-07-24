@@ -409,6 +409,7 @@ Sections to include:
 | v9 | Jul 2026 | Added §5, documenting the mentor's `api/` (FastAPI) + `climate-dashboard-react/` (React) reference architecture. This is a **post-internship addendum, not a scope change** — §5 is explicitly *not* part of the internship curriculum (§§1–2 are unchanged); it exists here only so the mentor's own further work on this repo is specified somewhere, clearly separated from what interns are asked to build. |
 | v10 | Jul 2026 | Added §5.5, documenting a new "Data Explorer" page (`app.py`, `api/`, `climate-dashboard-react/`) browsing the full ~220-country Week 1 output (`data/ghg_filtered.csv`) instead of the 10-focus-country dataset every other page uses — another mentor addition, not an internship requirement (§6.2 cross-references it). Required two `design-system` additions: a new `RangeSlider` component (dual-thumb year-range filter) and type-to-search added to the existing `MultiSelect` (on by default for all consumers, not just this page). |
 | v11 | Jul 2026 | Added §5.6 (Release 2.1, `ENHANCEMENTS.md`), documenting the mentor's expansion of per-country training/evaluation to a data-driven ~40-country set (`get_expanded_countries()` / `load_expanded_countries()`, computed in Week 1 §1.2, persisted to `data/selected_countries.json`) alongside the original 10 (`FEATURED_COUNTRIES`, still the default/narrative selection) — not an internship requirement change (§1's "Countries of Focus" cross-references it). `design-system`'s `Select` gained the same type-to-search pattern §5.5 gave `MultiSelect`; `MultiSelect` gained a `maxSelected` cap. |
+| v12 | Jul 2026 | Added §5.7 (Release 2.2, planned, `ENHANCEMENTS.md`), restructuring the Overview page into three simultaneous tiers (All Countries / Expanded / Selected) in place of §5.6's `scope=featured\|expanded` toggle. Mirrors `NON_SOVEREIGN` from `notebook/constants.py` into `api/constants.py`/`app.py` for the new unfiltered "All Countries" tier. Not an internship requirement change. |
 
 ---
 
@@ -499,3 +500,18 @@ data-driven ~40-country set alongside it, across the notebooks, `app.py`, `api/`
 | Missing-file behavior | The notebook version raises `FileNotFoundError` uncaught (Weeks 2–5 genuinely can't proceed without it); the `app.py`/`api/` versions degrade gracefully, falling back to `FEATURED_COUNTRIES` with a warning rather than crashing a live app |
 | Multi-country pickers | React `MultiSelect` and Streamlit's `st.multiselect` both cap simultaneous selections at 10 (`maxSelected` / `max_selections`) even though their searchable pool is the full ~40 — past 10 countries on one chart stops being readable. Single-country pickers (`Select` / `st.selectbox`) have no such cap and search the full ~40 |
 | `design-system` | `Select` gained the same type-to-search pattern §5.5 added to `MultiSelect`; `MultiSelect` gained the new `maxSelected` prop described above |
+
+### 5.7 Three-Tier Overview (Release 2.2, planned)
+
+**Status: planned, implementation starting** — tracked in `ENHANCEMENTS.md`, not a curriculum
+change. Restructures the Overview page (`app.py`, `api/`, `climate-dashboard-react/`) from a
+single 10-country KPI row into three simultaneous tiers of increasing specificity, replacing
+the `scope=featured|expanded` query param §5.6 introduced (no UI ever exposed it as a toggle).
+
+| Aspect | Detail |
+|---|---|
+| Three tiers | **All Countries** — every sovereign country (`NON_SOVEREIGN` excluded), unfiltered by coverage/Mt, the true global total. **Expanded** — §5.6's coverage+materiality set (~40). **Selected** — a user-chosen subset capped at 10, defaulted to `FEATURED_COUNTRIES`; drives the bar chart, % change chart, and Top Movers section exclusively |
+| `NON_SOVEREIGN` mirror | Existed only in `notebook/constants.py` before this release; mirrored to `api/constants.py` (and `app.py`) since a genuine unfiltered "all countries" view is new — no prior API code needed it |
+| Data sources | Expanded/Selected tiers keep reading `ghg_features.csv` (`load_features()`, unchanged since §5.6); only the new All Countries tier reads raw OWID data directly via a new `load_raw_sovereign()` |
+| `/overview` breaking change | `scope=featured\|expanded` removed; replaced by a repeated `countries` query param capped server-side at 10 (422 over cap, 404 on an unknown country) — the frontend's `maxSelected` is UX convenience, not the enforcement boundary |
+| Empty selection | The Selected tier + charts + Top Movers gate behind at least one selected country (mirroring §5.6's Historical Trends picker), with a "Reset to default" action restoring `FEATURED_COUNTRIES` in one click; the All Countries/Expanded tiers render regardless, since they don't depend on the selection |
