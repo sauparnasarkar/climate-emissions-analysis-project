@@ -14,7 +14,7 @@ export interface MoverRow {
 }
 
 export interface OverviewTierMetrics {
-  label: string; // "All Countries" | "Expanded" | "Selected"
+  label: 'All Countries' | 'Expanded' | 'Selected';
   countries_count: number;
   latest_year: number;
   latest_co2_total: number;
