@@ -2,15 +2,37 @@
 #
 # Imported by week1_eda.ipynb through week5_scenarios.ipynb via
 # `from constants import *`. Single source of truth: do not redefine
-# COUNTRIES, NON_SOVEREIGN, FEATURES, TARGET, etc. inside any notebook.
+# FEATURED_COUNTRIES, NON_SOVEREIGN, FEATURES, TARGET, etc. inside any notebook.
+
+import json
+import os
 
 OWID_URL = "https://raw.githubusercontent.com/owid/co2-data/master/owid-co2-data.csv"
 
-COUNTRIES = [
+FEATURED_COUNTRIES = [
     "China", "United States", "India", "Russia", "Japan",
     "Germany", "Brazil", "United Kingdom", "South Africa", "Australia",
 ]
 # Note: OWID uses "United States" (not "USA") and "United Kingdom" (not "UK")
+COUNTRIES = FEATURED_COUNTRIES  # back-compat alias — nothing new should reference this name
+
+_SELECTED_COUNTRIES_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "data", "selected_countries.json"
+)
+
+
+def get_expanded_countries():
+    """Loads data/selected_countries.json, produced by week1_eda.ipynb §1.2's
+    coverage + materiality selection (computed from live OWID data, persisted rather than
+    hardcoded). Raises FileNotFoundError if Week 1 hasn't been run yet — by design: Weeks
+    2-5 genuinely cannot proceed without it, so failing loudly here is correct."""
+    if not os.path.exists(_SELECTED_COUNTRIES_PATH):
+        raise FileNotFoundError(
+            "data/selected_countries.json not found. Run week1_eda.ipynb §1.2 first."
+        )
+    with open(_SELECTED_COUNTRIES_PATH) as f:
+        return json.load(f)["expanded"]
+
 
 TRAIN_CUTOFF = 2018   # train: 1990–2018  |  test: 2019–2023
 FORECAST_END = 2043   # 20 years beyond 2023
