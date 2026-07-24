@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import type {
+  CountriesResponse,
   EtsParametersResponse,
   FeatureImportanceResponse,
   ForecastCountryResponse,
@@ -12,6 +13,7 @@ import ForecastsPage from './ForecastsPage';
 
 vi.mock('../api/client', () => ({
   api: {
+    listCountries: vi.fn(),
     forecast: vi.fn(),
     forecastSummary: vi.fn(),
     modelComparison: vi.fn(),
@@ -26,6 +28,7 @@ vi.mock('design-system', async (importOriginal) => {
   return { ...actual, SyChart: (props: { ariaLabel?: string }) => <div data-testid="sychart" aria-label={props.ariaLabel} /> };
 });
 
+const COUNTRIES: CountriesResponse = { featured: ['China'], expanded: ['China', 'Vietnam'] };
 const FORECAST: ForecastCountryResponse = {
   country: 'China',
   hist_years: [2018],
@@ -43,6 +46,7 @@ const ETS_PARAMS: EtsParametersResponse = { rows: [{ country: 'China', alpha: 0.
 const FEATURE_IMPORTANCE: FeatureImportanceResponse = { rows: [{ feature: 'co2_lag1', importance: 0.5 }] };
 
 function mockAllResolved() {
+  vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
   vi.mocked(api.forecast).mockResolvedValue(FORECAST);
   vi.mocked(api.forecastSummary).mockResolvedValue(SUMMARY);
   vi.mocked(api.modelComparison).mockResolvedValue(MODEL_COMPARISON);
@@ -60,9 +64,9 @@ describe('ForecastsPage', () => {
     render(<ForecastsPage />);
 
     expect(await screen.findByText('ETS(A,Ad,N) Forecast — China')).toBeInTheDocument();
-    expect(screen.getByText('Forecast Summary — All 10 Countries')).toBeInTheDocument();
+    expect(screen.getByText('Forecast Summary — 1 Countries')).toBeInTheDocument();
     expect(await screen.findByText('Five-Model Comparison Table (MAE / RMSE)')).toBeInTheDocument();
-    expect(screen.getByText('ETS(A,Ad,N) Fitted Parameters — All 10 Countries')).toBeInTheDocument();
+    expect(screen.getByText('ETS(A,Ad,N) Fitted Parameters — 1 Countries')).toBeInTheDocument();
     expect(screen.getByText('Random Forest Feature Importance (Pooled Model)')).toBeInTheDocument();
 
     expect(vi.mocked(api.forecast)).toHaveBeenCalledWith('China');
@@ -73,6 +77,7 @@ describe('ForecastsPage', () => {
   });
 
   it('only renders accordion sections whose data has actually loaded', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.forecast).mockResolvedValue(FORECAST);
     vi.mocked(api.forecastSummary).mockResolvedValue(SUMMARY);
     vi.mocked(api.modelComparison).mockResolvedValue(MODEL_COMPARISON);
@@ -81,11 +86,12 @@ describe('ForecastsPage', () => {
     render(<ForecastsPage />);
 
     expect(await screen.findByText('Five-Model Comparison Table (MAE / RMSE)')).toBeInTheDocument();
-    expect(screen.queryByText('ETS(A,Ad,N) Fitted Parameters — All 10 Countries')).not.toBeInTheDocument();
+    expect(screen.queryByText('ETS(A,Ad,N) Fitted Parameters — 1 Countries')).not.toBeInTheDocument();
     expect(screen.queryByText('Random Forest Feature Importance (Pooled Model)')).not.toBeInTheDocument();
   });
 
   it('renders an inline error for the main forecast chart when that call fails, independent of the others', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.forecast).mockRejectedValue(new Error('Failed to load data.'));
     vi.mocked(api.forecastSummary).mockResolvedValue(SUMMARY);
     vi.mocked(api.modelComparison).mockResolvedValue(MODEL_COMPARISON);
@@ -94,6 +100,14 @@ describe('ForecastsPage', () => {
     render(<ForecastsPage />);
 
     expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
-    expect(await screen.findByText('Forecast Summary — All 10 Countries')).toBeInTheDocument();
+    expect(await screen.findByText('Forecast Summary — 1 Countries')).toBeInTheDocument();
+  });
+
+  it('renders an inline error instead of crashing when listCountries fails', async () => {
+    vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
+    render(<ForecastsPage />);
+
+    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(vi.mocked(api.forecast)).not.toHaveBeenCalled();
   });
 });

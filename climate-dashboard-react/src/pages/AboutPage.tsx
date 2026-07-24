@@ -1,14 +1,5 @@
 import { Link, Table } from 'design-system';
-
-const METHODOLOGY_ROWS = [
-  { step: 'Dataset', detail: 'OWID CO₂ dataset, filtered to sovereign nations from 1990 onwards' },
-  { step: 'Countries', detail: 'China, United States, India, Russia, Japan, Germany, Brazil, United Kingdom, South Africa, Australia' },
-  { step: 'Feature Engineering', detail: 'Lag features (1–3 yrs), 5-yr rolling mean, YoY % change, GHG intensity' },
-  { step: 'Train / Test Split', detail: 'Temporal — train 1990–2018, test 2019–2023' },
-  { step: 'Models', detail: "Naive Baseline · Linear Regression · Random Forest · ETS(A,Ad,N)" },
-  { step: 'Forecasting', detail: "Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, forecast to 2043 with 95% CI" },
-  { step: 'Scenarios', detail: 'BAU · Moderate (−2%/yr) · Aggressive (−5%/yr) from 2025' },
-];
+import { useCountries } from '../hooks/useCountries';
 
 const DATA_SOURCE_ROWS = [
   { dataset: 'OWID CO₂ and GHG Emissions', url: 'https://github.com/owid/co2-data' },
@@ -16,6 +7,26 @@ const DATA_SOURCE_ROWS = [
 ];
 
 export default function AboutPage() {
+  const countries = useCountries();
+
+  const methodologyRows = [
+    { step: 'Dataset', detail: 'OWID CO₂ dataset, filtered to sovereign nations from 1990 onwards' },
+    {
+      step: 'Countries',
+      detail: countries.data
+        ? `${countries.data.expanded.length} countries analyzed (data-quality coverage + emissions-materiality selection). `
+          + `Featured for comparison: ${countries.data.featured.join(', ')}.`
+        : countries.error
+          ? countries.error
+          : 'Loading…',
+    },
+    { step: 'Feature Engineering', detail: 'Lag features (1–3 yrs), 5-yr rolling mean, YoY % change, GHG intensity' },
+    { step: 'Train / Test Split', detail: 'Temporal — train 1990–2018, test 2019–2023' },
+    { step: 'Models', detail: "Naive Baseline · Linear Regression · Random Forest · ETS(A,Ad,N)" },
+    { step: 'Forecasting', detail: "Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, forecast to 2043 with 95% CI" },
+    { step: 'Scenarios', detail: 'BAU · Moderate (−2%/yr) · Aggressive (−5%/yr) from 2025' },
+  ];
+
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>About This Project</h1>
@@ -31,7 +42,7 @@ export default function AboutPage() {
           { key: 'step', header: 'Step' },
           { key: 'detail', header: 'Detail', wrap: true },
         ]}
-        rows={METHODOLOGY_ROWS}
+        rows={methodologyRows}
         withBorder
       />
 

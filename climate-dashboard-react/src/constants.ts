@@ -1,11 +1,8 @@
 // TS mirror of api/constants.py — single source of truth for the frontend.
-
-export const COUNTRIES = [
-  'China', 'United States', 'India', 'Russia', 'Japan',
-  'Germany', 'Brazil', 'United Kingdom', 'South Africa', 'Australia',
-] as const;
-
-export type Country = (typeof COUNTRIES)[number];
+//
+// FEATURED_COUNTRIES/EXPANDED_COUNTRIES are no longer hardcoded here — they're
+// data-driven now (data/selected_countries.json), fetched via GET /api/countries
+// (see api/client.ts's listCountries() and hooks/useCountries.ts).
 
 export const GAS_COLUMNS: Record<string, string> = {
   co2: 'CO₂',

@@ -21,6 +21,7 @@ const RESPONSE: OverviewResponse = {
   co2_1990_total: 14350,
   pct_change_since_1990: 76.5,
   countries_count: 10,
+  total_countries_analyzed: 40,
   focus_countries: ['China', 'United States', 'India'],
   latest_year_bar: [{ country: 'China', value: 12000 }],
   top_movers: [{ country: 'China', co2_1990: 2000, co2_latest: 12000, absolute_change: 10000, pct_change: 500 }],
@@ -41,6 +42,10 @@ describe('OverviewPage', () => {
     expect(screen.getByText('+76.5%')).toBeInTheDocument();
     expect(screen.getByText('10')).toBeInTheDocument();
     expect(screen.getByText(/China.*United States.*India/)).toBeInTheDocument();
+    expect(screen.getByText(/for 40 major countries/)).toBeInTheDocument();
+    expect(screen.getByText('10-Country CO₂ (2024)')).toBeInTheDocument();
+    expect(screen.getByText('Top Movers Since 1990 (3 Focus Countries)')).toBeInTheDocument();
+    expect(screen.getByText(/among the 3 focus countries/)).toBeInTheDocument();
   });
 
   it('renders an inline error instead of crashing when the API call fails', async () => {
