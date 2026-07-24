@@ -96,7 +96,15 @@ def get_expanded_countries():
         warnings.warn("data/selected_countries.json not found. Falling back to FEATURED_COUNTRIES only.")
         return FEATURED_COUNTRIES
     with open(path) as f:
-        return json.load(f)["expanded"]
+        data = json.load(f)
+    expanded = data.get("expanded")
+    if not expanded:
+        warnings.warn(
+            "data/selected_countries.json has no 'expanded' key or is empty. "
+            "Falling back to FEATURED_COUNTRIES only."
+        )
+        return FEATURED_COUNTRIES
+    return expanded
 
 
 @st.cache_data
@@ -132,7 +140,7 @@ def load_model_comparison():
 
 @st.cache_data
 def load_ets_parameters():
-    """Load ETS(A,Ad,N) fitted smoothing parameters (α, β*, φ) for all 10 countries — Week 4."""
+    """Load ETS(A,Ad,N) fitted smoothing parameters (α, β*, φ) for each country — Week 4."""
     path = "data/ets_parameters.csv"
     if not os.path.exists(path):
         return None
@@ -323,7 +331,8 @@ elif page == "Country Profile":
         st.warning("Complete Week 2 to enable this page.")
     else:
         expanded   = get_expanded_countries()
-        country    = st.selectbox("Select a country", options=expanded, index=expanded.index(FEATURED_COUNTRIES[0]))
+        _default_idx = next((i for i, c in enumerate(expanded) if c == FEATURED_COUNTRIES[0]), 0)
+        country    = st.selectbox("Select a country", options=expanded, index=_default_idx)
         df_country = df[df["country"] == country].sort_values("year").copy()
 
         col1, col2 = st.columns(2)
@@ -379,7 +388,8 @@ elif page == "Forecasts":
         )
     else:
         expanded = get_expanded_countries()
-        country = st.selectbox("Select a country", options=expanded, index=expanded.index(FEATURED_COUNTRIES[0]))
+        _default_idx = next((i for i, c in enumerate(expanded) if c == FEATURED_COUNTRIES[0]), 0)
+        country = st.selectbox("Select a country", options=expanded, index=_default_idx)
 
         st.subheader(f"Forecast — {country}")
         fc_c   = df_forecasts[df_forecasts["country"] == country].sort_values("year")
@@ -483,7 +493,8 @@ elif page == "Scenario Comparison":
 
         if view_mode == "Single Country":
             expanded = get_expanded_countries()
-            country = st.selectbox("Select a country", options=expanded, index=expanded.index(FEATURED_COUNTRIES[0]))
+            _default_idx = next((i for i, c in enumerate(expanded) if c == FEATURED_COUNTRIES[0]), 0)
+            country = st.selectbox("Select a country", options=expanded, index=_default_idx)
             countries_in_view = [country]
             title_suffix = country
         else:
