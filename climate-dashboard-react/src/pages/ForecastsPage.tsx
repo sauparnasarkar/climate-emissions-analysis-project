@@ -4,7 +4,7 @@ import { ChartCard, SyChart, Select, DataTable, Accordion, InlineAlert, Spinner 
 import type { AccordionItem } from 'design-system/components/Accordion/Accordion';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
-import { COUNTRIES } from '../constants';
+import { useCountries } from '../hooks/useCountries';
 import type { EtsParameterRow, ForecastSummaryRow } from '../api/types';
 
 const SUMMARY_COLUMNS: ColDef<ForecastSummaryRow>[] = [
@@ -27,8 +27,15 @@ function humanize(field: string): string {
   return field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function ForecastsPage() {
-  const [country, setCountry] = useState<string>(COUNTRIES[0]);
+function countryCount(n: number): string {
+  return `${n} ${n === 1 ? 'Country' : 'Countries'}`;
+}
+
+// Split out so the forecast fetch only ever starts once the expanded country list (and its
+// featured-default seed) are already known — avoiding a wasted initial fetch for an
+// undefined country before GET /api/countries resolves.
+function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedCountry: string }) {
+  const [country, setCountry] = useState<string>(seedCountry);
 
   const forecast = useAsync(() => api.forecast(country), [country]);
   const summary = useAsync(() => api.forecastSummary(), []);
@@ -50,7 +57,7 @@ export default function ForecastsPage() {
   if (etsParams.data) {
     accordionItems.push({
       id: 'ets-params',
-      title: 'ETS(A,Ad,N) Fitted Parameters — All 10 Countries',
+      title: `ETS(A,Ad,N) Fitted Parameters — ${countryCount(etsParams.data.rows.length)}`,
       content: (
         <>
           <p className="__s9cmpx-body4" style={{ marginBottom: 12 }}>
@@ -69,7 +76,7 @@ export default function ForecastsPage() {
       id: 'feature-importance',
       title: 'Random Forest Feature Importance (Pooled Model)',
       content: (
-        <ChartCard title="RF Pooled Feature Importances — All 10 Countries">
+        <ChartCard title="RF Pooled Feature Importances — Pooled Model">
           <SyChart
             height={280}
             orientation="h"
@@ -91,7 +98,7 @@ export default function ForecastsPage() {
         Forecasts from Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, with 95% confidence intervals extending to 2043.
       </p>
 
-      <Select label="Select a country" options={COUNTRIES.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
+      <Select label="Select a country" options={expanded.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
 
       <div style={{ margin: '16px 0' }}>
         {forecast.loading ? (
@@ -116,7 +123,9 @@ export default function ForecastsPage() {
         ) : null}
       </div>
 
-      <h2 className="__s9cmpx-headline6">Forecast Summary — All 10 Countries</h2>
+      <h2 className="__s9cmpx-headline6">
+        {summary.data ? `Forecast Summary — ${countryCount(summary.data.rows.length)}` : 'Forecast Summary'}
+      </h2>
       {summary.loading ? (
         <Spinner />
       ) : summary.error ? (
@@ -132,4 +141,14 @@ export default function ForecastsPage() {
       )}
     </div>
   );
+}
+
+export default function ForecastsPage() {
+  const countries = useCountries();
+
+  if (countries.loading) return <Spinner />;
+  if (countries.error) return <InlineAlert variant="warning">{countries.error}</InlineAlert>;
+  if (!countries.data) return null;
+
+  return <ForecastsContent expanded={countries.data.expanded} seedCountry={countries.data.featured[0]} />;
 }

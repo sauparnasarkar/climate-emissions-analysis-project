@@ -19,12 +19,12 @@ export default function OverviewPage() {
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: 0 }}>GHG Emissions Trend Analysis and Forecasting</h1>
       <p className="__s9cmpx-body3-short" style={{ margin: '4px 0 16px', color: 'var(--__s9cmpx-static-text-weak)' }}>
-        An end-to-end analysis of greenhouse gas emissions for 10 major countries using the OWID CO₂ dataset,
+        An end-to-end analysis of greenhouse gas emissions for {data.total_countries_analyzed} major countries using the OWID CO₂ dataset,
         regression models, and ETS(A,Ad,N) forecasting.
       </p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 16 }}>
-        <KpiStat card label={`10-Country CO₂ (${data.latest_year})`} value={`${data.latest_co2_total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} />
+        <KpiStat card label={`${data.countries_count}-Country CO₂ (${data.latest_year})`} value={`${data.latest_co2_total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} />
         <KpiStat
           card
           label="% Change since 1990"
@@ -48,9 +48,9 @@ export default function OverviewPage() {
       </ChartCard>
 
       <div style={{ marginTop: 24 }}>
-        <h2 className="__s9cmpx-headline6">Top Movers Since 1990 (10 Focus Countries)</h2>
+        <h2 className="__s9cmpx-headline6">Top Movers Since 1990 ({data.focus_countries.length} Focus Countries)</h2>
         <p className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
-          Fastest growth and largest reduction in CO₂ emissions, 1990 → {data.latest_year}, among the 10 focus countries.
+          Fastest growth and largest reduction in CO₂ emissions, 1990 → {data.latest_year}, among the {data.focus_countries.length} focus countries.
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, margin: '12px 0 16px' }}>

@@ -2,12 +2,17 @@ import { useState } from 'react';
 import { ChartCard, SyChart, MultiSelect, Select, InlineAlert, Spinner } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
-import { COUNTRIES, GAS_COLUMNS } from '../constants';
+import { useCountries } from '../hooks/useCountries';
+import { GAS_COLUMNS } from '../constants';
 
 const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value, label }));
+const MAX_SELECTED_COUNTRIES = 10;
 
-export default function HistoricalTrendsPage() {
-  const [selectedCountries, setSelectedCountries] = useState<string[]>(COUNTRIES.slice(0, 5) as string[]);
+// Split out so the timeseries fetch only ever starts once the expanded country list (and
+// its featured-default seed) are already known — avoiding a wasted initial fetch before
+// GET /api/countries resolves.
+function HistoricalTrendsContent({ expanded, seedCountries }: { expanded: string[]; seedCountries: string[] }) {
+  const [selectedCountries, setSelectedCountries] = useState<string[]>(seedCountries);
   const [gas, setGas] = useState('co2');
 
   const timeseries = useAsync(
@@ -22,10 +27,11 @@ export default function HistoricalTrendsPage() {
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <MultiSelect
-          label="Select countries"
-          options={COUNTRIES.map((c) => ({ value: c, label: c }))}
+          label="Select countries (up to 10)"
+          options={expanded.map((c) => ({ value: c, label: c }))}
           value={selectedCountries}
           onChange={setSelectedCountries}
+          maxSelected={MAX_SELECTED_COUNTRIES}
         />
         <Select label="Emissions metric" options={GAS_OPTIONS} value={gas} onChange={setGas} />
       </div>
@@ -56,13 +62,13 @@ export default function HistoricalTrendsPage() {
         ) : composition.error ? (
           <InlineAlert variant="warning">{composition.error}</InlineAlert>
         ) : (
-          <ChartCard title="GHG Composition by Decade — 10 Countries (% share)">
+          <ChartCard title={`GHG Composition by Decade — ${expanded.length} Countries (% share)`}>
             <SyChart
               height={320}
               barmode="stack"
               xTitle="Decade"
               yTitle="Share (%)"
-              ariaLabel="Stacked bar chart of greenhouse gas composition by decade across the 10 focus countries, showing CO2, methane, and nitrous oxide share of total emissions"
+              ariaLabel={`Stacked bar chart of greenhouse gas composition by decade across ${expanded.length} analyzed countries, showing CO2, methane, and nitrous oxide share of total emissions`}
               series={(composition.data?.series ?? []).map((s) => ({
                 name: s.gas_label,
                 x: composition.data!.decades,
@@ -74,5 +80,20 @@ export default function HistoricalTrendsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function HistoricalTrendsPage() {
+  const countries = useCountries();
+
+  if (countries.loading) return <Spinner />;
+  if (countries.error) return <InlineAlert variant="warning">{countries.error}</InlineAlert>;
+  if (!countries.data) return null;
+
+  return (
+    <HistoricalTrendsContent
+      expanded={countries.data.expanded}
+      seedCountries={countries.data.featured.slice(0, 5)}
+    />
   );
 }

@@ -1,4 +1,5 @@
 import type {
+  CountriesResponse,
   CountryProfileResponse,
   EtsParametersResponse,
   ExplorerDataResponse,
@@ -38,6 +39,8 @@ function buildExplorerParams(countries: string[], yearMin: number | null, yearMa
 
 export const api = {
   overview: () => get<OverviewResponse>('/overview'),
+
+  listCountries: () => get<CountriesResponse>('/countries'),
 
   historicalTimeseries: (countries: string[], gas: string) => {
     const params = new URLSearchParams();

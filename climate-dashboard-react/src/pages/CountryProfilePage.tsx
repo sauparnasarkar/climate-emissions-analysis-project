@@ -3,7 +3,7 @@ import type { ColDef } from 'ag-grid-community';
 import { ChartCard, SyChart, Select, DataTable, InlineAlert, Spinner } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
-import { COUNTRIES } from '../constants';
+import { useCountries } from '../hooks/useCountries';
 import type { CountryProfileTableRow } from '../api/types';
 
 const COLUMNS: ColDef<CountryProfileTableRow>[] = [
@@ -14,8 +14,11 @@ const COLUMNS: ColDef<CountryProfileTableRow>[] = [
   { field: 'ghg_intensity', headerName: 'GHG Intensity (kg CO₂e/$ GDP)' },
 ];
 
-export default function CountryProfilePage() {
-  const [country, setCountry] = useState<string>(COUNTRIES[0]);
+// Split out so the country-profile fetch only ever starts once the expanded country list
+// (and its featured-default seed) are already known — avoiding a wasted initial fetch for
+// an undefined country before GET /api/countries resolves.
+function CountryProfileContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
+  const [country, setCountry] = useState<string>(featured[0]);
   const { data, error, loading } = useAsync(() => api.countryProfile(country), [country]);
 
   return (
@@ -24,7 +27,7 @@ export default function CountryProfilePage() {
 
       <Select
         label="Select a country"
-        options={COUNTRIES.map((c) => ({ value: c, label: c }))}
+        options={expanded.map((c) => ({ value: c, label: c }))}
         value={country}
         onChange={setCountry}
       />
@@ -72,4 +75,14 @@ export default function CountryProfilePage() {
       ) : null}
     </div>
   );
+}
+
+export default function CountryProfilePage() {
+  const countries = useCountries();
+
+  if (countries.loading) return <Spinner />;
+  if (countries.error) return <InlineAlert variant="warning">{countries.error}</InlineAlert>;
+  if (!countries.data) return null;
+
+  return <CountryProfileContent featured={countries.data.featured} expanded={countries.data.expanded} />;
 }

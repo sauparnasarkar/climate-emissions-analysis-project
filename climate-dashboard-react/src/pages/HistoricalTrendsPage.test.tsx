@@ -1,11 +1,11 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
-import type { HistoricalDecadeCompositionResponse, HistoricalTimeseriesResponse } from '../api/types';
+import type { CountriesResponse, HistoricalDecadeCompositionResponse, HistoricalTimeseriesResponse } from '../api/types';
 import HistoricalTrendsPage from './HistoricalTrendsPage';
 
 vi.mock('../api/client', () => ({
-  api: { historicalTimeseries: vi.fn(), historicalDecadeComposition: vi.fn() },
+  api: { listCountries: vi.fn(), historicalTimeseries: vi.fn(), historicalDecadeComposition: vi.fn() },
 }));
 
 // See OverviewPage.test.tsx for why SyChart is stubbed rather than rendered for
@@ -16,6 +16,14 @@ vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return { ...actual, SyChart: (props: { ariaLabel?: string }) => <div data-testid="sychart" aria-label={props.ariaLabel} /> };
 });
+
+const COUNTRIES: CountriesResponse = {
+  featured: ['China', 'United States', 'India', 'Russia', 'Japan'],
+  expanded: [
+    'China', 'United States', 'India', 'Russia', 'Japan',
+    'Germany', 'Brazil', 'United Kingdom', 'South Africa', 'Australia', 'Vietnam',
+  ],
+};
 
 const TIMESERIES: HistoricalTimeseriesResponse = {
   gas: 'co2',
@@ -34,14 +42,15 @@ afterEach(() => {
 
 describe('HistoricalTrendsPage', () => {
   it('renders both charts once both API calls resolve', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
     render(<HistoricalTrendsPage />);
 
     expect(await screen.findByText('CO₂ Emissions by Country')).toBeInTheDocument();
-    expect(screen.getByText('GHG Composition by Decade — 10 Countries (% share)')).toBeInTheDocument();
-    // Default selection is the first 5 focus countries (constants.ts) — confirms the
-    // country MultiSelect's initial value actually reached the API call.
+    expect(screen.getByText('GHG Composition by Decade — 11 Countries (% share)')).toBeInTheDocument();
+    // Default selection is the first 5 featured countries — confirms the country
+    // MultiSelect's initial value actually reached the API call.
     expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(
       expect.arrayContaining(['China']),
       'co2',
@@ -49,6 +58,7 @@ describe('HistoricalTrendsPage', () => {
   });
 
   it('shows a warning instead of calling the timeseries API when no countries are selected', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
     const { default: userEvent } = await import('@testing-library/user-event');
@@ -64,5 +74,40 @@ describe('HistoricalTrendsPage', () => {
       await user.click(button);
     }
     expect(await screen.findByText('Select at least one country.')).toBeInTheDocument();
+  });
+
+  it('blocks selecting an 11th country once the 10-selection cap is reached', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+    vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(<HistoricalTrendsPage />);
+    await screen.findByText('CO₂ Emissions by Country');
+
+    // 5 featured countries are preselected by default; select 5 more (the whole rest of
+    // the expanded pool except Vietnam) to land exactly at the maxSelected=10 cap.
+    await user.click(screen.getByLabelText('Select countries (up to 10)'));
+    for (const country of ['Germany', 'Brazil', 'United Kingdom', 'South Africa', 'Australia']) {
+      await user.click(await screen.findByRole('option', { name: country }));
+    }
+    expect(await screen.findByText('Maximum 10 selected')).toBeInTheDocument();
+
+    const vietnamOption = screen.getByRole('option', { name: 'Vietnam' });
+    expect(vietnamOption).toHaveAttribute('aria-disabled', 'true');
+
+    await user.click(vietnamOption);
+    expect(vi.mocked(api.historicalTimeseries)).not.toHaveBeenCalledWith(
+      expect.arrayContaining(['Vietnam']),
+      expect.anything(),
+    );
+  });
+
+  it('renders an inline error instead of crashing when listCountries fails', async () => {
+    vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
+    render(<HistoricalTrendsPage />);
+
+    expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+    expect(vi.mocked(api.historicalTimeseries)).not.toHaveBeenCalled();
   });
 });

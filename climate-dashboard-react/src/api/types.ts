@@ -20,6 +20,7 @@ export interface OverviewResponse {
   pct_change_since_1990: number;
   countries_count: number;
   focus_countries: string[];
+  total_countries_analyzed: number;
   latest_year_bar: CountryValue[];
   top_movers: MoverRow[];
   fastest_growth: MoverRow;
@@ -155,6 +156,11 @@ export interface ExplorerDataResponse {
   total_rows: number;
   page: number;
   page_size: number;
+}
+
+export interface CountriesResponse {
+  featured: string[];
+  expanded: string[];
 }
 
 export class ApiError extends Error {

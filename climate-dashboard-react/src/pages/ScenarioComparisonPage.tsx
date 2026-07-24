@@ -3,14 +3,18 @@ import type { ColDef } from 'ag-grid-community';
 import { ChartCard, SyChart, SegmentedControl, Select, Radio, DataTable, InlineAlert, Spinner } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
-import { COUNTRIES, SCENARIO_COLORS } from '../constants';
+import { useCountries } from '../hooks/useCountries';
+import { SCENARIO_COLORS } from '../constants';
 import type { ScenarioCumulativeRow } from '../api/types';
 
 type ViewMode = 'single' | 'global';
 
-export default function ScenarioComparisonPage() {
+// Split out so the timeseries fetch only ever starts once the expanded country list (and
+// its featured-default seed) are already known — avoiding a wasted initial fetch for an
+// undefined country before GET /api/countries resolves.
+function ScenarioComparisonContent({ expanded, seedCountry }: { expanded: string[]; seedCountry: string }) {
   const [view, setView] = useState<ViewMode>('single');
-  const [country, setCountry] = useState<string>(COUNTRIES[0]);
+  const [country, setCountry] = useState<string>(seedCountry);
   const [sortBy, setSortBy] = useState<string>('BAU');
 
   const timeseries = useAsync(
@@ -50,7 +54,7 @@ export default function ScenarioComparisonPage() {
           onChange={(v) => setView(v as ViewMode)}
         />
         {view === 'single' && (
-          <Select label="Select a country" options={COUNTRIES.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
+          <Select label="Select a country" options={expanded.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
         )}
       </div>
 
@@ -128,4 +132,14 @@ export default function ScenarioComparisonPage() {
       </div>
     </div>
   );
+}
+
+export default function ScenarioComparisonPage() {
+  const countries = useCountries();
+
+  if (countries.loading) return <Spinner />;
+  if (countries.error) return <InlineAlert variant="warning">{countries.error}</InlineAlert>;
+  if (!countries.data) return null;
+
+  return <ScenarioComparisonContent expanded={countries.data.expanded} seedCountry={countries.data.featured[0]} />;
 }
