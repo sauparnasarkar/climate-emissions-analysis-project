@@ -15,7 +15,9 @@ Run with:
     streamlit run app.py
 """
 
+import json
 import os
+import warnings
 
 # Work around a segfault in pyarrow's bundled mimalloc allocator, hit when Streamlit
 # converts a DataFrame containing NaNs to Arrow for st.dataframe() (observed crashing in
@@ -29,7 +31,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-COUNTRIES = [
+FEATURED_COUNTRIES = [
     "China", "United States", "India", "Russia", "Japan",
     "Germany", "Brazil", "United Kingdom", "South Africa", "Australia",
 ]
@@ -83,14 +85,37 @@ def load_scenarios():
 
 
 @st.cache_data
+def get_expanded_countries():
+    """Loads data/selected_countries.json (produced by week1_eda.ipynb §1.2's coverage +
+    materiality selection). Falls back to FEATURED_COUNTRIES with a warning rather than
+    crashing the app — a missing expanded-country list should degrade gracefully (every
+    page keeps working, just scoped to the original 10) rather than block the whole
+    dashboard on Week 1 having been re-run."""
+    path = "data/selected_countries.json"
+    if not os.path.exists(path):
+        warnings.warn("data/selected_countries.json not found. Falling back to FEATURED_COUNTRIES only.")
+        return FEATURED_COUNTRIES
+    with open(path) as f:
+        data = json.load(f)
+    expanded = data.get("expanded")
+    if not isinstance(expanded, list) or not expanded:
+        warnings.warn(
+            "data/selected_countries.json 'expanded' key is missing, not a list, or empty. "
+            "Falling back to FEATURED_COUNTRIES only."
+        )
+        return FEATURED_COUNTRIES
+    return expanded
+
+
+@st.cache_data
 def load_raw():
-    """OWID raw data for methane/N₂O columns, filtered to 10 countries 1990+."""
+    """OWID raw data for methane/N₂O columns, filtered to the expanded country list, 1990+."""
     path = "data/owid-co2-data.csv"
     if not os.path.exists(path):
         return None
     cols = ["country", "year", "co2", "methane", "nitrous_oxide"]
     df_r = pd.read_csv(path, usecols=cols)
-    return df_r[(df_r["country"].isin(COUNTRIES)) & (df_r["year"] >= 1990)].copy()
+    return df_r[(df_r["country"].isin(get_expanded_countries())) & (df_r["year"] >= 1990)].copy()
 
 
 @st.cache_data
@@ -115,7 +140,7 @@ def load_model_comparison():
 
 @st.cache_data
 def load_ets_parameters():
-    """Load ETS(A,Ad,N) fitted smoothing parameters (α, β*, φ) for all 10 countries — Week 4."""
+    """Load ETS(A,Ad,N) fitted smoothing parameters (α, β*, φ) for each country — Week 4."""
     path = "data/ets_parameters.csv"
     if not os.path.exists(path):
         return None
@@ -160,7 +185,7 @@ df_feat_imp   = load_feature_importance()
 if page == "Overview":
     st.title("GHG Emissions Trend Analysis and Forecasting")
     st.markdown(
-        "An end-to-end analysis of greenhouse gas emissions for 10 major countries "
+        f"An end-to-end analysis of greenhouse gas emissions for {len(get_expanded_countries())} major countries "
         "using the OWID CO₂ dataset, regression models, and ETS(A,Ad,N) forecasting.\n\n"
         "*IDEAS TIH Summer Internship 2026*"
     )
@@ -171,22 +196,22 @@ if page == "Overview":
 
         latest_year = int(df["year"].max())
 
-        latest_co2 = df[(df["year"] == latest_year) & (df["country"].isin(COUNTRIES))]["co2"].sum()
-        co2_1990   = df[(df["year"] == 1990)        & (df["country"].isin(COUNTRIES))]["co2"].sum()
+        latest_co2 = df[(df["year"] == latest_year) & (df["country"].isin(FEATURED_COUNTRIES))]["co2"].sum()
+        co2_1990   = df[(df["year"] == 1990)        & (df["country"].isin(FEATURED_COUNTRIES))]["co2"].sum()
         pct_change = (latest_co2 - co2_1990) / co2_1990 * 100
 
         with col1:
-            st.metric(f"10-Country CO₂ ({latest_year})", f"{latest_co2:,.0f} MtCO₂")
+            st.metric(f"{len(FEATURED_COUNTRIES)}-Country CO₂ ({latest_year})", f"{latest_co2:,.0f} MtCO₂")
 
         with col2:
             st.metric("% Change since 1990", f"{pct_change:+.1f}%")
 
         with col3:
-            st.metric(label="Countries Analysed", value=len(COUNTRIES))
+            st.metric(label="Countries Analysed", value=len(FEATURED_COUNTRIES))
 
         st.divider()
         st.subheader("Focus Countries")
-        st.markdown("  |  ".join(COUNTRIES))
+        st.markdown("  |  ".join(FEATURED_COUNTRIES))
 
         df_bar = (df[df["year"] == latest_year][["country", "co2"]]
                   .sort_values("co2", ascending=False))
@@ -196,14 +221,14 @@ if page == "Overview":
         st.plotly_chart(fig, use_container_width=True)
 
         st.divider()
-        st.subheader("Top Movers Since 1990 (10 Focus Countries)")
+        st.subheader(f"Top Movers Since 1990 ({len(FEATURED_COUNTRIES)} Focus Countries)")
         st.caption(
             "Fastest growth and largest reduction in CO₂ emissions, 1990 → "
-            f"{latest_year}, among the 10 focus countries."
+            f"{latest_year}, among the {len(FEATURED_COUNTRIES)} focus countries."
         )
 
-        co2_1990_by_country   = df[(df["year"] == 1990) & (df["country"].isin(COUNTRIES))].set_index("country")["co2"]
-        co2_latest_by_country = df[(df["year"] == latest_year) & (df["country"].isin(COUNTRIES))].set_index("country")["co2"]
+        co2_1990_by_country   = df[(df["year"] == 1990) & (df["country"].isin(FEATURED_COUNTRIES))].set_index("country")["co2"]
+        co2_latest_by_country = df[(df["year"] == latest_year) & (df["country"].isin(FEATURED_COUNTRIES))].set_index("country")["co2"]
         absolute_change = co2_latest_by_country - co2_1990_by_country
         pct_change_by_country = absolute_change / co2_1990_by_country * 100
 
@@ -254,9 +279,10 @@ elif page == "Historical Trends":
         st.warning("Complete Week 2 to enable this page.")
     else:
         selected_countries = st.multiselect(
-            "Select countries",
-            options=COUNTRIES,
-            default=COUNTRIES[:5],
+            "Select countries (up to 10)",
+            options=get_expanded_countries(),
+            default=FEATURED_COUNTRIES[:5],
+            max_selections=10,
         )
 
         gas_label = st.selectbox("Emissions metric", options=list(GAS_COLUMNS.keys()))
@@ -289,7 +315,7 @@ elif page == "Historical Trends":
                         .melt(id_vars="decade", var_name="gas", value_name="share"))
             agg_long = agg_long.assign(gas=agg_long["gas"].map(gas_labels_inv))
             fig2 = px.bar(agg_long, x="decade", y="share", color="gas", barmode="stack",
-                          title="GHG Composition by Decade — 10 Countries (% share)",
+                          title=f"GHG Composition by Decade — {len(get_expanded_countries())} Countries (% share)",
                           labels={"decade": "Decade", "share": "Share (%)", "gas": "Gas"})
             st.plotly_chart(fig2, use_container_width=True)
         else:
@@ -304,7 +330,9 @@ elif page == "Country Profile":
     if df is None:
         st.warning("Complete Week 2 to enable this page.")
     else:
-        country    = st.selectbox("Select a country", options=COUNTRIES)
+        expanded   = get_expanded_countries()
+        _default_idx = next((i for i, c in enumerate(expanded) if c == FEATURED_COUNTRIES[0]), 0)
+        country    = st.selectbox("Select a country", options=expanded, index=_default_idx)
         df_country = df[df["country"] == country].sort_values("year").copy()
 
         col1, col2 = st.columns(2)
@@ -359,7 +387,9 @@ elif page == "Forecasts":
             "then restart the app."
         )
     else:
-        country = st.selectbox("Select a country", options=COUNTRIES)
+        expanded = get_expanded_countries()
+        _default_idx = next((i for i, c in enumerate(expanded) if c == FEATURED_COUNTRIES[0]), 0)
+        country = st.selectbox("Select a country", options=expanded, index=_default_idx)
 
         st.subheader(f"Forecast — {country}")
         fc_c   = df_forecasts[df_forecasts["country"] == country].sort_values("year")
@@ -388,9 +418,9 @@ elif page == "Forecasts":
         st.plotly_chart(fig, use_container_width=True)
 
         st.divider()
-        st.subheader("Forecast Summary — All 10 Countries")
+        st.subheader(f"Forecast Summary — All {len(get_expanded_countries())} Countries")
         rows = []
-        for c in COUNTRIES:
+        for c in get_expanded_countries():
             fc = df_forecasts[df_forecasts["country"] == c].set_index("year")["mean"]
             actual_2020 = df[(df["country"] == c) & (df["year"] == 2020)]["co2"].values
             if len(actual_2020) == 0:
@@ -415,7 +445,7 @@ elif page == "Forecasts":
                 st.dataframe(df_model_cmp.set_index("country"), use_container_width=True)
 
         if df_ets_params is not None:
-            with st.expander("ETS(A,Ad,N) Fitted Parameters — All 10 Countries"):
+            with st.expander(f"ETS(A,Ad,N) Fitted Parameters — All {len(df_ets_params)} Countries"):
                 st.markdown(
                     "**α** (level smoothing), **β\\*** (trend smoothing), and **φ** (damping) "
                     "for each country's Holt's Damped Trend model, fit on 1990–2018."
@@ -431,7 +461,7 @@ elif page == "Forecasts":
                     df_feat_imp.sort_values("importance"),
                     x="importance", y="feature", orientation="h",
                     labels={"importance": "Importance (mean decrease in impurity)", "feature": "Feature"},
-                    title="RF Pooled Feature Importances — All 10 Countries",
+                    title="RF Pooled Feature Importances (Pooled Model)",
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
@@ -462,12 +492,14 @@ elif page == "Scenario Comparison":
         view_mode = st.radio("View", ["Single Country", "Global Aggregate"], horizontal=True)
 
         if view_mode == "Single Country":
-            country = st.selectbox("Select a country", options=COUNTRIES)
+            expanded = get_expanded_countries()
+            _default_idx = next((i for i, c in enumerate(expanded) if c == FEATURED_COUNTRIES[0]), 0)
+            country = st.selectbox("Select a country", options=expanded, index=_default_idx)
             countries_in_view = [country]
             title_suffix = country
         else:
-            countries_in_view = COUNTRIES
-            title_suffix = "All 10 Countries"
+            countries_in_view = get_expanded_countries()
+            title_suffix = f"All {len(countries_in_view)} Countries"
 
         hist = (
             df[(df["country"].isin(countries_in_view)) & (df["year"] <= 2024)]
@@ -544,7 +576,7 @@ elif page == "Data Explorer":
         "Browse the full underlying dataset behind this dashboard: **every sovereign "
         "country** (regional and income-group aggregates like \"World\" or \"European "
         "Union\" excluded), from **1990 onward** — the raw and derived OWID columns, not "
-        "just the 10 focus countries or the reduced feature set used elsewhere in this app."
+        f"just the {len(FEATURED_COUNTRIES)} focus countries or the reduced feature set used elsewhere in this app."
     )
 
     if df_filtered is None:
@@ -608,7 +640,11 @@ elif page == "Data Explorer":
 # ─────────────────────────────────────────────────────────────────────────────
 elif page == "About":
     st.title("About This Project")
-    st.markdown("""
+    countries_row = (
+        f"{len(get_expanded_countries())} countries analyzed (data-quality coverage + "
+        f"emissions-materiality selection). Featured for comparison: {', '.join(FEATURED_COUNTRIES)}."
+    )
+    st.markdown(f"""
 ## GHG Emissions Trend Analysis and Forecasting
 
 This dashboard is a reference implementation for the 7-week data science project conducted as part of the
@@ -621,7 +657,7 @@ This dashboard is a reference implementation for the 7-week data science project
 | Step | Detail |
 |------|--------|
 | Dataset | OWID CO₂ dataset, filtered to sovereign nations from 1990 onwards |
-| Countries | China, United States, India, Russia, Japan, Germany, Brazil, United Kingdom, South Africa, Australia |
+| Countries | {countries_row} |
 | Feature Engineering | Lag features (1–3 yrs), 5-yr rolling mean, YoY % change, GHG intensity |
 | Train / Test Split | Temporal — train 1990–2018, test 2019–2023 |
 | Models | Naive Baseline · Linear Regression · Random Forest · ETS(A,Ad,N) |
