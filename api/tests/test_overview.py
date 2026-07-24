@@ -1,60 +1,91 @@
 from .conftest import write_fixture, write_selected_countries_json
 
 
-def test_overview_happy_path(client):
+def test_overview_happy_path_defaults_to_featured(client):
     resp = client.get("/api/overview")
     assert resp.status_code == 200
     body = resp.json()
 
-    assert body["latest_year"] == 2023
-    # China 11000 + United States 4700 + Germany 600 — France's 300 must be excluded.
-    assert body["latest_co2_total"] == 16300
-    assert body["co2_1990_total"] == 8400
-    assert round(body["pct_change_since_1990"], 2) == round((16300 - 8400) / 8400 * 100, 2)
+    # China 11000 + United States 4700 + Germany 600 -- France's 300 must be excluded
+    # (France is outside the real FEATURED_COUNTRIES fallback used when no selected_countries.json
+    # is written, and outside the "countries" param default too).
+    assert body["selected"]["label"] == "Selected"
+    assert body["selected"]["latest_co2_total"] == 16300
+    assert body["selected"]["co2_1990_total"] == 8400
+    assert round(body["selected"]["pct_change_since_1990"], 2) == round((16300 - 8400) / 8400 * 100, 2)
 
 
-def test_overview_bar_is_filtered_by_scope(client):
-    """latest_year_bar is now filtered consistently with latest_co2_total/co2_1990_total/
-    top_movers just above it — France (present in ghg_features.csv but outside the real
-    FEATURED_COUNTRIES fallback) must not appear in the default (scope=featured) bar."""
+def test_overview_selected_country_list_defaults_to_featured_countries(client):
+    from api.constants import FEATURED_COUNTRIES
+
     resp = client.get("/api/overview")
-    countries_in_bar = {row["country"] for row in resp.json()["latest_year_bar"]}
-    assert countries_in_bar == {"China", "United States", "Germany"}
-    assert "France" not in countries_in_bar
+    assert resp.json()["selected_country_list"] == FEATURED_COUNTRIES
 
 
-def test_overview_scope_expanded_includes_out_of_scope_country(full_data):
+def test_overview_all_countries_tier_excludes_non_sovereign_aggregates(client):
+    """all_countries reflects the full NON_SOVEREIGN-excluded raw universe -- the fixture's
+    injected "World" row (9999.0 at year 2010) must not leak into the total, and Canada
+    (present only via a one-off fixture row) must be counted since it's a real sovereign."""
+    body = client.get("/api/overview").json()
+    tier = body["all_countries"]
+
+    assert tier["label"] == "All Countries"
+    assert tier["countries_count"] == 4  # China, United States, Germany, Canada
+    assert tier["latest_year"] == 2010  # owid_raw_df()'s own latest year, independent of ghg_features.csv's
+    assert tier["latest_co2_total"] == 312.0  # China+US+Germany at year 2010, 104.0 each -- World's 9999.0 excluded
+    assert tier["co2_1990_total"] == 300.0  # China+US+Germany at year 1990, 100.0 each
+    assert round(tier["pct_change_since_1990"], 2) == round((312.0 - 300.0) / 300.0 * 100, 2)
+
+
+def test_overview_expanded_tier_differs_from_selected_with_custom_expanded_set(full_data):
     from fastapi.testclient import TestClient
 
     from api.main import app
 
-    write_selected_countries_json(full_data)  # expanded = FIXTURE_COUNTRIES + France
-    resp = TestClient(app).get("/api/overview", params={"scope": "expanded"})
-    assert resp.status_code == 200
+    write_selected_countries_json(full_data)  # expanded = China, United States, Germany, France
+    resp = TestClient(app).get("/api/overview")
     body = resp.json()
 
-    countries_in_bar = {row["country"] for row in body["latest_year_bar"]}
-    assert "France" in countries_in_bar
-    assert body["countries_count"] == 4
-    assert body["total_countries_analyzed"] == 4  # same expanded set in this fixture
+    # expanded includes France (16600 = 11000+4700+600+300); selected still defaults to the
+    # real FEATURED_COUNTRIES fallback, which excludes France (16300).
+    assert body["expanded_countries"]["countries_count"] == 4
+    assert body["expanded_countries"]["latest_co2_total"] == 16600
+    assert body["selected"]["latest_co2_total"] == 16300
 
 
-def test_overview_total_countries_analyzed_independent_of_scope(full_data):
-    """total_countries_analyzed always reflects the full expanded set, regardless of which
-    scope's data the rest of the response is scoped to."""
+def test_overview_countries_param_scopes_selected_tier_only(full_data):
     from fastapi.testclient import TestClient
 
     from api.main import app
 
-    write_selected_countries_json(full_data)  # expanded_count = 4
+    write_selected_countries_json(full_data)  # France is in the expanded set, so it's a valid "countries" value
     client = TestClient(app)
 
-    featured_resp = client.get("/api/overview", params={"scope": "featured"})
-    expanded_resp = client.get("/api/overview", params={"scope": "expanded"})
+    resp_china = client.get("/api/overview", params={"countries": "China"})
+    resp_france = client.get("/api/overview", params={"countries": "France"})
 
-    assert featured_resp.json()["total_countries_analyzed"] == 4
-    assert expanded_resp.json()["total_countries_analyzed"] == 4
-    assert featured_resp.json()["countries_count"] != expanded_resp.json()["countries_count"]
+    body_china = resp_china.json()
+    body_france = resp_france.json()
+
+    assert body_china["selected"]["latest_co2_total"] == 11000
+    assert body_china["selected_country_list"] == ["China"]
+    assert body_france["selected"]["latest_co2_total"] == 300
+    assert body_france["selected_country_list"] == ["France"]
+
+    # all_countries/expanded_countries are independent of the countries param -- identical
+    # across both responses even though `selected` differs.
+    assert body_china["all_countries"] == body_france["all_countries"]
+    assert body_china["expanded_countries"] == body_france["expanded_countries"]
+
+
+def test_overview_422_over_max_selected_countries(client):
+    resp = client.get("/api/overview", params={"countries": [f"Country{i}" for i in range(11)]})
+    assert resp.status_code == 422
+
+
+def test_overview_404_on_unknown_country(client):
+    resp = client.get("/api/overview", params={"countries": "France"})  # not in the real FEATURED_COUNTRIES fallback
+    assert resp.status_code == 404
 
 
 def test_overview_top_movers_ordering(client):
@@ -67,6 +98,17 @@ def test_overview_top_movers_ordering(client):
     pct_values = [m["pct_change"] for m in body["top_movers"]]
     assert pct_values == sorted(pct_values, reverse=True)
     assert round(movers_by_country["China"], 1) == round((11000 - 2400) / 2400 * 100, 1)
+
+
+def test_overview_latest_year_bar_scoped_to_selected(full_data):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    write_selected_countries_json(full_data)
+    resp = TestClient(app).get("/api/overview", params={"countries": "France"})
+    countries_in_bar = {row["country"] for row in resp.json()["latest_year_bar"]}
+    assert countries_in_bar == {"France"}
 
 
 def test_overview_503_when_features_missing(data_dir):
@@ -88,3 +130,16 @@ def test_overview_503_message_mentions_week2(data_dir):
     resp = TestClient(app).get("/api/overview")
     assert resp.status_code == 503
     assert "Week 2" in resp.json()["detail"]
+
+
+def test_overview_503_when_raw_owid_data_missing(data_dir):
+    """ghg_features.csv present (so the Expanded/Selected tiers' prerequisite is satisfied),
+    but owid-co2-data.csv absent -- the new All Countries tier's own prerequisite."""
+    write_fixture(data_dir, "ghg_features.csv")
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview")
+    assert resp.status_code == 503
+    assert "owid-co2-data.csv" in resp.json()["detail"]

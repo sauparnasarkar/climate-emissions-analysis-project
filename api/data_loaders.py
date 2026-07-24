@@ -7,7 +7,7 @@ from functools import lru_cache
 
 import pandas as pd
 
-from .constants import FEATURED_COUNTRIES
+from .constants import FEATURED_COUNTRIES, NON_SOVEREIGN
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
@@ -73,6 +73,20 @@ def load_raw() -> pd.DataFrame:
     cols = ["country", "year", "co2", "methane", "nitrous_oxide"]
     df_r = pd.read_csv(path, usecols=cols)
     return df_r[(df_r["country"].isin(load_expanded_countries())) & (df_r["year"] >= 1990)].copy()
+
+
+@lru_cache(maxsize=1)
+def load_raw_sovereign() -> pd.DataFrame:
+    """All sovereign countries (NON_SOVEREIGN aggregates excluded), year >= 1990. Backing
+    dataframe for the Overview "All Countries" tier only -- Expanded/Selected keep reading
+    load_features() (ghg_features.csv), unlike this loader which reads owid-co2-data.csv
+    directly since ghg_features.csv is already restricted to the ~40 expanded countries."""
+    path = _path("owid-co2-data.csv")
+    if not os.path.exists(path):
+        raise DataNotFoundError("data/owid-co2-data.csv not found.")
+    cols = ["country", "year", "co2"]
+    df_r = pd.read_csv(path, usecols=cols)
+    return df_r[(~df_r["country"].isin(NON_SOVEREIGN)) & (df_r["year"] >= 1990)].copy()
 
 
 @lru_cache(maxsize=1)
