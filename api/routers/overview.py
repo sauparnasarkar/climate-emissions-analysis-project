@@ -84,6 +84,15 @@ def get_overview(countries: list[str] | None = Query(None)):
         for country, row in movers.iterrows()
     ]
 
+    # Every real expanded country currently has both a 1990 and latest-year row (verified
+    # against live data), so top_movers is never empty in practice -- but `countries` is
+    # arbitrary user input, and a future selected_countries.json regeneration could include
+    # a country missing one or the other. Fall back to an "N/A" placeholder rather than
+    # crashing on an empty top_movers list.
+    na_mover = MoverRow(country="N/A", co2_1990=None, co2_latest=None, absolute_change=None, pct_change=None)
+    fastest_growth = top_movers[0] if top_movers else na_mover
+    largest_reduction = top_movers[-1] if top_movers else na_mover
+
     return OverviewResponse(
         all_countries=_tier_metrics(df_all, "All Countries", df_all["country"].nunique()),
         expanded_countries=_tier_metrics(df_expanded, "Expanded", len(expanded)),
@@ -91,6 +100,6 @@ def get_overview(countries: list[str] | None = Query(None)):
         selected_country_list=selected,
         latest_year_bar=latest_year_bar,
         top_movers=top_movers,
-        fastest_growth=top_movers[0],
-        largest_reduction=top_movers[-1],
+        fastest_growth=fastest_growth,
+        largest_reduction=largest_reduction,
     )

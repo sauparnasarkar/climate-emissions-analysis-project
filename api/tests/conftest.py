@@ -67,6 +67,10 @@ def ghg_features_df() -> pd.DataFrame:
         # Top Movers with nothing to compute.
         (OUT_OF_SCOPE_COUNTRY, 1990, 250, 3.5, nan, 0.35),
         (OUT_OF_SCOPE_COUNTRY, 2023, 300, 4.5, 1.0, 0.4),
+        # Deliberately has only a 2023 row, no 1990 -- exercises /overview's top_movers
+        # empty-list fallback (a country with no complete before/after pair) when a test
+        # explicitly selects only this country. Not in any real country list.
+        ("Ruritania", 2023, 50, 5.0, nan, 0.4),
     ]
     return pd.DataFrame(rows, columns=["country", "year", "co2", "co2_per_capita", "co2_yoy_pct_change", "ghg_intensity"])
 

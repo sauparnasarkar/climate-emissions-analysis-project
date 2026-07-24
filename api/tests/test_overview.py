@@ -88,6 +88,29 @@ def test_overview_404_on_unknown_country(client):
     assert resp.status_code == 404
 
 
+def test_overview_top_movers_falls_back_to_na_when_selection_has_no_complete_pair(full_data):
+    """Ruritania (conftest fixture) has only a 2023 row, no 1990 -- selecting it alone
+    empties top_movers after dropna(). fastest_growth/largest_reduction must fall back to
+    an "N/A" placeholder instead of crashing with an IndexError."""
+    import json
+
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    with open(full_data / "selected_countries.json", "w") as f:
+        json.dump({"expanded": ["China", "United States", "Germany", "Ruritania"]}, f)
+
+    resp = TestClient(app).get("/api/overview", params={"countries": "Ruritania"})
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["top_movers"] == []
+    assert body["fastest_growth"]["country"] == "N/A"
+    assert body["fastest_growth"]["pct_change"] is None
+    assert body["largest_reduction"]["country"] == "N/A"
+
+
 def test_overview_top_movers_ordering(client):
     body = client.get("/api/overview").json()
     movers_by_country = {m["country"]: m["pct_change"] for m in body["top_movers"]}

@@ -1,6 +1,6 @@
 """Pydantic response models — one per endpoint shape."""
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 
@@ -23,7 +23,7 @@ class MoverRow(BaseModel):
 
 
 class OverviewTierMetrics(BaseModel):
-    label: str  # "All Countries" | "Expanded" | "Selected"
+    label: Literal["All Countries", "Expanded", "Selected"]
     countries_count: int
     latest_year: int
     latest_co2_total: float
