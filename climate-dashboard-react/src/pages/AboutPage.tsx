@@ -17,8 +17,8 @@ export default function AboutPage() {
       // this one cell should show a brief "Loading…" rather than delaying the whole page.
       step: 'Countries',
       detail: countries.data
-        ? `${countries.data.expanded.length} countries analyzed (data-quality coverage + emissions-materiality selection). `
-          + `Featured for comparison: ${countries.data.featured.join(', ')}.`
+        ? `Expanded: ${countries.data.expanded.length} countries (data-quality coverage + emissions-materiality selection). `
+          + `Selected (Overview page comparison) defaults to these Featured countries: ${countries.data.featured.join(', ')}.`
         : countries.error
           ? countries.error
           : 'Loading…',

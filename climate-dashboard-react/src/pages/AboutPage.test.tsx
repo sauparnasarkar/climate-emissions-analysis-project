@@ -40,8 +40,8 @@ describe('AboutPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     render(<AboutPage />);
 
-    expect(await screen.findByText(/4 countries analyzed/)).toBeInTheDocument();
-    expect(screen.getByText(/Featured for comparison: China, United States, India\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Expanded: 4 countries/)).toBeInTheDocument();
+    expect(screen.getByText(/Selected \(Overview page comparison\) defaults to these Featured countries: China, United States, India\./)).toBeInTheDocument();
   });
 
   it('renders the error message inline in the methodology table when listCountries fails', async () => {
