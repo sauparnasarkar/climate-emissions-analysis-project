@@ -61,7 +61,7 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
   return (
     <div data-chart-category="projection">
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Scenario Comparison (2025–2040)</h1>
-      <p className="__s9cmpx-body3-short" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
+      <p className="__s9cmpx-body2" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Compare <strong>Business as Usual (BAU)</strong>, <strong>Moderate Mitigation (−2%/yr)</strong>, and{' '}
         <strong>Aggressive Mitigation (−5%/yr)</strong> starting from 2025.
       </p>
