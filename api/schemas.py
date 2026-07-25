@@ -170,6 +170,15 @@ class ScenarioCumulativeResponse(BaseModel):
     rows: list[ScenarioCumulativeRow]
 
 
+class ScenarioCompareResponse(BaseModel):
+    countries: list[str]
+    # One list of ScenarioSeries per scenario ("BAU"/"Moderate"/"Aggressive"); each list has
+    # one series per requested country (name=country), historical (<=2019) concatenated with
+    # that scenario's own 2020-2040 projection into a single continuous line -- not summed
+    # across countries, unlike /scenarios/cumulative and the view=global /scenarios/timeseries.
+    scenarios: dict[str, list[ScenarioSeries]]
+
+
 class CountriesResponse(BaseModel):
     featured: list[str]
     expanded: list[str]

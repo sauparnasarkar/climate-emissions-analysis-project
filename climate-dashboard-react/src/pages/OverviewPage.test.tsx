@@ -57,7 +57,6 @@ describe('OverviewPage', () => {
     expect(screen.getByText('34,477 MtCO₂')).toBeInTheDocument();
     expect(screen.getByText('25,324 MtCO₂')).toBeInTheDocument();
     expect(screen.getByText('+76.5%')).toBeInTheDocument();
-    expect(screen.getByText(/China.*United States.*India/)).toBeInTheDocument();
     expect(screen.getByText('Top Movers Since 1990 (10 Selected Countries)')).toBeInTheDocument();
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(FEATURED);
   });

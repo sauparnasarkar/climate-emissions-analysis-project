@@ -70,7 +70,7 @@ describe('ForecastsPage', () => {
     expect(screen.getByText('Random Forest Feature Importance (Pooled Model)')).toBeInTheDocument();
 
     expect(vi.mocked(api.forecast)).toHaveBeenCalledWith('China');
-    expect(vi.mocked(api.forecastSummary)).toHaveBeenCalled();
+    expect(vi.mocked(api.forecastSummary)).toHaveBeenCalledWith('expanded');
     expect(vi.mocked(api.modelComparison)).toHaveBeenCalled();
     expect(vi.mocked(api.etsParameters)).toHaveBeenCalled();
     expect(vi.mocked(api.featureImportance)).toHaveBeenCalled();

@@ -38,7 +38,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
   const [country, setCountry] = useState<string>(seedCountry);
 
   const forecast = useAsync(() => api.forecast(country), [country]);
-  const summary = useAsync(() => api.forecastSummary(), []);
+  const summary = useAsync(() => api.forecastSummary('expanded'), []);
   const modelComparison = useAsync(() => api.modelComparison(), []);
   const etsParams = useAsync(() => api.etsParameters(), []);
   const featureImportance = useAsync(() => api.featureImportance(), []);
@@ -115,7 +115,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
               series={[
                 { name: 'Historical (1990–2018)', x: forecast.data.hist_years, y: forecast.data.hist_co2, kind: 'line', color: 'steelblue' },
                 { name: 'Holdout actuals (2019–2023)', x: forecast.data.holdout_years, y: forecast.data.holdout_co2, kind: 'line', color: 'darkorange' },
-                { name: '95% CI', x: forecast.data.forecast_years, y: forecast.data.ci_upper, yLower: forecast.data.ci_lower, kind: 'band', color: '#008000' },
+                { name: '95% CI', x: forecast.data.forecast_years, y: forecast.data.ci_upper, yLower: forecast.data.ci_lower, kind: 'band', color: '#008000', fillOpacity: 0.12 },
                 { name: 'ETS Forecast', x: forecast.data.forecast_years, y: forecast.data.forecast_mean, kind: 'line', color: '#008000' },
               ]}
             />

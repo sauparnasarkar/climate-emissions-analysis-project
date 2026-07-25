@@ -3,11 +3,8 @@ import { KpiStat, ChartCard, SyChart, MultiSelect, Button, Table, InlineAlert, S
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
-import { MAX_SELECTED_COUNTRIES } from '../constants';
+import { MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR } from '../constants';
 import type { OverviewTierMetrics } from '../api/types';
-
-const POSITIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-positive, #187254)';
-const NEGATIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-negative, #8d1a2a)';
 
 // Sequential light -> amber -> deep-red magnitude scale for the world map, distinct from
 // both the % Change chart's green/crimson delta pair and Scenario Comparison's green-only
@@ -53,7 +50,7 @@ function TierTable({ rows, year }: { rows: TierRow[]; year: number }) {
             header: '% Change since 1990',
             align: 'right',
             render: (row) => (
-              <span style={{ color: row.pctChange >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR }}>
+              <span style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
                 {row.pctChange >= 0 ? '+' : ''}{row.pctChange.toFixed(1)}%
               </span>
             ),
@@ -141,7 +138,6 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         />
         <Button variant="ghost-blue" size="s" onClick={() => setSelected(featured)}>Reset to default</Button>
       </div>
-      <p className="__s9cmpx-label2" style={{ marginBottom: 16 }}>{data.selected_country_list.join('  |  ')}</p>
 
       {selected.length === 0 ? (
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>
@@ -170,14 +166,14 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
                 label={`Fastest Growth — ${data.fastest_growth.country}`}
                 value={`${(data.fastest_growth.pct_change ?? 0) >= 0 ? '+' : ''}${(data.fastest_growth.pct_change ?? 0).toFixed(1)}%`}
                 delta={`${(data.fastest_growth.absolute_change ?? 0) >= 0 ? '+' : ''}${(data.fastest_growth.absolute_change ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
-                deltaDirection="up"
+                deltaDirection="bad"
               />
               <KpiStat
                 card
                 label={`Largest Reduction — ${data.largest_reduction.country}`}
                 value={`${(data.largest_reduction.pct_change ?? 0) >= 0 ? '+' : ''}${(data.largest_reduction.pct_change ?? 0).toFixed(1)}%`}
                 delta={`${(data.largest_reduction.absolute_change ?? 0) >= 0 ? '+' : ''}${(data.largest_reduction.absolute_change ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
-                deltaDirection="down"
+                deltaDirection="good"
               />
             </div>
 

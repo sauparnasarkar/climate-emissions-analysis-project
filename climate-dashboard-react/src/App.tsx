@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Header, SidebarNav, Footer } from 'design-system';
-import type { SidebarNavItem } from 'design-system/components/SidebarNav/SidebarNav';
+import type { SidebarNavItem, SidebarNavGroup } from 'design-system/components/SidebarNav/SidebarNav';
 
 import OverviewPage from './pages/OverviewPage';
 import HistoricalTrendsPage from './pages/HistoricalTrendsPage';
@@ -10,13 +10,15 @@ import ScenarioComparisonPage from './pages/ScenarioComparisonPage';
 import DataExplorerPage from './pages/DataExplorerPage';
 import AboutPage from './pages/AboutPage';
 
-const NAV_ITEMS: Array<Omit<SidebarNavItem, 'active'> & { path: string }> = [
-  { id: 'overview', label: 'Overview', icon: 'home', path: '/' },
-  { id: 'historical', label: 'Historical Trends', icon: 'document', path: '/historical' },
-  { id: 'country-profile', label: 'Country Profile', icon: 'user', path: '/country-profile' },
-  { id: 'forecasts', label: 'Forecasts', icon: 'calendar', path: '/forecasts' },
-  { id: 'scenarios', label: 'Scenario Comparison', icon: 'grid', path: '/scenarios' },
-  { id: 'data-explorer', label: 'Data Explorer', icon: 'search', path: '/data-explorer' },
+// `group` is omitted for About, which is meta-content pinned to the sidebar's existing
+// footerItems slot rather than clustered with either group.
+const NAV_ITEMS: Array<Omit<SidebarNavItem, 'active'> & { path: string; group?: 'Exploration' | 'Projection' }> = [
+  { id: 'overview', label: 'Overview', icon: 'home', path: '/', group: 'Exploration' },
+  { id: 'historical', label: 'Historical Trends', icon: 'document', path: '/historical', group: 'Exploration' },
+  { id: 'country-profile', label: 'Country Profile', icon: 'user', path: '/country-profile', group: 'Exploration' },
+  { id: 'data-explorer', label: 'Data Explorer', icon: 'search', path: '/data-explorer', group: 'Exploration' },
+  { id: 'forecasts', label: 'Forecasts', icon: 'calendar', path: '/forecasts', group: 'Projection' },
+  { id: 'scenarios', label: 'Scenario Comparison', icon: 'grid', path: '/scenarios', group: 'Projection' },
   { id: 'about', label: 'About', icon: 'info', path: '/about' },
 ];
 
@@ -24,10 +26,15 @@ function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const items: SidebarNavItem[] = NAV_ITEMS.map(({ path, ...item }) => ({
+  const toItem = ({ path, group, ...item }: (typeof NAV_ITEMS)[number]): SidebarNavItem => ({
     ...item,
     active: location.pathname === path,
+  });
+  const groups: SidebarNavGroup[] = (['Exploration', 'Projection'] as const).map((label) => ({
+    label,
+    items: NAV_ITEMS.filter((item) => item.group === label).map(toItem),
   }));
+  const footerItems: SidebarNavItem[] = NAV_ITEMS.filter((item) => !item.group).map(toItem);
 
   return (
     <div
@@ -75,7 +82,8 @@ function App() {
       />
       <div style={{ display: 'flex', flex: 1 }}>
         <SidebarNav
-          items={items}
+          groups={groups}
+          footerItems={footerItems}
           mobileToggleSide="right"
           onItemClick={(id) => {
             const target = NAV_ITEMS.find((item) => item.id === id);
