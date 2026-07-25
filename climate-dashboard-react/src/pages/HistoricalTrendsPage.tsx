@@ -25,6 +25,15 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
     [selectedCountries.join(',')],
   );
 
+  // One concrete annotation instance, not a systematic framework -- placed at the highest
+  // 2020 value across the selected series so the label sits near the line it's calling out.
+  const year2020Values = (timeseries.data?.series ?? []).flatMap((s) => {
+    const idx = s.years.indexOf(2020);
+    return idx >= 0 && s.values[idx] != null ? [s.values[idx] as number] : [];
+  });
+  const lockdownAnnotation =
+    year2020Values.length > 0 ? [{ x: 2020, y: Math.max(...year2020Values), text: 'Global lockdowns' }] : undefined;
+
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
@@ -55,6 +64,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
             xTitle="Year"
             yTitle={`${GAS_COLUMNS[gas]} (MtCO₂e)`}
             ariaLabel={`Line chart of ${GAS_COLUMNS[gas]} emissions over time for ${selectedCountries.join(', ')}`}
+            annotations={lockdownAnnotation}
             series={(timeseries.data?.series ?? []).map((s) => ({ name: s.name, x: s.years, y: s.values, kind: 'line' as const }))}
           />
         </ChartCard>

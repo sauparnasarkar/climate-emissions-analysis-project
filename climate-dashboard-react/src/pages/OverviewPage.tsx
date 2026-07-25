@@ -3,6 +3,7 @@ import { KpiStat, ChartCard, SyChart, MultiSelect, Button, Table, InlineAlert, S
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
+import { useCountUp } from '../hooks/useCountUp';
 import { MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR } from '../constants';
 import type { OverviewTierMetrics } from '../api/types';
 
@@ -15,10 +16,16 @@ const MAGNITUDE_SCALE: Array<[number, string]> = [
   [1, '#7a1f1f'],
 ];
 
+// A component (not a bare hook call) so each instance gets its own independent animation --
+// used anywhere a KPI number should count up rather than jump straight to its new value.
+function CountUpText({ value, format }: { value: number; format: (n: number) => string }) {
+  return <>{format(useCountUp(value))}</>;
+}
+
 interface TierRow extends Record<string, unknown> {
   tier: string;
   countries: number;
-  co2: string;
+  co2Total: number;
   pctChange: number;
 }
 
@@ -26,7 +33,7 @@ function tierRow(title: string, tier: OverviewTierMetrics): TierRow {
   return {
     tier: title,
     countries: tier.countries_count,
-    co2: `${tier.latest_co2_total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`,
+    co2Total: tier.latest_co2_total,
     pctChange: tier.pct_change_since_1990,
   };
 }
@@ -43,15 +50,27 @@ function TierTable({ rows, year }: { rows: TierRow[]; year: number }) {
       <Table
         columns={[
           { key: 'tier', header: 'Country Group' },
-          { key: 'countries', header: 'Countries', align: 'right' },
-          { key: 'co2', header: `CO₂ (${year})`, align: 'right' },
+          {
+            key: 'countries',
+            header: 'Countries',
+            align: 'right',
+            render: (row) => <CountUpText value={row.countries} format={(n) => Math.round(n).toLocaleString()} />,
+          },
+          {
+            key: 'co2Total',
+            header: `CO₂ (${year})`,
+            align: 'right',
+            render: (row) => (
+              <CountUpText value={row.co2Total} format={(n) => `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} />
+            ),
+          },
           {
             key: 'pctChange',
             header: '% Change since 1990',
             align: 'right',
             render: (row) => (
               <span style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
-                {row.pctChange >= 0 ? '+' : ''}{row.pctChange.toFixed(1)}%
+                <CountUpText value={row.pctChange} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />
               </span>
             ),
           },
@@ -164,14 +183,14 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
               <KpiStat
                 card
                 label={`Fastest Growth — ${data.fastest_growth.country}`}
-                value={`${(data.fastest_growth.pct_change ?? 0) >= 0 ? '+' : ''}${(data.fastest_growth.pct_change ?? 0).toFixed(1)}%`}
+                value={<CountUpText value={data.fastest_growth.pct_change ?? 0} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />}
                 delta={`${(data.fastest_growth.absolute_change ?? 0) >= 0 ? '+' : ''}${(data.fastest_growth.absolute_change ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
                 deltaDirection="bad"
               />
               <KpiStat
                 card
                 label={`Largest Reduction — ${data.largest_reduction.country}`}
-                value={`${(data.largest_reduction.pct_change ?? 0) >= 0 ? '+' : ''}${(data.largest_reduction.pct_change ?? 0).toFixed(1)}%`}
+                value={<CountUpText value={data.largest_reduction.pct_change ?? 0} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />}
                 delta={`${(data.largest_reduction.absolute_change ?? 0) >= 0 ? '+' : ''}${(data.largest_reduction.absolute_change ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
                 deltaDirection="good"
               />
