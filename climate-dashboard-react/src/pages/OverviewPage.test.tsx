@@ -53,11 +53,13 @@ describe('OverviewPage', () => {
     render(<OverviewPage />);
 
     expect(await screen.findByText(/for 40 major countries/)).toBeInTheDocument();
-    expect(screen.getByText('CO₂ Emissions by Country (2024) — All Countries')).toBeInTheDocument();
+    // Both the map and the Selected-tier bar chart share this exact title when their years
+    // coincide (as in this fixture) -- assert at least one, not exactly one.
+    expect(screen.getAllByText('CO₂ Emissions by Country (2024)').length).toBeGreaterThan(0);
     expect(screen.getByText('All Countries')).toBeInTheDocument();
     expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
     expect(screen.getByText('Selected')).toBeInTheDocument();
-    expect(screen.getByText('CO₂ (2024)')).toBeInTheDocument();
+    expect(screen.getAllByText('CO₂ (2024)').length).toBeGreaterThan(0);
     expect(screen.getByText('37,406 MtCO₂')).toBeInTheDocument();
     expect(screen.getByText('34,477 MtCO₂')).toBeInTheDocument();
     expect(screen.getByText('25,324 MtCO₂')).toBeInTheDocument();
