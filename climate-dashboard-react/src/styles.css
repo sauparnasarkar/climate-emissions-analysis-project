@@ -19,3 +19,11 @@
   --__s9cmpx-chart-categorical-default-08: #d9c2f0;
   --__s9cmpx-chart-categorical-default-09: #fbdcae;
 }
+
+/* Country-picker rows (a MultiSelect + optional "Reset to default" Button, used on Overview,
+   Historical Trends, and Scenario Comparison) read a size larger. MultiSelect's own label is
+   hardcoded to __s9cmpx-label3 inside the component -- scoped here to these specific rows
+   rather than overriding it globally for every other MultiSelect/Select consumer. */
+.country-picker-row .__s9cmpx-label3 {
+  font-size: var(--__s9cmpx-web-label-2-font-size);
+}
