@@ -727,7 +727,29 @@ truth).
 
 ## Release 3.1 — Post-Release-3 Layout, Map, and Contrast Fixes
 
-**Status: Planned.** React-only (Streamlit/`app.py` untouched). A follow-up review — code-level
+**Status: Shipped.** React-only (Streamlit/`app.py` untouched). One `design-system` PR and two
+app-side PRs merged to `main` in both repos and deployed.
+
+**Implementation-time findings:**
+- The plan assumed `DEFAULT_CONTINUOUS_SCALE` was already exported from `SyChart.tsx` for the
+  treemap's recolor to reuse directly — checking the actual source found it's a private
+  module-level constant, not exported. Rather than adding a `design-system` export for a single
+  three-stop scale, the treemap simply omits `colorScale` entirely (`SyChart`'s own choropleth/
+  treemap/bar branches all already fall back to this same default when the prop is undefined) —
+  zero `design-system` change needed, simpler than the plan's assumption.
+- Copilot's coding-agent mode again pushed a fix commit directly to a PR (`940ccb9` on the Overview
+  layout PR): removed a now-stale `extends Record<string, unknown>` from `TierRow` (a leftover
+  constraint from the old `Table<TierRow>` usage, dead now that `TierSummaryPanel` has no such
+  generic requirement), and tightened two `getAllByText(...).length > 0` test assertions to exact
+  `toHaveLength` counts. Both verified correct against the actual component structure before
+  trusting them.
+- Verified live in production (Playwright, both desktop and mobile viewports) post-deploy: the map
+  hover now shows real MtCO₂ values, the colorbar sits below the map at both sizes, the Overview
+  KPI panel sits alongside the map in one row, and the Scenario Comparison treemap shows a genuine
+  red/green split per scenario (confirmed China green / most of Asia-Pacific red under Aggressive)
+  rather than the all-green result the old formula was structurally stuck with.
+
+A follow-up review — code-level
 plus a live pass against `labs.syena.io/ghg-emissions-analysis` at desktop and mobile viewports —
 found three problems left over from Release 3: the Overview map+tier-table layout runs too tall
 (pushing the country selector and bar chart below the fold), the world map choropleth has two real

@@ -539,9 +539,10 @@ host) — a deployment-config item outside either repo, not a code defect; see `
 
 ### 5.9 Post-Release-3 Layout, Map, and Contrast Fixes (Release 3.1)
 
-**Status: planned** — tracked in `ENHANCEMENTS.md`, React-only, not a curriculum change. A
+**Status: shipped** — tracked in `ENHANCEMENTS.md`, React-only, not a curriculum change. A
 follow-up review (code-level + a live pass against `labs.syena.io/ghg-emissions-analysis` at
-desktop and mobile) found three problems left over from Release 3.
+desktop and mobile) found three problems left over from Release 3; verified fixed live in
+production post-deploy.
 
 | Aspect | Detail |
 |---|---|
