@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import type { CountryProfileTableRow } from '../api/types';
+import { POSITIVE_COLOR_HEX, NEGATIVE_COLOR_HEX } from '../constants';
 
 const COLUMNS: ColDef<CountryProfileTableRow>[] = [
   { field: 'year', headerName: 'Year' },
@@ -56,13 +57,13 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
               xTitle="Year"
               yTitle="YoY % Change"
               showLegend={false}
-              ariaLabel={`Bar chart of year-over-year percent change in CO₂ emissions for ${country}, colored red for decreases and blue for increases`}
+              ariaLabel={`Bar chart of year-over-year percent change in CO₂ emissions for ${country}, colored green for decreases and crimson for increases`}
               series={[{
                 name: 'YoY % Change',
                 x: data.yoy_years,
                 y: data.yoy_values,
                 kind: 'bar',
-                pointColors: data.yoy_values.map((v) => (v < 0 ? '#dc2626' : '#4a90d9')),
+                pointColors: data.yoy_values.map((v) => (v < 0 ? POSITIVE_COLOR_HEX : NEGATIVE_COLOR_HEX)),
               }]}
             />
           </ChartCard>

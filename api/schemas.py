@@ -14,6 +14,14 @@ class CountryValue(BaseModel):
     value: Optional[float]
 
 
+class WorldMapPoint(BaseModel):
+    country: str
+    # A couple of real OWID entries have no ISO-3 code (Kosovo, bare "Ryukyu Islands") --
+    # Plotly's choropleth simply omits a location it can't place, no crash.
+    iso_code: Optional[str]
+    value: Optional[float]
+
+
 class MoverRow(BaseModel):
     country: str
     co2_1990: Optional[float]
@@ -40,6 +48,10 @@ class OverviewResponse(BaseModel):
     top_movers: list[MoverRow]
     fastest_growth: MoverRow
     largest_reduction: MoverRow
+    # Always every sovereign country's own latest year -- unfiltered, independent of
+    # `countries`/Selected, matching the All Countries tier's own "never gets its own chart"
+    # framing (the tier table already shows an aggregate; the map shows the full breakdown).
+    world_map: list[WorldMapPoint]
 
 
 class TimeseriesSeries(BaseModel):
@@ -156,6 +168,15 @@ class ScenarioCumulativeResponse(BaseModel):
     order: list[str]
     scenarios: list[str]
     rows: list[ScenarioCumulativeRow]
+
+
+class ScenarioCompareResponse(BaseModel):
+    countries: list[str]
+    # One list of ScenarioSeries per scenario ("BAU"/"Moderate"/"Aggressive"); each list has
+    # one series per requested country (name=country), historical (<=2019) concatenated with
+    # that scenario's own 2020-2040 projection into a single continuous line -- not summed
+    # across countries, unlike /scenarios/cumulative and the view=global /scenarios/timeseries.
+    scenarios: dict[str, list[ScenarioSeries]]
 
 
 class CountriesResponse(BaseModel):

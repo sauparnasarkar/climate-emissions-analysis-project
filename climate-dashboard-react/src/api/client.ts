@@ -11,6 +11,7 @@ import type {
   HistoricalTimeseriesResponse,
   ModelComparisonResponse,
   OverviewResponse,
+  ScenarioCompareResponse,
   ScenarioCumulativeResponse,
   ScenarioTimeseriesResponse,
 } from './types';
@@ -54,13 +55,18 @@ export const api = {
     return get<HistoricalTimeseriesResponse>(`/historical/timeseries?${params}`);
   },
 
-  historicalDecadeComposition: () => get<HistoricalDecadeCompositionResponse>('/historical/decade-composition'),
+  historicalDecadeComposition: (countries: string[]) => {
+    const params = new URLSearchParams();
+    countries.forEach((c) => params.append('countries', c));
+    return get<HistoricalDecadeCompositionResponse>(`/historical/decade-composition?${params}`);
+  },
 
   countryProfile: (country: string) => get<CountryProfileResponse>(`/countries/${encodeURIComponent(country)}/profile`),
 
   forecast: (country: string) => get<ForecastCountryResponse>(`/forecasts/${encodeURIComponent(country)}`),
 
-  forecastSummary: () => get<ForecastSummaryResponse>('/forecasts/summary'),
+  forecastSummary: (scope: 'featured' | 'expanded' = 'featured') =>
+    get<ForecastSummaryResponse>(`/forecasts/summary?scope=${scope}`),
 
   modelComparison: () => get<ModelComparisonResponse>('/forecasts/model-comparison'),
 
@@ -75,6 +81,12 @@ export const api = {
   },
 
   scenarioCumulative: (sortBy: string) => get<ScenarioCumulativeResponse>(`/scenarios/cumulative?sort_by=${encodeURIComponent(sortBy)}`),
+
+  scenarioCompare: (countries: string[]) => {
+    const params = new URLSearchParams();
+    countries.forEach((c) => params.append('countries', c));
+    return get<ScenarioCompareResponse>(`/scenarios/compare?${params}`);
+  },
 
   explorerMeta: () => get<ExplorerMetaResponse>('/explorer/meta'),
 

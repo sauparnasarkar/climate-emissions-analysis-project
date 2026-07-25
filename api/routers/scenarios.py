@@ -1,11 +1,12 @@
 from typing import Literal
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from ..constants import FEATURED_COUNTRIES, SCENARIO_COLORS
 from ..data_loaders import DataNotFoundError, load_expanded_countries, load_features, load_forecasts, load_scenarios
 from ..schemas import (
+    ScenarioCompareResponse,
     ScenarioCumulativeResponse,
     ScenarioCumulativeRow,
     ScenarioSeries,
@@ -124,3 +125,63 @@ def get_scenario_cumulative(sort_by: SortScenario = "BAU"):
         scenarios=list(SCENARIO_COLORS.keys()),
         rows=rows,
     )
+
+
+@router.get("/scenarios/compare", response_model=ScenarioCompareResponse)
+def get_scenario_compare(countries: list[str] = Query(...)):
+    if not countries:
+        raise HTTPException(status_code=400, detail="At least one country is required")
+    unknown = sorted(set(countries) - set(load_expanded_countries()))
+    if unknown:
+        raise HTTPException(status_code=400, detail=f"Unknown countries: {', '.join(unknown)}")
+
+    try:
+        df_scenarios = load_scenarios()
+    except DataNotFoundError as e:
+        raise HTTPException(status_code=503, detail=e.message)
+
+    try:
+        df_forecasts = load_forecasts()
+    except DataNotFoundError:
+        df_forecasts = None
+
+    try:
+        df = load_features()
+    except DataNotFoundError:
+        df = None
+
+    scenario_names = list(SCENARIO_COLORS.keys())
+    result: dict[str, list[ScenarioSeries]] = {s: [] for s in scenario_names}
+
+    for country in countries:
+        # Historical stops before 2020 (where the forecast/scenario segments below begin) so
+        # each country's line is one clean, non-overlapping series rather than the two
+        # overlapping historical-vs-forecast traces /scenarios/timeseries uses to show
+        # holdout accuracy -- with up to 10 countries per panel, that pattern here would
+        # double the trace count and clutter the legend for no benefit in this view.
+        hist = (
+            df[(df["country"] == country) & (df["year"] < 2020)].sort_values("year")
+            if df is not None
+            else None
+        )
+        hist_years = hist["year"].tolist() if hist is not None else []
+        hist_values = hist["co2"].tolist() if hist is not None else []
+
+        bau_2020_2024 = _bau_segment(df_forecasts, [country], 2020, 2024)
+
+        for scenario in scenario_names:
+            if scenario == "BAU":
+                future = _bau_segment(df_forecasts, [country], 2020, 2040)
+            else:
+                future_only = (
+                    df_scenarios[(df_scenarios["country"] == country) & (df_scenarios["scenario"] == scenario)]
+                    .groupby("year")["co2_projected"]
+                    .sum()
+                )
+                future = pd.concat([bau_2020_2024, future_only])
+
+            years = hist_years + future.index.tolist()
+            values = hist_values + future.values.tolist()
+            result[scenario].append(ScenarioSeries(name=country, years=years, values=values))
+
+    return ScenarioCompareResponse(countries=countries, scenarios=result)

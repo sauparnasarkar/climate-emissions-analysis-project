@@ -20,7 +20,10 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
     () => api.historicalTimeseries(selectedCountries, gas),
     [selectedCountries.join(','), gas],
   );
-  const composition = useAsync(() => api.historicalDecadeComposition(), []);
+  const composition = useAsync(
+    () => api.historicalDecadeComposition(selectedCountries),
+    [selectedCountries.join(',')],
+  );
 
   // One concrete annotation instance, not a systematic framework -- placed at the highest
   // 2020 value across the selected series so the label sits near the line it's calling out.
@@ -69,18 +72,20 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
 
       <div style={{ marginTop: 24 }}>
         <h2 className="__s9cmpx-headline6">GHG Share by Gas Type per Decade</h2>
-        {composition.loading ? (
+        {selectedCountries.length === 0 ? (
+          <InlineAlert variant="warning">Select at least one country.</InlineAlert>
+        ) : composition.loading ? (
           <Spinner />
         ) : composition.error ? (
           <InlineAlert variant="warning">{composition.error}</InlineAlert>
         ) : (
-          <ChartCard title={`GHG Composition by Decade — ${expanded.length} Countries (% share)`}>
+          <ChartCard title={`GHG Composition by Decade — ${selectedCountries.length} Countries (% share)`}>
             <SyChart
               height={320}
               barmode="stack"
               xTitle="Decade"
               yTitle="Share (%)"
-              ariaLabel={`Stacked bar chart of greenhouse gas composition by decade across ${expanded.length} analyzed countries, showing CO2, methane, and nitrous oxide share of total emissions`}
+              ariaLabel={`Stacked bar chart of greenhouse gas composition by decade across ${selectedCountries.length} analyzed countries, showing CO2, methane, and nitrous oxide share of total emissions`}
               series={(composition.data?.series ?? []).map((s) => ({
                 name: s.gas_label,
                 x: composition.data!.decades,

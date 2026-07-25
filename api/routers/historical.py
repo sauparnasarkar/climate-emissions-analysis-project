@@ -43,14 +43,19 @@ def get_timeseries(
 
 
 @router.get("/historical/decade-composition", response_model=HistoricalDecadeCompositionResponse)
-def get_decade_composition():
+def get_decade_composition(countries: list[str] | None = Query(default=None)):
     try:
         df_raw = load_raw()
     except DataNotFoundError as e:
         raise HTTPException(status_code=503, detail=e.message)
 
+    # No `countries` filter provided preserves this endpoint's original unfiltered-across-
+    # all-countries behavior; callers that want a subset (e.g. the Historical Trends page's
+    # own country picker) now get one, matching get_timeseries()'s pattern above.
+    df_scope = df_raw[df_raw["country"].isin(countries)] if countries else df_raw
+
     gas_cols_list = list(GAS_COLUMNS.keys())
-    dg = df_raw.assign(decade=(df_raw["year"] // 10) * 10)
+    dg = df_scope.assign(decade=(df_scope["year"] // 10) * 10)
     agg = dg.groupby("decade")[gas_cols_list].sum()
     agg_pct = agg.div(agg.sum(axis=1), axis=0) * 100
 

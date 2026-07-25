@@ -51,6 +51,27 @@ def test_decade_composition_shares_sum_to_100(client):
         assert round(total, 6) == 100.0
 
 
+def test_decade_composition_filtered_to_countries_still_sums_to_100(client):
+    resp = client.get("/api/historical/decade-composition", params={"countries": ["China"]})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["decades"] == [1990, 2000, 2010]
+
+    by_gas = {s["gas"]: s["share"] for s in body["series"]}
+    for i in range(len(body["decades"])):
+        total = sum(by_gas[gas][i] for gas in by_gas)
+        assert round(total, 6) == 100.0
+
+
+def test_decade_composition_filtered_to_unknown_country_is_empty(client):
+    # Proves `countries` actually restricts the frame (rather than being accepted and
+    # ignored) -- an unmatched filter leaves no rows to group by decade at all.
+    resp = client.get("/api/historical/decade-composition", params={"countries": ["Nonexistent"]})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["decades"] == []
+
+
 @pytest.mark.parametrize("endpoint", ["/api/historical/timeseries", "/api/historical/decade-composition"])
 def test_503_when_raw_data_missing(data_dir, endpoint):
     from fastapi.testclient import TestClient

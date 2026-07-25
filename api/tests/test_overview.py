@@ -37,6 +37,28 @@ def test_overview_all_countries_tier_excludes_non_sovereign_aggregates(client):
     assert round(tier["pct_change_since_1990"], 2) == round((312.0 - 300.0) / 300.0 * 100, 2)
 
 
+def test_overview_world_map_is_unfiltered_latest_year_with_iso_codes(client):
+    """world_map is always every sovereign country's own latest year -- independent of
+    `countries`/Selected, matching all_countries. Canada has no row at the fixture's latest
+    year (2010, only a 1995 row), so it's absent from world_map despite counting toward
+    all_countries' countries_count; World is excluded as a NON_SOVEREIGN aggregate."""
+    body = client.get("/api/overview").json()
+    points_by_country = {p["country"]: p for p in body["world_map"]}
+
+    assert set(points_by_country) == {"China", "United States", "Germany"}
+    assert points_by_country["China"]["iso_code"] == "CHN"
+    assert points_by_country["China"]["value"] == 104.0
+    assert points_by_country["United States"]["iso_code"] == "USA"
+
+
+def test_overview_world_map_unaffected_by_countries_param(client):
+    """world_map doesn't change when a narrower `countries` selection is requested --
+    it's always the full sovereign universe, same as all_countries."""
+    default_map = client.get("/api/overview").json()["world_map"]
+    scoped_map = client.get("/api/overview", params={"countries": ["China"]}).json()["world_map"]
+    assert default_map == scoped_map
+
+
 def test_overview_expanded_tier_differs_from_selected_with_custom_expanded_set(full_data):
     from fastapi.testclient import TestClient
 
