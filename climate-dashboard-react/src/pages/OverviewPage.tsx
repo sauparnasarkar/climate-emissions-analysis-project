@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KpiStat, ChartCard, SyChart, MultiSelect, Button, Table, InlineAlert, Spinner } from 'design-system';
+import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
@@ -22,7 +22,7 @@ function CountUpText({ value, format }: { value: number; format: (n: number) => 
   return <>{format(useCountUp(value))}</>;
 }
 
-interface TierRow extends Record<string, unknown> {
+interface TierRow {
   tier: string;
   countries: number;
   co2Total: number;
@@ -38,46 +38,39 @@ function tierRow(title: string, tier: OverviewTierMetrics): TierRow {
   };
 }
 
-// Three tiers, one compact table instead of three separate KPI-card rows — same numbers,
-// far less vertical space. The header row background (scoped to this table only, via the
-// wrapper class below) distinguishes it from the body rows — Table itself has no prop for
-// this, and the three tiers' latest_year always agree in practice (same pipeline run), so
-// the year lives once in the CO₂ column header instead of repeated in every row's cell.
-function TierTable({ rows, year }: { rows: TierRow[]; year: number }) {
+// Three stacked mini cards (one per tier) instead of a 4-column table — reads better at
+// ~33% width than a table whose columns would otherwise be squeezed illegibly narrow.
+// Each card shows the same three metrics vertically; the wrapper class carries this
+// component's one-off responsive/layout CSS the same way overview-tier-table (its
+// table-based predecessor) scoped its own header-background rule.
+function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
   return (
-    <div className="overview-tier-table">
-      <style>{'.overview-tier-table thead th { background: var(--__s9cmpx-static-layer-standard); }'}</style>
-      <Table
-        columns={[
-          { key: 'tier', header: 'Country Group' },
-          {
-            key: 'countries',
-            header: 'Countries',
-            align: 'right',
-            render: (row) => <CountUpText value={row.countries} format={(n) => Math.round(n).toLocaleString()} />,
-          },
-          {
-            key: 'co2Total',
-            header: `CO₂ (${year})`,
-            align: 'right',
-            render: (row) => (
-              <CountUpText value={row.co2Total} format={(n) => `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} />
-            ),
-          },
-          {
-            key: 'pctChange',
-            header: '% Change since 1990',
-            align: 'right',
-            render: (row) => (
-              <span style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
-                <CountUpText value={row.pctChange} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />
-              </span>
-            ),
-          },
-        ]}
-        rows={rows}
-        withBorder
-      />
+    <div className="overview-tier-panel">
+      <style>{`
+        .overview-tier-panel { display: flex; flex-direction: column; gap: 12px; }
+        .overview-tier-panel__card { padding: 12px 16px; border: 1px solid var(--__s9cmpx-static-divider-weak); border-radius: 8px; flex: 1; }
+        .overview-tier-panel__metric { display: flex; justify-content: space-between; padding: 4px 0; }
+        .overview-tier-panel__metric + .overview-tier-panel__metric { border-top: 1px solid var(--__s9cmpx-static-divider-weak); }
+      `}</style>
+      {rows.map((row) => (
+        <div key={row.tier} className="overview-tier-panel__card">
+          <div className="__s9cmpx-label2" style={{ color: 'var(--__s9cmpx-static-text-weak)', marginBottom: 8 }}>{row.tier}</div>
+          <div className="overview-tier-panel__metric">
+            <span className="__s9cmpx-body4">Countries</span>
+            <span className="__s9cmpx-body3-short"><CountUpText value={row.countries} format={(n) => Math.round(n).toLocaleString()} /></span>
+          </div>
+          <div className="overview-tier-panel__metric">
+            <span className="__s9cmpx-body4">{`CO₂ (${year})`}</span>
+            <span className="__s9cmpx-body3-short"><CountUpText value={row.co2Total} format={(n) => `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} /></span>
+          </div>
+          <div className="overview-tier-panel__metric">
+            <span className="__s9cmpx-body4">% Change since 1990</span>
+            <span className="__s9cmpx-body3-short" style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
+              <CountUpText value={row.pctChange} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />
+            </span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -115,8 +108,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         regression models, and ETS(A,Ad,N) forecasting.
       </p>
 
-      <div style={{ marginBottom: 16 }}>
-        <ChartCard title={`CO₂ Emissions by Country (${data.all_countries.latest_year}) — All Countries`}>
+      <style>{'@media (max-width: 900px) { .overview-hero-grid { grid-template-columns: 1fr !important; } }'}</style>
+      <div className="overview-hero-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16, alignItems: 'stretch' }}>
+        <ChartCard title={`CO₂ Emissions by Country (${data.all_countries.latest_year})`}>
           <SyChart
             height={420}
             showLegend={false}
@@ -131,13 +125,12 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
               colorValues: data.world_map.map((p) => p.value),
               colorScale: MAGNITUDE_SCALE,
               colorbarTitle: 'CO₂ (MtCO₂)',
+              hoverUnit: 'MtCO₂',
             }]}
           />
         </ChartCard>
-      </div>
 
-      <div style={{ marginBottom: 16 }}>
-        <TierTable
+        <TierSummaryPanel
           year={data.all_countries.latest_year}
           rows={[
             tierRow('All Countries', data.all_countries),
