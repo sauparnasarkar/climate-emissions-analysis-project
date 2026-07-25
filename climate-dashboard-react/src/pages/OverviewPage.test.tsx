@@ -17,7 +17,7 @@ vi.mock('design-system', async (importOriginal) => {
 
 // useCountUp's animation is a UI-polish concern (real timing covered by manual/visual
 // verification, not unit tests) -- stubbed to return the target immediately so assertions
-// on the final rendered value don't race a ~600ms animation in jsdom's rAF shim.
+// on the final rendered value don't race the animation in jsdom's rAF shim.
 vi.mock('../hooks/useCountUp', () => ({ useCountUp: (target: number) => target }));
 
 const FEATURED = [

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 /** Animates from the previous value (0 on first mount) to `target` over `durationMs`. */
-export function useCountUp(target: number, durationMs = 600): number {
+export function useCountUp(target: number, durationMs = 1500): number {
   const [value, setValue] = useState(0);
   const fromRef = useRef(0);
 
