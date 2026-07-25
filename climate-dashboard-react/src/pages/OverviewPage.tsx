@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner } from 'design-system';
+import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Icon } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
@@ -22,16 +22,23 @@ function CountUpText({ value, format }: { value: number; format: (n: number) => 
   return <>{format(useCountUp(value))}</>;
 }
 
+// One glyph per tier so the three cards are visually distinguishable at a glance, not just by
+// their text label: grid (every country), document (a defined/documented criteria-based subset),
+// check (an explicit user selection). All three already exist in design-system's Icon set.
+type TierIcon = 'grid' | 'document' | 'check';
+
 interface TierRow {
   tier: string;
+  icon: TierIcon;
   countries: number;
   co2Total: number;
   pctChange: number;
 }
 
-function tierRow(title: string, tier: OverviewTierMetrics): TierRow {
+function tierRow(title: string, icon: TierIcon, tier: OverviewTierMetrics): TierRow {
   return {
     tier: title,
+    icon,
     countries: tier.countries_count,
     co2Total: tier.latest_co2_total,
     pctChange: tier.pct_change_since_1990,
@@ -54,18 +61,21 @@ function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
       `}</style>
       {rows.map((row) => (
         <div key={row.tier} className="overview-tier-panel__card">
-          <div className="__s9cmpx-label2" style={{ color: 'var(--__s9cmpx-static-text-weak)', marginBottom: 8 }}>{row.tier}</div>
-          <div className="overview-tier-panel__metric">
-            <span className="__s9cmpx-body4">Countries</span>
-            <span className="__s9cmpx-body3-short"><CountUpText value={row.countries} format={(n) => Math.round(n).toLocaleString()} /></span>
+          <div className="__s9cmpx-label1" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--__s9cmpx-static-text-weak)', marginBottom: 8 }}>
+            <Icon name={row.icon} size={18} />
+            {row.tier}
           </div>
           <div className="overview-tier-panel__metric">
-            <span className="__s9cmpx-body4">{`CO₂ (${year})`}</span>
-            <span className="__s9cmpx-body3-short"><CountUpText value={row.co2Total} format={(n) => `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} /></span>
+            <span className="__s9cmpx-body3-short">Countries</span>
+            <span className="__s9cmpx-body2" style={{ fontWeight: 600 }}><CountUpText value={row.countries} format={(n) => Math.round(n).toLocaleString()} /></span>
           </div>
           <div className="overview-tier-panel__metric">
-            <span className="__s9cmpx-body4">% Change since 1990</span>
-            <span className="__s9cmpx-body3-short" style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
+            <span className="__s9cmpx-body3-short">{`CO₂ (${year})`}</span>
+            <span className="__s9cmpx-body2" style={{ fontWeight: 600 }}><CountUpText value={row.co2Total} format={(n) => `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} /></span>
+          </div>
+          <div className="overview-tier-panel__metric">
+            <span className="__s9cmpx-body3-short">% Change since 1990</span>
+            <span className="__s9cmpx-body2" style={{ fontWeight: 600, color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
               <CountUpText value={row.pctChange} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />
             </span>
           </div>
@@ -103,7 +113,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: 0 }}>GHG Emissions Trend Analysis and Forecasting</h1>
-      <p className="__s9cmpx-body3-short" style={{ margin: '4px 0 16px', color: 'var(--__s9cmpx-static-text-weak)' }}>
+      <p className="__s9cmpx-body2" style={{ margin: '4px 0 16px', color: 'var(--__s9cmpx-static-text-weak)' }}>
         An end-to-end analysis of greenhouse gas emissions for {data.expanded_countries.countries_count} major countries using the OWID CO₂ dataset,
         regression models, and ETS(A,Ad,N) forecasting.
       </p>
@@ -133,9 +143,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         <TierSummaryPanel
           year={data.all_countries.latest_year}
           rows={[
-            tierRow('All Countries', data.all_countries),
-            tierRow('Expanded (Coverage + ≥100 Mt)', data.expanded_countries),
-            ...(selected.length > 0 ? [tierRow('Selected', data.selected)] : []),
+            tierRow('All Countries', 'grid', data.all_countries),
+            tierRow('Expanded (Coverage + ≥100 Mt)', 'document', data.expanded_countries),
+            ...(selected.length > 0 ? [tierRow('Selected', 'check', data.selected)] : []),
           ]}
         />
       </div>
