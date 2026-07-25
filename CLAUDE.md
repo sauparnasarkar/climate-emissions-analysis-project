@@ -55,7 +55,7 @@ Contains:
 
 ## Reference Documents
 
-- **Project specification (v12, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements (§§1–2); §5 separately documents the mentor's post-internship `api/`/`climate-dashboard-react/` reference architecture, explicitly out of internship scope
+- **Project specification (v13, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements (§§1–2); §5 separately documents the mentor's post-internship `api/`/`climate-dashboard-react/` reference architecture, explicitly out of internship scope
 - Project brief v1: Google Doc ID `1fcVx1dBr3mNZkNVgX42iCfsmiYrVtdFw`
 - Project brief v2: Google Doc ID `1cBMazlkGQ2WvYnp4KGB_skEobZbZClOimW6-ACW3tlQ`
 - Project brief v3: Google Doc ID `17wcMXnhYk_SKfPtiINOLD-Og-e5kUovoHQH25VA9_QE`

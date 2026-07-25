@@ -562,3 +562,132 @@ equivalent treatment for parity. Falls back to today's static label text before
 `useCountries()` resolves, rather than rendering "(undefined available)" for a frame. Bundled
 into the React/Streamlit PRs above rather than a separate follow-up PR, since it touches the
 same files those phases already modify.
+
+---
+
+## Release 3 — UX Review Fixes, World Map, Scenario Redesign, Visual Polish
+
+**Status: Planned — implementation starting.** React-only for this release (Streamlit/`app.py`
+untouched) — a full UX review (code-level pass + live-screenshot pass against
+`labs.syena.io/ghg-emissions-analysis`) surfaced real bugs, a scope-expanding pair of new
+visualizations (world map, scenario comparison redesign), and a visual-polish wishlist. Four
+`design-system` components (`KpiStat`, `MultiSelect`, `SidebarNav`, `SyChart`) needed their own
+fixes first, tracked in that repo's `CONSUMER-REQUESTS-ghg-dashboard.md` and implemented as
+prerequisite PRs there before the app-side phases that consume them.
+
+Corrections found verifying the original draft against live code before finalizing the plan:
+`total_ghg` doesn't exist in `ghg_features.csv` (only in raw `owid-co2-data.csv`/`ghg_filtered.csv`)
+— moot since Total GHG is deferred out of this release entirely; the claim that app-side work
+"can't land until `design-system` is published and version-bumped" is false — `vite.config.ts`
+aliases straight to `../../design-system/src`, not an npm dependency, so a `design-system` PR only
+needs to merge; the Scenario Comparison treemap needs no new endpoint (`/scenarios/cumulative`
+already returns every country's cumulative totals unconditionally) — only the new three-panel
+comparison view needs a new endpoint.
+
+Decisions made before implementation: Forecast Summary always shows all 40 countries (no new
+toggle); Historical Trends' GHG Composition chart matches the line chart's own empty-selection
+warning rather than falling back to an all-40 aggregate; Total GHG (CO₂e) is deferred, not part of
+this release.
+
+### 3.1 — Fix Forecast Summary silently stuck at 10 countries
+
+`api/client.ts`'s `forecastSummary()` took no arguments despite `/forecasts/summary` already
+supporting `scope=featured|expanded` server-side. `ForecastsPage.tsx` now calls
+`api.forecastSummary('expanded')` — always all 40.
+
+### 3.2 — Scenario Comparison: treemap + multi-country 3-panel comparison
+
+Replaces the ungated 40-country grouped bar chart. Treemap (unfiltered, always all ~40; tile size
+= cumulative BAU 2025–2040, color = % reduction under Aggressive vs. BAU, sequential green scale)
+sits above a `MultiSelect` country picker (same pattern as Overview/Historical Trends), which
+drives three side-by-side per-scenario panels (BAU/Moderate/Aggressive), each plotting all
+selected countries with an identical, jointly-computed y-axis range and one shared legend. New
+`GET /scenarios/compare` endpoint for the per-country breakdown; the treemap reuses the existing
+`/scenarios/cumulative` response as-is.
+
+### 3.3 — Total GHG (deferred)
+
+Not part of this release — flagged during planning that `total_ghg` isn't in `ghg_features.csv`
+and would need either a Week 2 notebook change or an API-side re-derivation from raw data if
+picked up later.
+
+### 3.4 — World map choropleth on Overview
+
+New choropleth at the top of the Overview page (above the tier table) — the "All Countries" tier's
+first chart of its own. Log-scaled color axis (linear would wash out every mid-tier emitter
+against China/US), sequential light→amber→deep-red scale, CO₂-only (no metric toggle, since 3.3 is
+deferred). `iso_code` added to `load_raw_sovereign()`'s columns for the map's country-boundary
+join — real ISO-3 codes already present in the raw data, no fuzzy matching needed.
+
+### 3.5 — Standardize increase/decrease color semantics
+
+Green = decrease/good, crimson = increase/bad, applied consistently everywhere. Required a
+`design-system` fix first: `KpiStat`'s `deltaDirection` only supported `up`/`down` (colored by
+numeric sign, not outcome) — Overview's Fastest Growth/Largest Reduction cards were wired
+backwards as a result (an emissions *increase* rendered green). `KpiStat` gains `good`/`bad`,
+mapped directly to sentiment colors regardless of sign. `POSITIVE_COLOR`/`NEGATIVE_COLOR` promoted
+from `OverviewPage.tsx`-local to shared `constants.ts`; Country Profile's YoY chart's ad hoc
+red/blue pair replaced with the shared colors.
+
+### 3.6 — Suppress "Invalid Number" in Data Explorer's Summary Statistics
+
+AG Grid infers one type per column from all its values; the transposed Summary Statistics table
+mixes categorical (`top`/`unique`/`freq`) and numeric (`mean`/`std`) rows in the same column, which
+its inference doesn't expect. Fixed with `cellDataType: 'text'` on `summaryColumns` specifically —
+the main Dataset Preview table's columns are genuinely homogeneous and keep normal inference.
+
+### 3.7 — Remove redundant country-list caption
+
+Overview showed the same country names twice (MultiSelect chips + a pipe-separated caption line
+immediately below). Caption removed.
+
+### 3.8 — MultiSelect clear-all/remove-× visual collision
+
+Real root cause (found auditing `MultiSelect.tsx` directly rather than assuming from the app-side
+symptom): the component already has a correctly `aria-label`ed clear-all button, separate from
+each tag's own remove-×, but with no visual separation between them in the always-visible control
+row. Fixed at the component level with a small gap/divider — benefits every `MultiSelect` consumer,
+not just this app. The icon-swap half of the original proposal (a distinct "x-circle" icon) was
+skipped — no such icon exists in `design-system`'s `Icon` component today, and adding one just for
+this was disproportionate to the fix.
+
+### 3.9 — GHG Composition chart should follow the Historical Trends selection
+
+`/historical/decade-composition` took no country parameter, always aggregating over the full
+expanded set regardless of the page's own country picker. Now accepts the same `countries` param
+`/historical/timeseries` already does; empty selection shows the same "select at least one
+country" warning as the line chart above it (not an independent all-40 fallback).
+
+### 3.10 — Tone down the forecast confidence interval band
+
+By 2040 the 95% CI band had widened enough to visually dominate the chart. Fixed with a new
+`SyChart` `fillOpacity` prop (defaults to today's `0.25` for every other consumer), set lower for
+this one chart, rather than a dashed-outline treatment or an explanatory caption.
+
+### 3.11 — Sidebar navigation grouping: Exploration / Projection
+
+Required a `design-system` fix first: `SidebarNav` had no concept of labeled sections, just one
+flat `items` list. Added an additive `groups` prop (existing `items` consumers unaffected). App
+groups: Exploration (Overview, Historical Trends, Country Profile, Data Explorer), Projection
+(Forecasts, Scenario Comparison); About stays in the existing `footerItems` slot rather than a
+third grouping mechanism.
+
+### 3.12 — "Catchy" visual/UX polish pass
+
+Three changes: animated count-up on Overview's KPI numbers (`useCountUp` hook, no `design-system`
+change needed — `KpiStat.value` already accepts any `ReactNode`); at least one chart annotation
+(2020 "Global lockdowns" marker on Historical Trends, using `SyChart`'s new `annotations` prop);
+category-based chart palette (Forecasts/Scenario Comparison get an amber/violet hue distinct from
+the rest of the app's teal, via a `data-chart-category` CSS-scoping wrapper — zero `SyChart`
+changes needed, since its categorical palette already resolves through CSS custom properties
+against the chart's own DOM ancestry).
+
+### 3.13 — Rollout sequencing
+
+`design-system` phases (KpiStat, MultiSelect, SidebarNav, SyChart) each land as their own PR first;
+app-side phases that depend on one proceed only after that PR merges (no publish/version-bump step
+— `climate-dashboard-react` aliases straight to `design-system/src`). Independent low-risk fixes
+(3.6, 3.7, 3.10) and the scope-param wiring (3.1, 3.9) need no `design-system` change and can
+proceed immediately. 3.5 needs `KpiStat`'s fix; 3.11 needs `SidebarNav`'s; 3.2 and 3.4 both need
+`SyChart`'s. 3.12 sequenced last (3.12.3 needs 3.5's shared color constants as its source of
+truth).
