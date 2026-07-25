@@ -50,11 +50,12 @@ describe('HistoricalTrendsPage', () => {
     render(<HistoricalTrendsPage />);
 
     expect(await screen.findByText('CO₂ Emissions by Country')).toBeInTheDocument();
-    expect(screen.getByText('GHG Composition by Decade — 11 Countries (% share)')).toBeInTheDocument();
+    expect(screen.getByText('GHG Composition by Decade — 10 Countries (% share)')).toBeInTheDocument();
     // Default selection is all 10 featured countries — matches Overview's Selected tier
     // default, and confirms the country MultiSelect's initial value actually reached the
     // API call.
     expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(FEATURED, 'co2');
+    expect(vi.mocked(api.historicalDecadeComposition)).toHaveBeenCalledWith(FEATURED);
   });
 
   it('shows a warning instead of calling the timeseries API when no countries are selected', async () => {
@@ -73,7 +74,9 @@ describe('HistoricalTrendsPage', () => {
     for (const button of removeButtons) {
       await user.click(button);
     }
-    expect(await screen.findByText('Select at least one country.')).toBeInTheDocument();
+    // Both the line chart and the decade-composition chart show the same warning at 0
+    // selected — the composition chart doesn't fall back to an all-40-countries aggregate.
+    expect(await screen.findAllByText('Select at least one country.')).toHaveLength(2);
   });
 
   it('blocks selecting an 11th country since the default selection already sits at the 10-selection cap', async () => {
@@ -112,7 +115,7 @@ describe('HistoricalTrendsPage', () => {
     for (const button of removeButtons) {
       await user.click(button);
     }
-    await screen.findByText('Select at least one country.');
+    await screen.findAllByText('Select at least one country.');
 
     vi.mocked(api.historicalTimeseries).mockClear();
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
