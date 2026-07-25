@@ -14,6 +14,14 @@ class CountryValue(BaseModel):
     value: Optional[float]
 
 
+class WorldMapPoint(BaseModel):
+    country: str
+    # A couple of real OWID entries have no ISO-3 code (Kosovo, bare "Ryukyu Islands") --
+    # Plotly's choropleth simply omits a location it can't place, no crash.
+    iso_code: Optional[str]
+    value: Optional[float]
+
+
 class MoverRow(BaseModel):
     country: str
     co2_1990: Optional[float]
@@ -40,6 +48,10 @@ class OverviewResponse(BaseModel):
     top_movers: list[MoverRow]
     fastest_growth: MoverRow
     largest_reduction: MoverRow
+    # Always every sovereign country's own latest year -- unfiltered, independent of
+    # `countries`/Selected, matching the All Countries tier's own "never gets its own chart"
+    # framing (the tier table already shows an aggregate; the map shows the full breakdown).
+    world_map: list[WorldMapPoint]
 
 
 class TimeseriesSeries(BaseModel):

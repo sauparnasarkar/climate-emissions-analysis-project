@@ -78,13 +78,16 @@ def load_raw() -> pd.DataFrame:
 @lru_cache(maxsize=1)
 def load_raw_sovereign() -> pd.DataFrame:
     """All sovereign countries (NON_SOVEREIGN aggregates excluded), year >= 1990. Backing
-    dataframe for the Overview "All Countries" tier only -- Expanded/Selected keep reading
+    dataframe for the Overview "All Countries" tier and the world map (both need every
+    country, not just the ~40 expanded ones) -- Expanded/Selected keep reading
     load_features() (ghg_features.csv), unlike this loader which reads owid-co2-data.csv
-    directly since ghg_features.csv is already restricted to the ~40 expanded countries."""
+    directly since ghg_features.csv is already restricted to the ~40 expanded countries.
+    iso_code is included for the choropleth's `locations`; has a couple of known null gaps
+    (Kosovo, bare "Ryukyu Islands") that Plotly simply omits from the map, no crash."""
     path = _path("owid-co2-data.csv")
     if not os.path.exists(path):
         raise DataNotFoundError("data/owid-co2-data.csv not found.")
-    cols = ["country", "year", "co2"]
+    cols = ["country", "year", "co2", "iso_code"]
     df_r = pd.read_csv(path, usecols=cols)
     return df_r[(~df_r["country"].isin(NON_SOVEREIGN)) & (df_r["year"] >= 1990)].copy()
 
