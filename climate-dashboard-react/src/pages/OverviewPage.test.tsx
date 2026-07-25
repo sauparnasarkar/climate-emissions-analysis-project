@@ -15,6 +15,11 @@ vi.mock('design-system', async (importOriginal) => {
   return { ...actual, SyChart: (props: { ariaLabel?: string }) => <div data-testid="sychart" aria-label={props.ariaLabel} /> };
 });
 
+// useCountUp's animation is a UI-polish concern (real timing covered by manual/visual
+// verification, not unit tests) -- stubbed to return the target immediately so assertions
+// on the final rendered value don't race a ~600ms animation in jsdom's rAF shim.
+vi.mock('../hooks/useCountUp', () => ({ useCountUp: (target: number) => target }));
+
 const FEATURED = [
   'China', 'United States', 'India', 'Russia', 'Japan',
   'Germany', 'Brazil', 'United Kingdom', 'South Africa', 'Australia',

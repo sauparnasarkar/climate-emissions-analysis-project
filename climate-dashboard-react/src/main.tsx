@@ -7,6 +7,7 @@ import 'design-system/styles/vendor/syena-default-theme.css'
 import 'design-system/styles/vendor/sy-design-system.min.css'
 import 'design-system/styles/themes/analytics.css'
 import 'design-system/styles/overrides.css'
+import './styles.css'
 
 import App from './App.tsx'
 import { stripTrailingSlash } from './lib/basePath'

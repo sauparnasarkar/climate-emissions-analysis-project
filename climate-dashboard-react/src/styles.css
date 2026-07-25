@@ -1,0 +1,17 @@
+/* Category-based chart palette: SyChart resolves its categorical colors via CSS custom
+   properties against the chart's own DOM ancestry (see design-system's syPalette()), so
+   redefining them within a scoped wrapper re-themes every chart inside it with zero
+   SyChart.tsx changes. Forecasts/Scenario Comparison (both projection-oriented pages) use
+   an amber/violet family here so they read as visually distinct from the
+   Overview/Historical Trends/Country Profile pages' default categorical palette. */
+[data-chart-category='projection'] {
+  --__s9cmpx-chart-categorical-default-01: #f0a94a;
+  --__s9cmpx-chart-categorical-default-02: #8b5fbf;
+  --__s9cmpx-chart-categorical-default-03: #d9822b;
+  --__s9cmpx-chart-categorical-default-04: #b088d6;
+  --__s9cmpx-chart-categorical-default-05: #f4c26b;
+  --__s9cmpx-chart-categorical-default-06: #6f4e91;
+  --__s9cmpx-chart-categorical-default-07: #e8a35c;
+  --__s9cmpx-chart-categorical-default-08: #9b6bc7;
+  --__s9cmpx-chart-categorical-default-09: #c98a3e;
+}
