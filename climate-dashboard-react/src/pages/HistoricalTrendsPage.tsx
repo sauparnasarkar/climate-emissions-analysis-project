@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChartCard, SyChart, MultiSelect, Select, InlineAlert, Spinner } from 'design-system';
+import { ChartCard, SyChart, MultiSelect, Select, Button, InlineAlert, Spinner } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
@@ -10,8 +10,10 @@ const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value
 // Split out so the timeseries fetch only ever starts once the expanded country list (and
 // its featured-default seed) are already known — avoiding a wasted initial fetch before
 // GET /api/countries resolves.
-function HistoricalTrendsContent({ expanded, seedCountries }: { expanded: string[]; seedCountries: string[] }) {
-  const [selectedCountries, setSelectedCountries] = useState<string[]>(seedCountries);
+function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
+  // Defaults to the full 10 featured countries, matching Overview's Selected tier default
+  // (previously just the first 5 here — inconsistent with the rest of the app).
+  const [selectedCountries, setSelectedCountries] = useState<string[]>(featured);
   const [gas, setGas] = useState('co2');
 
   const timeseries = useAsync(
@@ -24,7 +26,7 @@ function HistoricalTrendsContent({ expanded, seedCountries }: { expanded: string
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
         <MultiSelect
           label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
           options={expanded.map((c) => ({ value: c, label: c }))}
@@ -32,6 +34,7 @@ function HistoricalTrendsContent({ expanded, seedCountries }: { expanded: string
           onChange={setSelectedCountries}
           maxSelected={MAX_SELECTED_COUNTRIES}
         />
+        <Button variant="ghost-blue" size="s" onClick={() => setSelectedCountries(featured)}>Reset to default</Button>
         <Select label="Emissions metric" options={GAS_OPTIONS} value={gas} onChange={setGas} />
       </div>
 
@@ -91,8 +94,8 @@ export default function HistoricalTrendsPage() {
 
   return (
     <HistoricalTrendsContent
+      featured={countries.data.featured}
       expanded={countries.data.expanded}
-      seedCountries={countries.data.featured.slice(0, 5)}
     />
   );
 }

@@ -17,12 +17,14 @@ vi.mock('design-system', async (importOriginal) => {
   return { ...actual, SyChart: (props: { ariaLabel?: string }) => <div data-testid="sychart" aria-label={props.ariaLabel} /> };
 });
 
+const FEATURED = [
+  'China', 'United States', 'India', 'Russia', 'Japan',
+  'Germany', 'Brazil', 'United Kingdom', 'South Africa', 'Australia',
+];
+
 const COUNTRIES: CountriesResponse = {
-  featured: ['China', 'United States', 'India', 'Russia', 'Japan'],
-  expanded: [
-    'China', 'United States', 'India', 'Russia', 'Japan',
-    'Germany', 'Brazil', 'United Kingdom', 'South Africa', 'Australia', 'Vietnam',
-  ],
+  featured: FEATURED,
+  expanded: [...FEATURED, 'Vietnam'],
 };
 
 const TIMESERIES: HistoricalTimeseriesResponse = {
@@ -49,12 +51,10 @@ describe('HistoricalTrendsPage', () => {
 
     expect(await screen.findByText('CO₂ Emissions by Country')).toBeInTheDocument();
     expect(screen.getByText('GHG Composition by Decade — 11 Countries (% share)')).toBeInTheDocument();
-    // Default selection is the first 5 featured countries — confirms the country
-    // MultiSelect's initial value actually reached the API call.
-    expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(
-      expect.arrayContaining(['China']),
-      'co2',
-    );
+    // Default selection is all 10 featured countries — matches Overview's Selected tier
+    // default, and confirms the country MultiSelect's initial value actually reached the
+    // API call.
+    expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(FEATURED, 'co2');
   });
 
   it('shows a warning instead of calling the timeseries API when no countries are selected', async () => {
@@ -76,7 +76,7 @@ describe('HistoricalTrendsPage', () => {
     expect(await screen.findByText('Select at least one country.')).toBeInTheDocument();
   });
 
-  it('blocks selecting an 11th country once the 10-selection cap is reached', async () => {
+  it('blocks selecting an 11th country since the default selection already sits at the 10-selection cap', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
@@ -85,12 +85,8 @@ describe('HistoricalTrendsPage', () => {
     render(<HistoricalTrendsPage />);
     await screen.findByText('CO₂ Emissions by Country');
 
-    // 5 featured countries are preselected by default; select 5 more (the whole rest of
-    // the expanded pool except Vietnam) to land exactly at the maxSelected=10 cap.
+    // All 10 featured countries are preselected by default, already at maxSelected=10.
     await user.click(screen.getByLabelText('Select countries (up to 10/11)'));
-    for (const country of ['Germany', 'Brazil', 'United Kingdom', 'South Africa', 'Australia']) {
-      await user.click(await screen.findByRole('option', { name: country }));
-    }
     expect(await screen.findByText('Maximum 10 selected')).toBeInTheDocument();
 
     const vietnamOption = screen.getByRole('option', { name: 'Vietnam' });
@@ -101,6 +97,29 @@ describe('HistoricalTrendsPage', () => {
       expect.arrayContaining(['Vietnam']),
       expect.anything(),
     );
+  });
+
+  it('"Reset to default" restores all 10 featured countries and refetches', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+    vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(<HistoricalTrendsPage />);
+    await screen.findByText('CO₂ Emissions by Country');
+
+    const removeButtons = screen.getAllByRole('button', { name: /remove|×|clear/i });
+    for (const button of removeButtons) {
+      await user.click(button);
+    }
+    await screen.findByText('Select at least one country.');
+
+    vi.mocked(api.historicalTimeseries).mockClear();
+    vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+    await user.click(screen.getByRole('button', { name: 'Reset to default' }));
+
+    expect(await screen.findByText('CO₂ Emissions by Country')).toBeInTheDocument();
+    expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(FEATURED, 'co2');
   });
 
   it('renders an inline error instead of crashing when listCountries fails', async () => {
