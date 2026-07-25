@@ -100,8 +100,10 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
               labels: cumulative.data.rows.map((r) => r.country),
               parents: cumulative.data.rows.map(() => ''),
               values: treemapValues,
+              valueLabel: 'Cumulative BAU',
               colorValues: treemapColors,
               colorbarTitle: `${treemapScenario} 2040 vs. Current`,
+              hoverUnit: 'MtCO₂',
             }]}
           />
         </ChartCard>
