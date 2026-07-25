@@ -7,15 +7,6 @@ import { useCountries } from '../hooks/useCountries';
 import { SCENARIO_COLORS, MAX_SELECTED_COUNTRIES } from '../constants';
 import type { ScenarioCumulativeRow } from '../api/types';
 
-// Green-only sequential scale for "reduction upside" (more saturated = more upside available)
-// -- deliberately distinct from both the Overview % Change chart's green/crimson delta pair
-// and the world map's amber/red magnitude scale, since this reads on a different axis
-// entirely (potential, not sign or magnitude).
-const REDUCTION_UPSIDE_SCALE: Array<[number, string]> = [
-  [0, '#eaf7ea'],
-  [1, '#1a7a3c'],
-];
-
 const SCENARIO_PANELS = Object.keys(SCENARIO_COLORS);
 
 // Split out so the cumulative/compare fetches only ever start once the expanded country
@@ -23,9 +14,12 @@ const SCENARIO_PANELS = Object.keys(SCENARIO_COLORS);
 // for an undefined selection before GET /api/countries resolves.
 function ScenarioComparisonContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   const [selectedCountries, setSelectedCountries] = useState<string[]>(featured);
-  const [sortBy, setSortBy] = useState<string>('BAU');
+  const [treemapScenario, setTreemapScenario] = useState<string>('BAU');
 
-  const cumulative = useAsync(() => api.scenarioCumulative(sortBy), [sortBy]);
+  // sort_by only affects the response's own `order` field, which nothing here reads anymore
+  // now that the treemap is sized by BAU total (unaffected by the radio) and the table below
+  // sorts via its own AG Grid column headers -- fixed at 'BAU' rather than a second control.
+  const cumulative = useAsync(() => api.scenarioCumulative('BAU'), []);
   // scenarios/compare has no graceful empty-selection fallback (it requires at least one
   // country) -- short-circuit locally rather than round-tripping to a 422 the same way
   // Overview/Historical Trends's own endpoints tolerate an empty selection.
@@ -48,10 +42,15 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
     : [];
 
   const treemapValues = cumulative.data?.rows.map((r) => r.values.BAU ?? 0) ?? [];
+  // Signed delta: the selected scenario's single 2040 level minus the country's current
+  // level -- green (down) means that scenario has this country's emissions falling below
+  // today's by 2040, red (up) means still rising. Uses SyChart's own default green/lightgrey/
+  // crimson scale (no colorScale override) rather than a one-off scale, the same diverging
+  // convention already standardized on Overview's % Change chart.
   const treemapColors = cumulative.data?.rows.map((r) => {
-    const bau = r.values.BAU;
-    const aggressive = r.values.Aggressive;
-    return bau ? ((bau - (aggressive ?? bau)) / bau) * 100 : null;
+    const level2040 = r.year_2040[treemapScenario];
+    const current = r.current_level;
+    return level2040 != null && current != null ? level2040 - current : null;
   }) ?? [];
 
   const panelValues = SCENARIO_PANELS.flatMap(
@@ -67,23 +66,34 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
         <strong>Aggressive Mitigation (−5%/yr)</strong> starting from 2025.
       </p>
 
-      <h2 className="__s9cmpx-headline6">Reduction Upside by Country</h2>
+      <h2 className="__s9cmpx-headline6">Reduction Scenarios by Country</h2>
       <p className="__s9cmpx-body4" style={{ marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
-        Tile size is each country&apos;s cumulative BAU emissions, 2025–2040; color is the % reduction
-        Aggressive mitigation would achieve versus BAU — darker tiles have more upside available.
+        Tile size is each country&apos;s cumulative BAU emissions, 2025–2040; color is whether the
+        selected scenario&apos;s 2040 level is above (red) or below (green) the country&apos;s current level.
       </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 8 }}>
+        {SCENARIO_PANELS.map((scenario) => (
+          <Radio
+            key={scenario}
+            name="treemap-scenario"
+            label={scenario}
+            checked={treemapScenario === scenario}
+            onChange={() => setTreemapScenario(scenario)}
+          />
+        ))}
+      </div>
       {cumulative.loading ? (
         <Spinner />
       ) : cumulative.error ? (
         <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
       ) : cumulative.data ? (
-        <ChartCard title={`Cumulative BAU Emissions & Reduction Upside — ${cumulative.data.rows.length} Countries`}>
+        <ChartCard title={`Cumulative Emissions & Reduction Scenarios — ${treemapScenario} — ${cumulative.data.rows.length} Expanded Countries`}>
           <SyChart
             height={360}
             showLegend={false}
-            ariaLabel={`Treemap of ${cumulative.data.rows.length} countries, sized by cumulative BAU emissions 2025 to 2040 and colored by percent reduction upside under Aggressive mitigation`}
+            ariaLabel={`Treemap of ${cumulative.data.rows.length} countries, sized by cumulative BAU emissions 2025 to 2040 and colored by whether ${treemapScenario}'s 2040 level is above or below each country's current level`}
             series={[{
-              name: 'Reduction Upside',
+              name: treemapScenario,
               x: [],
               y: [],
               kind: 'treemap',
@@ -91,8 +101,7 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
               parents: cumulative.data.rows.map(() => ''),
               values: treemapValues,
               colorValues: treemapColors,
-              colorScale: REDUCTION_UPSIDE_SCALE,
-              colorbarTitle: '% Reduction Upside',
+              colorbarTitle: `${treemapScenario} 2040 vs. Current`,
             }]}
           />
         </ChartCard>
@@ -142,46 +151,16 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
 
       <div style={{ marginTop: 24 }}>
         <h2 className="__s9cmpx-headline6">Cumulative Emissions Impact, 2025–2040</h2>
-        <p className="__s9cmpx-label2" style={{ marginBottom: 8 }}>Sort by cumulative emissions under scenario</p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 16 }}>
-          {Object.keys(SCENARIO_COLORS).map((scenario) => (
-            <Radio
-              key={scenario}
-              name="sort-scenario"
-              label={scenario}
-              checked={sortBy === scenario}
-              onChange={() => setSortBy(scenario)}
-            />
-          ))}
-        </div>
+        <p className="__s9cmpx-body4" style={{ marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
+          Precise cumulative CO₂ totals per country and scenario — click a column header to sort.
+        </p>
 
         {cumulative.loading ? (
           <Spinner />
         ) : cumulative.error ? (
           <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
         ) : cumulative.data ? (
-          <>
-            <ChartCard title={`Cumulative CO₂ Emissions by Scenario, 2025–2040 (sorted by ${sortBy})`}>
-              <SyChart
-                height={340}
-                barmode="group"
-                xTitle="Country"
-                yTitle="Cumulative CO₂, 2025–2040 (MtCO₂)"
-                ariaLabel={`Grouped bar chart of cumulative CO₂ emissions from 2025 to 2040 under BAU, Moderate, and Aggressive mitigation scenarios, sorted by ${sortBy}`}
-                series={cumulative.data.scenarios.map((scenario) => ({
-                  name: scenario,
-                  x: cumulative.data!.rows.map((r) => r.country),
-                  y: cumulative.data!.rows.map((r) => r.values[scenario] ?? 0),
-                  kind: 'bar' as const,
-                  color: SCENARIO_COLORS[scenario],
-                }))}
-              />
-            </ChartCard>
-
-            <div style={{ marginTop: 16 }}>
-              <DataTable columns={cumulativeColumns} rows={cumulative.data.rows} />
-            </div>
-          </>
+          <DataTable columns={cumulativeColumns} rows={cumulative.data.rows} />
         ) : null}
       </div>
     </div>

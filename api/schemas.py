@@ -161,6 +161,11 @@ class ScenarioTimeseriesResponse(BaseModel):
 class ScenarioCumulativeRow(BaseModel):
     country: str
     values: dict[str, Optional[float]]
+    # Per-scenario single-year 2040 value and the country's current/latest actual level --
+    # `values` above is only ever a 2025-2040 sum, with no year-level or baseline figure the
+    # frontend can compare a scenario's future trajectory against.
+    year_2040: dict[str, Optional[float]]
+    current_level: Optional[float]
 
 
 class ScenarioCumulativeResponse(BaseModel):

@@ -147,6 +147,8 @@ export interface ScenarioTimeseriesResponse {
 export interface ScenarioCumulativeRow {
   country: string;
   values: Record<string, number | null>;
+  year_2040: Record<string, number | null>;
+  current_level: number | null;
 }
 
 export interface ScenarioCumulativeResponse {
