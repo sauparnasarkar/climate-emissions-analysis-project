@@ -61,9 +61,9 @@ function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
       `}</style>
       {rows.map((row) => (
         <div key={row.tier} className="overview-tier-panel__card">
-          <div className="__s9cmpx-headline5" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--__s9cmpx-static-text-weak)', marginBottom: 8 }}>
-            <Icon name={row.icon} size={20} />
-            {row.tier}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span className="__s9cmpx-headline5" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{row.tier}</span>
+            <Icon name={row.icon} size={20} style={{ color: 'var(--__s9cmpx-interactive-fill-link-default, #1c5ece)' }} />
           </div>
           <div className="overview-tier-panel__metric">
             <span className="__s9cmpx-body2">Countries</span>
