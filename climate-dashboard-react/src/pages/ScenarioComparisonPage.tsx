@@ -67,7 +67,7 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
       </p>
 
       <h2 className="__s9cmpx-headline6">Reduction Scenarios by Country</h2>
-      <p className="__s9cmpx-body3-short" style={{ marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
+      <p className="__s9cmpx-body2" style={{ marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Tile size is each country&apos;s cumulative BAU emissions, 2025–2040; color is whether the
         selected scenario&apos;s 2040 level is above (red) or below (green) the country&apos;s current level.
       </p>
