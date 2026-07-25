@@ -820,3 +820,69 @@ One `design-system` PR (3.1.2 + 3.1.3, both in `SyChart.tsx`'s choropleth branch
 both app-side PRs (3.1.1; 3.1.4+3.1.5+3.1.6 bundled since they share `ScenarioComparisonPage.tsx`)
 follow, sequenced after it per established convention though neither has a real code dependency on
 it.
+
+### 3.1.8 — Post-ship follow-up: KPI panel iteration, two real chart bugs, treemap hover
+
+More user feedback after 3.1.1–3.1.7 shipped and were checked live, in small individually-merged
+PRs rather than a second planned phase (mirroring how the original map-sizing fix after Release 3
+was handled) — no new `ENHANCEMENTS.md` section per PR, consolidated here instead once everything
+settled.
+
+**KPI panel — iterated three times before landing.** First pass bumped the tier title
+(`label2`→`label1`) and metric values (`body3-short`→`body2`, manual `fontWeight: 600`), plus added
+one icon (`grid`/`document`/`check`) per tier next to its label. Feedback that it still read small
+on desktop led to a second pass: title bumped again to `headline5`, values switched to `headline4`
+(a real bold headline size, dropping the manual `fontWeight` override since headlines are already
+weight 600 natively). A third pass moved the icon from beside the tier label to the right side of
+the header row — aligned above the metric values' own right-aligned column below it — and recolored
+it from the same muted `--__s9cmpx-static-text-weak` as the label text to
+`--__s9cmpx-interactive-fill-link-default` (the existing blue accent already used for links/"Reset
+to default"/sidebar active state), so it reads as a distinct decorative element instead of blending
+into the label.
+
+**Site-wide font-size bumps, two rounds.** The intro paragraph below each page's headline
+(Overview/Forecasts/Scenario Comparison/Data Explorer) went `body3-short`→`body2`→`body1` across two
+feedback rounds. `MultiSelect`'s "Select countries..." label and the "Reset to default" button
+(Overview/Historical Trends/Scenario Comparison) also read a size larger: a scoped
+`.country-picker-row` CSS override for `MultiSelect`'s own hardcoded `label3` class (not a global
+override — `label3` is shared by every other `MultiSelect`/`Select` consumer in `design-system`),
+and the `Button`'s `size="s"` dropped to its `m` default. Scenario Comparison's own treemap caption
+("Tile size is...") went `body4`→`body3-short`→`body2` across the same two rounds.
+
+**Real bug: mobile chart legend rendering as a bare scrollbar over the plot.** Reported as an
+unexplained gray bar cutting across Historical Trends' and Scenario Comparison's line charts on
+mobile. Root cause, confirmed via direct DOM inspection (`rect.scrollbar`'s `height` attribute):
+Plotly reserves only a fixed share of a chart's own `height` for its legend regardless of how many
+rows the legend wraps to on a narrow container; once wrapped content exceeds that share, the legend
+becomes internally scrollable rather than growing, and with no `bgcolor` set, the scrollbar thumb
+rendered as an unstyled gray bar directly over the chart data. Fixed in `SyChart.tsx` by reusing the
+same `ResizeObserver`+`Plotly.relayout` pattern already established for choropleth resizing: for
+`showLegend` charts with more than 3 series, estimate wrapped rows from the observed container
+width and grow `height` to fit them. Wide/desktop containers that already fit the legend in one row
+compute 1 row and get no change — verified no visible difference on desktop.
+
+**Real bug: diverging colorscale auto-ranging away from a true zero midpoint.** Reported as "BAU
+showing more green than Aggressive on the treemap, backwards from expected." Plotly scales a
+continuous colorscale to the actual min/max of the values array, not to a fixed zero-centered
+range — with the default green/lightgrey/crimson scale (no `colorScale` override), that silently
+breaks the "below/above a reference point" convention whenever the data is skewed: under BAU,
+China's outsized rise dragged the auto-computed "crimson" end so far out that every merely-modest
+riser landed near the "green" end of that skewed range; under Aggressive (where nearly every
+country actually declines), the *least*-declining country became the array's own numeric maximum
+and was colored crimson despite still being a decline. Confirmed against the real API data before
+fixing: BAU is actually 35 of 40 countries rising and only 5 declining, the inverse of what the
+unfixed chart displayed. Fixed by pinning `marker.cmid: 0` in `SyChart.tsx`'s `bar`/`treemap`
+branches whenever the default (uncustomized) colorscale is used, so lightgrey always represents "no
+change" regardless of skew; left alone for a custom `colorScale` (e.g. the world map's one-sided
+magnitude scale), which may have no meaningful zero crossing at all.
+
+**Treemap hover now shows both the size and color metrics.** Plotly's default treemap hover only
+ever showed the tile's label and its size (`values` — cumulative BAU total) — it silently dropped
+whatever `colorValues` encoded, even though that's exactly the number a viewer wants after reading
+the color legend (the actual scenario-vs-current delta). Added an explicit `hovertemplate` carrying
+`colorValues` through as `customdata`, labeled via a new `valueLabel` prop (for the size metric) and
+the existing `colorbarTitle` (for the color metric, reused rather than adding a second title prop
+for the same concept). Discovered along the way: Plotly's hovertemplate silently drops the `+` sign
+flag on `customdata` (`%{customdata:+,.0f}` prints an unformatted raw float instead of a signed
+integer) — worked around by pre-formatting the sign in JS before handing values to Plotly, rather
+than relying on its own number formatting for that one case.

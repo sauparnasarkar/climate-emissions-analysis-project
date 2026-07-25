@@ -1,6 +1,6 @@
 # GHG Emissions Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v14**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v15**
 
 ---
 
@@ -412,6 +412,7 @@ Sections to include:
 | v12 | Jul 2026 | Added §5.7 (Release 2.2, `ENHANCEMENTS.md`), restructuring the Overview page into three simultaneous tiers (All Countries / Expanded / Selected) in place of §5.6's `scope=featured\|expanded` toggle. Mirrors `NON_SOVEREIGN` from `notebook/constants.py` into `api/constants.py`/`app.py` for the new unfiltered "All Countries" tier. Not an internship requirement change. |
 | v13 | Jul 2026 | Added §5.8 (Release 3, `ENHANCEMENTS.md`), consolidating a full UX review into bug fixes (Forecast Summary scope, GHG Composition following selection, Data Explorer "Invalid Number", CI band opacity), a standardized green/crimson decrease/increase color convention, a Scenario Comparison redesign (treemap + three-panel comparison), a world map choropleth on Overview, and a sidebar Exploration/Projection regrouping. React-only (`climate-dashboard-react` + `api/`) — Streamlit untouched. Required four `design-system` prerequisite PRs (`KpiStat`, `MultiSelect`, `SidebarNav`, `SyChart`), all merged. Shipped; world map needs a production CSP update (`connect-src` allowing `cdn.plot.ly`) outside either repo. Not an internship requirement change. |
 | v14 | Jul 2026 | Added §5.9 (Release 3.1, `ENHANCEMENTS.md`), a follow-up review found after Release 3 shipped and was checked live: Overview's map+tier-table layout redone as a 2/3 map + 1/3 KPI summary row (map-as-hero); two real world-map bugs fixed (hover showed the log10-transformed value, not real MtCO₂; colorbar was taller than the map, worse on mobile); Scenario Comparison's treemap redesigned from a fixed BAU-vs-Aggressive-only, green-only color scale to a BAU/Moderate/Aggressive-selectable green/red indicator; the "projection" chart palette's contrast fixed; the original grouped bar chart (superseded by the treemap/3-panel views) dropped, its `DataTable` kept standalone. React-only. Required one `design-system` PR (`SyChart` choropleth hover/colorbar fix). Not an internship requirement change. |
+| v15 | Jul 2026 | Documented Release 3.1's post-ship follow-up (`ENHANCEMENTS.md` §3.1.8): two more rounds of KPI-panel/typography polish (icon repositioned + recolored, several font-size bumps); two real chart bugs found and fixed in `SyChart.tsx` — a mobile-only legend rendering as a bare scrollbar over the plot (fixed height allocation didn't grow with wrapped rows), and a diverging colorscale silently auto-ranging away from a true zero midpoint on skewed data (the actual root cause of the treemap showing backwards red/green, confirmed against real API data before fixing); and a treemap hover enhancement showing both the tile-size and tile-color metrics instead of just size. Required three more `design-system` PRs. Not an internship requirement change. |
 
 ---
 
@@ -542,7 +543,9 @@ host) — a deployment-config item outside either repo, not a code defect; see `
 **Status: shipped** — tracked in `ENHANCEMENTS.md`, React-only, not a curriculum change. A
 follow-up review (code-level + a live pass against `labs.syena.io/ghg-emissions-analysis` at
 desktop and mobile) found three problems left over from Release 3; verified fixed live in
-production post-deploy.
+production post-deploy. §3.1.8 documents a further round of post-ship follow-up (two more real
+`SyChart` bugs plus continued KPI/typography polish) found from user feedback after this table's
+own scope shipped.
 
 | Aspect | Detail |
 |---|---|
@@ -553,3 +556,6 @@ production post-deploy.
 | Chart palette contrast | The "projection" category's chart palette (Release 3's 3.12.3) widened for better perceptual separation at up to 10 selected countries — CSS-only |
 | Dropped | The original 40-country grouped bar chart on Scenario Comparison — superseded by the treemap/3-panel views, its only remaining unique value being the `DataTable` underneath, which stays standalone |
 | `design-system` prerequisite | `SyChart`'s choropleth branch (hover + colorbar fix) — one PR, merged before the app-side phases |
+| §3.1.8 follow-up: mobile legend bug | A chart legend that can't fit its entries in one row on a narrow viewport silently became an internally-scrollable, unstyled gray bar over the plot — Plotly reserves a fixed height share for the legend regardless of wrapped row count. Fixed by growing chart `height` to fit the estimated rows, reusing the choropleth's own resize pattern |
+| §3.1.8 follow-up: treemap colors backwards | The real root cause behind the treemap's colors: Plotly auto-scales a diverging colorscale to the data's actual min/max, not to a fixed zero-centered range, so one outlier country skewed the whole scale and inverted the visible red/green split. Fixed by pinning the colorscale's midpoint to true zero (`marker.cmid: 0`) |
+| §3.1.8 follow-up: treemap hover | Now shows both the tile-size metric (cumulative BAU) and the tile-color metric (the scenario delta) on hover, not just size |
