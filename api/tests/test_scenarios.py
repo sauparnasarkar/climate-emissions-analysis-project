@@ -96,6 +96,26 @@ def test_scenario_cumulative_default_sort(client):
     assert rows_by_country["China"]["BAU"] == 23300
     assert rows_by_country["Germany"]["Moderate"] == 1000
 
+    rows_by_country_full = {r["country"]: r for r in body["rows"]}
+    # Single-year 2040 value per scenario, alongside the cumulative sum above.
+    assert rows_by_country_full["China"]["year_2040"] == {"BAU": 12500, "Moderate": 9000, "Aggressive": 7000}
+    assert rows_by_country_full["Germany"]["year_2040"] == {"BAU": 550, "Moderate": 400, "Aggressive": 9000}
+    # Current/latest actual level, from ghg_features.csv's own latest year (2023 in the fixture).
+    assert rows_by_country_full["China"]["current_level"] == 11000
+    assert rows_by_country_full["United States"]["current_level"] == 4700
+    assert rows_by_country_full["Germany"]["current_level"] == 600
+
+
+def test_scenario_cumulative_tolerates_missing_features(data_dir):
+    """current_level should be None (not a 503) when ghg_features.csv is missing --
+    year_2040/cumulative totals still come from scenario_projections.csv alone."""
+    write_fixture(data_dir, "scenario_projections.csv")
+    resp = TestClient(app).get("/api/scenarios/cumulative")
+    assert resp.status_code == 200
+    rows_by_country = {r["country"]: r for r in resp.json()["rows"]}
+    assert rows_by_country["China"]["current_level"] is None
+    assert rows_by_country["China"]["year_2040"]["BAU"] == 12500
+
 
 def test_scenario_cumulative_sort_by_changes_order(client):
     resp = client.get("/api/scenarios/cumulative", params={"sort_by": "Aggressive"})

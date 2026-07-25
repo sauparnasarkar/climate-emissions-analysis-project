@@ -3,15 +3,19 @@
    redefining them within a scoped wrapper re-themes every chart inside it with zero
    SyChart.tsx changes. Forecasts/Scenario Comparison (both projection-oriented pages) use
    an amber/violet family here so they read as visually distinct from the
-   Overview/Historical Trends/Country Profile pages' default categorical palette. */
+   Overview/Historical Trends/Country Profile pages' default categorical palette.
+   Each family spans a wide lightness ramp (roughly 25%-85%) rather than clustering in the
+   original's narrow mid-range -- up to MAX_SELECTED_COUNTRIES (10) series still cycle back
+   to color 1 on an 11th, but within these 9 slots two same-family entries are now clearly
+   separable at a glance, not just in hue but in how dark/light they read. */
 [data-chart-category='projection'] {
-  --__s9cmpx-chart-categorical-default-01: #f0a94a;
-  --__s9cmpx-chart-categorical-default-02: #8b5fbf;
-  --__s9cmpx-chart-categorical-default-03: #d9822b;
-  --__s9cmpx-chart-categorical-default-04: #b088d6;
-  --__s9cmpx-chart-categorical-default-05: #f4c26b;
-  --__s9cmpx-chart-categorical-default-06: #6f4e91;
-  --__s9cmpx-chart-categorical-default-07: #e8a35c;
-  --__s9cmpx-chart-categorical-default-08: #9b6bc7;
-  --__s9cmpx-chart-categorical-default-09: #c98a3e;
+  --__s9cmpx-chart-categorical-default-01: #7a3b0a;
+  --__s9cmpx-chart-categorical-default-02: #3d1d5c;
+  --__s9cmpx-chart-categorical-default-03: #b5651d;
+  --__s9cmpx-chart-categorical-default-04: #6b3fa0;
+  --__s9cmpx-chart-categorical-default-05: #e8891f;
+  --__s9cmpx-chart-categorical-default-06: #a373d1;
+  --__s9cmpx-chart-categorical-default-07: #f4b860;
+  --__s9cmpx-chart-categorical-default-08: #d9c2f0;
+  --__s9cmpx-chart-categorical-default-09: #fbdcae;
 }

@@ -21,8 +21,18 @@ const CUMULATIVE: ScenarioCumulativeResponse = {
   order: ['China', 'United States'],
   scenarios: ['BAU', 'Moderate', 'Aggressive'],
   rows: [
-    { country: 'China', values: { BAU: 1000, Moderate: 800, Aggressive: 600 } },
-    { country: 'United States', values: { BAU: 500, Moderate: 400, Aggressive: 300 } },
+    {
+      country: 'China',
+      values: { BAU: 1000, Moderate: 800, Aggressive: 600 },
+      year_2040: { BAU: 16000, Moderate: 9000, Aggressive: 7000 },
+      current_level: 11000,
+    },
+    {
+      country: 'United States',
+      values: { BAU: 500, Moderate: 400, Aggressive: 300 },
+      year_2040: { BAU: 3800, Moderate: 3500, Aggressive: 3000 },
+      current_level: 4700,
+    },
   ],
 };
 
@@ -46,7 +56,7 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
     render(<ScenarioComparisonPage />);
 
-    expect(await screen.findByText('Cumulative BAU Emissions & Reduction Upside — 2 Countries')).toBeInTheDocument();
+    expect(await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'BAU' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Moderate' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Aggressive' })).toBeInTheDocument();
@@ -90,20 +100,20 @@ describe('ScenarioComparisonPage', () => {
     expect(vi.mocked(api.scenarioCompare)).not.toHaveBeenCalled();
   });
 
-  it('re-sorts the cumulative table when a different scenario radio is selected', async () => {
+  it('recolors the treemap (via its title) when a different scenario radio is selected, without refetching', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<ScenarioComparisonPage />);
-    await screen.findByText('Cumulative CO₂ Emissions by Scenario, 2025–2040 (sorted by BAU)');
+    await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries');
 
-    vi.mocked(api.scenarioCumulative).mockResolvedValue({ ...CUMULATIVE, sort_by: 'Moderate' });
-    await user.click(screen.getByRole('radio', { name: 'Moderate' }));
+    await user.click(screen.getByRole('radio', { name: 'Aggressive' }));
 
-    expect(await screen.findByText('Cumulative CO₂ Emissions by Scenario, 2025–2040 (sorted by Moderate)')).toBeInTheDocument();
-    expect(vi.mocked(api.scenarioCumulative)).toHaveBeenLastCalledWith('Moderate');
+    expect(await screen.findByText('Cumulative Emissions & Reduction Scenarios — Aggressive — 2 Expanded Countries')).toBeInTheDocument();
+    // Purely a client-side recolor of the already-fetched data -- no additional fetch.
+    expect(vi.mocked(api.scenarioCumulative)).toHaveBeenCalledTimes(1);
   });
 
   it('renders an inline error instead of crashing when the compare call fails', async () => {

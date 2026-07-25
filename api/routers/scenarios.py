@@ -114,8 +114,31 @@ def get_scenario_cumulative(sort_by: SortScenario = "BAU"):
     table = cumulative.pivot(index="country", columns="scenario", values="cumulative_co2")
     table = table[list(SCENARIO_COLORS.keys())].loc[order].round(0)
 
+    # Per-scenario 2040 value, alongside the cumulative sum above -- lets the frontend color
+    # the treemap by "is the selected scenario's 2040 level higher or lower than today," which
+    # a 2025-2040 sum alone can't answer.
+    year_2040_table = (
+        df_scenarios[df_scenarios["year"] == 2040]
+        .pivot(index="country", columns="scenario", values="co2_projected")
+        .reindex(columns=list(SCENARIO_COLORS.keys()))
+    )
+
+    try:
+        df_features = load_features()
+        current_year = int(df_features["year"].max())
+        current_level_by_country = df_features[df_features["year"] == current_year].set_index("country")["co2"]
+    except DataNotFoundError:
+        current_level_by_country = pd.Series(dtype=float)
+
     rows = [
-        ScenarioCumulativeRow(country=country, values=row.to_dict())
+        ScenarioCumulativeRow(
+            country=country,
+            values=row.to_dict(),
+            year_2040=year_2040_table.loc[country].to_dict() if country in year_2040_table.index else {},
+            current_level=(
+                float(current_level_by_country[country]) if country in current_level_by_country.index else None
+            ),
+        )
         for country, row in table.iterrows()
     ]
 
