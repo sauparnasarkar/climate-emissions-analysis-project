@@ -22,7 +22,7 @@ function CountUpText({ value, format }: { value: number; format: (n: number) => 
   return <>{format(useCountUp(value))}</>;
 }
 
-interface TierRow extends Record<string, unknown> {
+interface TierRow {
   tier: string;
   countries: number;
   co2Total: number;

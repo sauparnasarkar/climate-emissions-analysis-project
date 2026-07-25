@@ -54,12 +54,13 @@ describe('OverviewPage', () => {
 
     expect(await screen.findByText(/for 40 major countries/)).toBeInTheDocument();
     // Both the map and the Selected-tier bar chart share this exact title when their years
-    // coincide (as in this fixture) -- assert at least one, not exactly one.
-    expect(screen.getAllByText('CO₂ Emissions by Country (2024)').length).toBeGreaterThan(0);
+    // coincide (as in this fixture) -- assert the expected count of 2, not just >0.
+    expect(screen.getAllByText('CO₂ Emissions by Country (2024)')).toHaveLength(2);
     expect(screen.getByText('All Countries')).toBeInTheDocument();
     expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
     expect(screen.getByText('Selected')).toBeInTheDocument();
-    expect(screen.getAllByText('CO₂ (2024)').length).toBeGreaterThan(0);
+    // 'CO₂ (2024)' appears once per tier card (All Countries / Expanded / Selected = 3).
+    expect(screen.getAllByText('CO₂ (2024)')).toHaveLength(3);
     expect(screen.getByText('37,406 MtCO₂')).toBeInTheDocument();
     expect(screen.getByText('34,477 MtCO₂')).toBeInTheDocument();
     expect(screen.getByText('25,324 MtCO₂')).toBeInTheDocument();
