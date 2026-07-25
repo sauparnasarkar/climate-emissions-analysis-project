@@ -567,13 +567,46 @@ same files those phases already modify.
 
 ## Release 3 — UX Review Fixes, World Map, Scenario Redesign, Visual Polish
 
-**Status: Planned — implementation starting.** React-only for this release (Streamlit/`app.py`
-untouched) — a full UX review (code-level pass + live-screenshot pass against
-`labs.syena.io/ghg-emissions-analysis`) surfaced real bugs, a scope-expanding pair of new
-visualizations (world map, scenario comparison redesign), and a visual-polish wishlist. Four
-`design-system` components (`KpiStat`, `MultiSelect`, `SidebarNav`, `SyChart`) needed their own
-fixes first, tracked in that repo's `CONSUMER-REQUESTS-ghg-dashboard.md` and implemented as
-prerequisite PRs there before the app-side phases that consume them.
+**Status: Shipped.** React-only for this release (Streamlit/`app.py` untouched) — a full UX review
+(code-level pass + live-screenshot pass against `labs.syena.io/ghg-emissions-analysis`) surfaced
+real bugs, a scope-expanding pair of new visualizations (world map, scenario comparison redesign),
+and a visual-polish wishlist. Four `design-system` components (`KpiStat`, `MultiSelect`,
+`SidebarNav`, `SyChart`) needed their own fixes first, tracked in that repo's
+`CONSUMER-REQUESTS-ghg-dashboard.md` and implemented as prerequisite PRs there before the app-side
+phases that consume them. All 5 `design-system` PRs and all 7 app-side PRs merged to `main` in both
+repos and deployed.
+
+**Implementation-time findings, beyond what verification against live code caught during
+planning:**
+- Copilot's review caught (and, via its coding-agent mode, directly fixed) two real `design-system`
+  bugs: `MultiSelect`'s new clear-all spacing was unconditional even with zero tags selected
+  (asymmetric padding on an empty control), and `SidebarNav`'s new `groups` prop rendered multiple
+  `role="menu"` elements with no distinguishing `aria-label` (a real a11y regression for screen
+  reader users). It also caught one pre-existing app bug while reviewing 3.5: the Overview tier
+  table's own `% Change since 1990` column had `POSITIVE_COLOR`/`NEGATIVE_COLOR` backwards (an
+  emissions *increase* rendered green) — not introduced by this release, but directly contradicted
+  the color-semantics convention 3.5 establishes, so fixed alongside it.
+- A real `SyChart` color-handling gap surfaced during 3.5's own manual verification (not caught by
+  any review): `pointColors`/`color` are passed straight into Plotly's own color parser, which
+  cannot resolve CSS custom properties (`var(--foo, #fallback)`) the way a plain DOM `style` prop
+  can — it silently renders black instead of falling back to the intended hex. Fixed by adding
+  literal-hex variants (`POSITIVE_COLOR_HEX`/`NEGATIVE_COLOR_HEX`) alongside the `var(...)` forms
+  for any color value bound into a Plotly trace; the `var(...)` forms stay correct for genuine DOM
+  `style` props.
+- Merging all 12 PRs surfaced the expected consequence of building every phase off `main`
+  independently rather than stacking branches: `OverviewPage.tsx` (touched by 3.1's caption removal,
+  3.5, 3.4, and 3.12) needed manual conflict resolution three times as earlier phases merged first;
+  `design-system`'s `SyChart.stories.tsx` needed one similar resolution between the choropleth/
+  treemap PR and the `fillOpacity` PR. All were non-overlapping additions resolved by keeping both
+  sides; full `tsc`/test/build verification re-run after each resolution before merging.
+- **The world map (3.4) needs a production CSP update that isn't part of either repo.** Plotly's
+  choropleth fetches its world-shapes topojson from `cdn.plot.ly` at runtime; the production site's
+  CSP (`connect-src 'self' https://cloudflareinsights.com`) doesn't allow that host, so the map
+  silently fails to render in production despite working correctly in local dev/build. Confirmed
+  via a live Playwright check post-deploy (`PAGEERROR` fetching the topojson, 0 country shapes
+  drawn vs. 220 locally). Needs `https://cdn.plot.ly` added to `connect-src` wherever that CSP is
+  set (Cloudflare Transform Rules for the zone, not in either git repo) — flagged for the user to
+  action; not a code defect in this release.
 
 Corrections found verifying the original draft against live code before finalizing the plan:
 `total_ghg` doesn't exist in `ghg_features.csv` (only in raw `owid-co2-data.csv`/`ghg_filtered.csv`)

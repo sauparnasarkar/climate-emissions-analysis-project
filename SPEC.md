@@ -410,7 +410,7 @@ Sections to include:
 | v10 | Jul 2026 | Added §5.5, documenting a new "Data Explorer" page (`app.py`, `api/`, `climate-dashboard-react/`) browsing the full ~220-country Week 1 output (`data/ghg_filtered.csv`) instead of the 10-focus-country dataset every other page uses — another mentor addition, not an internship requirement (§6.2 cross-references it). Required two `design-system` additions: a new `RangeSlider` component (dual-thumb year-range filter) and type-to-search added to the existing `MultiSelect` (on by default for all consumers, not just this page). |
 | v11 | Jul 2026 | Added §5.6 (Release 2.1, `ENHANCEMENTS.md`), documenting the mentor's expansion of per-country training/evaluation to a data-driven ~40-country set (`get_expanded_countries()` / `load_expanded_countries()`, computed in Week 1 §1.2, persisted to `data/selected_countries.json`) alongside the original 10 (`FEATURED_COUNTRIES`, still the default/narrative selection) — not an internship requirement change (§1's "Countries of Focus" cross-references it). `design-system`'s `Select` gained the same type-to-search pattern §5.5 gave `MultiSelect`; `MultiSelect` gained a `maxSelected` cap. |
 | v12 | Jul 2026 | Added §5.7 (Release 2.2, `ENHANCEMENTS.md`), restructuring the Overview page into three simultaneous tiers (All Countries / Expanded / Selected) in place of §5.6's `scope=featured\|expanded` toggle. Mirrors `NON_SOVEREIGN` from `notebook/constants.py` into `api/constants.py`/`app.py` for the new unfiltered "All Countries" tier. Not an internship requirement change. |
-| v13 | Jul 2026 | Added §5.8 (Release 3, planned, `ENHANCEMENTS.md`), consolidating a full UX review into bug fixes (Forecast Summary scope, GHG Composition following selection, Data Explorer "Invalid Number", CI band opacity), a standardized green/crimson decrease/increase color convention, a Scenario Comparison redesign (treemap + three-panel comparison), a world map choropleth on Overview, and a sidebar Exploration/Projection regrouping. React-only (`climate-dashboard-react` + `api/`) — Streamlit untouched. Requires four `design-system` prerequisite PRs (`KpiStat`, `MultiSelect`, `SidebarNav`, `SyChart`). Not an internship requirement change. |
+| v13 | Jul 2026 | Added §5.8 (Release 3, `ENHANCEMENTS.md`), consolidating a full UX review into bug fixes (Forecast Summary scope, GHG Composition following selection, Data Explorer "Invalid Number", CI band opacity), a standardized green/crimson decrease/increase color convention, a Scenario Comparison redesign (treemap + three-panel comparison), a world map choropleth on Overview, and a sidebar Exploration/Projection regrouping. React-only (`climate-dashboard-react` + `api/`) — Streamlit untouched. Required four `design-system` prerequisite PRs (`KpiStat`, `MultiSelect`, `SidebarNav`, `SyChart`), all merged. Shipped; world map needs a production CSP update (`connect-src` allowing `cdn.plot.ly`) outside either repo. Not an internship requirement change. |
 
 ---
 
@@ -520,9 +520,11 @@ into three simultaneous tiers of increasing specificity, replacing the
 
 ### 5.8 UX Review Fixes, World Map, Scenario Redesign, Visual Polish (Release 3)
 
-**Status: planned, implementation starting** — tracked in `ENHANCEMENTS.md`, React-only for this
-release (Streamlit/`app.py` untouched), not a curriculum change. Consolidates a full UX review
-(code-level + live-screenshot pass) into bug fixes, two new visualizations, and a polish pass.
+**Status: shipped** — tracked in `ENHANCEMENTS.md`, React-only for this release (Streamlit/`app.py`
+untouched), not a curriculum change. Consolidates a full UX review (code-level + live-screenshot
+pass) into bug fixes, two new visualizations, and a polish pass. Note: the world map's CO₂ colors
+require the production CSP's `connect-src` to allow `https://cdn.plot.ly` (Plotly's own topojson
+host) — a deployment-config item outside either repo, not a code defect; see `ENHANCEMENTS.md`.
 
 | Aspect | Detail |
 |---|---|
