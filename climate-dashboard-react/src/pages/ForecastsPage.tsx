@@ -38,7 +38,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
   const [country, setCountry] = useState<string>(seedCountry);
 
   const forecast = useAsync(() => api.forecast(country), [country]);
-  const summary = useAsync(() => api.forecastSummary(), []);
+  const summary = useAsync(() => api.forecastSummary('expanded'), []);
   const modelComparison = useAsync(() => api.modelComparison(), []);
   const etsParams = useAsync(() => api.etsParameters(), []);
   const featureImportance = useAsync(() => api.featureImportance(), []);
