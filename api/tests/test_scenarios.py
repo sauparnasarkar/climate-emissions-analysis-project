@@ -115,3 +115,58 @@ def test_scenario_cumulative_503_when_missing(data_dir):
     resp = TestClient(app).get("/api/scenarios/cumulative")
     assert resp.status_code == 503
     assert "scenario_projections.csv" in resp.json()["detail"]
+
+
+def test_scenario_compare_happy_path_not_summed(client):
+    resp = client.get("/api/scenarios/compare", params={"countries": ["China", "United States"]})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["countries"] == ["China", "United States"]
+
+    bau_by_country = {s["name"]: s for s in body["scenarios"]["BAU"]}
+    assert bau_by_country["China"]["years"] == [1990, 2020, 2030, 2035, 2040]
+    assert bau_by_country["China"]["values"] == [2400, 10500, 13000, 14500, 16000]
+    assert bau_by_country["United States"]["years"] == [1990, 2020, 2030, 2035, 2040]
+    assert bau_by_country["United States"]["values"] == [5000, 4900, 4400, 4100, 3800]
+    # Proves each country keeps its own values rather than being summed, unlike
+    # /scenarios/cumulative and the view=global /scenarios/timeseries.
+    assert bau_by_country["China"]["values"] != bau_by_country["United States"]["values"]
+
+
+def test_scenario_compare_moderate_stitches_bau_then_diverges(client):
+    resp = client.get("/api/scenarios/compare", params={"countries": ["China"]})
+    body = resp.json()
+    moderate = body["scenarios"]["Moderate"][0]
+    # 1990 historical, 2020 BAU-derived (scenarios only diverge from 2025), then Moderate's
+    # own 2025/2040 rows.
+    assert moderate["years"] == [1990, 2020, 2025, 2040]
+    assert moderate["values"] == [2400, 10500, 10500, 9000]
+
+
+def test_scenario_compare_rejects_unknown_country(client):
+    resp = client.get("/api/scenarios/compare", params={"countries": ["Atlantis"]})
+    assert resp.status_code == 400
+
+
+def test_scenario_compare_requires_countries_param(client):
+    resp = client.get("/api/scenarios/compare")
+    assert resp.status_code == 422
+
+
+def test_scenario_compare_tolerates_missing_optional_data(data_dir):
+    """Only scenario_projections.csv is required; missing ets_forecasts.csv/ghg_features.csv
+    should degrade gracefully (empty historical/BAU) rather than 503."""
+    write_fixture(data_dir, "scenario_projections.csv")
+    resp = TestClient(app).get("/api/scenarios/compare", params={"countries": ["China"]})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["scenarios"]["BAU"][0]["years"] == []
+    assert body["scenarios"]["Moderate"][0]["years"] == [2025, 2040]
+
+
+def test_scenario_compare_503_when_scenarios_missing(data_dir):
+    write_fixture(data_dir, "ets_forecasts.csv")
+    write_fixture(data_dir, "ghg_features.csv")
+    resp = TestClient(app).get("/api/scenarios/compare", params={"countries": ["China"]})
+    assert resp.status_code == 503
+    assert "scenario_projections.csv" in resp.json()["detail"]

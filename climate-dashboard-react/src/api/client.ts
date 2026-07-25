@@ -11,6 +11,7 @@ import type {
   HistoricalTimeseriesResponse,
   ModelComparisonResponse,
   OverviewResponse,
+  ScenarioCompareResponse,
   ScenarioCumulativeResponse,
   ScenarioTimeseriesResponse,
 } from './types';
@@ -75,6 +76,12 @@ export const api = {
   },
 
   scenarioCumulative: (sortBy: string) => get<ScenarioCumulativeResponse>(`/scenarios/cumulative?sort_by=${encodeURIComponent(sortBy)}`),
+
+  scenarioCompare: (countries: string[]) => {
+    const params = new URLSearchParams();
+    countries.forEach((c) => params.append('countries', c));
+    return get<ScenarioCompareResponse>(`/scenarios/compare?${params}`);
+  },
 
   explorerMeta: () => get<ExplorerMetaResponse>('/explorer/meta'),
 
