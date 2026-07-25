@@ -111,7 +111,6 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         />
         <Button variant="ghost-blue" size="s" onClick={() => setSelected(featured)}>Reset to default</Button>
       </div>
-      <p className="__s9cmpx-label2" style={{ marginBottom: 16 }}>{data.selected_country_list.join('  |  ')}</p>
 
       {selected.length === 0 ? (
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>

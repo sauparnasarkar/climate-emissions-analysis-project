@@ -50,6 +50,11 @@ function DataExplorerContent({ meta }: { meta: ExplorerMetaResponse }) {
       (summary.data?.columns ?? []).map((c) => ({
         field: c,
         headerName: c === 'statistic' ? 'Statistic' : humanize(c),
+        // This table is transposed (one row per statistic — `top`/`unique`/`freq` are
+        // string-like, `mean`/`std` are numeric, in the same column), so AG Grid's
+        // per-column type inference from cell values renders numeric-looking rows as
+        // "Invalid Number" once it infers a numeric type from an earlier row.
+        cellDataType: 'text',
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [summaryColumnsKey],
