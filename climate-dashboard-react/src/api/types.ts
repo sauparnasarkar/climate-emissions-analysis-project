@@ -22,6 +22,12 @@ export interface OverviewTierMetrics {
   pct_change_since_1990: number;
 }
 
+export interface WorldMapPoint {
+  country: string;
+  iso_code: string | null;
+  value: number | null;
+}
+
 export interface OverviewResponse {
   all_countries: OverviewTierMetrics;
   expanded_countries: OverviewTierMetrics;
@@ -31,6 +37,7 @@ export interface OverviewResponse {
   top_movers: MoverRow[];
   fastest_growth: MoverRow;
   largest_reduction: MoverRow;
+  world_map: WorldMapPoint[];
 }
 
 export interface TimeseriesSeries {

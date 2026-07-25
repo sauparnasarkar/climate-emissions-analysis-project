@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from ..constants import FEATURED_COUNTRIES, MAX_SELECTED_COUNTRIES
 from ..data_loaders import DataNotFoundError, load_expanded_countries, load_features, load_raw_sovereign
-from ..schemas import CountryValue, MoverRow, OverviewResponse, OverviewTierMetrics
+from ..schemas import CountryValue, MoverRow, OverviewResponse, OverviewTierMetrics, WorldMapPoint
 
 router = APIRouter()
 
@@ -93,6 +93,17 @@ def get_overview(countries: list[str] | None = Query(None)):
     fastest_growth = top_movers[0] if top_movers else na_mover
     largest_reduction = top_movers[-1] if top_movers else na_mover
 
+    all_latest_year = int(df_all["year"].max())
+    df_map = df_all[df_all["year"] == all_latest_year]
+    world_map = [
+        WorldMapPoint(
+            country=r["country"],
+            iso_code=r["iso_code"] if pd.notna(r["iso_code"]) else None,
+            value=r["co2"] if pd.notna(r["co2"]) else None,
+        )
+        for _, r in df_map.iterrows()
+    ]
+
     return OverviewResponse(
         all_countries=_tier_metrics(df_all, "All Countries", df_all["country"].nunique()),
         expanded_countries=_tier_metrics(df_expanded, "Expanded", len(expanded)),
@@ -102,4 +113,5 @@ def get_overview(countries: list[str] | None = Query(None)):
         top_movers=top_movers,
         fastest_growth=fastest_growth,
         largest_reduction=largest_reduction,
+        world_map=world_map,
     )

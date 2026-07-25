@@ -34,6 +34,7 @@ const RESPONSE: OverviewResponse = {
   top_movers: [{ country: 'China', co2_1990: 2000, co2_latest: 12000, absolute_change: 10000, pct_change: 500 }],
   fastest_growth: { country: 'China', co2_1990: 2000, co2_latest: 12000, absolute_change: 10000, pct_change: 500 },
   largest_reduction: { country: 'United Kingdom', co2_1990: 600, co2_latest: 300, absolute_change: -300, pct_change: -50 },
+  world_map: [{ country: 'China', iso_code: 'CHN', value: 12000 }],
 };
 
 afterEach(() => {
@@ -47,6 +48,7 @@ describe('OverviewPage', () => {
     render(<OverviewPage />);
 
     expect(await screen.findByText(/for 40 major countries/)).toBeInTheDocument();
+    expect(screen.getByText('CO₂ Emissions by Country (2024) — All Countries')).toBeInTheDocument();
     expect(screen.getByText('All Countries')).toBeInTheDocument();
     expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
     expect(screen.getByText('Selected')).toBeInTheDocument();

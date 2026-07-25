@@ -9,6 +9,15 @@ import type { OverviewTierMetrics } from '../api/types';
 const POSITIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-positive, #187254)';
 const NEGATIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-negative, #8d1a2a)';
 
+// Sequential light -> amber -> deep-red magnitude scale for the world map, distinct from
+// both the % Change chart's green/crimson delta pair and Scenario Comparison's green-only
+// reduction-upside scale -- three visually distinct conventions, each used for one concept.
+const MAGNITUDE_SCALE: Array<[number, string]> = [
+  [0, '#fff2cc'],
+  [0.5, '#f0a24a'],
+  [1, '#7a1f1f'],
+];
+
 interface TierRow extends Record<string, unknown> {
   tier: string;
   countries: number;
@@ -89,6 +98,27 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         An end-to-end analysis of greenhouse gas emissions for {data.expanded_countries.countries_count} major countries using the OWID CO₂ dataset,
         regression models, and ETS(A,Ad,N) forecasting.
       </p>
+
+      <div style={{ marginBottom: 16 }}>
+        <ChartCard title={`CO₂ Emissions by Country (${data.all_countries.latest_year}) — All Countries`}>
+          <SyChart
+            height={420}
+            showLegend={false}
+            ariaLabel={`World map choropleth of CO₂ emissions by country in ${data.all_countries.latest_year}, log-scaled color from light (lowest) to deep red (highest)`}
+            series={[{
+              name: 'CO₂',
+              x: [],
+              y: [],
+              kind: 'choropleth',
+              locations: data.world_map.map((p) => p.iso_code ?? ''),
+              zLog: true,
+              colorValues: data.world_map.map((p) => p.value),
+              colorScale: MAGNITUDE_SCALE,
+              colorbarTitle: 'CO₂ (MtCO₂)',
+            }]}
+          />
+        </ChartCard>
+      </div>
 
       <div style={{ marginBottom: 16 }}>
         <TierTable

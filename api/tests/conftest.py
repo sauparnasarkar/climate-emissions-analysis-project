@@ -114,22 +114,26 @@ def scenario_projections_df() -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["country", "year", "scenario", "co2_projected"])
 
 
+ISO_CODES = {"China": "CHN", "United States": "USA", "Germany": "DEU", "Canada": "CAN"}
+
+
 def owid_raw_df() -> pd.DataFrame:
     years = [1990, 1995, 2000, 2005, 2010]
     rows = []
     for country in FIXTURE_COUNTRIES:
         for i, year in enumerate(years):
-            rows.append((country, year, 100.0 + i, 20.0, 5.0))
+            rows.append((country, year, 100.0 + i, 20.0, 5.0, ISO_CODES[country]))
     # Pre-1990 row (must be excluded by load_raw's year >= 1990 filter) and a non-focus
     # country row (must be excluded by the COUNTRIES filter) — both for "China" so the
     # exclusion is unambiguous.
-    rows.append(("China", 1985, 999.0, 999.0, 999.0))
-    rows.append(("Canada", 1995, 999.0, 999.0, 999.0))
+    rows.append(("China", 1985, 999.0, 999.0, 999.0, "CHN"))
+    rows.append(("Canada", 1995, 999.0, 999.0, 999.0, ISO_CODES["Canada"]))
     # NON_SOVEREIGN aggregate row at the fixture's latest year (2010) — must be excluded by
     # load_raw_sovereign()'s NON_SOVEREIGN filter, proving the "All Countries" tier doesn't
-    # double-count the aggregate alongside the sovereign rows it's a sum of.
-    rows.append(("World", 2010, 9999.0, 9999.0, 9999.0))
-    return pd.DataFrame(rows, columns=["country", "year", "co2", "methane", "nitrous_oxide"])
+    # double-count the aggregate alongside the sovereign rows it's a sum of. Real OWID
+    # aggregate rows have no iso_code either.
+    rows.append(("World", 2010, 9999.0, 9999.0, 9999.0, None))
+    return pd.DataFrame(rows, columns=["country", "year", "co2", "methane", "nitrous_oxide", "iso_code"])
 
 
 def ghg_filtered_df() -> pd.DataFrame:
