@@ -151,7 +151,7 @@ export default function DataExplorerPage() {
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Data Explorer</h1>
-      <p className="__s9cmpx-body2" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
+      <p className="__s9cmpx-body1" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Browse the full underlying dataset behind this dashboard: every sovereign country
         (regional and income-group aggregates like &quot;World&quot; or &quot;European
         Union&quot; excluded), from 1990 onward — the raw and derived OWID columns, not just

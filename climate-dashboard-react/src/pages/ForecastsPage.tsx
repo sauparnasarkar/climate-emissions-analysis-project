@@ -94,7 +94,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
   return (
     <div data-chart-category="projection">
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>ETS(A,Ad,N) Emissions Forecasts (2019–2043)</h1>
-      <p className="__s9cmpx-body2" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
+      <p className="__s9cmpx-body1" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Forecasts from Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, with 95% confidence intervals extending to 2043.
       </p>
 

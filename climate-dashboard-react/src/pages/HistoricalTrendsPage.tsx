@@ -38,7 +38,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
+      <div className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
         <MultiSelect
           label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
           options={expanded.map((c) => ({ value: c, label: c }))}
@@ -46,7 +46,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
           onChange={setSelectedCountries}
           maxSelected={MAX_SELECTED_COUNTRIES}
         />
-        <Button variant="ghost-blue" size="s" onClick={() => setSelectedCountries(featured)}>Reset to default</Button>
+        <Button variant="ghost-blue" onClick={() => setSelectedCountries(featured)}>Reset to default</Button>
         <Select label="Emissions metric" options={GAS_OPTIONS} value={gas} onChange={setGas} />
       </div>
 

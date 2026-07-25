@@ -61,21 +61,21 @@ function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
       `}</style>
       {rows.map((row) => (
         <div key={row.tier} className="overview-tier-panel__card">
-          <div className="__s9cmpx-label1" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--__s9cmpx-static-text-weak)', marginBottom: 8 }}>
-            <Icon name={row.icon} size={18} />
+          <div className="__s9cmpx-headline5" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--__s9cmpx-static-text-weak)', marginBottom: 8 }}>
+            <Icon name={row.icon} size={20} />
             {row.tier}
           </div>
           <div className="overview-tier-panel__metric">
-            <span className="__s9cmpx-body3-short">Countries</span>
-            <span className="__s9cmpx-body2" style={{ fontWeight: 600 }}><CountUpText value={row.countries} format={(n) => Math.round(n).toLocaleString()} /></span>
+            <span className="__s9cmpx-body2">Countries</span>
+            <span className="__s9cmpx-headline4"><CountUpText value={row.countries} format={(n) => Math.round(n).toLocaleString()} /></span>
           </div>
           <div className="overview-tier-panel__metric">
-            <span className="__s9cmpx-body3-short">{`CO₂ (${year})`}</span>
-            <span className="__s9cmpx-body2" style={{ fontWeight: 600 }}><CountUpText value={row.co2Total} format={(n) => `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} /></span>
+            <span className="__s9cmpx-body2">{`CO₂ (${year})`}</span>
+            <span className="__s9cmpx-headline4"><CountUpText value={row.co2Total} format={(n) => `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} /></span>
           </div>
           <div className="overview-tier-panel__metric">
-            <span className="__s9cmpx-body3-short">% Change since 1990</span>
-            <span className="__s9cmpx-body2" style={{ fontWeight: 600, color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
+            <span className="__s9cmpx-body2">% Change since 1990</span>
+            <span className="__s9cmpx-headline4" style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
               <CountUpText value={row.pctChange} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />
             </span>
           </div>
@@ -113,7 +113,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: 0 }}>GHG Emissions Trend Analysis and Forecasting</h1>
-      <p className="__s9cmpx-body2" style={{ margin: '4px 0 16px', color: 'var(--__s9cmpx-static-text-weak)' }}>
+      <p className="__s9cmpx-body1" style={{ margin: '4px 0 16px', color: 'var(--__s9cmpx-static-text-weak)' }}>
         An end-to-end analysis of greenhouse gas emissions for {data.expanded_countries.countries_count} major countries using the OWID CO₂ dataset,
         regression models, and ETS(A,Ad,N) forecasting.
       </p>
@@ -150,7 +150,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         />
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 12 }}>
+      <div className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 12 }}>
         <MultiSelect
           label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
           options={expanded.map((c) => ({ value: c, label: c }))}
@@ -158,7 +158,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           onChange={setSelected}
           maxSelected={MAX_SELECTED_COUNTRIES}
         />
-        <Button variant="ghost-blue" size="s" onClick={() => setSelected(featured)}>Reset to default</Button>
+        <Button variant="ghost-blue" onClick={() => setSelected(featured)}>Reset to default</Button>
       </div>
 
       {selected.length === 0 ? (
