@@ -1,6 +1,6 @@
 # GHG Emissions Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v10**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v14**
 
 ---
 
@@ -411,6 +411,7 @@ Sections to include:
 | v11 | Jul 2026 | Added §5.6 (Release 2.1, `ENHANCEMENTS.md`), documenting the mentor's expansion of per-country training/evaluation to a data-driven ~40-country set (`get_expanded_countries()` / `load_expanded_countries()`, computed in Week 1 §1.2, persisted to `data/selected_countries.json`) alongside the original 10 (`FEATURED_COUNTRIES`, still the default/narrative selection) — not an internship requirement change (§1's "Countries of Focus" cross-references it). `design-system`'s `Select` gained the same type-to-search pattern §5.5 gave `MultiSelect`; `MultiSelect` gained a `maxSelected` cap. |
 | v12 | Jul 2026 | Added §5.7 (Release 2.2, `ENHANCEMENTS.md`), restructuring the Overview page into three simultaneous tiers (All Countries / Expanded / Selected) in place of §5.6's `scope=featured\|expanded` toggle. Mirrors `NON_SOVEREIGN` from `notebook/constants.py` into `api/constants.py`/`app.py` for the new unfiltered "All Countries" tier. Not an internship requirement change. |
 | v13 | Jul 2026 | Added §5.8 (Release 3, `ENHANCEMENTS.md`), consolidating a full UX review into bug fixes (Forecast Summary scope, GHG Composition following selection, Data Explorer "Invalid Number", CI band opacity), a standardized green/crimson decrease/increase color convention, a Scenario Comparison redesign (treemap + three-panel comparison), a world map choropleth on Overview, and a sidebar Exploration/Projection regrouping. React-only (`climate-dashboard-react` + `api/`) — Streamlit untouched. Required four `design-system` prerequisite PRs (`KpiStat`, `MultiSelect`, `SidebarNav`, `SyChart`), all merged. Shipped; world map needs a production CSP update (`connect-src` allowing `cdn.plot.ly`) outside either repo. Not an internship requirement change. |
+| v14 | Jul 2026 | Added §5.9 (Release 3.1, `ENHANCEMENTS.md`), a follow-up review found after Release 3 shipped and was checked live: Overview's map+tier-table layout redone as a 2/3 map + 1/3 KPI summary row (map-as-hero); two real world-map bugs fixed (hover showed the log10-transformed value, not real MtCO₂; colorbar was taller than the map, worse on mobile); Scenario Comparison's treemap redesigned from a fixed BAU-vs-Aggressive-only, green-only color scale to a BAU/Moderate/Aggressive-selectable green/red indicator; the "projection" chart palette's contrast fixed; the original grouped bar chart (superseded by the treemap/3-panel views) dropped, its `DataTable` kept standalone. React-only. Required one `design-system` PR (`SyChart` choropleth hover/colorbar fix). Not an internship requirement change. |
 
 ---
 
@@ -535,3 +536,19 @@ host) — a deployment-config item outside either repo, not a code defect; see `
 | `design-system` prerequisites | `KpiStat` (`good`/`bad`), `MultiSelect` (clear-all button visual separation from the last tag), `SidebarNav` (labeled group support), `SyChart` (choropleth + treemap trace kinds, explicit axis-range props, multi-point annotations) — each its own PR in that repo, merged before the app-side phase consuming it; no publish/version-bump step, since `climate-dashboard-react` aliases straight to `design-system/src` |
 | Navigation | Sidebar regrouped into labeled "Exploration" (Overview, Historical Trends, Country Profile, Data Explorer) and "Projection" (Forecasts, Scenario Comparison) sections; About stays in the existing pinned-footer slot |
 | Deferred | Total GHG (CO₂e) alongside CO₂ — `total_ghg` doesn't exist in `ghg_features.csv` (Week 2's output), only in raw OWID data and Week 1's filtered output; picking this up later needs either a Week 2 notebook change or an API-side re-derivation from raw data, not the naive same-dataframe approach the original draft assumed |
+
+### 5.9 Post-Release-3 Layout, Map, and Contrast Fixes (Release 3.1)
+
+**Status: planned** — tracked in `ENHANCEMENTS.md`, React-only, not a curriculum change. A
+follow-up review (code-level + a live pass against `labs.syena.io/ghg-emissions-analysis` at
+desktop and mobile) found three problems left over from Release 3.
+
+| Aspect | Detail |
+|---|---|
+| Overview layout | The map and tier table, today two stacked full-width blocks, become one grid row — map ~66% width, a new `TierSummaryPanel` (three stacked mini cards, one per tier) ~33% width — so the selector/bar chart sit closer to the fold; collapses to one column on mobile |
+| World map hover | Fixed a real bug, not just a units gap: the choropleth's hover showed the log10-transformed color value (from `zLog`), not the real MtCO₂ figure, since no `hovertemplate`/`customdata` was ever set — required a `design-system` fix |
+| World map colorbar | Fixed the colorbar being visibly taller than the map itself (worse on mobile) — the aspect-fit `natural earth` projection can be letterboxed within its domain box while the colorbar, unconstrained, still spans it fully; moved the colorbar to a horizontal orientation below the map — same `design-system` PR as the hover fix |
+| Scenario Comparison treemap | Redesigned from a fixed BAU-vs-Aggressive-only comparison rendered on a green-only scale (structurally unable to show red) to a BAU/Moderate/Aggressive-selectable radio coloring each tile green/red by whether the selected scenario's 2040 level is above or below the country's current level — required extending `GET /scenarios/cumulative` with a per-scenario 2040 value and a current-level baseline |
+| Chart palette contrast | The "projection" category's chart palette (Release 3's 3.12.3) widened for better perceptual separation at up to 10 selected countries — CSS-only |
+| Dropped | The original 40-country grouped bar chart on Scenario Comparison — superseded by the treemap/3-panel views, its only remaining unique value being the `DataTable` underneath, which stays standalone |
+| `design-system` prerequisite | `SyChart`'s choropleth branch (hover + colorbar fix) — one PR, merged before the app-side phases |

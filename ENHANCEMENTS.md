@@ -724,3 +724,77 @@ app-side phases that depend on one proceed only after that PR merges (no publish
 proceed immediately. 3.5 needs `KpiStat`'s fix; 3.11 needs `SidebarNav`'s; 3.2 and 3.4 both need
 `SyChart`'s. 3.12 sequenced last (3.12.3 needs 3.5's shared color constants as its source of
 truth).
+
+## Release 3.1 — Post-Release-3 Layout, Map, and Contrast Fixes
+
+**Status: Planned.** React-only (Streamlit/`app.py` untouched). A follow-up review — code-level
+plus a live pass against `labs.syena.io/ghg-emissions-analysis` at desktop and mobile viewports —
+found three problems left over from Release 3: the Overview map+tier-table layout runs too tall
+(pushing the country selector and bar chart below the fold), the world map choropleth has two real
+bugs (hover shows the log10-transformed value instead of the real MtCO₂ figure; the colorbar is
+visibly taller than the map, worse on mobile), and Scenario Comparison's treemap always reads as
+"everything green" because its color formula only ever compares against Aggressive on a green-only
+scale with no red stop. Every claim below was re-verified directly against current source (not
+just the write-up) before planning began.
+
+Scope split: only the hover/colorbar fix needs a `design-system` change (both live in the same
+`SyChart.tsx` choropleth branch, bundled into one PR). The layout redesign, the treemap redesign,
+the palette contrast fix, and dropping the now-redundant grouped bar chart are all app-side only —
+no new `design-system` capability needed.
+
+Decision made before implementation: the original 40-country grouped bar chart on Scenario
+Comparison (superseded by the treemap + 3-panel view, its only remaining unique value being the
+`DataTable`'s precise-number lookup) is dropped; the `DataTable` stays standalone.
+
+### 3.1.1 — Overview: 2/3 map + 1/3 KPI summary layout
+
+Today's choropleth and tier table stack as two separate full-width blocks, pushing the selector and
+bar chart below the fold with nothing signaling more content follows. Restructured into one grid
+row — map ~66% width, a new `TierSummaryPanel` (three stacked mini cards, one per tier, replacing
+`TierTable`'s 4-column layout) ~33% width — collapsing to a single column on mobile. This is a
+deliberate hierarchy shift (map-as-hero, selection-as-secondary), not just a reflow.
+
+### 3.1.2 — World map: hover tooltip shows the wrong value entirely
+
+`SyChart.tsx`'s choropleth branch log10-transforms `colorValues` into `z` when `zLog` is set, but
+never set `hovertemplate`/`customdata` — Plotly's default hover fell back to raw `z`, showing the
+log10 number instead of the real value. Fixed with `customdata` (untransformed) plus an explicit
+`hovertemplate`, and a new `hoverUnit` prop (e.g. `"MtCO₂"`).
+
+### 3.1.3 — World map: colorbar taller than the map itself
+
+The resize `ResizeObserver` only ever adjusted `layout.height`, never the colorbar's own sizing.
+The `natural earth` projection aspect-fits within its domain box (letterboxed at some widths); the
+colorbar isn't projection-constrained, so it spans the full box regardless — worse at narrower
+(mobile) widths. Fixed by moving the colorbar to a horizontal orientation below the map rather than
+tuning a second heuristic to compensate.
+
+### 3.1.4 — Scenario Comparison: treemap redesigned to a scenario-selectable up/down indicator
+
+The treemap's color was always `(BAU − Aggressive) / BAU`, rendered on a green-only scale —
+structurally incapable of showing red. Redesigned to a BAU/Moderate/Aggressive radio (reusing the
+same set driving the 3-panel view) coloring each tile by whether the selected scenario's 2040 level
+is above or below the country's current level — green = down, red = up, using the same diverging
+scale standardized everywhere else on the site. Required extending `GET /scenarios/cumulative`
+(`ScenarioCumulativeRow` gains `year_2040`/`current_level`) since the existing response only ever
+returned a 2025–2040 sum, no single-year or baseline value.
+
+### 3.1.5 — Scenario Comparison: "projection" category palette contrast fix
+
+The `projection` category's chart palette (from Release 3's 3.12.3) is two narrow hue families —
+5 ambers, 4 violets — tight enough in hue and lightness that two of the same family become hard to
+distinguish at up to 10 selected countries. Widened perceptual separation within `styles.css`'s
+palette definition; CSS-only, no `SyChart` change.
+
+### 3.1.6 — Drop the redundant grouped bar chart
+
+The original 40-country grouped bar chart + sort-by radios, the finding that originally motivated
+building the treemap/3-panel views, was still on the page below them. Removed; the `DataTable`
+underneath stays standalone for precise-number lookups.
+
+### 3.1.7 — Rollout sequencing
+
+One `design-system` PR (3.1.2 + 3.1.3, both in `SyChart.tsx`'s choropleth branch) lands first;
+both app-side PRs (3.1.1; 3.1.4+3.1.5+3.1.6 bundled since they share `ScenarioComparisonPage.tsx`)
+follow, sequenced after it per established convention though neither has a real code dependency on
+it.
