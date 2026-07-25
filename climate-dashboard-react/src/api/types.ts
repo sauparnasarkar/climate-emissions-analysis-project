@@ -149,6 +149,11 @@ export interface ScenarioCumulativeResponse {
   rows: ScenarioCumulativeRow[];
 }
 
+export interface ScenarioCompareResponse {
+  countries: string[];
+  scenarios: Record<string, ScenarioSeries[]>;
+}
+
 export interface ExplorerMetaResponse {
   countries: string[];
   columns: string[];
