@@ -41,7 +41,7 @@ function TierTable({ rows, year }: { rows: TierRow[]; year: number }) {
             header: '% Change since 1990',
             align: 'right',
             render: (row) => (
-              <span style={{ color: row.pctChange >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR }}>
+              <span style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
                 {row.pctChange >= 0 ? '+' : ''}{row.pctChange.toFixed(1)}%
               </span>
             ),
