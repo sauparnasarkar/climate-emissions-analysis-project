@@ -891,10 +891,20 @@ than relying on its own number formatting for that one case.
 
 ## Release 4 — Regression Target Leakage & Sovereignty Filter Fixes
 
-**Status: Planned.** Notebook + `api`/`app.py` only — no `design-system` or
+**Status: Shipped.** Notebook + `api`/`app.py` only — no `design-system` or
 `climate-dashboard-react` change. This is a **curriculum correction** (Weeks 1 and 3 of the
 internship notebooks), not a post-internship addendum item like Releases 2.x/3.x — tracked in
 `SPEC.md` §6.1, a new top-level section distinct from §5's addendum for exactly that reason.
+
+**Shipped:** #98 (Week 1 sovereignty filter), #99 (Week 3 regression target leakage), #100
+(`api`/`app.py` sovereignty filter) — all merged, all reviewed clean by Copilot with no
+findings. Deployed to the Mac Mini: `uvicorn` restarted for the `api` change and verified live
+(`countries_count: 218` on the Overview "All Countries" tier at
+`labs.syena.io/ghg-emissions-analysis`); the two notebook PRs required first discarding
+uncommitted re-execution diffs on the Mac Mini's checkout (left over from the weekly
+`ghg-data-refresh` job, which never commits its own output) before a clean fast-forward merge,
+then an on-demand refresh run to verify end-to-end in that job's exact environment — logged
+`clean`, no hard-fail or soft-flag on the 220→218 country-count shift.
 
 Found by comparing this repo's Week 1/3 notebooks against a separate intern's independent
 implementation of the same curriculum (`Maulik-17/climate-ghg-trend-analysis`). Two of that

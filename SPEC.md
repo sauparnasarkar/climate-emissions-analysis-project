@@ -576,11 +576,15 @@ own scope shipped.
 
 ### 6.1 Regression Target Leakage & Sovereignty Filter Fixes (Release 4)
 
-**Status: Planned** — tracked in `ENHANCEMENTS.md` Release 4. Found by comparing this repo's
+**Status: Shipped** — tracked in `ENHANCEMENTS.md` Release 4. Found by comparing this repo's
 Week 1/3 notebooks against a separate intern's independent implementation of the same
 curriculum (`Maulik-17/climate-ghg-trend-analysis`); every claim below was verified directly
 against this repo's own current code and data before being adopted, not taken on the other
-project's word.
+project's word. Three PRs merged (#98 Week 1, #99 Week 3, #100 `api`/`app.py`); deployed to
+the Mac Mini and verified live — the Overview "All Countries" tier shows 218 countries in
+production, and an on-demand `ghg-data-refresh` run confirmed the notebook fixes re-execute
+cleanly in the exact environment the weekly job uses (no hard-fail or soft-flag on the
+220→218 count shift, well under the 5% validation threshold).
 
 | Aspect | Detail |
 |---|---|
