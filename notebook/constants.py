@@ -37,6 +37,13 @@ def get_expanded_countries():
 TRAIN_CUTOFF = 2018   # train: 1990–2018  |  test: 2019–2023
 FORECAST_END = 2043   # 20 years beyond 2023
 
+# Week 3 regression only (see SPEC.md §6.1). Deliberately a separate constant from TARGET,
+# not a replacement -- week4_ets_forecasting.ipynb still needs TARGET='co2' for same-year
+# ETS evaluation, a genuinely different task (pure time-series extrapolation) that happened
+# to share this symbol only incidentally. target_co2_next = co2 shifted forward one year per
+# country, computed inline in week3_regression.ipynb (never persisted to ghg_features.csv).
+REGRESSION_TARGET = 'target_co2_next'
+
 NON_SOVEREIGN = [
     # Continental / regional aggregates (OWID)
     "World", "Asia", "Europe", "Africa", "North America", "South America",
