@@ -151,21 +151,21 @@ def load_raw():
 
 @st.cache_data
 def load_raw_sovereign():
-    """All sovereign countries (NON_SOVEREIGN aggregates excluded), year >= 1990. Backs the
-    Overview page's "All Countries" tier only -- Expanded/Selected keep reading
+    """All sovereign countries (iso_code.notna() filter, SPEC.md §6.1), year >= 1990. Backs
+    the Overview page's "All Countries" tier only -- Expanded/Selected keep reading
     load_features() (ghg_features.csv), unlike this loader which reads owid-co2-data.csv
     directly since ghg_features.csv is already restricted to the ~40 expanded countries."""
     path = "data/owid-co2-data.csv"
     if not os.path.exists(path):
         return None
-    cols = ["country", "year", "co2"]
+    cols = ["country", "year", "co2", "iso_code"]
     df_r = pd.read_csv(path, usecols=cols)
-    return df_r[(~df_r["country"].isin(NON_SOVEREIGN)) & (df_r["year"] >= 1990)].copy()
+    return df_r[df_r["iso_code"].notna() & (df_r["year"] >= 1990)].copy()
 
 
 @st.cache_data
 def load_filtered():
-    """Week 1 output: all ~220 sovereign countries (NON_SOVEREIGN aggregates excluded),
+    """Week 1 output: all ~218 sovereign countries (iso_code.notna() filter, SPEC.md §6.1),
     year >= 1990 — the full raw+derived OWID panel, not reduced to the 10 focus countries
     or the 10-column feature set. Backs the Data Explorer page."""
     path = "data/ghg_filtered.csv"
@@ -207,7 +207,7 @@ def overview_tier_metrics(df, countries, label):
     for the tier (load_raw_sovereign() for All Countries, load_features() for
     Expanded/Selected). `countries=None` means "use the whole df, no further filtering" --
     the All Countries tier, whose only filtering is already load_raw_sovereign()'s own
-    NON_SOVEREIGN exclusion."""
+    iso_code.notna() exclusion."""
     if countries is None:
         df_tier = df
         countries_count = df_tier["country"].nunique()

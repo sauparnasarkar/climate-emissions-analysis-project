@@ -128,10 +128,10 @@ def owid_raw_df() -> pd.DataFrame:
     # exclusion is unambiguous.
     rows.append(("China", 1985, 999.0, 999.0, 999.0, "CHN"))
     rows.append(("Canada", 1995, 999.0, 999.0, 999.0, ISO_CODES["Canada"]))
-    # NON_SOVEREIGN aggregate row at the fixture's latest year (2010) — must be excluded by
-    # load_raw_sovereign()'s NON_SOVEREIGN filter, proving the "All Countries" tier doesn't
-    # double-count the aggregate alongside the sovereign rows it's a sum of. Real OWID
-    # aggregate rows have no iso_code either.
+    # OWID aggregate row at the fixture's latest year (2010) — must be excluded by
+    # load_raw_sovereign()'s iso_code.notna() filter (SPEC.md §6.1), proving the "All
+    # Countries" tier doesn't double-count the aggregate alongside the sovereign rows
+    # it's a sum of. Real OWID aggregate rows have no iso_code either.
     rows.append(("World", 2010, 9999.0, 9999.0, 9999.0, None))
     return pd.DataFrame(rows, columns=["country", "year", "co2", "methane", "nitrous_oxide", "iso_code"])
 
