@@ -1,6 +1,6 @@
 # GHG Emissions Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v15**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v16**
 
 ---
 
@@ -71,7 +71,9 @@ These represent a mix of major emitters, economies at different stages of develo
 **1.2 Data Profiling**
 - Report the number of null values per column as a percentage of total rows
 - Identify which countries and years have the most complete data coverage
-- Filter dataset to retain only rows where `year ≥ 1990` and `country` is a sovereign nation (exclude aggregates like World, Asia, Europe)
+- Filter dataset to retain only rows where `year ≥ 1990` and `iso_code` is non-null (the
+  operative sovereignty filter as of §6.1 — cross-checked at runtime against `NON_SOVEREIGN`,
+  a hand-maintained list kept as an audit record, not the primary filter)
 - Document filtering decisions in a markdown cell with justification
 
 **1.3 Exploratory Data Analysis (EDA)**
@@ -131,7 +133,7 @@ Produce a clean modelling DataFrame for the 10 project countries. Required colum
 
 **3.1 Problem Framing**
 - Write a markdown cell clearly stating the prediction task: *Given features X for country C in year Y, predict CO₂ emissions for year Y+1*
-- Identify the target variable (`co2`) and input features from the Week 2 feature set
+- Identify the target variable — `target_co2_next` (`co2` shifted forward one year per country, per §6.1) — and input features from the Week 2 feature set. The target is deliberately *not* same-year `co2`: one of the Week 2 features (`co2_yoy_pct_change`) is a same-row function of `co2` itself, so pairing it with a same-year target would leak the answer into a feature
 - Note on training strategy: three models are trained this week using two approaches — Linear Regression is trained per country (~25 rows each, adequate for a 6-feature linear model); two Random Forest variants are trained: one per country (~25 rows, §3.5, intentionally included to demonstrate overfitting on small data) and one pooled across all 10 countries (~250 rows, §3.6, the production approach); all models are evaluated per country on the 2019–2023 test set for direct comparison
 - Explain the choice of a supervised regression approach in a markdown cell
 
@@ -142,7 +144,8 @@ Produce a clean modelling DataFrame for the 10 project countries. Required colum
 - Report the number of training and test samples per country
 
 **3.3 Naive Baseline Model**
-- Implement a naive baseline: predict next year CO₂ = current year CO₂ (no-change model)
+- Implement a naive baseline: predict next year CO₂ = current year CO₂ (no-change model,
+  i.e. predict `target_co2_next` using the row's own `co2`)
 - Compute MAE and RMSE for the baseline on the test set for each country
 - Plot actual vs predicted values for the baseline for 3 countries
 
@@ -413,6 +416,7 @@ Sections to include:
 | v13 | Jul 2026 | Added §5.8 (Release 3, `ENHANCEMENTS.md`), consolidating a full UX review into bug fixes (Forecast Summary scope, GHG Composition following selection, Data Explorer "Invalid Number", CI band opacity), a standardized green/crimson decrease/increase color convention, a Scenario Comparison redesign (treemap + three-panel comparison), a world map choropleth on Overview, and a sidebar Exploration/Projection regrouping. React-only (`climate-dashboard-react` + `api/`) — Streamlit untouched. Required four `design-system` prerequisite PRs (`KpiStat`, `MultiSelect`, `SidebarNav`, `SyChart`), all merged. Shipped; world map needs a production CSP update (`connect-src` allowing `cdn.plot.ly`) outside either repo. Not an internship requirement change. |
 | v14 | Jul 2026 | Added §5.9 (Release 3.1, `ENHANCEMENTS.md`), a follow-up review found after Release 3 shipped and was checked live: Overview's map+tier-table layout redone as a 2/3 map + 1/3 KPI summary row (map-as-hero); two real world-map bugs fixed (hover showed the log10-transformed value, not real MtCO₂; colorbar was taller than the map, worse on mobile); Scenario Comparison's treemap redesigned from a fixed BAU-vs-Aggressive-only, green-only color scale to a BAU/Moderate/Aggressive-selectable green/red indicator; the "projection" chart palette's contrast fixed; the original grouped bar chart (superseded by the treemap/3-panel views) dropped, its `DataTable` kept standalone. React-only. Required one `design-system` PR (`SyChart` choropleth hover/colorbar fix). Not an internship requirement change. |
 | v15 | Jul 2026 | Documented Release 3.1's post-ship follow-up (`ENHANCEMENTS.md` §3.1.8): two more rounds of KPI-panel/typography polish (icon repositioned + recolored, several font-size bumps); two real chart bugs found and fixed in `SyChart.tsx` — a mobile-only legend rendering as a bare scrollbar over the plot (fixed height allocation didn't grow with wrapped rows), and a diverging colorscale silently auto-ranging away from a true zero midpoint on skewed data (the actual root cause of the treemap showing backwards red/green, confirmed against real API data before fixing); and a treemap hover enhancement showing both the tile-size and tile-color metrics instead of just size. Required three more `design-system` PRs. Not an internship requirement change. |
+| v16 | Jul 2026 | Added §6 (`ENHANCEMENTS.md` Release 4), a **curriculum correction**, not a post-internship addition: Week 3's regression `TARGET` was same-year `co2` while `FEATURES` included a same-row function of it (`co2_yoy_pct_change`) — genuine target leakage, found by comparing against a separate intern's independent implementation and confirmed algebraically. Fixed by reframing to a next-year target (`target_co2_next`), which also required restructuring §3.8's recursive forecaster (it was already forced to approximate around the same leak) and fixing an incidental rolling-mean off-by-one uncovered along the way. Separately, Week 1's `NON_SOVEREIGN` sovereignty filter was missing two null-`iso_code` entities (`Kosovo`, bare `Ryukyu Islands`) — switched to `iso_code.notna()` as the operative filter (220→218 sovereign countries), with the same fix applied to `api/data_loaders.py` and `app.py`'s independently-hand-mirrored copies of the same filter. §3.1's curriculum text already said "year Y+1" before this fix — the implementation is what changed to match it, not the spec. |
 
 ---
 
@@ -559,3 +563,31 @@ own scope shipped.
 | §3.1.8 follow-up: mobile legend bug | A chart legend that can't fit its entries in one row on a narrow viewport silently became an internally-scrollable, unstyled gray bar over the plot — Plotly reserves a fixed height share for the legend regardless of wrapped row count. Fixed by growing chart `height` to fit the estimated rows, reusing the choropleth's own resize pattern |
 | §3.1.8 follow-up: treemap colors backwards | The real root cause behind the treemap's colors: Plotly auto-scales a diverging colorscale to the data's actual min/max, not to a fixed zero-centered range, so one outlier country skewed the whole scale and inverted the visible red/green split. Fixed by pinning the colorscale's midpoint to true zero (`marker.cmid: 0`) |
 | §3.1.8 follow-up: treemap hover | Now shows both the tile-size metric (cumulative BAU) and the tile-color metric (the scenario delta) on hover, not just size |
+
+---
+
+## 6. Post-Ship Corrections to Internship Curriculum Notebooks
+
+> **This section is different from §5.** §5 documents the mentor's *separate, post-internship*
+> reference architecture — additional scope, not a correction. This section instead documents
+> corrections to the internship curriculum itself (Weeks 1 and 3), found after the fact via
+> external comparison, not a scope change. Interns who already completed these weeks are not
+> required to redo them for certification; the corrections apply going forward.
+
+### 6.1 Regression Target Leakage & Sovereignty Filter Fixes (Release 4)
+
+**Status: Planned** — tracked in `ENHANCEMENTS.md` Release 4. Found by comparing this repo's
+Week 1/3 notebooks against a separate intern's independent implementation of the same
+curriculum (`Maulik-17/climate-ghg-trend-analysis`); every claim below was verified directly
+against this repo's own current code and data before being adopted, not taken on the other
+project's word.
+
+| Aspect | Detail |
+|---|---|
+| Regression target leakage | Week 3's `FEATURES` includes `co2_yoy_pct_change` (a same-row function of `co2`), while `TARGET` was same-year `co2`, unshifted — `co2_yoy_pct_change` and `co2_lag1` together algebraically determine `co2` exactly, so the feature leaks the answer. Present in every version of `week3_regression.ipynb`'s git history |
+| Fix: next-year target | Introduced `REGRESSION_TARGET = 'target_co2_next'` (`co2` shifted forward one year per country) in `notebook/constants.py`, alongside — not replacing — the existing `TARGET = 'co2'`, which `week4_ets_forecasting.ipynb` still needs for same-year ETS evaluation. `FEATURES` itself is unchanged; under the new framing, `co2_yoy_pct_change` becomes a legitimate "known-as-of-year-Y" input to a Y+1 target |
+| Downstream effects | Each country's most recent year loses its training/test row (no next-year actual to shift into); §3.8's recursive forecast loop and its `build_forecast_features` helper needed restructuring — the old loop and its rolling-mean/YoY lookback windows were built around same-year prediction and had already been forced into a one-year-stale approximation by the same leak; MAE/RMSE now measure a genuinely harder "predict next year" task, not directly comparable to pre-fix numbers |
+| Sovereignty filter gap | `notebook/constants.py`'s `NON_SOVEREIGN` list never wrongly excludes a real country, but is missing two null-`iso_code` entities — `Kosovo` and bare `Ryukyu Islands` (only `"Ryukyu Islands (GCP)"` is listed). Both immaterial (Kosovo's max annual `co2` is 8.8 Mt; Ryukyu Islands has no `co2` data at all) and absent from the current `data/selected_countries.json` expanded set — verified empirically, not assumed |
+| Fix: `iso_code.notna()` | Switched Week 1's operative filter to `df_raw['iso_code'].notna()` (220 → 218 sovereign countries), keeping `NON_SOVEREIGN` as a reviewable audit record with a runtime drift-check logging any divergence between the two, rather than deleting the list outright |
+| Three-way mirror fix | The identical `NON_SOVEREIGN`-based gap existed independently in `api/data_loaders.py`'s and `app.py`'s own hand-mirrored `load_raw_sovereign()` (used for the Overview "All Countries" tier and the world map) — both switched to the same `iso_code.notna()` filter for consistency across all three copies |
+| Not a curriculum scope change | §3.1's problem-framing text already described a "year Y+1" target before this fix existed — the notebook implementation is what's catching up to the spec, not the other way around |

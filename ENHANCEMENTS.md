@@ -886,3 +886,105 @@ for the same concept). Discovered along the way: Plotly's hovertemplate silently
 flag on `customdata` (`%{customdata:+,.0f}` prints an unformatted raw float instead of a signed
 integer) — worked around by pre-formatting the sign in JS before handing values to Plotly, rather
 than relying on its own number formatting for that one case.
+
+---
+
+## Release 4 — Regression Target Leakage & Sovereignty Filter Fixes
+
+**Status: Planned.** Notebook + `api`/`app.py` only — no `design-system` or
+`climate-dashboard-react` change. This is a **curriculum correction** (Weeks 1 and 3 of the
+internship notebooks), not a post-internship addendum item like Releases 2.x/3.x — tracked in
+`SPEC.md` §6.1, a new top-level section distinct from §5's addendum for exactly that reason.
+
+Found by comparing this repo's Week 1/3 notebooks against a separate intern's independent
+implementation of the same curriculum (`Maulik-17/climate-ghg-trend-analysis`). Two of that
+project's design choices are genuinely more correct than this repo's current implementation —
+both verified directly against this repo's own code and real data before being adopted, not
+taken on the other project's word.
+
+### 4.1 — Regression target leakage (`week3_regression.ipynb`)
+
+`FEATURES` includes `co2_yoy_pct_change` (`groupby('country')['co2'].pct_change() * 100`,
+computed same-row), while `TARGET = 'co2'` was that same row's value, unshifted. Confirmed
+algebraically: `co2_yoy_pct_change` and `co2_lag1` together determine `co2` exactly
+(`co2 = co2_lag1 * (1 + co2_yoy_pct_change/100)`) — a same-row feature deterministically
+reconstructs the target. Present in every version of this notebook's git history.
+
+Fixed by introducing `REGRESSION_TARGET = 'target_co2_next'` (`co2` shifted forward one year per
+country) in `notebook/constants.py`, **alongside**, not replacing, the existing `TARGET = 'co2'`
+— `week4_ets_forecasting.ipynb` also imports `TARGET` for genuinely same-year ETS evaluation, and
+repurposing the shared symbol would have silently broken it. `FEATURES` itself is unchanged;
+under the new framing `co2_yoy_pct_change` becomes a legitimate "known as of year Y" input to a
+Y+1 target rather than a leak.
+
+Downstream effects handled: each country's most recent year loses its row (no next-year actual to
+shift into, in both the standard `train`/`test` split and §3.6's extended `_train_ext` window);
+the naive baseline (§3.3) and Linear Regression (§3.4) actual-vs-predicted plots needed a
+year-offset fix so predictions plot at the year they're actually about (`year + 1`), not the
+feature row's year; §3.7's MAE/RMSE now measure a genuinely harder "predict next year" task, not
+directly comparable to the pre-fix table.
+
+§3.8's recursive forecaster required the most restructuring: it assumed "features describing
+year `yr`" predict "year `yr`" (old framing); under the new framing a call describes "known year
+`yr`" and predicts `yr+1`, so the loop was rewritten around a `current_year` pointer advancing one
+step at a time. Along the way, found that `build_forecast_features` had already been silently
+approximating around this exact leak — it couldn't use the real same-row `co2_yoy_pct_change`
+definition when generating a forecast year (the target wasn't known yet), so it used the *prior*
+period's change instead, one year stale relative to what training used; and separately, its
+5-year rolling mean excluded the year `yr` itself, an off-by-one relative to Week 2's actual
+`rolling(5).mean()` definition (inclusive of the current row). Both were forced approximations
+under the old framing and become exact once the target reframe removes the circularity: under
+the new framing, `history[yr]` is genuinely known when predicting `yr+1`, so both calculations
+now use it directly.
+
+### 4.2 — Sovereignty filter gap, three hand-synced copies (`notebook/constants.py`, `api/constants.py`, `app.py`)
+
+`NON_SOVEREIGN` (a hand-maintained exclusion list for OWID aggregate rows — World, continents, EU
+groupings, income tiers, etc., mirrored verbatim across all three files) never wrongly excludes a
+real country, but is missing two null-`iso_code` entities: `Kosovo` and bare `Ryukyu Islands`
+(only `"Ryukyu Islands (GCP)"` is listed). Confirmed empirically against the raw CSV:
+
+```
+old filter (~country.isin(NON_SOVEREIGN)): 220 countries, 7700 rows (year>=1990)
+new filter (iso_code.notna()):             218 countries, 7630 rows
+difference: exactly {Kosovo, Ryukyu Islands}
+```
+
+Neither is material (Kosovo's max annual `co2` is 8.8 Mt, far under the 100 Mt materiality floor;
+Ryukyu Islands has no `co2` data at all) and neither is in the current
+`data/selected_countries.json` expanded set (40 countries) — the fix leaves `EXPANDED_COUNTRIES`
+unchanged, verified by re-running Week 1 and diffing against the pre-fix committed file.
+
+Fixed in `week1_eda.ipynb` by switching the operative filter to `df_raw['iso_code'].notna()`.
+`NON_SOVEREIGN` itself is kept, unchanged, as a reviewable audit record rather than deleted — a
+runtime drift-check (mirroring the existing `selected_countries.json` added/dropped pattern) logs
+any divergence between the two filters, so a future OWID refresh introducing a new null-`iso_code`
+aggregate doesn't silently slip through unnoticed.
+
+### 4.3 — Same fix applied to `api/data_loaders.py` and `app.py`
+
+`api/data_loaders.py`'s `load_raw_sovereign()` and `app.py`'s `load_raw_sovereign()` each do their
+own independent `NON_SOVEREIGN`-based filtering straight off the raw CSV (for the Overview "All
+Countries" tier and the world map) — the identical gap exists in both, entirely independent of the
+notebook fix above since neither reads Week 1's output CSV. `api/data_loaders.py`'s version
+already loaded `iso_code` for the choropleth, and its own docstring already named this exact gap
+as a map-rendering footnote ("Plotly simply omits [Kosovo/Ryukyu Islands] from the map, no
+crash") — it just never extended that awareness to the tier's own country-count/totals. `app.py`'s
+version didn't load `iso_code` at all yet. Both switched to the same `df_r["iso_code"].notna()`
+filter for consistency across all three now-fixed copies. `api/tests/conftest.py`'s fixture
+already gives the `"World"` aggregate row `iso_code=None`, so `test_overview.py`'s existing
+assertions hold unchanged under the new filter.
+
+### 4.4 — Rollout sequencing
+
+Three independent PRs, one feature branch each per this project's Claude-authored-notebook-work
+convention: `feature/6.1-sovereignty-filter` (Week 1) → `feature/6.1-regression-target-leakage`
+(Week 3, sequenced after) → `feature/6.1-api-sovereignty-filter` (`api`/`app.py`, independent
+files, sequenced last per convention). The `api`/`app.py` PR needs the standard Mac Mini
+deploy-after-merge (uvicorn restart only — `climate-dashboard-react` untouched). The two notebook
+PRs need a different kind of Mac Mini sync: the weekly `ghg-data-refresh` job re-executes these
+same two notebooks in place on the Mac Mini every Sunday without committing the output, so that
+checkout's working tree for these files is routinely dirty at merge time — handled by checking
+`git status` there and resetting the regenerated-output diffs before `git fetch && git merge
+--ff-only`, then triggering an on-demand refresh run to verify end-to-end in the exact environment
+the weekly job uses.
