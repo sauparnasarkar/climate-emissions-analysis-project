@@ -23,9 +23,10 @@ def test_overview_selected_country_list_defaults_to_featured_countries(client):
 
 
 def test_overview_all_countries_tier_excludes_non_sovereign_aggregates(client):
-    """all_countries reflects the full NON_SOVEREIGN-excluded raw universe -- the fixture's
-    injected "World" row (9999.0 at year 2010) must not leak into the total, and Canada
-    (present only via a one-off fixture row) must be counted since it's a real sovereign."""
+    """all_countries reflects the full iso_code.notna()-filtered raw universe (SPEC.md §6.1)
+    -- the fixture's injected "World" row (9999.0 at year 2010, iso_code=None) must not leak
+    into the total, and Canada (present only via a one-off fixture row) must be counted since
+    it's a real sovereign."""
     body = client.get("/api/overview").json()
     tier = body["all_countries"]
 
@@ -41,7 +42,7 @@ def test_overview_world_map_is_unfiltered_latest_year_with_iso_codes(client):
     """world_map is always every sovereign country's own latest year -- independent of
     `countries`/Selected, matching all_countries. Canada has no row at the fixture's latest
     year (2010, only a 1995 row), so it's absent from world_map despite counting toward
-    all_countries' countries_count; World is excluded as a NON_SOVEREIGN aggregate."""
+    all_countries' countries_count; World is excluded (null iso_code, SPEC.md §6.1)."""
     body = client.get("/api/overview").json()
     points_by_country = {p["country"]: p for p in body["world_map"]}
 

@@ -7,7 +7,7 @@ from functools import lru_cache
 
 import pandas as pd
 
-from .constants import FEATURED_COUNTRIES, NON_SOVEREIGN
+from .constants import FEATURED_COUNTRIES
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
@@ -77,24 +77,25 @@ def load_raw() -> pd.DataFrame:
 
 @lru_cache(maxsize=1)
 def load_raw_sovereign() -> pd.DataFrame:
-    """All sovereign countries (NON_SOVEREIGN aggregates excluded), year >= 1990. Backing
+    """All sovereign countries (iso_code.notna() filter, SPEC.md §6.1), year >= 1990. Backing
     dataframe for the Overview "All Countries" tier and the world map (both need every
     country, not just the ~40 expanded ones) -- Expanded/Selected keep reading
     load_features() (ghg_features.csv), unlike this loader which reads owid-co2-data.csv
     directly since ghg_features.csv is already restricted to the ~40 expanded countries.
-    iso_code is included for the choropleth's `locations`; has a couple of known null gaps
-    (Kosovo, bare "Ryukyu Islands") that Plotly simply omits from the map, no crash."""
+    iso_code is included for the choropleth's `locations` and doubles as the sovereignty
+    filter itself (see below) -- a real ISO-3 code is what distinguishes a sovereign country
+    from an OWID aggregate row (mirrors notebook/constants.py's fix, SPEC.md §6.1)."""
     path = _path("owid-co2-data.csv")
     if not os.path.exists(path):
         raise DataNotFoundError("data/owid-co2-data.csv not found.")
     cols = ["country", "year", "co2", "iso_code"]
     df_r = pd.read_csv(path, usecols=cols)
-    return df_r[(~df_r["country"].isin(NON_SOVEREIGN)) & (df_r["year"] >= 1990)].copy()
+    return df_r[df_r["iso_code"].notna() & (df_r["year"] >= 1990)].copy()
 
 
 @lru_cache(maxsize=1)
 def load_filtered() -> pd.DataFrame:
-    """Week 1 output: all ~220 sovereign countries (NON_SOVEREIGN aggregates excluded),
+    """Week 1 output: all ~218 sovereign countries (iso_code.notna() filter, SPEC.md §6.1),
     year >= 1990 — the full raw+derived OWID panel, not reduced to the 10 focus countries
     or the 10-column feature set. Backs the Data Explorer endpoints. Deliberately does NOT
     apply load_raw()'s COUNTRIES restriction — exposing the wider country set is the point."""
