@@ -19,6 +19,11 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
   // a hover on touch devices, so tapping a tile shows the same size + color values here
   // instead -- SyChart cancels Plotly's default drill-to-zoom on tap for this reason.
   const [tappedTileIndex, setTappedTileIndex] = useState<number | null>(null);
+  // Expand/restore control (SPEC.md §5.10 Phase 4) -- CSS-driven in-page maximize rather
+  // than the native Fullscreen API, which is inconsistent on iOS Safari. SyChart's own
+  // ResizeObserver + responsive:true pick up the container-size change on toggle with no
+  // extra plumbing needed.
+  const [treemapExpanded, setTreemapExpanded] = useState(false);
 
   // sort_by only affects the response's own `order` field, which nothing here reads anymore
   // now that the treemap is sized by BAU total (unaffected by the radio) and the table below
@@ -91,9 +96,46 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
       ) : cumulative.error ? (
         <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
       ) : cumulative.data ? (
-        <ChartCard title={`Cumulative Emissions & Reduction Scenarios — ${treemapScenario} — ${cumulative.data.rows.length} Expanded Countries`} headingLevel={3}>
+        <div
+          style={
+            treemapExpanded
+              ? {
+                  position: 'fixed',
+                  // A fixed-position overlay is positioned relative to the viewport, not any
+                  // padded ancestor -- App.tsx's own safe-area padding on the page shell
+                  // never applies here, so each side needs its own env(safe-area-inset-*)
+                  // added on top of the 16px margin, or this could render under the notch/
+                  // home-indicator in iOS standalone mode (per Copilot review on PR #105).
+                  top: 'calc(16px + env(safe-area-inset-top, 0px))',
+                  right: 'calc(16px + env(safe-area-inset-right, 0px))',
+                  bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+                  left: 'calc(16px + env(safe-area-inset-left, 0px))',
+                  zIndex: 50,
+                  background: 'var(--__s9cmpx-static-background-weak)',
+                  overflow: 'auto',
+                  padding: 8,
+                  borderRadius: 8,
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                }
+              : undefined
+          }
+        >
+          <ChartCard
+            title={`Cumulative Emissions & Reduction Scenarios — ${treemapScenario} — ${cumulative.data.rows.length} Expanded Countries`}
+            headingLevel={3}
+            actions={
+              <button
+                type="button"
+                onClick={() => setTreemapExpanded((v) => !v)}
+                aria-label={treemapExpanded ? 'Restore chart' : 'Expand chart'}
+                className="__s9cmpx-button __s9cmpx-button--ghost __s9cmpx-button--s __s9cmpx-button--icon-only"
+              >
+                <Icon name={treemapExpanded ? 'collapse' : 'expand'} size={16} />
+              </button>
+            }
+          >
           <SyChart
-            height={360}
+            height={treemapExpanded ? 640 : 360}
             showLegend={false}
             ariaLabel={`Treemap of ${cumulative.data.rows.length} countries, sized by cumulative BAU emissions 2025 to 2040 and colored by whether ${treemapScenario}'s 2040 level is above or below each country's current level`}
             series={[{
@@ -146,7 +188,8 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
               </button>
             </div>
           )}
-        </ChartCard>
+          </ChartCard>
+        </div>
       ) : null}
 
       <div style={{ marginTop: 24 }}>

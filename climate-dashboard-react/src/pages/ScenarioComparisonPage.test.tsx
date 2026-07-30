@@ -16,10 +16,10 @@ vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    SyChart: (props: { ariaLabel?: string; series: Array<{ kind?: string; onTileClick?: (i: number, label: string) => void }> }) => {
+    SyChart: (props: { ariaLabel?: string; height?: number; series: Array<{ kind?: string; onTileClick?: (i: number, label: string) => void }> }) => {
       const treemapSeries = props.series.find((s) => s.kind === 'treemap');
       return (
-        <div data-testid="sychart" aria-label={props.ariaLabel}>
+        <div data-testid="sychart" aria-label={props.ariaLabel} data-height={props.height}>
           {treemapSeries?.onTileClick && (
             <button onClick={() => treemapSeries.onTileClick!(0, 'China')}>Simulate tile tap</button>
           )}
@@ -113,6 +113,29 @@ describe('ScenarioComparisonPage', () => {
 
     expect(await screen.findByText('Select at least one country.')).toBeInTheDocument();
     expect(vi.mocked(api.scenarioCompare)).not.toHaveBeenCalled();
+  });
+
+  it('expands and restores the treemap via the expand/restore control (SPEC.md §5.10)', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(<ScenarioComparisonPage />);
+    await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries');
+
+    // The treemap is always the first SyChart rendered on this page (the 3 per-scenario
+    // panel charts, also stubbed with the same testid, come later in render order).
+    const treemapChart = () => screen.getAllByTestId('sychart')[0];
+    expect(treemapChart()).toHaveAttribute('data-height', '360');
+
+    await user.click(screen.getByRole('button', { name: 'Expand chart' }));
+    expect(treemapChart()).toHaveAttribute('data-height', '640');
+    expect(screen.getByRole('button', { name: 'Restore chart' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Restore chart' }));
+    expect(treemapChart()).toHaveAttribute('data-height', '360');
+    expect(screen.getByRole('button', { name: 'Expand chart' })).toBeInTheDocument();
   });
 
   it('recolors the treemap (via its title) when a different scenario radio is selected, without refetching', async () => {
