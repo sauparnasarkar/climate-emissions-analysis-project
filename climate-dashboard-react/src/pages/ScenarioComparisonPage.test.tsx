@@ -153,11 +153,10 @@ describe('ScenarioComparisonPage', () => {
     const bauPanelChart = () => screen.getAllByTestId('sychart')[1];
     expect(bauPanelChart()).toHaveAttribute('data-height', '300');
 
-    // "BAU" is both a panel heading and a radio label above the treemap -- scope to the
-    // heading's own ChartCard header to find its specific expand button.
-    const bauHeading = screen.getByRole('heading', { name: 'BAU' });
-    const bauExpandButton = bauHeading.closest('.__s9cmpx-card-header')!.querySelector('button[aria-label="Expand chart"]')!;
-    await user.click(bauExpandButton);
+    // The treemap renders first, then the BAU/Moderate/Aggressive panels in that order
+    // (same ordering the sychart-index comment above relies on) -- index into the ordered
+    // list of "Expand chart" buttons rather than traversing design-system's internal markup.
+    await user.click(screen.getAllByRole('button', { name: 'Expand chart' })[1]);
     expect(bauPanelChart()).toHaveAttribute('data-height', '600');
 
     // The treemap and other panels are unaffected by this one panel's toggle.
