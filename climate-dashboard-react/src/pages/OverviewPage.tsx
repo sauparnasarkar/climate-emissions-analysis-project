@@ -202,7 +202,12 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
               yTitle="CO₂ (MtCO₂)"
               showLegend={false}
               ariaLabel={`Bar chart of total CO₂ emissions in ${data.selected.latest_year} for ${barSeries.length} countries, ranging from ${Math.min(...barValues).toLocaleString()} to ${Math.max(...barValues).toLocaleString()} MtCO₂`}
-              series={[{ name: 'CO₂', x: barSeries, y: barValues, kind: 'bar' }]}
+              // Explicit brand color -- a single-series bar chart would otherwise default to
+              // the categorical palette's index-0 token, which Release 7 (SPEC.md §5.12)
+              // deliberately made near-white for multi-line chart hierarchies. That reads as a
+              // washed-out, colorless bar rather than a real color, so this chart gets the
+              // app's own brand blue instead.
+              series={[{ name: 'CO₂', x: barSeries, y: barValues, kind: 'bar', color: 'var(--__s9cmpx-color-brand-500)' }]}
             />
           </ChartCard>
 
