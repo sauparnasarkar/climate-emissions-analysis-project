@@ -60,7 +60,7 @@ function App() {
 
   return (
     <div
-      data-theme="analytics"
+      data-theme="climate-analytics"
       style={{
         display: 'flex',
         flexDirection: 'column',
