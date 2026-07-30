@@ -140,14 +140,14 @@ describe('ScenarioComparisonPage', () => {
     render(<ScenarioComparisonPage />);
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries');
 
-    expect(screen.queryByText(/Cumulative BAU: 1,000 MtCO/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Cumulative BAU: 1[,   ]000 MtCO/)).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Simulate tile tap' }));
 
-    expect(await screen.findByText(/Cumulative BAU: 1,000 MtCO/)).toBeInTheDocument();
-    expect(screen.getByText(/BAU 2040 vs\. Current: \+5,000 MtCO/)).toBeInTheDocument();
+    expect(await screen.findByText(/Cumulative BAU: 1[,   ]000 MtCO/)).toBeInTheDocument();
+    expect(screen.getByText(/BAU 2040 vs\. Current: \+5[,   ]000 MtCO/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Dismiss country detail' }));
-    expect(screen.queryByText(/Cumulative BAU: 1,000 MtCO/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Cumulative BAU: 1[,   ]000 MtCO/)).not.toBeInTheDocument();
   });
 
   it('renders an inline error instead of crashing when the compare call fails', async () => {
