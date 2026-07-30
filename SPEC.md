@@ -420,6 +420,7 @@ Sections to include:
 | v17 | Jul 2026 | Added §5.10 (`ENHANCEMENTS.md` Release 5): two genuine interaction "traps" (treemap tap-to-drill with no way back; world map pinch/scroll-zoom with no reset), iPad layout (tiny map, dead space, from a stretched grid row + width-only resize logic + a breakpoint that trips at neither reported iPad orientation), three PWA gaps (iOS install not launching standalone, no safe-area handling, stale "10 major countries" copy), and eight accessibility findings (reduced-motion ignored, animated numbers exposed to screen readers, silent route changes, undersized touch targets, color-only good/bad delta, low card-border contrast, sidebar nav items missing real hrefs, no skip link, skipped/back-jumping heading order). Every finding independently re-verified against current source before planning; four corrections made along the way (`SidebarNav`'s href fix needs no `design-system` change; one treemap caller not two; 1400px breakpoint not the originally-suggested 1200px, which wouldn't have fixed iPad landscape; `height={420}` dead code confirmed real in production). Not an internship requirement change. |
 | v18 | Jul 2026 | Added §5.11 (`ENHANCEMENTS.md` Release 6): generalizes Release 5's hand-rolled scenario-treemap expand/restore control into a reusable `expandable` prop on `design-system`'s `ChartCard` itself, then applies it to every other non-full-width chart across the app (Scenario Comparison's 3 comparison panels, Country Profile's 2 grid charts, Overview's world map) instead of leaving the pattern duplicated per page. Live verification surfaced and fixed a real z-index bug (expanded overlay rendering behind the sidebar nav); Copilot's review of the `design-system` PR added modal accessibility semantics (dialog role, focus trap, Escape-to-close), reviewed and verified before shipping. Not an internship requirement change. |
 | v19 | Jul 2026 | §5.11 follow-up (`ENHANCEMENTS.md` Release 6 §6.5, `design-system` #22): two real bugs found on the user's own iPhone shortly after Release 6 shipped — in landscape, an expanded chart didn't reliably cover the full viewport and couldn't be scrolled to reveal the rest, and the treemap's own tapped-tile detail box bled through a different chart's expanded overlay. Root cause was the overlay's viewport-offset-based sizing and unlocked background scroll on iOS Safari; fixed with `inset: 0` sizing plus a proper `position: fixed`-based scroll lock (bare `overflow: hidden` doesn't hold against iOS Safari's touch scrolling). Confirmed fixed on the reporting device after deploy. Not an internship requirement change. |
+| v20 | Jul 2026 | Added §5.12 (`ENHANCEMENTS.md` Release 7, **Planned**): chart palette lacks luminance contrast (mean 3.83:1 vs. an FT reference chart's independently-measured 7.40:1) plus stroke/marker/gridline defaults tuned for a light-background origin, found by comparing against a Financial Times reference chart. Every claim independently re-verified against current `design-system` source before planning. Two of the nine replacement palette tokens were reshaped after review found they collided in hue with this dashboard's own sentiment-positive/negative tokens — the exact "reads as good/bad news" risk the original proposal's own constraint was meant to prevent, but hadn't actually been checked against real token values. Not an internship requirement change. |
 
 ---
 
@@ -676,6 +677,88 @@ toolbar shows/hides, and background scroll was never locked. Fixed with `inset: 
 that recalculation) plus a `position: fixed`-based body scroll lock (bare `overflow: hidden` is a
 known no-op against touch scrolling on iOS Safari). Confirmed fixed on the reporting user's own
 iPhone in landscape after deploy.
+
+### 5.12 Chart Legibility & Visual Impact (Release 7)
+
+**Status: Planned.** Mostly a `design-system` change (palette tokens + `SyChart` stroke/marker/grid
+defaults); the app inherits it with no code changes of its own beyond two decidable follow-ups.
+Prompted by the dashboard's charts reading as dull next to a Financial Times line chart used as a
+reference. Rather than treat that as a matter of taste, the reference was measured pixel-by-pixel
+(legend swatch colors sampled at peak luminance, stroke width sampled across the plot area) and
+compared against this project's actual token values — independently re-verified against current
+source (not taken on faith) before this section was written.
+
+#### 5.12.1 Root cause: the palette is saturated but not *light*
+
+| | mean relative luminance | luminance range | mean contrast vs. its background |
+|---|---|---|---|
+| FT reference | 0.491 | 0.167 → 0.848 | **7.40:1** |
+| This dashboard | 0.253 | 0.193 → **0.291** | 3.83:1 |
+
+The nine `--__s9cmpx-chart-categorical-default-0N` tokens are *highly* saturated (mean ~0.74,
+higher than the reference's) but occupy a luminance band only **0.098 wide**; the reference spans
+0.681. On a dark ground, perceived prominence tracks **luminance contrast**, not saturation — so a
+saturated mid-tone palette authored for light backgrounds collapses to a uniform perceptual
+mid-grey when reused on dark navy.
+
+Two consequences, one already a filed complaint: charts look muted, **and** series are hard to
+tell apart. That is the same root cause as §5.9's "projection palette lacks contrast between
+countries" item, fixed there by widening *hues* in an app-level override
+(`[data-chart-category='projection']`, `climate-dashboard-react/src/styles.css`). Widening
+*luminance* in the base theme addresses both symptoms at once and likely supersedes that override
+— confirmed as a follow-up after this ships, not assumed (see §5.12.4).
+
+#### 5.12.2 Revised palette
+
+Validated against the card background (`#1e2f52`), ordered brightest-first so the first-assigned
+series are automatically most prominent. Two tokens were reshaped from the original proposal after
+review caught a real problem: the first draft's `-03` ("mint," `#4ee0a8`) and `-09` ("rose,"
+`#ff5c8a`) sat in the same hue family as this dashboard's own sentiment-positive (`#3ecf95`, ~1°
+apart) and sentiment-negative (`#f36b84`, ~6° apart) tokens — exactly the "reads as good/bad news"
+risk the draft's own constraint was meant to rule out, but never actually checked against the real
+token values. Reshaped to an orchid/magenta pair (~308° hue, ~41° from both sentiment tokens and
+every other categorical hue) at matching luminance targets, so the hierarchy is unaffected:
+
+| token | hex | luminance | vs. card | vs. page |
+|---|---|---|---|---|
+| `-01` cream | `#ecf0f6` | 0.868 | 11.59:1 | 14.54:1 |
+| `-02` lime | `#c3e86b` | 0.704 | 9.52:1 | 11.94:1 |
+| `-03` orchid | `#eab8e4` | 0.574 | 7.87:1 | 9.87:1 |
+| `-04` amber | `#ffb454` | 0.545 | 7.52:1 | 9.43:1 |
+| `-05` cyan | `#5ecbf5` | 0.517 | 7.16:1 | 8.98:1 |
+| `-06` violet | `#c89cff` | 0.433 | 6.10:1 | 7.65:1 |
+| `-07` coral | `#ff8f6b` | 0.420 | 5.93:1 | 7.44:1 |
+| `-08` sky | `#7aa5ff` | 0.383 | 5.46:1 | 6.85:1 |
+| `-09` magenta | `#ff4ae7` | 0.319 | 4.66:1 | 5.85:1 |
+
+Mean luminance 0.529, mean contrast **7.31:1** (FT reference: 7.40:1) — independently recomputed
+from the raw hex values, not just carried forward from the proposal.
+
+**Constraint:** Release 3 standardized green = decrease / crimson = increase for change metrics.
+The categorical ramp must stay clearly non-semantic so a bright series color never reads as a
+sentiment cue; the `-03`/`-09` reshape above exists specifically to satisfy this, having caught the
+original proposal not actually satisfying its own stated version of this rule.
+
+#### 5.12.3 `SyChart` rendering defaults
+
+| Aspect | Detail |
+|---|---|
+| Stroke width | `line: { width: 1.5 }` → **2.75px**. Reference measures ~3.3 CSS px; highest-impact single-line change after the palette |
+| Markers on line charts | `mode: 'lines+markers'` with `marker: { size: 5 }` on every point competes with the strokes at 35 annual points × up to 10 countries. New `showMarkers?: boolean` per-series prop, defaulting to on only below a 10-point series (dense multi-country charts switch to pure strokes; sparse charts keep their markers unchanged) |
+| Vertical gridlines | Neither axis set `showgrid`, so Plotly's `true` default applied to both. Set `xaxis.showgrid: false`; `yaxis` keeps its default so horizontal gridlines remain — matches the reference's horizontal-only convention |
+| Chart-card background | `paper_bgcolor`/`plot_bgcolor` are transparent, so the fix belongs to the card, not `SyChart`. `ChartCard` overrides its own `<Card>`'s background component-token to the page background (`#121e35`) rather than the general card surface (`#1e2f52`), gaining ~1.8:1 extra contrast for every series at no cost to non-chart cards |
+| Legend placement, title hierarchy | Both deferred — larger/independent changes than the rest of this release (see §5.12.4) |
+
+#### 5.12.4 Sequencing
+
+One `design-system` PR carries the palette (5.12.2) and the `SyChart`/`ChartCard` rendering
+defaults (5.12.3) together. The app inherits the change with no code edits, but needs a full
+visual pass across **all seven pages** after the bump, not just the chart-heavy ones, since every
+chart in the app picks up new colors/strokes/markers/gridlines at once. One follow-up app-side
+decision after that pass: retire `styles.css`'s `[data-chart-category='projection']` override if
+the new base ramp already gives Scenario Comparison/Forecasts enough contrast on its own — decided
+from the actual rendered result, not assumed. Legend-inside-plot and title-hierarchy items are
+optional and out of scope for this release.
 
 ---
 

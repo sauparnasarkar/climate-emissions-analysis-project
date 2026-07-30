@@ -1275,3 +1275,102 @@ restored on cleanup — fixed by capturing/restoring `scrollX` too, with a match
 Per the user's request, this PR skipped the automated review-and-merge loop in favor of manual
 review. Deployed to the Mac Mini and confirmed fixed on the reporting user's actual iPhone in
 landscape — both the partial/unscrollable overlay and the bleed-through are resolved.
+
+## Release 7 — Chart Legibility & Visual Impact
+
+**Status: Planned.** `design-system` only, no app-side code change beyond one decidable follow-up.
+Tracked in `SPEC.md` §5.12.
+
+Prompted by the dashboard's charts reading as dull next to a Financial Times dark-theme line
+chart used as a reference. A separate Claude session drafted the original proposal (measured the
+FT reference pixel-by-pixel and compared it against this repo's actual token values); every claim
+in that draft was independently re-verified against current `design-system` source before this
+section was written — not taken at face value. That pass confirmed the palette/contrast math
+exactly (recomputed from raw hex values: current palette mean 3.83:1 contrast vs. `#1e2f52`,
+range 0.193–0.291 relative luminance; FT reference 7.40:1, range 0.167–0.848), confirmed
+`SyChart.tsx`'s current rendering defaults exactly as claimed (`line: { width: 1.5 }`,
+`mode: 'lines+markers'` with `marker: { size: 5 }`, no `showgrid` on either axis, both
+`paper_bgcolor`/`plot_bgcolor` transparent), and confirmed the app-level
+`[data-chart-category='projection']` override (`climate-dashboard-react/src/styles.css`) exists
+exactly as described.
+
+It also caught one real problem the draft's own review missed: two of the nine proposed
+replacement tokens — `-03` "mint" (`#4ee0a8`) and `-09` "rose" (`#ff5c8a`) — sit in the same hue
+family as this dashboard's own sentiment-positive (`#3ecf95`, ~1° apart) and sentiment-negative
+(`#f36b84`, ~6° apart) tokens. The draft's stated constraint ("keep the categorical ramp
+non-semantic... its greens are pale desaturated tints, not signal green") was asserted but never
+checked against the real token hex values — on a dashboard whose whole visual language is
+green=decrease/good, red=increase/bad, a country line series landing on either token could read as
+an accidental sentiment cue. A second, minor inconsistency: the draft's claimed "mean adjacent-pair
+luminance gap 0.177 (5.5× today's 0.032)" for the proposed palette doesn't reproduce under any of
+the four gap methodologies tried (sequential-order: 0.070, sorted: 0.070, nearest-neighbor: 0.058,
+all-pairwise: 0.202) — the *current* palette's 0.032 figure does check out exactly under the
+sequential-order method, so this looks like a bookkeeping slip on the proposed side specifically;
+it doesn't change the actual outcome (the headline contrast numbers are solid) and isn't carried
+into the shipped figures.
+
+### 7.1 — Root cause and the revised palette
+
+Same root cause as §3.1.2/Release 3.1's "projection palette lacks contrast between countries" item
+(fixed there by widening *hues* in the app-level override above): the nine
+`--__s9cmpx-chart-categorical-default-0N` tokens are highly saturated (mean ~0.74) but occupy a
+luminance band only 0.098 wide, so on a dark ground — where perceived prominence tracks luminance,
+not saturation — the ramp collapses to a near-uniform mid-grey. Widening *luminance* in the base
+theme fixes both the dullness and the distinguishability at once, and likely makes the app-level
+override redundant (§7.4).
+
+Revised 9-token ramp (`src/styles/themes/analytics.css`), ordered brightest-first:
+
+`-01` `#ecf0f6` cream · `-02` `#c3e86b` lime · `-03` `#eab8e4` **orchid** (reshaped from the
+draft's `#4ee0a8` mint — sentiment-green collision) · `-04` `#ffb454` amber · `-05` `#5ecbf5` cyan
+· `-06` `#c89cff` violet · `-07` `#ff8f6b` coral · `-08` `#7aa5ff` sky · `-09` `#ff4ae7`
+**magenta** (reshaped from the draft's `#ff5c8a` rose — sentiment-red collision).
+
+The two reshaped tokens sit in a ~308° hue valley — roughly 41° from both sentiment tokens and
+every other categorical hue, and distinguishable from each other by lightness/saturation (`-03` a
+pale tint, `-09` a fully-saturated mid-tone) rather than hue. Both were placed by matching the
+original tokens' luminance targets exactly (0.578 and 0.307 respectively), so the overall
+hierarchy is unaffected: mean luminance 0.529 (draft: 0.528), mean contrast 7.31:1 (draft: 7.30:1).
+
+### 7.2 — `SyChart` rendering defaults
+
+Three changes in `SyChart.tsx`, one in `ChartCard.tsx`, all bundled in the same PR as the palette
+since they touch the same file/theme:
+
+- **Stroke width**: `line: { width: 1.5 }` → `2.75` (midpoint of the reference-derived 2.5–3px
+  range) — highest-impact single-line change after the palette.
+- **Markers**: new `showMarkers?: boolean` on `SyChartSeries` (same per-series pattern as the
+  existing `dashed` prop), defaulting to `s.x.length < 10` — dense multi-country charts (35 annual
+  points × up to 10 countries today puts ~350 dots on top of the strokes) switch to pure strokes;
+  sparse charts keep markers unchanged.
+- **Vertical gridlines**: `xaxis.showgrid: false` only — `yaxis` is untouched, so horizontal
+  gridlines remain (the reference's convention). Safe to set unconditionally since Plotly ignores
+  irrelevant cartesian-axis keys for choropleth/treemap traces.
+- **Chart-card background** (`ChartCard.tsx`, not `SyChart.tsx`): since `paper_bgcolor`/
+  `plot_bgcolor` are transparent, charts inherit whatever's behind them — currently the general
+  card surface (`#1e2f52`), one step lighter than the page (`#121e35`), costing contrast for free.
+  Traced `.__s9cmpx-card`'s actual background rule and found it already resolves through a
+  per-instance CSS custom property (`--__s9cmpx-c-card-background-color-default`, defaulting to
+  `var(--__s9cmpx-static-background-standard)`) rather than a hardcoded value — so `ChartCard`
+  overrides just that one variable on its own `<Card>`, to `var(--__s9cmpx-static-background-weak)`
+  (the page background). No new `Card` prop, no new token, no `Card.tsx` change — a narrower fix
+  than the draft's own suggestion of "a `ChartCard` variant, or a token for chart surfaces."
+
+Legend-inside-plot-area and title-hierarchy (tied to the existing §5.10 heading-order fix) are
+both deferred as optional, independently larger changes — not part of this release.
+
+### 7.3 — Sequencing
+
+One `design-system` PR carries the full palette + rendering-default change. The app inherits it
+with zero code changes but needs a full visual pass across **all seven pages** after the bump —
+not just the two chart-heavy ones — since every chart in the app picks up new colors/strokes at
+once from a single base-theme change.
+
+### 7.4 — Follow-up: does the projection-palette override become redundant?
+
+`styles.css`'s `[data-chart-category='projection']` override (used by `ScenarioComparisonPage.tsx`
+and `ForecastsPage.tsx`) was Release 3.1's fix for the same underlying luminance problem, scoped to
+just those two pages by widening hues rather than luminance. Once the base theme's ramp is fixed
+at the root, this override may no longer add anything — but that's decided from the actual
+rendered result during the required visual pass (§7.3), not assumed; if it's still pulling its
+weight, it stays.
