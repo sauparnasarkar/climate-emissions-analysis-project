@@ -44,6 +44,13 @@ function App() {
         flexDirection: 'column',
         minHeight: '100vh',
         background: 'var(--__s9cmpx-static-background-weak)',
+        // Only bites once installed standalone on iOS (index.html's apple-mobile-web-app-*
+        // meta tags + viewport-fit=cover, SPEC.md §5.10) -- a plain Safari tab's own chrome
+        // already absorbs the notch/home-indicator area, so this is a no-op there.
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        paddingLeft: 'env(safe-area-inset-left, 0px)',
+        paddingRight: 'env(safe-area-inset-right, 0px)',
       }}
     >
       <Header

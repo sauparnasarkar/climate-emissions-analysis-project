@@ -4,9 +4,15 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#121e35" />
-    <meta name="description" content="An end-to-end analysis of greenhouse gas emissions for 10 major countries using the OWID CO₂ dataset, regression models, and ETS(A,Ad,N) forecasting." />
+    <!-- iOS Safari ignores the web manifest's display: standalone and keys off these tags
+         instead -- without them, "Add to Home Screen" opens a normal browser tab, not a
+         standalone app (SPEC.md §5.10). -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="GHG Emissions" />
+    <meta name="description" content="An end-to-end analysis of greenhouse gas emissions for major emitting countries using the OWID CO₂ dataset, regression models, and ETS(A,Ad,N) forecasting." />
     <title>GHG Emissions Trend Analysis and Forecasting</title>
   </head>
   <body>
