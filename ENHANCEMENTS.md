@@ -1152,3 +1152,53 @@ pinch/scroll zoom; the Overview hero grid stays single-column through both repor
 title and move focus to the new page's heading; the scenario treemap's expand/restore toggle
 renders inside a safe-area-aware fixed overlay at both sizes, with the tapped-tile detail area
 still functional expanded.
+
+---
+
+## Release 6 — Generalized Chart Expand/Restore Control
+
+**Status: Planned.** `climate-dashboard-react` + `design-system` only — no Streamlit/`app.py`,
+no `api/` change. Tracked in `SPEC.md` §5.11.
+
+Prompted directly by user feedback after using Release 5's scenario-treemap expand/restore
+control live: the same need exists on every other chart that doesn't already fill the page's
+full width, and Release 5 built that control by hand, once, inline in
+`ScenarioComparisonPage.tsx` — copy-pasting the same ~40-line `position: fixed`
+safe-area-overlay block at each new site would be the wrong direction the moment a second real
+need for it showed up, which it just did.
+
+### 6.1 — `expandable` on `ChartCard`
+
+`design-system`'s `ChartCard` (`SyChart/ChartCard.tsx`) gains an `expandable?: boolean` prop.
+When set, `ChartCard` owns the toggle state itself, renders the expand/collapse button (reusing
+Release 5's `Icon` glyphs) in its existing header `actions` slot, and wraps its content in the
+same safe-area-aware fixed overlay Release 5 already validated live (`calc(16px +
+env(safe-area-inset-*, 0px))` per side) — all internal to the component, no per-page duplication.
+`children` is widened to accept `React.ReactNode | ((isExpanded: boolean) => React.ReactNode)` so
+a caller that wants a size-reactive chart (taller `SyChart`, not just a bigger empty card) can
+pass a function instead of a plain node; existing call sites that don't pass `expandable` are
+unaffected.
+
+### 6.2 — Applying it across the app
+
+`ScenarioComparisonPage.tsx`'s treemap `ChartCard` drops its own `treemapExpanded` state and
+inline overlay markup in favor of the new `expandable` prop + children-function form — behavior
+is unchanged from what Release 5 shipped, just no longer duplicated in app code. The same prop is
+then added to five more sites, matching the user's own stated rule ("essentially any chart that
+does not occupy the full width of the available screen"): the BAU/Moderate/Aggressive comparison
+panels on the same page (300px collapsed / 600px expanded); Country Profile's CO₂ Emissions and
+CO₂ per Capita charts, both in its 2-column grid (280px collapsed / 560px expanded; the
+already-full-width Year-on-Year chart below them is untouched); and Overview's world map, which
+shares a 2fr/1fr hero-grid row with the tier summary panel above 1400px. The map needs no explicit
+height prop — its `ResizeObserver` already recomputes height from container width alone (§5.10's
+`height={420}` dead-code removal), so widening the container on expand is sufficient — and its own
+internal "Reset view" control (§5.1/5.2) coexists without conflict, since it's a different button
+in a different location. Historical Trends' two charts and the Forecasts page's ETS/
+feature-importance charts are already full-width and are left unchanged.
+
+### 6.3 — Rollout sequencing
+
+One `design-system` PR (the `ChartCard` change) lands first; one app-side PR bundles the treemap
+refactor and the five new `expandable` sites, since they're all the same mechanical change applied
+at different call sites, not independent features. Standard Mac Mini deploy-after-merge
+(`vitepreview` rebuild+restart only — nothing here touches `api`/`app.py`).

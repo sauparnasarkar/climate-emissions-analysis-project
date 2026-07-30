@@ -418,6 +418,7 @@ Sections to include:
 | v15 | Jul 2026 | Documented Release 3.1's post-ship follow-up (`ENHANCEMENTS.md` §3.1.8): two more rounds of KPI-panel/typography polish (icon repositioned + recolored, several font-size bumps); two real chart bugs found and fixed in `SyChart.tsx` — a mobile-only legend rendering as a bare scrollbar over the plot (fixed height allocation didn't grow with wrapped rows), and a diverging colorscale silently auto-ranging away from a true zero midpoint on skewed data (the actual root cause of the treemap showing backwards red/green, confirmed against real API data before fixing); and a treemap hover enhancement showing both the tile-size and tile-color metrics instead of just size. Required three more `design-system` PRs. Not an internship requirement change. |
 | v16 | Jul 2026 | Added §6 (`ENHANCEMENTS.md` Release 4), a **curriculum correction**, not a post-internship addition: Week 3's regression `TARGET` was same-year `co2` while `FEATURES` included a same-row function of it (`co2_yoy_pct_change`) — genuine target leakage, found by comparing against a separate intern's independent implementation and confirmed algebraically. Fixed by reframing to a next-year target (`target_co2_next`), which also required restructuring §3.8's recursive forecaster (it was already forced to approximate around the same leak) and fixing an incidental rolling-mean off-by-one uncovered along the way. Separately, Week 1's `NON_SOVEREIGN` sovereignty filter was missing two null-`iso_code` entities (`Kosovo`, bare `Ryukyu Islands`) — switched to `iso_code.notna()` as the operative filter (220→218 sovereign countries), with the same fix applied to `api/data_loaders.py` and `app.py`'s independently-hand-mirrored copies of the same filter. §3.1's curriculum text already said "year Y+1" before this fix — the implementation is what changed to match it, not the spec. |
 | v17 | Jul 2026 | Added §5.10 (`ENHANCEMENTS.md` Release 5): two genuine interaction "traps" (treemap tap-to-drill with no way back; world map pinch/scroll-zoom with no reset), iPad layout (tiny map, dead space, from a stretched grid row + width-only resize logic + a breakpoint that trips at neither reported iPad orientation), three PWA gaps (iOS install not launching standalone, no safe-area handling, stale "10 major countries" copy), and eight accessibility findings (reduced-motion ignored, animated numbers exposed to screen readers, silent route changes, undersized touch targets, color-only good/bad delta, low card-border contrast, sidebar nav items missing real hrefs, no skip link, skipped/back-jumping heading order). Every finding independently re-verified against current source before planning; four corrections made along the way (`SidebarNav`'s href fix needs no `design-system` change; one treemap caller not two; 1400px breakpoint not the originally-suggested 1200px, which wouldn't have fixed iPad landscape; `height={420}` dead code confirmed real in production). Not an internship requirement change. |
+| v18 | Jul 2026 | Added §5.11 (`ENHANCEMENTS.md` Release 6): generalizes Release 5's hand-rolled scenario-treemap expand/restore control into a reusable `expandable` prop on `design-system`'s `ChartCard` itself, then applies it to every other non-full-width chart across the app (Scenario Comparison's 3 comparison panels, Country Profile's 2 grid charts, Overview's world map) instead of leaving the pattern duplicated per page. Not an internship requirement change. |
 
 ---
 
@@ -619,6 +620,29 @@ first, since both leave a user stuck with no way out; then the iOS/iPad fixes, s
 directly affect the reported devices; then the accessibility findings; then polish (the Icon
 glyphs + expand/restore control, and the low-priority divider contrast). `design-system` PRs
 land before the app-side PRs that consume them within each phase.
+
+### 5.11 Generalized Chart Expand/Restore Control (Release 6)
+
+**Status: Planned** — tracked in `ENHANCEMENTS.md` Release 6. React-only, no `api`/`app.py`
+change. Prompted directly by user feedback after using Release 5's scenario-treemap
+expand/restore control live: the same need exists on every other chart that doesn't already fill
+the page's full width, and Release 5 built that control by hand, once, inline in
+`ScenarioComparisonPage.tsx` — not reusable as written.
+
+| Aspect | Detail |
+|---|---|
+| Problem | Release 5 (§5.10) added an expand/restore toggle to exactly one chart (the scenario treemap), implemented as page-local `useState` plus a hand-written `position: fixed` safe-area-aware overlay. Extending the same affordance to another chart meant copy-pasting that ~40-line block again — the wrong direction once a second, real need for it exists |
+| Fix: `expandable` on `ChartCard` | `design-system`'s `ChartCard` (`SyChart/ChartCard.tsx`) gains an `expandable?: boolean` prop. When set, `ChartCard` owns the toggle state itself, renders the expand/collapse button (reusing Release 5's `Icon` glyphs) in its existing header `actions` slot, and wraps its content in the same safe-area-aware fixed overlay Release 5 already validated live — all internal, no per-page duplication |
+| `children` as a function of `isExpanded` | An expandable chart usually wants a taller `SyChart` while expanded, not just a bigger empty card. `ChartCard`'s `children` prop is widened to accept `React.ReactNode \| ((isExpanded: boolean) => React.ReactNode)`; callers that want a size-reactive chart pass a function, e.g. `{(isExpanded) => <SyChart height={isExpanded ? 640 : 300} .../>}`. Callers that don't pass `expandable` are unaffected — existing plain-node usage keeps working unchanged |
+| Scenario Comparison: treemap refactor | `ScenarioComparisonPage.tsx`'s treemap `ChartCard` drops its own `treemapExpanded` state and inline overlay markup, switching to `expandable` + the children-function form — behavior is identical to what Release 5 shipped and already verified live, just no longer duplicated in app code |
+| Scenario Comparison: 3 comparison panels | The BAU/Moderate/Aggressive line-chart panels (`ScenarioComparisonPage.tsx`, 3-column grid) gain `expandable`, sized 300px collapsed / 600px expanded — the actual feature the user asked for |
+| Country Profile: 2 grid charts | The CO₂ Emissions and CO₂ per Capita charts (`CountryProfilePage.tsx`, 2-column grid) gain `expandable`, sized 280px collapsed / 560px expanded. The Year-on-Year chart below them is already full-width and is left unchanged |
+| Overview: world map | The choropleth `ChartCard` (`OverviewPage.tsx`, 2fr/1fr hero grid) gains `expandable`. No explicit height prop is needed — the choropleth's existing `ResizeObserver` already recomputes height from container width alone (§5.10's `height={420}` dead-code fix), so widening the container on expand is sufficient. Coexists with the map's own internal "Reset view" control (Release 5, §5.1/5.2) — different button, different location, no conflict |
+| Not touched | Historical Trends' two charts and the Forecasts page's ETS/feature-importance charts are already full-width (no multi-column grid wraps them) — nothing to change there |
+
+**Sequencing:** one `design-system` PR (the `ChartCard` change) lands first; one app-side PR
+bundles the treemap refactor and the five new `expandable` sites, since they're all the same
+mechanical change applied at different call sites, not independent features.
 
 ---
 
