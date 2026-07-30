@@ -118,11 +118,14 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         regression models, and ETS(A,Ad,N) forecasting.
       </p>
 
-      <style>{'@media (max-width: 900px) { .overview-hero-grid { grid-template-columns: 1fr !important; } }'}</style>
+      {/* 1400px, not the original 900px -- covers both reported iPad orientations (portrait
+          1024, landscape 1366): at either width, the 2fr column left the choropleth too
+          narrow for a world map, forced tall by the taller TierSummaryPanel sharing its row
+          (SPEC.md §5.10). */}
+      <style>{'@media (max-width: 1400px) { .overview-hero-grid { grid-template-columns: 1fr !important; } }'}</style>
       <div className="overview-hero-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16, alignItems: 'stretch' }}>
         <ChartCard title={`CO₂ Emissions by Country (${data.all_countries.latest_year})`}>
           <SyChart
-            height={420}
             showLegend={false}
             ariaLabel={`World map choropleth of CO₂ emissions by country in ${data.all_countries.latest_year}, log-scaled color from light (lowest) to deep red (highest)`}
             series={[{
