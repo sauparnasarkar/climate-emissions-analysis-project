@@ -76,7 +76,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
       id: 'feature-importance',
       title: 'Random Forest Feature Importance (Pooled Model)',
       content: (
-        <ChartCard title="RF Pooled Feature Importances — Pooled Model">
+        <ChartCard title="RF Pooled Feature Importances — Pooled Model" headingLevel={4}>
           <SyChart
             height={280}
             orientation="h"
@@ -106,7 +106,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
         ) : forecast.error ? (
           <InlineAlert variant="warning">{forecast.error}</InlineAlert>
         ) : forecast.data ? (
-          <ChartCard title={`ETS(A,Ad,N) Forecast — ${country}`}>
+          <ChartCard title={`ETS(A,Ad,N) Forecast — ${country}`} headingLevel={2}>
             <SyChart
               height={340}
               xTitle="Year"

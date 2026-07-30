@@ -43,15 +43,15 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
               shrink below 280px still overflows a ~272px content area on the narrowest
               real phones (320px viewport, e.g. Galaxy S9+), even with auto-fit. */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, margin: '16px 0' }}>
-            <ChartCard title={`CO₂ Emissions — ${country}`}>
+            <ChartCard title={`CO₂ Emissions — ${country}`} headingLevel={2}>
               <SyChart height={280} xTitle="Year" yTitle="CO₂ (MtCO₂)" showLegend={false} ariaLabel={`Line chart of total CO₂ emissions for ${country} from ${data.years[0]} to ${data.years[data.years.length - 1]}`} series={[{ name: 'CO₂', x: data.years, y: data.co2, kind: 'line' }]} />
             </ChartCard>
-            <ChartCard title={`CO₂ per Capita — ${country}`}>
+            <ChartCard title={`CO₂ per Capita — ${country}`} headingLevel={2}>
               <SyChart height={280} xTitle="Year" yTitle="tCO₂/person" showLegend={false} ariaLabel={`Line chart of CO₂ emissions per capita for ${country} from ${data.years[0]} to ${data.years[data.years.length - 1]}`} series={[{ name: 'CO₂ per Capita', x: data.years, y: data.co2_per_capita, kind: 'line' }]} />
             </ChartCard>
           </div>
 
-          <ChartCard title={`Year-on-Year CO₂ Change — ${country}`}>
+          <ChartCard title={`Year-on-Year CO₂ Change — ${country}`} headingLevel={2}>
             <SyChart
               height={280}
               xTitle="Year"
