@@ -1248,3 +1248,30 @@ and the Overview world map all expand/restore correctly; `document.elementFromPo
 previously-broken pixel now resolves to the chart, not the sidebar; Escape closes the expanded
 view and returns focus; and the world map's own "Reset view" control coexists with the new expand
 button without conflict.
+
+### 6.5 — Follow-up: two real bugs found on an actual iPhone, fixed in `design-system` #22
+
+Found by the user on a real device shortly after Release 6 shipped — landscape iPhone
+specifically: expanding a chart didn't reliably cover the full visual viewport and the rest of
+the chart couldn't be scrolled into view; separately, the treemap's own tapped-tile detail box
+(an ordinary in-page element below the treemap, not part of any overlay — the intentional
+touch-equivalent-of-hover feature from §5.1) became visible bleeding through the top edge of a
+*different* chart's expanded overlay. Both traced to the same root cause: the overlay computed
+its box from `top/right/bottom/left: calc(16px + env(safe-area-inset-*))`, which depends on iOS
+Safari correctly recomputing four separate viewport-relative distances as its toolbar shows/hides
+(a real gap on landscape, where the toolbar eats a much larger share of the available height) —
+and it never locked background scroll, so a touch-drag meant for the overlay's own internal
+`overflow: auto` region could instead scroll the page underneath.
+
+Two fixes, both in `ChartCard.tsx`: the overlay now uses `inset: 0` (always fills 100% of its
+containing block, immune to the four-separate-offsets recalculation issue) with the equivalent
+margin applied as `padding` instead; and body scroll is now locked while any `ChartCard` is
+expanded, using the `position: fixed` + restore-scroll-offset pattern rather than bare `body {
+overflow: hidden }`, which is a known no-op against touch-driven scrolling on iOS Safari
+specifically. Copilot's review of this PR caught one real gap in that pattern — the effect only
+captured/restored the vertical scroll offset, so a horizontally-panned page (pinch-zoom on mobile
+can leave the visual viewport panned even without page overflow) would shift on lock and not be
+restored on cleanup — fixed by capturing/restoring `scrollX` too, with a matching negative `left`.
+Per the user's request, this PR skipped the automated review-and-merge loop in favor of manual
+review. Deployed to the Mac Mini and confirmed fixed on the reporting user's actual iPhone in
+landscape — both the partial/unscrollable overlay and the bleed-through are resolved.

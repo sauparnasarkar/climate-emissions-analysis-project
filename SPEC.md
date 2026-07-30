@@ -419,6 +419,7 @@ Sections to include:
 | v16 | Jul 2026 | Added §6 (`ENHANCEMENTS.md` Release 4), a **curriculum correction**, not a post-internship addition: Week 3's regression `TARGET` was same-year `co2` while `FEATURES` included a same-row function of it (`co2_yoy_pct_change`) — genuine target leakage, found by comparing against a separate intern's independent implementation and confirmed algebraically. Fixed by reframing to a next-year target (`target_co2_next`), which also required restructuring §3.8's recursive forecaster (it was already forced to approximate around the same leak) and fixing an incidental rolling-mean off-by-one uncovered along the way. Separately, Week 1's `NON_SOVEREIGN` sovereignty filter was missing two null-`iso_code` entities (`Kosovo`, bare `Ryukyu Islands`) — switched to `iso_code.notna()` as the operative filter (220→218 sovereign countries), with the same fix applied to `api/data_loaders.py` and `app.py`'s independently-hand-mirrored copies of the same filter. §3.1's curriculum text already said "year Y+1" before this fix — the implementation is what changed to match it, not the spec. |
 | v17 | Jul 2026 | Added §5.10 (`ENHANCEMENTS.md` Release 5): two genuine interaction "traps" (treemap tap-to-drill with no way back; world map pinch/scroll-zoom with no reset), iPad layout (tiny map, dead space, from a stretched grid row + width-only resize logic + a breakpoint that trips at neither reported iPad orientation), three PWA gaps (iOS install not launching standalone, no safe-area handling, stale "10 major countries" copy), and eight accessibility findings (reduced-motion ignored, animated numbers exposed to screen readers, silent route changes, undersized touch targets, color-only good/bad delta, low card-border contrast, sidebar nav items missing real hrefs, no skip link, skipped/back-jumping heading order). Every finding independently re-verified against current source before planning; four corrections made along the way (`SidebarNav`'s href fix needs no `design-system` change; one treemap caller not two; 1400px breakpoint not the originally-suggested 1200px, which wouldn't have fixed iPad landscape; `height={420}` dead code confirmed real in production). Not an internship requirement change. |
 | v18 | Jul 2026 | Added §5.11 (`ENHANCEMENTS.md` Release 6): generalizes Release 5's hand-rolled scenario-treemap expand/restore control into a reusable `expandable` prop on `design-system`'s `ChartCard` itself, then applies it to every other non-full-width chart across the app (Scenario Comparison's 3 comparison panels, Country Profile's 2 grid charts, Overview's world map) instead of leaving the pattern duplicated per page. Live verification surfaced and fixed a real z-index bug (expanded overlay rendering behind the sidebar nav); Copilot's review of the `design-system` PR added modal accessibility semantics (dialog role, focus trap, Escape-to-close), reviewed and verified before shipping. Not an internship requirement change. |
+| v19 | Jul 2026 | §5.11 follow-up (`ENHANCEMENTS.md` Release 6 §6.5, `design-system` #22): two real bugs found on the user's own iPhone shortly after Release 6 shipped — in landscape, an expanded chart didn't reliably cover the full viewport and couldn't be scrolled to reveal the rest, and the treemap's own tapped-tile detail box bled through a different chart's expanded overlay. Root cause was the overlay's viewport-offset-based sizing and unlocked background scroll on iOS Safari; fixed with `inset: 0` sizing plus a proper `position: fixed`-based scroll lock (bare `overflow: hidden` doesn't hold against iOS Safari's touch scrolling). Confirmed fixed on the reporting device after deploy. Not an internship requirement change. |
 
 ---
 
@@ -664,6 +665,17 @@ verified, and re-reviewed clean before merge. Deployed to the Mac Mini and verif
 Country Profile grid charts, and the Overview world map all expand/restore correctly, the sidebar
 no longer bleeds through the expanded overlay, Escape closes it, and the map's own "Reset view"
 control coexists with the new expand button without conflict.
+
+**Follow-up fix (`design-system` #22):** found on a real iPhone shortly after shipping — in
+landscape, an expanded chart didn't reliably cover the full visual viewport and couldn't be
+scrolled to reveal the rest, and the treemap's own tapped-tile detail box (§5.1's intentional
+touch-equivalent-of-hover feature) bled through the top edge of a different chart's expanded
+overlay. Root cause: the overlay's `top/right/bottom/left: calc(16px + env(safe-area-inset-*))`
+sizing depends on iOS Safari correctly recomputing four viewport-relative distances as its
+toolbar shows/hides, and background scroll was never locked. Fixed with `inset: 0` (immune to
+that recalculation) plus a `position: fixed`-based body scroll lock (bare `overflow: hidden` is a
+known no-op against touch scrolling on iOS Safari). Confirmed fixed on the reporting user's own
+iPhone in landscape after deploy.
 
 ---
 
