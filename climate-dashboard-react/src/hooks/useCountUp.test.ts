@@ -3,15 +3,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useCountUp } from './useCountUp';
 
 function mockReducedMotion(matches: boolean) {
-  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-    matches: query === '(prefers-reduced-motion: reduce)' ? matches : false,
-    media: query,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  })) as unknown as typeof window.matchMedia;
+  // vi.stubGlobal (not a direct window.matchMedia assignment) so vi.unstubAllGlobals()
+  // in afterEach actually restores the original -- vi.restoreAllMocks() only resets
+  // spies/mocked functions, it doesn't undo a raw property overwrite (per Copilot review
+  // on PR #104).
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)' ? matches : false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
 }
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 

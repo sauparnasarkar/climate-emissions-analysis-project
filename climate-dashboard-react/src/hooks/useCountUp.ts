@@ -10,8 +10,12 @@ export function useCountUp(target: number, durationMs = 1500): number {
     const to = target;
     // Same matchMedia pattern design-system's SidebarNav already uses for its own
     // transitions -- skip straight to the final value instead of animating (SPEC.md §5.10).
+    // matchMedia itself (not just window) is guarded -- some non-browser/older-browser
+    // environments have a window global without it, which would otherwise throw here.
     const reduceMotion =
-      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (from === to || reduceMotion) {
       setValue(to);
       fromRef.current = to;
