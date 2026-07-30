@@ -421,6 +421,7 @@ Sections to include:
 | v18 | Jul 2026 | Added §5.11 (`ENHANCEMENTS.md` Release 6): generalizes Release 5's hand-rolled scenario-treemap expand/restore control into a reusable `expandable` prop on `design-system`'s `ChartCard` itself, then applies it to every other non-full-width chart across the app (Scenario Comparison's 3 comparison panels, Country Profile's 2 grid charts, Overview's world map) instead of leaving the pattern duplicated per page. Live verification surfaced and fixed a real z-index bug (expanded overlay rendering behind the sidebar nav); Copilot's review of the `design-system` PR added modal accessibility semantics (dialog role, focus trap, Escape-to-close), reviewed and verified before shipping. Not an internship requirement change. |
 | v19 | Jul 2026 | §5.11 follow-up (`ENHANCEMENTS.md` Release 6 §6.5, `design-system` #22): two real bugs found on the user's own iPhone shortly after Release 6 shipped — in landscape, an expanded chart didn't reliably cover the full viewport and couldn't be scrolled to reveal the rest, and the treemap's own tapped-tile detail box bled through a different chart's expanded overlay. Root cause was the overlay's viewport-offset-based sizing and unlocked background scroll on iOS Safari; fixed with `inset: 0` sizing plus a proper `position: fixed`-based scroll lock (bare `overflow: hidden` doesn't hold against iOS Safari's touch scrolling). Confirmed fixed on the reporting device after deploy. Not an internship requirement change. |
 | v20 | Jul 2026 | Added §5.12 (`ENHANCEMENTS.md` Release 7, **Planned**): chart palette lacks luminance contrast (mean 3.83:1 vs. an FT reference chart's independently-measured 7.40:1) plus stroke/marker/gridline defaults tuned for a light-background origin, found by comparing against a Financial Times reference chart. Every claim independently re-verified against current `design-system` source before planning. Two of the nine replacement palette tokens were reshaped after review found they collided in hue with this dashboard's own sentiment-positive/negative tokens — the exact "reads as good/bad news" risk the original proposal's own constraint was meant to prevent, but hadn't actually been checked against real token values. Not an internship requirement change. |
+| v21 | Jul 2026 | §5.12 (Release 7) shipped: `design-system` #23 (palette + `SyChart`/`ChartCard` defaults) and `climate-emissions-analysis-project` #107 (retiring the now-redundant projection-palette override). Copilot caught a real bug in #23 — `xaxis.showgrid: false` hardcoded regardless of orientation, which would have broken Forecasts' `orientation="h"` feature-importance chart's value-axis gridlines — fixed and re-reviewed clean. Deploy itself surfaced a real process bug, unrelated to the code: the Mac Mini rebuild needs `DEPLOY_BASE_PATH` set at build time, not just serve time, or the built assets 404 under the wrong path. Verified live across all seven pages by reading actual Plotly/DOM state, not just visually; the override's redundancy was confirmed with a live A/B rather than assumed. Not an internship requirement change. |
 
 ---
 
@@ -680,13 +681,39 @@ iPhone in landscape after deploy.
 
 ### 5.12 Chart Legibility & Visual Impact (Release 7)
 
-**Status: Planned.** Mostly a `design-system` change (palette tokens + `SyChart` stroke/marker/grid
-defaults); the app inherits it with no code changes of its own beyond two decidable follow-ups.
-Prompted by the dashboard's charts reading as dull next to a Financial Times line chart used as a
-reference. Rather than treat that as a matter of taste, the reference was measured pixel-by-pixel
-(legend swatch colors sampled at peak luminance, stroke width sampled across the plot area) and
-compared against this project's actual token values — independently re-verified against current
-source (not taken on faith) before this section was written.
+**Status: Shipped.** Mostly a `design-system` change (palette tokens + `SyChart` stroke/marker/grid
+defaults); the app inherited it with one follow-up code change (§5.12.4). Prompted by the
+dashboard's charts reading as dull next to a Financial Times line chart used as a reference.
+Rather than treat that as a matter of taste, the reference was measured pixel-by-pixel (legend
+swatch colors sampled at peak luminance, stroke width sampled across the plot area) and compared
+against this project's actual token values — independently re-verified against current source
+(not taken on faith) before this section was written.
+
+Two PRs merged: `design-system` #23 (palette + `SyChart`/`ChartCard` rendering defaults) and
+`climate-emissions-analysis-project` #107 (retiring the now-redundant projection-palette
+override, §5.12.4). Copilot's review of #23 caught one real bug: `xaxis.showgrid: false` was
+hardcoded regardless of chart orientation, which — confirmed against the actual call site,
+`ForecastsPage.tsx`'s `orientation="h"` feature-importance chart — would have silently removed
+the *value*-axis gridlines there while leaving the useless category-axis ones on. Fixed so
+gridlines always follow the value axis regardless of orientation; re-reviewed clean before merge.
+Copilot's review of #107 was a clean pass with no comments.
+
+Deploying #23 surfaced a real deploy-process bug, unrelated to the code change itself: the Mac
+Mini rebuild step needs `DEPLOY_BASE_PATH=/ghg-emissions-analysis/` set at *build* time (baked
+into the bundle), not just at serve time (already set in the `vitepreview` LaunchAgent's own
+environment) — a plain `npm run build` without it produced an index.html referencing assets at
+the wrong path, 404ing every JS/CSS request and leaving a blank page. Caught via network-request
+inspection, fixed by rebuilding with the env var set.
+
+Verified live against `labs.syena.io/ghg-emissions-analysis` across all seven pages, reading
+actual Plotly/DOM state rather than eyeballing: Historical Trends' multi-country chart confirmed
+the reshaped orchid/magenta tokens, 2.75px strokes, no per-point markers on the 35-point series,
+no vertical gridlines; Forecasts' feature-importance chart confirmed the gridline-orientation fix
+(`yaxis.showgrid: false`, `xaxis.showgrid` unset so Plotly's default applies); `ChartCard`
+confirmed rendering at the page background color via computed style. The projection-palette
+override's redundancy (§5.12.4) was confirmed by a live A/B — disabling it in the running app and
+comparing the Scenario Comparison panels side by side — rather than assumed from the token math
+alone.
 
 #### 5.12.1 Root cause: the palette is saturated but not *light*
 
@@ -745,20 +772,22 @@ original proposal not actually satisfying its own stated version of this rule.
 |---|---|
 | Stroke width | `line: { width: 1.5 }` → **2.75px**. Reference measures ~3.3 CSS px; highest-impact single-line change after the palette |
 | Markers on line charts | `mode: 'lines+markers'` with `marker: { size: 5 }` on every point competes with the strokes at 35 annual points × up to 10 countries. New `showMarkers?: boolean` per-series prop, defaulting to on only below a 10-point series (dense multi-country charts switch to pure strokes; sparse charts keep their markers unchanged) |
-| Vertical gridlines | Neither axis set `showgrid`, so Plotly's `true` default applied to both. Set `xaxis.showgrid: false`; `yaxis` keeps its default so horizontal gridlines remain — matches the reference's horizontal-only convention |
+| Vertical gridlines | Neither axis set `showgrid`, so Plotly's `true` default applied to both. Gridlines now follow the **value** axis, not just `xaxis` unconditionally — Copilot caught that a hardcoded `xaxis.showgrid: false` breaks `orientation="h"` charts (categories on y, values on x, e.g. Forecasts' feature-importance chart), where it would have dropped the useful value gridlines and kept the useless category ones. Fixed with `showgrid: orientation === 'h' ? undefined : false` on `xaxis` (mirrored on `yaxis`) |
 | Chart-card background | `paper_bgcolor`/`plot_bgcolor` are transparent, so the fix belongs to the card, not `SyChart`. `ChartCard` overrides its own `<Card>`'s background component-token to the page background (`#121e35`) rather than the general card surface (`#1e2f52`), gaining ~1.8:1 extra contrast for every series at no cost to non-chart cards |
 | Legend placement, title hierarchy | Both deferred — larger/independent changes than the rest of this release (see §5.12.4) |
 
 #### 5.12.4 Sequencing
 
-One `design-system` PR carries the palette (5.12.2) and the `SyChart`/`ChartCard` rendering
-defaults (5.12.3) together. The app inherits the change with no code edits, but needs a full
-visual pass across **all seven pages** after the bump, not just the chart-heavy ones, since every
-chart in the app picks up new colors/strokes/markers/gridlines at once. One follow-up app-side
-decision after that pass: retire `styles.css`'s `[data-chart-category='projection']` override if
-the new base ramp already gives Scenario Comparison/Forecasts enough contrast on its own — decided
-from the actual rendered result, not assumed. Legend-inside-plot and title-hierarchy items are
-optional and out of scope for this release.
+One `design-system` PR carried the palette (5.12.2) and the `SyChart`/`ChartCard` rendering
+defaults (5.12.3) together (#23). The app inherited the change with no code edits, but a full
+visual pass across **all seven pages** confirmed no regressions, since every chart in the app
+picked up new colors/strokes/markers/gridlines at once. One follow-up app-side decision after that
+pass: `styles.css`'s `[data-chart-category='projection']` override (Release 3.1's fix for the same
+contrast problem, scoped to Forecasts/Scenario Comparison) was retired in
+`climate-emissions-analysis-project` #107 — confirmed redundant by a live A/B (disabling the
+override in the running app and comparing the Scenario Comparison panels side by side), not
+assumed from the token math alone. Legend-inside-plot and title-hierarchy items remain deferred,
+optional, and out of scope for this release.
 
 ---
 

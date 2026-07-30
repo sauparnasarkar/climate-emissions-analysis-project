@@ -1278,8 +1278,8 @@ landscape — both the partial/unscrollable overlay and the bleed-through are re
 
 ## Release 7 — Chart Legibility & Visual Impact
 
-**Status: Planned.** `design-system` only, no app-side code change beyond one decidable follow-up.
-Tracked in `SPEC.md` §5.12.
+**Status: Shipped.** `design-system` #23 plus one small app-side follow-up, #107. Tracked in
+`SPEC.md` §5.12.
 
 Prompted by the dashboard's charts reading as dull next to a Financial Times dark-theme line
 chart used as a reference. A separate Claude session drafted the original proposal (measured the
@@ -1343,9 +1343,13 @@ since they touch the same file/theme:
   existing `dashed` prop), defaulting to `s.x.length < 10` — dense multi-country charts (35 annual
   points × up to 10 countries today puts ~350 dots on top of the strokes) switch to pure strokes;
   sparse charts keep markers unchanged.
-- **Vertical gridlines**: `xaxis.showgrid: false` only — `yaxis` is untouched, so horizontal
-  gridlines remain (the reference's convention). Safe to set unconditionally since Plotly ignores
-  irrelevant cartesian-axis keys for choropleth/treemap traces.
+- **Vertical gridlines**: gridlines now follow the **value** axis, not `xaxis` unconditionally —
+  `showgrid: orientation === 'h' ? undefined : false` on both `xaxis` and `yaxis` (mirrored). The
+  first version hardcoded `xaxis.showgrid: false`, which Copilot's review of PR #23 caught as
+  wrong for `orientation="h"` charts (categories on y, values on x — e.g. Forecasts'
+  feature-importance chart): it would have dropped the useful value-axis gridlines and left
+  gridlines on the now-useless category axis instead. Verified against the real call site
+  (`ForecastsPage.tsx:82` genuinely uses `orientation="h"`) before fixing, not assumed theoretical.
 - **Chart-card background** (`ChartCard.tsx`, not `SyChart.tsx`): since `paper_bgcolor`/
   `plot_bgcolor` are transparent, charts inherit whatever's behind them — currently the general
   card surface (`#1e2f52`), one step lighter than the page (`#121e35`), costing contrast for free.
@@ -1361,16 +1365,44 @@ both deferred as optional, independently larger changes — not part of this rel
 
 ### 7.3 — Sequencing
 
-One `design-system` PR carries the full palette + rendering-default change. The app inherits it
-with zero code changes but needs a full visual pass across **all seven pages** after the bump —
-not just the two chart-heavy ones — since every chart in the app picks up new colors/strokes at
-once from a single base-theme change.
+One `design-system` PR carried the full palette + rendering-default change (#23). The app inherited
+it with zero code changes; a full visual pass across **all seven pages** confirmed no regressions,
+since every chart in the app picked up new colors/strokes at once from a single base-theme change.
 
-### 7.4 — Follow-up: does the projection-palette override become redundant?
+### 7.4 — Follow-up: the projection-palette override is now redundant
 
 `styles.css`'s `[data-chart-category='projection']` override (used by `ScenarioComparisonPage.tsx`
 and `ForecastsPage.tsx`) was Release 3.1's fix for the same underlying luminance problem, scoped to
-just those two pages by widening hues rather than luminance. Once the base theme's ramp is fixed
-at the root, this override may no longer add anything — but that's decided from the actual
-rendered result during the required visual pass (§7.3), not assumed; if it's still pulling its
-weight, it stays.
+just those two pages by widening hues rather than luminance. Rather than assume the base theme's
+fix made it redundant, this was checked with a live A/B: temporarily disabling the override in the
+running deployed app and comparing the Scenario Comparison country-comparison panels side by side.
+The base ramp's full hue spread (cream/lime/orchid/amber/cyan/violet/coral/sky/magenta) read at
+least as distinct as the override's narrower amber/violet-only family — confirming it no longer
+earned its keep. Retired in `climate-emissions-analysis-project` #107 (removes the CSS block and
+the `data-chart-category="projection"` wrapper attribute from both pages).
+
+### 7.5 — Shipped
+
+Two PRs merged: `design-system` #23 (palette + `SyChart`/`ChartCard` changes) and
+`climate-emissions-analysis-project` #107 (the override retirement above). Copilot's review of
+#23 caught the gridline-orientation bug described in §7.2 — fixed, re-reviewed, clean (`copilot`
+check run `conclusion: success`) before merge. Copilot's review of #107 was a clean pass with no
+comments.
+
+Deploying #23 to the Mac Mini surfaced a real deploy-process bug, unrelated to the code change
+itself: `climate-dashboard-react`'s build needs `DEPLOY_BASE_PATH=/ghg-emissions-analysis/` set at
+*build* time (it's compiled into the bundle's asset paths), not just at serve time (already set in
+the `com.ghgemissions.vitepreview` LaunchAgent's own environment for `vite preview`). A plain
+`npm run build` without it produced an `index.html` referencing assets at the wrong path — every
+JS/CSS request 404'd and the site loaded blank. Caught via network-request inspection rather than
+assumed from a visual check alone, fixed by rebuilding with the env var set. Same fix applied again
+for the #107 deploy.
+
+Verified live against `labs.syena.io/ghg-emissions-analysis` across all seven pages, reading actual
+Plotly trace/layout state and computed styles rather than eyeballing screenshots: Historical
+Trends' multi-country chart confirmed the reshaped `-03`/`-09` tokens, 2.75px strokes, `mode:
+'lines'` (no markers) on the 35-point series; Forecasts' feature-importance chart confirmed
+`yaxis.showgrid: false` / `xaxis.showgrid` unset (Plotly's default applies) for its
+`orientation="h"` trace; `ChartCard` confirmed rendering at `rgb(18, 30, 53)` (`#121e35`, the page
+background) via `getComputedStyle`; Overview, Country Profile, Data Explorer, and About all
+confirmed unaffected/unregressed.
