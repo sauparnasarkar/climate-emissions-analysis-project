@@ -9,9 +9,24 @@ vi.mock('../api/client', () => ({
 }));
 
 // See OverviewPage.test.tsx — SyChart's Plotly rendering is design-system's own concern.
+// The treemap's onTileClick (SPEC.md §5.10) is real page-level logic, not SyChart's own
+// concern, so the stub exposes a button that simulates a tap on the first tile -- this
+// exercises ScenarioComparisonPage's own state wiring without needing a real Plotly click.
 vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
-  return { ...actual, SyChart: (props: { ariaLabel?: string }) => <div data-testid="sychart" aria-label={props.ariaLabel} /> };
+  return {
+    ...actual,
+    SyChart: (props: { ariaLabel?: string; series: Array<{ kind?: string; onTileClick?: (i: number, label: string) => void }> }) => {
+      const treemapSeries = props.series.find((s) => s.kind === 'treemap');
+      return (
+        <div data-testid="sychart" aria-label={props.ariaLabel}>
+          {treemapSeries?.onTileClick && (
+            <button onClick={() => treemapSeries.onTileClick!(0, 'China')}>Simulate tile tap</button>
+          )}
+        </div>
+      );
+    },
+  };
 });
 
 const COUNTRIES: CountriesResponse = { featured: ['China'], expanded: ['China', 'Vietnam'] };
@@ -114,6 +129,25 @@ describe('ScenarioComparisonPage', () => {
     expect(await screen.findByText('Cumulative Emissions & Reduction Scenarios — Aggressive — 2 Expanded Countries')).toBeInTheDocument();
     // Purely a client-side recolor of the already-fetched data -- no additional fetch.
     expect(vi.mocked(api.scenarioCumulative)).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows a dismissible detail area for the tapped tile instead of drilling in (SPEC.md §5.10)', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(<ScenarioComparisonPage />);
+    await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries');
+
+    expect(screen.queryByText(/Cumulative BAU: 1[,   ]000 MtCO/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Simulate tile tap' }));
+
+    expect(await screen.findByText(/Cumulative BAU: 1[,   ]000 MtCO/)).toBeInTheDocument();
+    expect(screen.getByText(/BAU 2040 vs\. Current: \+5[,   ]000 MtCO/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss country detail' }));
+    expect(screen.queryByText(/Cumulative BAU: 1[,   ]000 MtCO/)).not.toBeInTheDocument();
   });
 
   it('renders an inline error instead of crashing when the compare call fails', async () => {

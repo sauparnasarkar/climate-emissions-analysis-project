@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import { ChartCard, SyChart, MultiSelect, Radio, DataTable, InlineAlert, Spinner } from 'design-system';
+import { ChartCard, SyChart, MultiSelect, Radio, DataTable, InlineAlert, Spinner, Icon } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
@@ -15,6 +15,10 @@ const SCENARIO_PANELS = Object.keys(SCENARIO_COLORS);
 function ScenarioComparisonContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   const [selectedCountries, setSelectedCountries] = useState<string[]>(featured);
   const [treemapScenario, setTreemapScenario] = useState<string>('BAU');
+  // Touch-friendly surface for the treemap's hover info (SPEC.md §5.10): a tap never produces
+  // a hover on touch devices, so tapping a tile shows the same size + color values here
+  // instead -- SyChart cancels Plotly's default drill-to-zoom on tap for this reason.
+  const [tappedTileIndex, setTappedTileIndex] = useState<number | null>(null);
 
   // sort_by only affects the response's own `order` field, which nothing here reads anymore
   // now that the treemap is sized by BAU total (unaffected by the radio) and the table below
@@ -104,8 +108,44 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
               colorValues: treemapColors,
               colorbarTitle: `${treemapScenario} 2040 vs. Current`,
               hoverUnit: 'MtCO₂',
+              onTileClick: (pointNumber) => setTappedTileIndex(pointNumber),
             }]}
           />
+          {tappedTileIndex != null && cumulative.data.rows[tappedTileIndex] && (
+            <div
+              className="__s9cmpx-body2"
+              style={{
+                marginTop: 8,
+                padding: '10px 12px',
+                borderRadius: 8,
+                background: 'var(--__s9cmpx-static-layer-standard)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <div>
+                <strong>{cumulative.data.rows[tappedTileIndex].country}</strong>
+                {' — '}
+                Cumulative BAU: {treemapValues[tappedTileIndex].toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂
+                {', '}
+                {treemapScenario} 2040 vs. Current:{' '}
+                {treemapColors[tappedTileIndex] != null
+                  ? `${treemapColors[tappedTileIndex]! >= 0 ? '+' : ''}${treemapColors[tappedTileIndex]!.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                  : '—'}{' '}
+                MtCO₂
+              </div>
+              <button
+                type="button"
+                onClick={() => setTappedTileIndex(null)}
+                aria-label="Dismiss country detail"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--__s9cmpx-static-text-weak)', display: 'flex' }}
+              >
+                <Icon name="close" size={16} />
+              </button>
+            </div>
+          )}
         </ChartCard>
       ) : null}
 
