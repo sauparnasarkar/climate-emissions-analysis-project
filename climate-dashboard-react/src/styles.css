@@ -1,25 +1,3 @@
-/* Category-based chart palette: SyChart resolves its categorical colors via CSS custom
-   properties against the chart's own DOM ancestry (see design-system's syPalette()), so
-   redefining them within a scoped wrapper re-themes every chart inside it with zero
-   SyChart.tsx changes. Forecasts/Scenario Comparison (both projection-oriented pages) use
-   an amber/violet family here so they read as visually distinct from the
-   Overview/Historical Trends/Country Profile pages' default categorical palette.
-   Each family spans a wide lightness ramp (roughly 25%-85%) rather than clustering in the
-   original's narrow mid-range -- up to MAX_SELECTED_COUNTRIES (10) series still cycle back
-   to color 1 on an 11th, but within these 9 slots two same-family entries are now clearly
-   separable at a glance, not just in hue but in how dark/light they read. */
-[data-chart-category='projection'] {
-  --__s9cmpx-chart-categorical-default-01: #7a3b0a;
-  --__s9cmpx-chart-categorical-default-02: #3d1d5c;
-  --__s9cmpx-chart-categorical-default-03: #b5651d;
-  --__s9cmpx-chart-categorical-default-04: #6b3fa0;
-  --__s9cmpx-chart-categorical-default-05: #e8891f;
-  --__s9cmpx-chart-categorical-default-06: #a373d1;
-  --__s9cmpx-chart-categorical-default-07: #f4b860;
-  --__s9cmpx-chart-categorical-default-08: #d9c2f0;
-  --__s9cmpx-chart-categorical-default-09: #fbdcae;
-}
-
 /* Country-picker rows (a MultiSelect + optional "Reset to default" Button, used on Overview,
    Historical Trends, and Scenario Comparison) read a size larger. MultiSelect's own label is
    hardcoded to __s9cmpx-label3 inside the component -- scoped here to these specific rows
