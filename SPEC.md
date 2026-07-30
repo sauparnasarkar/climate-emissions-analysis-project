@@ -418,7 +418,7 @@ Sections to include:
 | v15 | Jul 2026 | Documented Release 3.1's post-ship follow-up (`ENHANCEMENTS.md` §3.1.8): two more rounds of KPI-panel/typography polish (icon repositioned + recolored, several font-size bumps); two real chart bugs found and fixed in `SyChart.tsx` — a mobile-only legend rendering as a bare scrollbar over the plot (fixed height allocation didn't grow with wrapped rows), and a diverging colorscale silently auto-ranging away from a true zero midpoint on skewed data (the actual root cause of the treemap showing backwards red/green, confirmed against real API data before fixing); and a treemap hover enhancement showing both the tile-size and tile-color metrics instead of just size. Required three more `design-system` PRs. Not an internship requirement change. |
 | v16 | Jul 2026 | Added §6 (`ENHANCEMENTS.md` Release 4), a **curriculum correction**, not a post-internship addition: Week 3's regression `TARGET` was same-year `co2` while `FEATURES` included a same-row function of it (`co2_yoy_pct_change`) — genuine target leakage, found by comparing against a separate intern's independent implementation and confirmed algebraically. Fixed by reframing to a next-year target (`target_co2_next`), which also required restructuring §3.8's recursive forecaster (it was already forced to approximate around the same leak) and fixing an incidental rolling-mean off-by-one uncovered along the way. Separately, Week 1's `NON_SOVEREIGN` sovereignty filter was missing two null-`iso_code` entities (`Kosovo`, bare `Ryukyu Islands`) — switched to `iso_code.notna()` as the operative filter (220→218 sovereign countries), with the same fix applied to `api/data_loaders.py` and `app.py`'s independently-hand-mirrored copies of the same filter. §3.1's curriculum text already said "year Y+1" before this fix — the implementation is what changed to match it, not the spec. |
 | v17 | Jul 2026 | Added §5.10 (`ENHANCEMENTS.md` Release 5): two genuine interaction "traps" (treemap tap-to-drill with no way back; world map pinch/scroll-zoom with no reset), iPad layout (tiny map, dead space, from a stretched grid row + width-only resize logic + a breakpoint that trips at neither reported iPad orientation), three PWA gaps (iOS install not launching standalone, no safe-area handling, stale "10 major countries" copy), and eight accessibility findings (reduced-motion ignored, animated numbers exposed to screen readers, silent route changes, undersized touch targets, color-only good/bad delta, low card-border contrast, sidebar nav items missing real hrefs, no skip link, skipped/back-jumping heading order). Every finding independently re-verified against current source before planning; four corrections made along the way (`SidebarNav`'s href fix needs no `design-system` change; one treemap caller not two; 1400px breakpoint not the originally-suggested 1200px, which wouldn't have fixed iPad landscape; `height={420}` dead code confirmed real in production). Not an internship requirement change. |
-| v18 | Jul 2026 | Added §5.11 (`ENHANCEMENTS.md` Release 6): generalizes Release 5's hand-rolled scenario-treemap expand/restore control into a reusable `expandable` prop on `design-system`'s `ChartCard` itself, then applies it to every other non-full-width chart across the app (Scenario Comparison's 3 comparison panels, Country Profile's 2 grid charts, Overview's world map) instead of leaving the pattern duplicated per page. Not an internship requirement change. |
+| v18 | Jul 2026 | Added §5.11 (`ENHANCEMENTS.md` Release 6): generalizes Release 5's hand-rolled scenario-treemap expand/restore control into a reusable `expandable` prop on `design-system`'s `ChartCard` itself, then applies it to every other non-full-width chart across the app (Scenario Comparison's 3 comparison panels, Country Profile's 2 grid charts, Overview's world map) instead of leaving the pattern duplicated per page. Live verification surfaced and fixed a real z-index bug (expanded overlay rendering behind the sidebar nav); Copilot's review of the `design-system` PR added modal accessibility semantics (dialog role, focus trap, Escape-to-close), reviewed and verified before shipping. Not an internship requirement change. |
 
 ---
 
@@ -623,7 +623,7 @@ land before the app-side PRs that consume them within each phase.
 
 ### 5.11 Generalized Chart Expand/Restore Control (Release 6)
 
-**Status: Planned** — tracked in `ENHANCEMENTS.md` Release 6. React-only, no `api`/`app.py`
+**Status: Shipped** — tracked in `ENHANCEMENTS.md` Release 6. React-only, no `api`/`app.py`
 change. Prompted directly by user feedback after using Release 5's scenario-treemap
 expand/restore control live: the same need exists on every other chart that doesn't already fill
 the page's full width, and Release 5 built that control by hand, once, inline in
@@ -643,6 +643,27 @@ the page's full width, and Release 5 built that control by hand, once, inline in
 **Sequencing:** one `design-system` PR (the `ChartCard` change) lands first; one app-side PR
 bundles the treemap refactor and the five new `expandable` sites, since they're all the same
 mechanical change applied at different call sites, not independent features.
+
+**Shipped:** two PRs merged — `design-system` #21 (the `ChartCard` change) and
+`climate-emissions-analysis-project` #106 (the treemap refactor + five new `expandable` sites).
+Verifying the change live surfaced a real bug not caught in code review: the expanded overlay's
+prior ad-hoc `z-index: 50` sat below the sidebar nav's own vendor-CSS z-index
+(`--__s9cmpx-c-sidebar-z-index`, 310), so an expanded chart's left edge rendered *behind* the
+always-visible desktop sidebar instead of over it — reproduced by clicking Expand and confirmed
+via `document.elementFromPoint`, which returned a sidebar link at that pixel instead of the chart.
+Fixed in the same PR with `var(--__s9cmpx-z-index-modal)`, the design system's own token tier for
+a full-content-covering overlay. Copilot's review of PR #21 (a clean pass, no comments) also
+pushed a direct commit adding proper modal semantics (`role="dialog"`, `aria-modal`,
+`aria-labelledby`, focus trap via the existing shared `useFocusTrap` hook, Escape-to-close) —
+reviewed and verified (typecheck, full test suite, and live Escape-key behavior) before being
+treated as part of the shipped change. Copilot's review of PR #106 caught two real issues (a
+brittle DOM-traversal test selector reaching into `design-system`'s internal class names;
+missing test coverage for `CountryProfilePage`'s new expand/restore control) — both fixed,
+verified, and re-reviewed clean before merge. Deployed to the Mac Mini and verified live against
+`labs.syena.io/ghg-emissions-analysis`: the treemap, the 3 Country Comparison panels, both
+Country Profile grid charts, and the Overview world map all expand/restore correctly, the sidebar
+no longer bleeds through the expanded overlay, Escape closes it, and the map's own "Reset view"
+control coexists with the new expand button without conflict.
 
 ---
 

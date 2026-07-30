@@ -1157,7 +1157,7 @@ still functional expanded.
 
 ## Release 6 — Generalized Chart Expand/Restore Control
 
-**Status: Planned.** `climate-dashboard-react` + `design-system` only — no Streamlit/`app.py`,
+**Status: Shipped.** `climate-dashboard-react` + `design-system` only — no Streamlit/`app.py`,
 no `api/` change. Tracked in `SPEC.md` §5.11.
 
 Prompted directly by user feedback after using Release 5's scenario-treemap expand/restore
@@ -1202,3 +1202,49 @@ One `design-system` PR (the `ChartCard` change) lands first; one app-side PR bun
 refactor and the five new `expandable` sites, since they're all the same mechanical change applied
 at different call sites, not independent features. Standard Mac Mini deploy-after-merge
 (`vitepreview` rebuild+restart only — nothing here touches `api`/`app.py`).
+
+### 6.4 — Shipped: a real bug found live, and two rounds of Copilot review
+
+Two PRs merged: `design-system` #21 (the `ChartCard` change) and
+`climate-emissions-analysis-project` #106 (the treemap refactor + five new `expandable` sites).
+
+Verifying the change live — clicking Expand on the treemap right after the sidebar-overlap
+concern was raised — reproduced a real bug not caught by code review: the expanded overlay's
+prior ad-hoc `z-index: 50` sat below the sidebar nav's own vendor-CSS z-index
+(`--__s9cmpx-c-sidebar-z-index`, computed to 310 from `--__s9cmpx-z-index-sticky` + 10), so
+`position: fixed` escaping the app shell's flex layout meant the overlay's left edge rendered
+*behind* the always-visible desktop sidebar instead of over it. Confirmed via
+`document.elementFromPoint` at the overlapping pixel, which returned a sidebar `<a>` instead of
+the chart. Fixed with `var(--__s9cmpx-z-index-modal)` — this design system's own existing token
+tier for a full-content-covering overlay — replacing the old magic number, in the same PR.
+
+Copilot's review of `design-system` PR #21 was a clean pass (no comments), but — confirmed by
+direct inspection of the PR's commit history, not assumed — it also pushed a commit directly to
+the branch (`copilot-swe-agent[bot]`, "Add modal behavior to expanded ChartCard") adding proper
+modal accessibility semantics: `role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing at
+the card's title, a focus trap via the existing shared `useFocusTrap` hook (already used by
+`Modal` and `Drawer` — reused, not reinvented), and Escape-to-close. This was reviewed like any
+other change before being treated as shipped: confirmed `useFocusTrap` is a real pre-existing
+hook (not a hallucinated import), re-ran `tsc -b` and the full test suite (143/143 pass), and
+verified live post-deploy that Escape actually closes the expanded overlay and restores the
+collapsed view.
+
+Copilot's review of `climate-emissions-analysis-project` PR #106 caught two real issues, both
+verified against current code before fixing: a test in `ScenarioComparisonPage.test.tsx` located
+the BAU panel's expand button via `.closest('.__s9cmpx-card-header')` — a brittle traversal into
+`design-system`'s internal markup — replaced with an index into the ordered list of "Expand
+chart" buttons instead; and `CountryProfilePage`'s new expand/restore wiring (height 280↔560) had
+no test coverage at all, so a regression there would have gone unnoticed — added a test mirroring
+`ScenarioComparisonPage`'s existing pattern. Both fixed, pushed, and re-reviewed clean (`copilot`
+check run `conclusion: success`) before merge.
+
+Deployed to the Mac Mini and verified live against `labs.syena.io/ghg-emissions-analysis`
+(service-worker/cache-clear step before each check, as established since Release 5): after the
+`design-system`-only deploy, the treemap's expand button was confirmed still using its old
+Release-5 hand-rolled overlay (expected — the app hadn't switched over yet) and the sidebar-
+overlap bug was confirmed still present there, ruling out a false "already fixed" read. After the
+app-side deploy, the treemap, all 3 Country Comparison panels, both Country Profile grid charts,
+and the Overview world map all expand/restore correctly; `document.elementFromPoint` at the
+previously-broken pixel now resolves to the chart, not the sidebar; Escape closes the expanded
+view and returns focus; and the world map's own "Reset view" control coexists with the new expand
+button without conflict.
