@@ -8,8 +8,13 @@ export function useCountUp(target: number, durationMs = 1500): number {
   useEffect(() => {
     const from = fromRef.current;
     const to = target;
-    if (from === to) {
+    // Same matchMedia pattern design-system's SidebarNav already uses for its own
+    // transitions -- skip straight to the final value instead of animating (SPEC.md §5.10).
+    const reduceMotion =
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (from === to || reduceMotion) {
       setValue(to);
+      fromRef.current = to;
       return;
     }
     const start = performance.now();

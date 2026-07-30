@@ -91,7 +91,7 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
       ) : cumulative.error ? (
         <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
       ) : cumulative.data ? (
-        <ChartCard title={`Cumulative Emissions & Reduction Scenarios — ${treemapScenario} — ${cumulative.data.rows.length} Expanded Countries`}>
+        <ChartCard title={`Cumulative Emissions & Reduction Scenarios — ${treemapScenario} — ${cumulative.data.rows.length} Expanded Countries`} headingLevel={3}>
           <SyChart
             height={360}
             showLegend={false}
@@ -170,7 +170,7 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
         ) : compare.data ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
             {SCENARIO_PANELS.map((scenario, i) => (
-              <ChartCard key={scenario} title={scenario}>
+              <ChartCard key={scenario} title={scenario} headingLevel={3}>
                 <SyChart
                   height={300}
                   xTitle="Year"

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Icon } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
@@ -16,10 +16,33 @@ const MAGNITUDE_SCALE: Array<[number, string]> = [
   [1, '#7a1f1f'],
 ];
 
+// Standard clip-based visually-hidden technique -- design-system has no existing utility
+// class for this, and it's only needed in this one place.
+const VISUALLY_HIDDEN: CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: 'hidden',
+  clip: 'rect(0, 0, 0, 0)',
+  whiteSpace: 'nowrap',
+  border: 0,
+};
+
 // A component (not a bare hook call) so each instance gets its own independent animation --
 // used anywhere a KPI number should count up rather than jump straight to its new value.
+// The animating text is aria-hidden (a screen reader shouldn't announce a meaningless
+// mid-flight number, or on a 1.5s animation, potentially read a stale one) with the final
+// value exposed via an adjacent visually-hidden span instead (SPEC.md §5.10).
 function CountUpText({ value, format }: { value: number; format: (n: number) => string }) {
-  return <>{format(useCountUp(value))}</>;
+  const animated = useCountUp(value);
+  return (
+    <>
+      <span aria-hidden="true">{format(animated)}</span>
+      <span style={VISUALLY_HIDDEN}>{format(value)}</span>
+    </>
+  );
 }
 
 // One glyph per tier so the three cards are visually distinguishable at a glance, not just by
@@ -124,7 +147,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           (SPEC.md §5.10). */}
       <style>{'@media (max-width: 1400px) { .overview-hero-grid { grid-template-columns: 1fr !important; } }'}</style>
       <div className="overview-hero-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16, alignItems: 'stretch' }}>
-        <ChartCard title={`CO₂ Emissions by Country (${data.all_countries.latest_year})`}>
+        <ChartCard title={`CO₂ Emissions by Country (${data.all_countries.latest_year})`} headingLevel={2}>
           <SyChart
             showLegend={false}
             ariaLabel={`World map choropleth of CO₂ emissions by country in ${data.all_countries.latest_year}, log-scaled color from light (lowest) to deep red (highest)`}
@@ -168,7 +191,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>
       ) : (
         <>
-          <ChartCard title={`CO₂ Emissions by Country (${data.selected.latest_year})`}>
+          <ChartCard title={`CO₂ Emissions by Country (${data.selected.latest_year})`} headingLevel={2}>
             <SyChart
               height={320}
               xTitle="Country"
@@ -202,7 +225,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
               />
             </div>
 
-            <ChartCard title={`CO₂ % Change by Country, 1990–${data.selected.latest_year}`}>
+            <ChartCard title={`CO₂ % Change by Country, 1990–${data.selected.latest_year}`} headingLevel={3}>
               <SyChart
                 height={320}
                 xTitle="Country"

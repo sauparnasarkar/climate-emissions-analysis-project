@@ -58,7 +58,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
       ) : timeseries.error ? (
         <InlineAlert variant="warning">{timeseries.error}</InlineAlert>
       ) : (
-        <ChartCard title={`${GAS_COLUMNS[gas]} Emissions by Country`}>
+        <ChartCard title={`${GAS_COLUMNS[gas]} Emissions by Country`} headingLevel={3}>
           <SyChart
             height={320}
             xTitle="Year"
@@ -79,7 +79,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
         ) : composition.error ? (
           <InlineAlert variant="warning">{composition.error}</InlineAlert>
         ) : (
-          <ChartCard title={`GHG Composition by Decade — ${selectedCountries.length} Countries (% share)`}>
+          <ChartCard title={`GHG Composition by Decade — ${selectedCountries.length} Countries (% share)`} headingLevel={3}>
             <SyChart
               height={320}
               barmode="stack"

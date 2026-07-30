@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Header, SidebarNav, Footer } from 'design-system';
 import type { SidebarNavItem, SidebarNavGroup } from 'design-system/components/SidebarNav/SidebarNav';
@@ -25,9 +26,12 @@ const NAV_ITEMS: Array<Omit<SidebarNavItem, 'active'> & { path: string; group?: 
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
+  const mainRef = useRef<HTMLElement>(null);
+  const isFirstRender = useRef(true);
 
   const toItem = ({ path, group, ...item }: (typeof NAV_ITEMS)[number]): SidebarNavItem => ({
     ...item,
+    href: path,
     active: location.pathname === path,
   });
   const groups: SidebarNavGroup[] = (['Exploration', 'Projection'] as const).map((label) => ({
@@ -35,6 +39,24 @@ function App() {
     items: NAV_ITEMS.filter((item) => item.group === label).map(toItem),
   }));
   const footerItems: SidebarNavItem[] = NAV_ITEMS.filter((item) => !item.group).map(toItem);
+
+  // Route changes were previously silent and untitled: document.title never changed, no
+  // focus moved, and nothing was announced -- a screen-reader user got no signal the page
+  // changed (SPEC.md §5.10). Every route shares one title/focus-management effect here
+  // rather than duplicating it across each page. Focus (not just title) is skipped on the
+  // very first render -- only subsequent, in-app navigations should steal focus from
+  // wherever the browser naturally placed it on initial load.
+  useEffect(() => {
+    const current = NAV_ITEMS.find((item) => item.path === location.pathname);
+    document.title = current
+      ? `${current.label} — GHG Emissions Trend Analysis and Forecasting`
+      : 'GHG Emissions Trend Analysis and Forecasting';
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    mainRef.current?.focus();
+  }, [location.pathname]);
 
   return (
     <div
@@ -58,6 +80,27 @@ function App() {
         paddingRight: 'env(safe-area-inset-right, 0px)',
       }}
     >
+      {/* Visually hidden until focused (standard clip-based technique -- design-system has
+          no existing utility class for this). Confirmed genuinely absent before this fix,
+          not a false positive -- the only href="#" elements in this app are the sidebar nav
+          items above, not a skip link. */}
+      <a
+        href="#main-content"
+        style={{
+          position: 'absolute',
+          left: 8,
+          top: 8,
+          zIndex: 100,
+          padding: '8px 16px',
+          background: 'var(--__s9cmpx-static-background-standard)',
+          color: 'var(--__s9cmpx-static-text-standard)',
+          transform: 'translateY(-200%)',
+        }}
+        onFocus={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
+        onBlur={(e) => (e.currentTarget.style.transform = 'translateY(-200%)')}
+      >
+        Skip to main content
+      </a>
       <Header
         logo={
           <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, textAlign: 'left', minWidth: 0 }}>
@@ -103,6 +146,9 @@ function App() {
           }}
         />
         <main
+          id="main-content"
+          ref={mainRef}
+          tabIndex={-1}
           style={{
             flex: 1,
             background: 'var(--__s9cmpx-static-background-weak)',

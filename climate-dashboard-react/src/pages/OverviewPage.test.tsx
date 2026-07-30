@@ -61,10 +61,12 @@ describe('OverviewPage', () => {
     expect(screen.getByText('Selected')).toBeInTheDocument();
     // 'CO₂ (2024)' appears once per tier card (All Countries / Expanded / Selected = 3).
     expect(screen.getAllByText('CO₂ (2024)')).toHaveLength(3);
-    expect(screen.getByText('37,406 MtCO₂')).toBeInTheDocument();
-    expect(screen.getByText('34,477 MtCO₂')).toBeInTheDocument();
-    expect(screen.getByText('25,324 MtCO₂')).toBeInTheDocument();
-    expect(screen.getByText('+76.5%')).toBeInTheDocument();
+    // CountUpText renders each value twice -- an aria-hidden visible span plus a
+    // visually-hidden one carrying the same final value for screen readers (SPEC.md §5.10).
+    expect(screen.getAllByText('37,406 MtCO₂')).toHaveLength(2);
+    expect(screen.getAllByText('34,477 MtCO₂')).toHaveLength(2);
+    expect(screen.getAllByText('25,324 MtCO₂')).toHaveLength(2);
+    expect(screen.getAllByText('+76.5%')).toHaveLength(2);
     expect(screen.getByText('Top Movers Since 1990 (10 Selected Countries)')).toBeInTheDocument();
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(FEATURED);
   });
@@ -110,7 +112,7 @@ describe('OverviewPage', () => {
     await user.click(screen.getByLabelText('Select countries (up to 10/11)'));
     await user.click(screen.getByRole('option', { name: 'Vietnam' }));
 
-    expect(await screen.findByText('370 MtCO₂')).toBeInTheDocument();
+    expect(await screen.findAllByText('370 MtCO₂')).toHaveLength(2);
     expect(await screen.findByText('Fastest Growth — Vietnam')).toBeInTheDocument();
     expect(vi.mocked(api.overview)).toHaveBeenLastCalledWith(['Vietnam']);
   });
