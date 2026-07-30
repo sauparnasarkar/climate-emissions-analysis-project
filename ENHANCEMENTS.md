@@ -1003,7 +1003,7 @@ the weekly job uses.
 
 ## Release 5 — Tablet/Mobile Interaction, PWA, and Accessibility Fixes
 
-**Status: Planned.** `climate-dashboard-react` + `design-system` only — no Streamlit/`app.py`,
+**Status: Shipped.** `climate-dashboard-react` + `design-system` only — no Streamlit/`app.py`,
 no `api/` change. Tracked in `SPEC.md` §5.10.
 
 Sources: four interaction issues reported from real iPad/iPhone use, plus a full accessibility/
@@ -1115,3 +1115,40 @@ Four phases by severity, one feature branch per PR: the two traps (5.1 `design-s
 `design-system` PRs land before the app-side PRs that consume them within each phase. Standard
 Mac Mini deploy-after-merge for every PR (`vitepreview` rebuild+restart only — nothing here
 touches `api`/`app.py`), via the now-fixed `sauparnasarkar@Sauparnas-Mac-mini.local` hostname.
+
+### 5.8 — Shipped: PRs, fixes found in review, and deploy verification
+
+Nine PRs merged: `design-system` #17 (5.1/5.2 treemap-click-cancel + choropleth reset-view), #18
+(5.5 MultiSelect touch target + KpiStat non-color cue), #19 (5.5 `SidebarNav` click-handler,
+carrying a real `href` per item without also double-firing native navigation), #20 (5.6 Icon
+expand/collapse glyphs); `climate-dashboard-react` #101 (5.1 `onTileClick` wiring +
+tapped-tile detail area), #102 (5.4 PWA meta tags, safe-area insets, stale-copy reword), #103 (5.3
+hero-grid breakpoint + dead-prop removal), #104 (5.5 `App.tsx` href/title/focus/skip-link bundled
+with `useCountUp` reduced-motion and `CountUpText` ARIA, plus explicit `headingLevel` on every
+`ChartCard` site), #105 (5.6 scenario expand/restore control).
+
+Two real regressions were caught and fixed before merge, both in `SidebarNav`'s click handler
+(PR #19): the first (self-caught, mid-implementation) was giving every nav item a real `href`
+without guarding `preventDefault()`, which would have fired the SPA handler *and* a native
+full-page navigation on every plain click; the second (Copilot-caught, same PR) was the fix for
+the first unconditionally calling `preventDefault()` even when a consumer had a real `href` and no
+`onItemClick`, silently no-oping it. Both verified via genuine click-through testing, not just
+code review. Copilot review on PR #101 also caught a `toLocaleString` locale-fragility assumption
+in a test (broadened the separator regex); on PR #102, a `minHeight: 100vh` + safe-area padding
+box-model bug (fixed with `boxSizing: 'border-box'`); on PR #104, a `useCountUp` test-mock leak
+(`window.matchMedia` direct assignment surviving `vi.restoreAllMocks()` — fixed with
+`vi.stubGlobal`/`vi.unstubAllGlobals()`, plus a `typeof window.matchMedia === 'function'` guard
+added to the hook itself); on PR #105, the expand overlay ignoring safe-area insets under
+`position: fixed` (fixed with `calc(16px + env(safe-area-inset-*, 0px))` per side) and a missing
+test for the expand/restore control.
+
+Each merge deployed to the Mac Mini (`vitepreview` rebuild + restart, `git fetch && git merge
+--ff-only` in both repo directories) and verified live against
+`labs.syena.io/ghg-emissions-analysis`, including a service-worker/cache-clear step every time to
+rule out a stale bundle before checking: tapping a treemap tile shows the detail area with no
+drill-zoom; the world map's "Reset view" control returns to the default projection after a
+pinch/scroll zoom; the Overview hero grid stays single-column through both reported iPad widths
+(1024 portrait, 1366 landscape) with no dead space below the map; route changes update the tab
+title and move focus to the new page's heading; the scenario treemap's expand/restore toggle
+renders inside a safe-area-aware fixed overlay at both sizes, with the tapped-tile detail area
+still functional expanded.

@@ -567,7 +567,7 @@ own scope shipped.
 
 ### 5.10 Tablet/Mobile Interaction, PWA, and Accessibility Fixes (Release 5)
 
-**Status: Planned** — tracked in `ENHANCEMENTS.md` Release 5. React-only, not a curriculum
+**Status: Shipped** — tracked in `ENHANCEMENTS.md` Release 5. React-only, not a curriculum
 change. Sources: four interaction issues reported from real iPad/iPhone use, plus a full
 accessibility/PWA/mobile audit performed against shipped source and then verified live against
 `labs.syena.io/ghg-emissions-analysis` via DOM/Plotly-state inspection (an `axe-core` scan wasn't
@@ -581,6 +581,19 @@ treemap caller exists, not two; the suggested ~1200px breakpoint wouldn't actual
 landscape (1366px wide) — 1400px is what closes the gap for both reported orientations; and the
 `height={420}` dead-code claim is confirmed real in production (`OverviewPage.tsx`), not just a
 Storybook artifact.
+
+Nine PRs shipped across four phases: `design-system` #17 (treemap-drill + map-zoom-reset), #18
+(MultiSelect touch target + KpiStat non-color cue), #19 (SidebarNav click-handler fix, two rounds
+of Copilot-caught regressions resolved before merge), #20 (Icon expand/collapse glyphs); app-side
+#101 (onTileClick wiring), #102 (PWA meta tags + safe-area insets), #103 (Overview breakpoint),
+#104 (App.tsx href/title/focus/skip-link + useCountUp reduced-motion + CountUpText ARIA + explicit
+`headingLevel` on every `ChartCard` site), #105 (scenario expand/restore control). Each merge
+deployed to the Mac Mini (`vitepreview` rebuild + restart only — no Release 5 change touches
+`api`/`app.py`) and verified live against `labs.syena.io/ghg-emissions-analysis`: treemap tap shows
+tapped-tile detail with no drill-zoom, world map "Reset view" returns to the default projection,
+the Overview hero grid is single-column through 1366px, the scenario treemap's expand/restore
+toggle renders correctly inside the safe-area-aware fixed overlay with the tapped-tile detail
+still functional at both sizes.
 
 | Aspect | Detail |
 |---|---|
