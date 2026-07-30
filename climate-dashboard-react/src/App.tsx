@@ -43,6 +43,11 @@ function App() {
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',
+        // Without this, the default content-box sizing adds the safe-area padding below
+        // ON TOP of the 100vh minimum height, forcing unwanted vertical scroll in standalone
+        // mode -- exactly the scenario this padding exists for. border-box keeps padding
+        // inside the 100vh minimum instead.
+        boxSizing: 'border-box',
         background: 'var(--__s9cmpx-static-background-weak)',
         // Only bites once installed standalone on iOS (index.html's apple-mobile-web-app-*
         // meta tags + viewport-fit=cover, SPEC.md §5.10) -- a plain Safari tab's own chrome
