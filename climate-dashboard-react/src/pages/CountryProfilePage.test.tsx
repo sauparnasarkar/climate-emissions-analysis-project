@@ -10,7 +10,12 @@ vi.mock('../api/client', () => ({ api: { countryProfile: vi.fn(), listCountries:
 // concern, stubbed here so this page's data-wiring is what's under test.
 vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
-  return { ...actual, SyChart: (props: { ariaLabel?: string }) => <div data-testid="sychart" aria-label={props.ariaLabel} /> };
+  return {
+    ...actual,
+    SyChart: (props: { ariaLabel?: string; height?: number }) => (
+      <div data-testid="sychart" aria-label={props.ariaLabel} data-height={props.height} />
+    ),
+  };
 });
 
 const COUNTRIES: CountriesResponse = {
@@ -56,6 +61,30 @@ describe('CountryProfilePage', () => {
 
     expect(await screen.findByText('CO₂ Emissions — Vietnam')).toBeInTheDocument();
     expect(vi.mocked(api.countryProfile)).toHaveBeenLastCalledWith('Vietnam');
+  });
+
+  it('expands and restores the CO₂ Emissions chart via ChartCard\'s expandable control (SPEC.md §5.11)', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(<CountryProfilePage />);
+    await screen.findByText('CO₂ Emissions — China');
+
+    // Grid order: CO₂ Emissions (index 0), CO₂ per Capita (index 1), then the already
+    // full-width Year-on-Year chart (index 2, not expandable).
+    const emissionsChart = () => screen.getAllByTestId('sychart')[0];
+    expect(emissionsChart()).toHaveAttribute('data-height', '280');
+
+    await user.click(screen.getAllByRole('button', { name: 'Expand chart' })[0]);
+    expect(emissionsChart()).toHaveAttribute('data-height', '560');
+    expect(screen.getByRole('button', { name: 'Restore chart' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Restore chart' }));
+    expect(emissionsChart()).toHaveAttribute('data-height', '280');
+
+    // The CO₂ per Capita chart is unaffected by this one chart's toggle.
+    expect(screen.getAllByTestId('sychart')[1]).toHaveAttribute('data-height', '280');
   });
 
   it('renders an inline error instead of crashing when the profile API call fails', async () => {

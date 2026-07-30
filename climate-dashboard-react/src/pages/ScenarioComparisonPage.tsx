@@ -19,11 +19,6 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
   // a hover on touch devices, so tapping a tile shows the same size + color values here
   // instead -- SyChart cancels Plotly's default drill-to-zoom on tap for this reason.
   const [tappedTileIndex, setTappedTileIndex] = useState<number | null>(null);
-  // Expand/restore control (SPEC.md §5.10 Phase 4) -- CSS-driven in-page maximize rather
-  // than the native Fullscreen API, which is inconsistent on iOS Safari. SyChart's own
-  // ResizeObserver + responsive:true pick up the container-size change on toggle with no
-  // extra plumbing needed.
-  const [treemapExpanded, setTreemapExpanded] = useState(false);
 
   // sort_by only affects the response's own `order` field, which nothing here reads anymore
   // now that the treemap is sized by BAU total (unaffected by the radio) and the table below
@@ -96,100 +91,70 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
       ) : cumulative.error ? (
         <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
       ) : cumulative.data ? (
-        <div
-          style={
-            treemapExpanded
-              ? {
-                  position: 'fixed',
-                  // A fixed-position overlay is positioned relative to the viewport, not any
-                  // padded ancestor -- App.tsx's own safe-area padding on the page shell
-                  // never applies here, so each side needs its own env(safe-area-inset-*)
-                  // added on top of the 16px margin, or this could render under the notch/
-                  // home-indicator in iOS standalone mode (per Copilot review on PR #105).
-                  top: 'calc(16px + env(safe-area-inset-top, 0px))',
-                  right: 'calc(16px + env(safe-area-inset-right, 0px))',
-                  bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
-                  left: 'calc(16px + env(safe-area-inset-left, 0px))',
-                  zIndex: 50,
-                  background: 'var(--__s9cmpx-static-background-weak)',
-                  overflow: 'auto',
-                  padding: 8,
-                  borderRadius: 8,
-                  boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                }
-              : undefined
-          }
+        <ChartCard
+          title={`Cumulative Emissions & Reduction Scenarios — ${treemapScenario} — ${cumulative.data.rows.length} Expanded Countries`}
+          headingLevel={3}
+          expandable
         >
-          <ChartCard
-            title={`Cumulative Emissions & Reduction Scenarios — ${treemapScenario} — ${cumulative.data.rows.length} Expanded Countries`}
-            headingLevel={3}
-            actions={
-              <button
-                type="button"
-                onClick={() => setTreemapExpanded((v) => !v)}
-                aria-label={treemapExpanded ? 'Restore chart' : 'Expand chart'}
-                className="__s9cmpx-button __s9cmpx-button--ghost __s9cmpx-button--s __s9cmpx-button--icon-only"
-              >
-                <Icon name={treemapExpanded ? 'collapse' : 'expand'} size={16} />
-              </button>
-            }
-          >
-          <SyChart
-            height={treemapExpanded ? 640 : 360}
-            showLegend={false}
-            ariaLabel={`Treemap of ${cumulative.data.rows.length} countries, sized by cumulative BAU emissions 2025 to 2040 and colored by whether ${treemapScenario}'s 2040 level is above or below each country's current level`}
-            series={[{
-              name: treemapScenario,
-              x: [],
-              y: [],
-              kind: 'treemap',
-              labels: cumulative.data.rows.map((r) => r.country),
-              parents: cumulative.data.rows.map(() => ''),
-              values: treemapValues,
-              valueLabel: 'Cumulative BAU',
-              colorValues: treemapColors,
-              colorbarTitle: `${treemapScenario} 2040 vs. Current`,
-              hoverUnit: 'MtCO₂',
-              onTileClick: (pointNumber) => setTappedTileIndex(pointNumber),
-            }]}
-          />
-          {tappedTileIndex != null && cumulative.data.rows[tappedTileIndex] && (
-            <div
-              className="__s9cmpx-body2"
-              style={{
-                marginTop: 8,
-                padding: '10px 12px',
-                borderRadius: 8,
-                background: 'var(--__s9cmpx-static-layer-standard)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              <div>
-                <strong>{cumulative.data.rows[tappedTileIndex].country}</strong>
-                {' — '}
-                Cumulative BAU: {treemapValues[tappedTileIndex].toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂
-                {', '}
-                {treemapScenario} 2040 vs. Current:{' '}
-                {treemapColors[tappedTileIndex] != null
-                  ? `${treemapColors[tappedTileIndex]! >= 0 ? '+' : ''}${treemapColors[tappedTileIndex]!.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                  : '—'}{' '}
-                MtCO₂
-              </div>
-              <button
-                type="button"
-                onClick={() => setTappedTileIndex(null)}
-                aria-label="Dismiss country detail"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--__s9cmpx-static-text-weak)', display: 'flex' }}
-              >
-                <Icon name="close" size={16} />
-              </button>
-            </div>
+          {(isExpanded) => (
+            <>
+              <SyChart
+                height={isExpanded ? 640 : 360}
+                showLegend={false}
+                ariaLabel={`Treemap of ${cumulative.data!.rows.length} countries, sized by cumulative BAU emissions 2025 to 2040 and colored by whether ${treemapScenario}'s 2040 level is above or below each country's current level`}
+                series={[{
+                  name: treemapScenario,
+                  x: [],
+                  y: [],
+                  kind: 'treemap',
+                  labels: cumulative.data!.rows.map((r) => r.country),
+                  parents: cumulative.data!.rows.map(() => ''),
+                  values: treemapValues,
+                  valueLabel: 'Cumulative BAU',
+                  colorValues: treemapColors,
+                  colorbarTitle: `${treemapScenario} 2040 vs. Current`,
+                  hoverUnit: 'MtCO₂',
+                  onTileClick: (pointNumber) => setTappedTileIndex(pointNumber),
+                }]}
+              />
+              {tappedTileIndex != null && cumulative.data!.rows[tappedTileIndex] && (
+                <div
+                  className="__s9cmpx-body2"
+                  style={{
+                    marginTop: 8,
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    background: 'var(--__s9cmpx-static-layer-standard)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <strong>{cumulative.data!.rows[tappedTileIndex].country}</strong>
+                    {' — '}
+                    Cumulative BAU: {treemapValues[tappedTileIndex].toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂
+                    {', '}
+                    {treemapScenario} 2040 vs. Current:{' '}
+                    {treemapColors[tappedTileIndex] != null
+                      ? `${treemapColors[tappedTileIndex]! >= 0 ? '+' : ''}${treemapColors[tappedTileIndex]!.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                      : '—'}{' '}
+                    MtCO₂
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setTappedTileIndex(null)}
+                    aria-label="Dismiss country detail"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--__s9cmpx-static-text-weak)', display: 'flex' }}
+                  >
+                    <Icon name="close" size={16} />
+                  </button>
+                </div>
+              )}
+            </>
           )}
-          </ChartCard>
-        </div>
+        </ChartCard>
       ) : null}
 
       <div style={{ marginTop: 24 }}>
@@ -213,21 +178,23 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
         ) : compare.data ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
             {SCENARIO_PANELS.map((scenario, i) => (
-              <ChartCard key={scenario} title={scenario} headingLevel={3}>
-                <SyChart
-                  height={300}
-                  xTitle="Year"
-                  yTitle="CO₂ (MtCO₂)"
-                  showLegend={i === 0}
-                  yRange={yRange}
-                  ariaLabel={`Line chart of ${scenario} CO₂ emissions from 1990 to 2040 for ${selectedCountries.join(', ')}`}
-                  series={(compare.data!.scenarios[scenario] ?? []).map((s) => ({
-                    name: s.name,
-                    x: s.years,
-                    y: s.values,
-                    kind: 'line' as const,
-                  }))}
-                />
+              <ChartCard key={scenario} title={scenario} headingLevel={3} expandable>
+                {(isExpanded) => (
+                  <SyChart
+                    height={isExpanded ? 600 : 300}
+                    xTitle="Year"
+                    yTitle="CO₂ (MtCO₂)"
+                    showLegend={i === 0}
+                    yRange={yRange}
+                    ariaLabel={`Line chart of ${scenario} CO₂ emissions from 1990 to 2040 for ${selectedCountries.join(', ')}`}
+                    series={(compare.data!.scenarios[scenario] ?? []).map((s) => ({
+                      name: s.name,
+                      x: s.years,
+                      y: s.values,
+                      kind: 'line' as const,
+                    }))}
+                  />
+                )}
               </ChartCard>
             ))}
           </div>

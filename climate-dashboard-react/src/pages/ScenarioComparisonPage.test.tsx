@@ -115,7 +115,7 @@ describe('ScenarioComparisonPage', () => {
     expect(vi.mocked(api.scenarioCompare)).not.toHaveBeenCalled();
   });
 
-  it('expands and restores the treemap via the expand/restore control (SPEC.md §5.10)', async () => {
+  it('expands and restores the treemap via ChartCard\'s expandable control (SPEC.md §5.11)', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
@@ -125,17 +125,43 @@ describe('ScenarioComparisonPage', () => {
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries');
 
     // The treemap is always the first SyChart rendered on this page (the 3 per-scenario
-    // panel charts, also stubbed with the same testid, come later in render order).
+    // panel charts, also stubbed with the same testid, come later in render order). Every
+    // ChartCard on this page is now expandable (SPEC.md §5.11), so scope to the first
+    // "Expand chart" button rather than assuming it's the only one.
     const treemapChart = () => screen.getAllByTestId('sychart')[0];
     expect(treemapChart()).toHaveAttribute('data-height', '360');
 
-    await user.click(screen.getByRole('button', { name: 'Expand chart' }));
+    await user.click(screen.getAllByRole('button', { name: 'Expand chart' })[0]);
     expect(treemapChart()).toHaveAttribute('data-height', '640');
     expect(screen.getByRole('button', { name: 'Restore chart' })).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Restore chart' }));
     expect(treemapChart()).toHaveAttribute('data-height', '360');
-    expect(screen.getByRole('button', { name: 'Expand chart' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Expand chart' })[0]).toBeInTheDocument();
+  });
+
+  it('expands and restores a Country Comparison panel independently of the others (SPEC.md §5.11)', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(<ScenarioComparisonPage />);
+    await screen.findByRole('heading', { name: 'BAU' });
+
+    // Panel order: treemap (index 0), then BAU/Moderate/Aggressive panels (indices 1-3).
+    const bauPanelChart = () => screen.getAllByTestId('sychart')[1];
+    expect(bauPanelChart()).toHaveAttribute('data-height', '300');
+
+    // The treemap renders first, then the BAU/Moderate/Aggressive panels in that order
+    // (same ordering the sychart-index comment above relies on) -- index into the ordered
+    // list of "Expand chart" buttons rather than traversing design-system's internal markup.
+    await user.click(screen.getAllByRole('button', { name: 'Expand chart' })[1]);
+    expect(bauPanelChart()).toHaveAttribute('data-height', '600');
+
+    // The treemap and other panels are unaffected by this one panel's toggle.
+    expect(screen.getAllByTestId('sychart')[0]).toHaveAttribute('data-height', '360');
+    expect(screen.getAllByTestId('sychart')[2]).toHaveAttribute('data-height', '300');
   });
 
   it('recolors the treemap (via its title) when a different scenario radio is selected, without refetching', async () => {
