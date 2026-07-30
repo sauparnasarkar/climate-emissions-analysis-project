@@ -1,6 +1,6 @@
 # GHG Emissions Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v16**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · July 2026 · v17**
 
 ---
 
@@ -417,6 +417,7 @@ Sections to include:
 | v14 | Jul 2026 | Added §5.9 (Release 3.1, `ENHANCEMENTS.md`), a follow-up review found after Release 3 shipped and was checked live: Overview's map+tier-table layout redone as a 2/3 map + 1/3 KPI summary row (map-as-hero); two real world-map bugs fixed (hover showed the log10-transformed value, not real MtCO₂; colorbar was taller than the map, worse on mobile); Scenario Comparison's treemap redesigned from a fixed BAU-vs-Aggressive-only, green-only color scale to a BAU/Moderate/Aggressive-selectable green/red indicator; the "projection" chart palette's contrast fixed; the original grouped bar chart (superseded by the treemap/3-panel views) dropped, its `DataTable` kept standalone. React-only. Required one `design-system` PR (`SyChart` choropleth hover/colorbar fix). Not an internship requirement change. |
 | v15 | Jul 2026 | Documented Release 3.1's post-ship follow-up (`ENHANCEMENTS.md` §3.1.8): two more rounds of KPI-panel/typography polish (icon repositioned + recolored, several font-size bumps); two real chart bugs found and fixed in `SyChart.tsx` — a mobile-only legend rendering as a bare scrollbar over the plot (fixed height allocation didn't grow with wrapped rows), and a diverging colorscale silently auto-ranging away from a true zero midpoint on skewed data (the actual root cause of the treemap showing backwards red/green, confirmed against real API data before fixing); and a treemap hover enhancement showing both the tile-size and tile-color metrics instead of just size. Required three more `design-system` PRs. Not an internship requirement change. |
 | v16 | Jul 2026 | Added §6 (`ENHANCEMENTS.md` Release 4), a **curriculum correction**, not a post-internship addition: Week 3's regression `TARGET` was same-year `co2` while `FEATURES` included a same-row function of it (`co2_yoy_pct_change`) — genuine target leakage, found by comparing against a separate intern's independent implementation and confirmed algebraically. Fixed by reframing to a next-year target (`target_co2_next`), which also required restructuring §3.8's recursive forecaster (it was already forced to approximate around the same leak) and fixing an incidental rolling-mean off-by-one uncovered along the way. Separately, Week 1's `NON_SOVEREIGN` sovereignty filter was missing two null-`iso_code` entities (`Kosovo`, bare `Ryukyu Islands`) — switched to `iso_code.notna()` as the operative filter (220→218 sovereign countries), with the same fix applied to `api/data_loaders.py` and `app.py`'s independently-hand-mirrored copies of the same filter. §3.1's curriculum text already said "year Y+1" before this fix — the implementation is what changed to match it, not the spec. |
+| v17 | Jul 2026 | Added §5.10 (`ENHANCEMENTS.md` Release 5): two genuine interaction "traps" (treemap tap-to-drill with no way back; world map pinch/scroll-zoom with no reset), iPad layout (tiny map, dead space, from a stretched grid row + width-only resize logic + a breakpoint that trips at neither reported iPad orientation), three PWA gaps (iOS install not launching standalone, no safe-area handling, stale "10 major countries" copy), and eight accessibility findings (reduced-motion ignored, animated numbers exposed to screen readers, silent route changes, undersized touch targets, color-only good/bad delta, low card-border contrast, sidebar nav items missing real hrefs, no skip link, skipped/back-jumping heading order). Every finding independently re-verified against current source before planning; four corrections made along the way (`SidebarNav`'s href fix needs no `design-system` change; one treemap caller not two; 1400px breakpoint not the originally-suggested 1200px, which wouldn't have fixed iPad landscape; `height={420}` dead code confirmed real in production). Not an internship requirement change. |
 
 ---
 
@@ -563,6 +564,48 @@ own scope shipped.
 | §3.1.8 follow-up: mobile legend bug | A chart legend that can't fit its entries in one row on a narrow viewport silently became an internally-scrollable, unstyled gray bar over the plot — Plotly reserves a fixed height share for the legend regardless of wrapped row count. Fixed by growing chart `height` to fit the estimated rows, reusing the choropleth's own resize pattern |
 | §3.1.8 follow-up: treemap colors backwards | The real root cause behind the treemap's colors: Plotly auto-scales a diverging colorscale to the data's actual min/max, not to a fixed zero-centered range, so one outlier country skewed the whole scale and inverted the visible red/green split. Fixed by pinning the colorscale's midpoint to true zero (`marker.cmid: 0`) |
 | §3.1.8 follow-up: treemap hover | Now shows both the tile-size metric (cumulative BAU) and the tile-color metric (the scenario delta) on hover, not just size |
+
+### 5.10 Tablet/Mobile Interaction, PWA, and Accessibility Fixes (Release 5)
+
+**Status: Planned** — tracked in `ENHANCEMENTS.md` Release 5. React-only, not a curriculum
+change. Sources: four interaction issues reported from real iPad/iPhone use, plus a full
+accessibility/PWA/mobile audit performed against shipped source and then verified live against
+`labs.syena.io/ghg-emissions-analysis` via DOM/Plotly-state inspection (an `axe-core` scan wasn't
+possible — the production CSP blocks external scripts — so checks were written directly against
+the DOM: target size, accessible names, heading order, landmarks, SPA-navigation behavior; not a
+substitute for a full automated ruleset). Every finding was independently re-verified against
+current source before this table was written — that pass confirmed the great majority exactly,
+and corrected four things: `SidebarNav`'s missing real `href`s need no `design-system` change (the
+component already supports `href` per item — the bug is the app's own item-mapping code); only one
+treemap caller exists, not two; the suggested ~1200px breakpoint wouldn't actually fix iPad
+landscape (1366px wide) — 1400px is what closes the gap for both reported orientations; and the
+`height={420}` dead-code claim is confirmed real in production (`OverviewPage.tsx`), not just a
+Storybook artifact.
+
+| Aspect | Detail |
+|---|---|
+| Treemap drill with no way back | Tapping a tile triggers Plotly's default click-to-zoom; since `pathbar` isn't configured and every tile's `parents` is `''` (a flat, non-hierarchical treemap), there is no breadcrumb and no way back to the root view short of a re-render — confirmed live by dispatching a click and reading Plotly's own state. Fixed by cancelling the drill via a new `plotly_treemapclick` handler and exposing an `onTileClick` prop so the app can show tapped-tile detail instead |
+| Map zoom with no reset | Pinch/scroll zoom on the choropleth is Plotly's enabled-by-default behavior (`scrollZoom` is never set), while `displayModeBar: false` removes the only built-in "Reset axes" affordance, for every chart kind. Fixed by adding a self-contained "Reset view" control to the choropleth branch only |
+| iPad: tiny map, dead space below it | Three compounding causes, confirmed live: `OverviewPage`'s hero grid uses `alignItems: 'stretch'` (map card forced to match the taller tier panel — both measured at exactly 540px); the choropleth's resize logic sizes purely from container width, never height (measured: 231px of dead space inside the 540px card); and the only breakpoint (900px) doesn't trip at either reported iPad width (portrait 1024, landscape 1366). Fixed by raising the breakpoint to 1400px (not the originally-suggested 1200px, which would leave landscape iPad unfixed) and removing the now-fully-dead `height={420}` prop |
+| iOS "Add to Home Screen" won't launch standalone | `index.html` has no `apple-mobile-web-app-capable`/`-status-bar-style`/`-title` meta tags — iOS Safari ignores the manifest's `display: standalone` and keys off these tags instead, so installing on the exact devices this release targets still opens a normal browser tab |
+| No safe-area handling | No `viewport-fit=cover`, no `env(safe-area-inset-*)` padding anywhere — sequenced after the iOS standalone fix, since it only matters once the app actually launches standalone (a browser tab's own chrome already absorbs the notch/home-indicator area) |
+| Stale "10 major countries" copy | Both `index.html`'s meta description and `vite.config.ts`'s PWA manifest description still cite the pre-Release-2.1 count; the real expanded set is ~40. Reworded to not hardcode a count at all — this is the second review to catch the same drift |
+| Reduced-motion ignored | `useCountUp` always animates over 1500ms regardless of `prefers-reduced-motion`; the codebase already uses this exact media query elsewhere (`SidebarNav`, for a different purpose) |
+| Animated numbers exposed to screen readers mid-flight | `CountUpText` renders the in-progress value as plain text with no ARIA handling |
+| Silent, untitled route changes | Navigating between pages leaves `document.title` unchanged, moves no focus, and announces nothing — the only `aria-live` region on any page belongs to AG Grid's own internal container, not the app |
+| Undersized touch targets | `MultiSelect`'s per-country tag remove button renders at 20×20 CSS px, under WCAG 2.2's 24×24 minimum — a `design-system` fix |
+| good/bad delta is color-only | `KpiStat` renders no chevron for `'good'`/`'bad'` (a deliberate §5.8 tradeoff) — partially mitigated by the existing +/− sign, but borderline against WCAG 1.4.1 |
+| Card border contrast | `--__s9cmpx-static-divider-weak` against the page background computes to 1.40:1 (confirmed independently), under WCAG 1.4.11's 3:1 — low priority, since tier cards also carry a background fill |
+| Sidebar nav items lack real hrefs | All seven items render `href="#"` with JS-driven navigation — breaks open-in-new-tab, middle-click, and link-preview affordances. `SidebarNav` itself already supports a real `href` per item; the app's own item-mapping code just never passes one through — an app-only fix |
+| No skip link | Confirmed absent (an earlier automated check's "skip link" was a false positive, matching the seven `href="#"` nav items instead) |
+| Heading order skips and back-jumps | Confirmed live on Overview: `H1 → H5 → H5 → H2 → H5` — every `ChartCard` defaults to `h5` with no caller passing an explicit `headingLevel`, systemic across all 5 pages that use it |
+| No expand/restore control on scenario charts | `ChartCard`'s existing `actions` slot needs no change; `design-system`'s `Icon` set has no expand/collapse glyph to build the control with |
+
+**Sequencing:** four phases by severity — the two interaction "traps" (treemap drill, map zoom)
+first, since both leave a user stuck with no way out; then the iOS/iPad fixes, since both
+directly affect the reported devices; then the accessibility findings; then polish (the Icon
+glyphs + expand/restore control, and the low-priority divider contrast). `design-system` PRs
+land before the app-side PRs that consume them within each phase.
 
 ---
 

@@ -998,3 +998,120 @@ checkout's working tree for these files is routinely dirty at merge time — han
 `git status` there and resetting the regenerated-output diffs before `git fetch && git merge
 --ff-only`, then triggering an on-demand refresh run to verify end-to-end in the exact environment
 the weekly job uses.
+
+---
+
+## Release 5 — Tablet/Mobile Interaction, PWA, and Accessibility Fixes
+
+**Status: Planned.** `climate-dashboard-react` + `design-system` only — no Streamlit/`app.py`,
+no `api/` change. Tracked in `SPEC.md` §5.10.
+
+Sources: four interaction issues reported from real iPad/iPhone use, plus a full accessibility/
+PWA/mobile audit against shipped source (both repos at `c23f74b`), then verified live against
+`labs.syena.io/ghg-emissions-analysis` via DOM/Plotly-state inspection (an `axe-core` scan wasn't
+possible — the production CSP blocks external scripts — so checks were written directly against
+the DOM: target size, accessible names, heading order, landmarks, SPA-navigation behavior; not a
+substitute for a full automated ruleset).
+
+**Independently re-verified before planning** (two parallel investigations, one per repo, plus a
+direct contrast-ratio computation) — confirmed the great majority of findings exactly, and
+corrected four things worth flagging since they change scope or sequencing:
+- `SidebarNav.tsx:136` already does `href={item.href ?? '#'}` — the component supports a real
+  `href` per item. The actual bug is `climate-dashboard-react/src/App.tsx`'s `toItem` mapper
+  (`:29-32`), which destructures out `path` and never carries it into the item it builds. Pure
+  app-side fix, no `design-system` PR needed for this item.
+- Only one treemap caller exists (`ScenarioComparisonPage.tsx:99`), not two.
+- The originally-suggested ~1200px breakpoint wouldn't fix the reported case — iPad landscape is
+  1366px wide, so 1200px leaves it exactly as broken as today. 1400px is what actually covers
+  both reported orientations (portrait 1024, landscape 1366).
+- `height={420}` dead code confirmed real at `OverviewPage.tsx:125` specifically (not just a
+  Storybook artifact) — `SyChart`'s choropleth `ResizeObserver` (`SyChart.tsx:448-453`) overwrites
+  it via `Plotly.relayout` on first `observe()`, using only container width
+  (`Math.max(220, width / CHOROPLETH_ASPECT_RATIO)`), never height.
+
+### 5.1 — Treemap tap-to-drill with no way back
+
+Tapping a tile triggers Plotly's default click-to-zoom (`level` changes to the tapped tile's id);
+since `pathbar` isn't configured and `parents` is always `''` (a flat, non-hierarchical 40-tile
+treemap — confirmed safe to cancel, there's nothing to legitimately drill into), there is no
+breadcrumb and no second-tap return to root. Touch also never produces the hover the existing
+(already-correct, both-metrics) tooltip is bound to, so a tap both fails to show info and traps
+the view. Fixed in `SyChart.tsx` with a `plotly_treemapclick` handler that returns `false` to
+cancel the default zoom, plus a new `onTileClick?: (index: number, label: string) => void` prop.
+`ScenarioComparisonPage.tsx` wires this to a small detail area beneath the treemap showing the
+tapped tile's size + color values — the touch-equivalent surface for the same information the
+hover already carries, not new information.
+
+### 5.2 — World map pinch/scroll-zoom with no reset
+
+Confirmed live: `scrollZoom` is never set (Plotly's own default — zoom enabled — applies to the
+geo subplot), while `displayModeBar: false` removes the only built-in "Reset axes" control, for
+every chart kind. Fixed with a small internal "Reset view" control, rendered only for
+`kind === 'choropleth'`, calling `Plotly.relayout(el, { 'geo.projection.scale': 1, 'geo.center':
+... })` — self-contained, no new prop, no change to the desktop-styled modebar. `geo.dragmode:
+false` on `matchMedia('(pointer: coarse)')` devices (so panning only happens via explicit
+controls, never competing with page scroll) is treated as a follow-up to prototype and evaluate
+hands-on post-ship, not committed blind — it trades away real interactivity.
+
+### 5.3 — iPad: tiny map, dead space below it
+
+Three compounding, independently-confirmed causes: `OverviewPage`'s hero grid uses
+`alignItems: 'stretch'` (map card forced to match the taller `TierSummaryPanel` — both measured
+at exactly 540px); the choropleth's resize logic sizes purely from container width, never height
+(measured: 231px of dead space inside that 540px card); and the only breakpoint (900px) doesn't
+trip at either reported iPad width (portrait 1024, landscape 1366). Fixed by raising the
+breakpoint to 1400px and removing the `height={420}` dead prop from the choropleth call.
+`alignItems: 'stretch'` is left as-is above the new breakpoint — that's genuine desktop width,
+not the reported problem.
+
+### 5.4 — iOS PWA installability + stale copy
+
+`index.html` gains `apple-mobile-web-app-capable`/`-status-bar-style`/`-title` meta tags (iOS
+Safari ignores the manifest's `display: standalone` and keys off these instead — the actual fix
+for "Add to Home Screen" opening a normal browser tab) and `viewport-fit=cover`; the app shell
+gains `env(safe-area-inset-*)` padding, sequenced after the standalone fix since it's irrelevant
+in a plain browser tab. Both `index.html`'s meta description and `vite.config.ts`'s PWA manifest
+description are reworded off the stale "for 10 major countries" copy (real count: ~40, confirmed
+against `data/selected_countries.json`) to not hardcode a count at all — this is the second
+review to catch the same drift.
+
+### 5.5 — Accessibility fixes
+
+`design-system`: `MultiSelect`/`Tag`'s per-country remove button padded from 20×20 to ≥24px
+(ideally ≥44px) without changing the rendered icon size, closing a real WCAG 2.2 target-size gap;
+`KpiStat` gains a cheap non-color cue for `'good'`/`'bad'` values (borderline against WCAG 1.4.1,
+partially mitigated already by the existing +/− sign).
+
+App-side: `useCountUp` gains a `prefers-reduced-motion` check (skips straight to the final value
+— the same media query `SidebarNav.tsx:156` already uses in this codebase, for a different
+purpose); `CountUpText` gets `aria-hidden` on the animating text plus a visually-hidden span
+exposing the final value; `App.tsx`'s `toItem` maps `path` into `href` (closes the sidebar-nav-
+href finding entirely app-side); route changes get a per-route `document.title` and focus moved
+to the new page's `<h1>`; a skip-to-main-content link is added (confirmed genuinely absent — an
+earlier automated check's "skip link" finding was a false positive matching the seven `href="#"`
+nav items instead); and all 5 pages using `ChartCard` (`OverviewPage`, `HistoricalTrendsPage`,
+`CountryProfilePage`, `ForecastsPage`, `ScenarioComparisonPage`) get an explicit `headingLevel` at
+every call site, fixing the confirmed `H1→H5→H5→H2→H5` order (systemic, not just Overview — every
+`ChartCard` defaults to `h5` with no caller overriding it).
+
+### 5.6 — Polish
+
+`Icon` gains `expand`/`collapse` glyphs (naming consistent with the existing `chevron-down`/
+`chevron-up` pairing). `ScenarioComparisonPage` gets a fullscreen toggle for its charts using
+`ChartCard`'s existing `actions` slot (already used for the download button — no `ChartCard`
+change needed) and the new glyphs; `SyChart`'s existing `ResizeObserver` + `responsive: true`
+should already pick up the container-size change on toggle, with an explicit
+`Plotly.Plots.resize()` treated as a safety net to verify empirically rather than assumed
+necessary. The divider-token contrast (`#263757` on `#121e35`, computed independently at
+**1.40:1**, confirming the audit, vs WCAG 1.4.11's 3:1) is low-priority — only matters where a
+divider is a component's sole boundary, and the tier cards already carry a background fill — bump
+opportunistically, not worth its own PR.
+
+### 5.7 — Rollout sequencing
+
+Four phases by severity, one feature branch per PR: the two traps (5.1 `design-system` PR, then
+5.1's app-side wiring) → iOS/iPad (5.3's app PR, 5.4's app PR, either order) → accessibility
+(5.5's two `design-system` PRs first, then its app-side PRs) → polish (5.6, whenever convenient).
+`design-system` PRs land before the app-side PRs that consume them within each phase. Standard
+Mac Mini deploy-after-merge for every PR (`vitepreview` rebuild+restart only — nothing here
+touches `api`/`app.py`), via the now-fixed `sauparnasarkar@Sauparnas-Mac-mini.local` hostname.
