@@ -91,6 +91,10 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
                 x: composition.data!.decades,
                 y: s.share,
                 kind: 'bar' as const,
+                // CO2 is always the dominant share (bottom of the stack), which lands on the
+                // categorical palette's near-white index-0 token by default -- explicit brand
+                // color instead of a washed-out white segment (SPEC.md §5.12).
+                color: s.gas === 'co2' ? 'var(--__s9cmpx-color-brand-500)' : undefined,
               }))}
             />
           </ChartCard>
