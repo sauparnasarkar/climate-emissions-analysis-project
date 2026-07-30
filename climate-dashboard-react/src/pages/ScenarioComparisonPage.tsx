@@ -101,7 +101,15 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
             treemapExpanded
               ? {
                   position: 'fixed',
-                  inset: 16,
+                  // A fixed-position overlay is positioned relative to the viewport, not any
+                  // padded ancestor -- App.tsx's own safe-area padding on the page shell
+                  // never applies here, so each side needs its own env(safe-area-inset-*)
+                  // added on top of the 16px margin, or this could render under the notch/
+                  // home-indicator in iOS standalone mode (per Copilot review on PR #105).
+                  top: 'calc(16px + env(safe-area-inset-top, 0px))',
+                  right: 'calc(16px + env(safe-area-inset-right, 0px))',
+                  bottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+                  left: 'calc(16px + env(safe-area-inset-left, 0px))',
                   zIndex: 50,
                   background: 'var(--__s9cmpx-static-background-weak)',
                   overflow: 'auto',
