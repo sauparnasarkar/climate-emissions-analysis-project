@@ -147,7 +147,11 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           (SPEC.md §5.10). */}
       <style>{'@media (max-width: 1400px) { .overview-hero-grid { grid-template-columns: 1fr !important; } }'}</style>
       <div className="overview-hero-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16, alignItems: 'stretch' }}>
-        <ChartCard title={`CO₂ Emissions by Country (${data.all_countries.latest_year})`} headingLevel={2}>
+        <ChartCard title={`CO₂ Emissions by Country (${data.all_countries.latest_year})`} headingLevel={2} expandable>
+          {/* No explicit height here, expanded or not -- the choropleth's own ResizeObserver
+              already recomputes height from container width alone (SPEC.md §5.10), so widening
+              the container on expand is sufficient. Coexists with SyChart's own internal
+              "Reset view" control (a different button, in a different location). */}
           <SyChart
             showLegend={false}
             ariaLabel={`World map choropleth of CO₂ emissions by country in ${data.all_countries.latest_year}, log-scaled color from light (lowest) to deep red (highest)`}
