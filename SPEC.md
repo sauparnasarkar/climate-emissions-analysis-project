@@ -864,13 +864,14 @@ through the tooltip while text stays legible).
 **Status: Shipped.** `climate-emissions-analysis-project` only, no `design-system` change.
 `climate-emissions-analysis-project` branches `feature/9.1-about-presentation-embed` (initial
 iframe version, merged as PR #110) superseded by `fix/9.2-presentation-open-new-tab` (current
-design, merged as PR #111), `fix/9.3-pwa-navigate-fallback-denylist` (PWA bug fix below), and
-`fix/9.4-pptx-content-disposition` (Content-Type/Content-Disposition bug fix below). Deployed to
-the Mac Mini and verified live: both the "Open the presentation" and "Download the .pptx" links
-resolve to the correct URLs with `target="_blank" rel="noopener noreferrer"`, "Open the
-presentation" opens Microsoft's viewer in a new tab rendering the deck correctly (confirmed slide
-1 of 17), and "Download the .pptx" triggers an actual file download rather than rendering raw
-binary content in the tab.
+design, merged as PR #111), `fix/9.3-pwa-navigate-fallback-denylist` (PWA bug fix below),
+`fix/9.4-pptx-content-disposition` (Content-Type/Content-Disposition bug fix below), and
+`fix/9.5-navigate-denylist-query-string` (denylist robustness fix below). Deployed to the Mac
+Mini and verified live: both the "Open the presentation" and "Download the .pptx" links resolve
+to the correct URLs with `target="_blank" rel="noopener noreferrer"`, "Open the presentation"
+opens Microsoft's viewer in a new tab rendering the deck correctly (confirmed slide 1 of 17), and
+"Download the .pptx" triggers an actual file download rather than rendering raw binary content in
+the tab.
 
 **Real bug found live after PR #111 shipped:** clicking "Download the .pptx" opened a new tab
 that redirected to the Overview page instead of downloading the file. Root cause: `vite-plugin-
@@ -902,7 +903,25 @@ browser would otherwise have sniffed the content. Doesn't affect the "Open the p
 since Microsoft's viewer fetches the same URL server-side (like `curl`), not as a browser
 navigation that interprets `Content-Disposition`. Verified fixed locally: `curl -sI` shows both
 headers, and clicking the link in a real browser now triggers a genuine download instead of
-rendering garbled binary.
+rendering garbled binary. (Copilot review on PR #113 caught one real issue: the `Content-
+Disposition` filename was hardcoded to the one file that exists today even though the middleware
+matches any `.pptx` path — fixed to derive it via `path.basename()` on the request path instead.)
+
+**Third real bug, found live while investigating a user report that looked like a caching
+issue:** after PR #113 shipped, a screenshot showed "Download the .pptx" rendering raw binary
+again. Investigation (a page-context `fetch()` with `cache: 'reload'` to bypass the browser's own
+HTTP cache) confirmed the server was sending the correct headers — the screenshot was very likely
+this browser's own stale disk-cache entry for that exact URL from earlier testing sessions before
+the header fix shipped, not a live regression. But testing this surfaced a second, genuinely real
+gap: appending any query string to the `.pptx` URL (e.g. a cache-busting param) resurrected the
+original redirect-to-Overview bug from `fix/9.3`. Root cause: Workbox's `NavigationRoute` tests its
+denylist against the full `pathname + search`, not just `pathname` — confirmed empirically (the
+bare `\.[a-zA-Z0-9]{2,5}$` pattern stopped matching, and the SPA fallback fired again, the moment a
+query string was appended). Fixed by widening the regex to
+`/\.[a-zA-Z0-9]{2,5}(\?.*)?$/`, tolerating an optional trailing query string. Verified with a real
+service-worker-controlled page: navigating a fresh tab directly to a query-stringed `.pptx` URL now
+triggers a download (the tab reverts to blank/new-tab state) instead of rendering the Overview
+page.
 
 Adds a "Final Presentation" section to the About page linking to the internship review Q&A deck
 with its original PowerPoint animations/transitions intact — a PDF or plain download link
