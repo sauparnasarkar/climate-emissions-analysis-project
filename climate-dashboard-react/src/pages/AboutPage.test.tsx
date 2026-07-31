@@ -51,7 +51,7 @@ describe('AboutPage', () => {
     expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
   });
 
-  it('links to the presentation via Microsoft\'s viewer, opening in a new tab, with a direct download link', () => {
+  it('links to the presentation via Microsoft\'s viewer, opening in a new tab, with no direct download link', () => {
     vi.mocked(api.listCountries).mockReturnValue(new Promise(() => {}));
     render(<AboutPage />);
 
@@ -62,9 +62,6 @@ describe('AboutPage', () => {
     expect(viewerLink).toHaveAttribute('target', '_blank');
     expect(viewerLink.getAttribute('rel')).toContain('noopener');
 
-    const downloadLink = screen.getByRole('link', { name: 'Download the .pptx' });
-    expect(downloadLink).toHaveAttribute('href', expectedPptxUrl);
-    expect(downloadLink).toHaveAttribute('target', '_blank');
-    expect(downloadLink.getAttribute('rel')).toContain('noopener');
+    expect(screen.queryByRole('link', { name: 'Download the .pptx' })).not.toBeInTheDocument();
   });
 });

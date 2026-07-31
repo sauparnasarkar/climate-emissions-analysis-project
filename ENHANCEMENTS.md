@@ -1543,13 +1543,14 @@ body while every row of text stays legible.
 ## Release 11 — Final Presentation Link
 
 **Status: Shipped.** `climate-emissions-analysis-project`. Tracked in `SPEC.md` §5.16. No
-`design-system` change. Three branches: `feature/9.1-about-presentation-embed` (initial iframe
-design, merged as PR #110, deployed live) superseded by `fix/9.2-presentation-open-new-tab`
-(current design — see "Revised" below, merged as PR #111, deployed and verified live: both links
-resolve correctly and "Open the presentation" opens Microsoft's viewer in a new tab rendering
-slide 1 of 17 of the actual deck), then `fix/9.3-pwa-navigate-fallback-denylist`,
+`design-system` change. Branches: `feature/9.1-about-presentation-embed` (initial iframe design,
+merged as PR #110, deployed live) superseded by `fix/9.2-presentation-open-new-tab` (two-link
+design — see "Revised" below, merged as PR #111), then `fix/9.3-pwa-navigate-fallback-denylist`,
 `fix/9.4-pptx-content-disposition`, and `fix/9.5-navigate-denylist-query-string` (three real bugs
-found live post-merge — see below).
+found live post-merge — see below), then `fix/9.6-remove-pptx-download-link` (product decision —
+see "Product decision" below), which is the current, shipped design: a single "Open the
+presentation" link, deployed and verified live opening Microsoft's viewer in a new tab and
+rendering slide 1 of 17 of the actual deck.
 
 Adds a "Final Presentation" section to `AboutPage.tsx` for the internship review Q&A deck,
 requested specifically to preserve its original PowerPoint animations/transitions — ruling out a
@@ -1670,6 +1671,22 @@ tolerating an optional trailing query string. Verified with a real service-worke
 served `sw.js` before testing): navigating a fresh tab directly to a query-stringed `.pptx` URL now
 correctly triggers a download (the tab reverts to blank/new-tab state, the same signature confirmed
 throughout this section) instead of rendering the Overview page.
+
+**Product decision: removed the direct download link, viewer-only access
+(`fix/9.6-remove-pptx-download-link`).** After the two-link design shipped and its bugs were fixed,
+decided the deck should only be viewable through Microsoft's online viewer — no direct "Download
+the .pptx" affordance. Removed that `<Link>` from `AboutPage.tsx` and its test assertions (now
+asserts the link is *absent*, not present), and removed `pptxDownloadHeadersPlugin` from
+`vite.config.ts` entirely, since that middleware's `Content-Type`/`Content-Disposition` handling
+existed solely to make the download link behave correctly (the second and fourth bugs above) — with
+the link gone, so is the reason for the middleware. `presentationUrl` (the raw `.pptx` URL) is
+still computed internally, since it's still needed to build the Office viewer's `src`; it's just no
+longer rendered as its own link. The file itself is unchanged — still a public static asset that
+Microsoft's viewer fetches server-side — this is a UI-level decision, not an access-control one:
+anyone who already has or inspects the URL can still reach the file directly, which isn't
+meaningfully preventable without a token-gated endpoint, disproportionate for an internship deck.
+Kept the `navigateFallbackDenylist` fix (`fix/9.3`/`fix/9.5`) as-is — it's a general robustness fix
+for any static asset under `public/`, independent of whether a download link exists for this one.
 
 Two things worth flagging for whoever picks this up next:
 

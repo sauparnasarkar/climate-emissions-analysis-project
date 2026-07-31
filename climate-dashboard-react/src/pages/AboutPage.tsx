@@ -71,8 +71,6 @@ export default function AboutPage() {
       </p>
       <p className="__s9cmpx-body4">
         <Link href={presentationViewerUrl} target="_blank" rel="noopener noreferrer">Open the presentation</Link>
-        {' · '}
-        <Link href={presentationUrl} target="_blank" rel="noopener noreferrer">Download the .pptx</Link>
       </p>
 
       <p className="__s9cmpx-body4" style={{ marginTop: 24, color: 'var(--__s9cmpx-static-text-weak)' }}>
