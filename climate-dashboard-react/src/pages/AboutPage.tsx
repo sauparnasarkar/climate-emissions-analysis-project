@@ -8,6 +8,10 @@ const DATA_SOURCE_ROWS = [
 
 export default function AboutPage() {
   const countries = useCountries();
+  // Absolute URL, not relative -- Microsoft's viewer fetches this itself from its own
+  // servers, so it needs a URL reachable from the public internet, not just this browser
+  // (won't resolve in local dev, since window.location.origin is localhost there; that's expected).
+  const presentationUrl = `${window.location.origin}${import.meta.env.BASE_URL}GHG_Internship_Review_QA_Deck.pptx`;
 
   const methodologyRows = [
     { step: 'Dataset', detail: 'OWID CO₂ dataset, filtered to sovereign nations from 1990 onwards' },
@@ -53,11 +57,26 @@ export default function AboutPage() {
       <Table
         columns={[
           { key: 'dataset', header: 'Dataset' },
-          { key: 'url', header: 'URL', wrap: true, render: (row) => <Link href={row.url} target="_blank" rel="noreferrer">{row.url}</Link> },
+          { key: 'url', header: 'URL', wrap: true, render: (row) => <Link href={row.url} target="_blank" rel="noopener noreferrer">{row.url}</Link> },
         ]}
         rows={DATA_SOURCE_ROWS}
         withBorder
       />
+
+      <h3 className="__s9cmpx-headline6" style={{ margin: '24px 0 8px' }}>Final Presentation</h3>
+      <p className="__s9cmpx-body3-short" style={{ marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
+        Internship review Q&amp;A deck, with its original PowerPoint animations and transitions.
+        Rendered by Microsoft's own web viewer — if it doesn't load (e.g. before the production
+        CSP allows embedding it), use the direct link below instead.
+      </p>
+      <iframe
+        title="GHG Internship Review Q&A Deck"
+        src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(presentationUrl)}`}
+        style={{ width: '100%', height: 480, border: '1px solid var(--__s9cmpx-static-divider-weak)', borderRadius: 4 }}
+      />
+      <p className="__s9cmpx-body4" style={{ marginTop: 8 }}>
+        <Link href={presentationUrl} target="_blank" rel="noopener noreferrer">Open or download the presentation</Link>
+      </p>
 
       <p className="__s9cmpx-body4" style={{ marginTop: 24, color: 'var(--__s9cmpx-static-text-weak)' }}>
         <em>IDEAS TIH Summer Internship 2026 · Mentor: Sauparna Sarkar</em>
