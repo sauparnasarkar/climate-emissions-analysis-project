@@ -858,36 +858,37 @@ existing `withAlpha` helper (#25, 0.85 opacity — still read as effectively opa
 seen live; #26, dropped to 0.65, confirmed against the live site to clearly show chart lines
 through the tooltip while text stays legible).
 
-### 5.16 Final Presentation Embed (Release 11)
+### 5.16 Final Presentation Link (Release 11)
 
 **Status: Planned.** `climate-emissions-analysis-project` only, no `design-system` change.
-`climate-emissions-analysis-project` branch `feature/9.1-about-presentation-embed`.
+`climate-emissions-analysis-project` branches `feature/9.1-about-presentation-embed` (initial
+iframe version, merged, superseded by this revision) and `fix/9.2-presentation-open-new-tab`
+(current design).
 
-Adds a "Final Presentation" section to the About page embedding the internship review Q&A deck
+Adds a "Final Presentation" section to the About page linking to the internship review Q&A deck
 with its original PowerPoint animations/transitions intact — a PDF or plain download link
 wouldn't preserve those, so the deck is served as a static asset
 (`climate-dashboard-react/public/GHG_Internship_Review_QA_Deck.pptx`, renamed from the source
-`docs/GHG_Internship_Review_Q&A_Deck.pptx` to drop the `&` for URL-safety) and embedded via
+`docs/GHG_Internship_Review_Q&A_Deck.pptx` to drop the `&` for URL-safety) and opened via
 Microsoft's own web viewer (`view.officeapps.live.com`), which renders it with materially better
 animation fidelity than a Google Slides conversion would, and needs no manual upload/publish step
 — the viewer just fetches the file from its own public URL, computed at runtime via
 `window.location.origin` + `import.meta.env.BASE_URL` rather than hardcoded, so it resolves
-correctly under the deploy prefix. A plain download/open link sits below the iframe as a
-fallback.
+correctly under the deploy prefix. A second link opens the raw `.pptx` directly as a download
+fallback. Both links open in a new tab (`target="_blank" rel="noopener noreferrer"`).
+
+**Revised from an inline `<iframe>` embed to two `target="_blank"` links** (the Office viewer, and
+a direct download) after initial merge — a new-tab link is a full top-level navigation to
+`view.officeapps.live.com`, not a same-page embed, so it needs no `frame-src` CSP allowance at all;
+only `frame-ancestors`/`frame-src` govern iframes. This removes the deployment-config dependency
+entirely — no Cloudflare change is needed for this feature to work, unlike the world map's
+`connect-src` requirement for `cdn.plot.ly` (§5.8), which does still apply since that's a real
+same-page fetch.
 
 **Known gap, deliberately not fixed:** `.gitignore`'s repo-wide `*.pptx` rule (meant for the
 mentor's own working drafts under `docs/`, confirmed never part of the intern template) needed a
 narrow negation (`!climate-dashboard-react/public/*.pptx`) for this one file specifically, since
 it's now a real served asset, not a draft sitting in a working directory.
-
-**Blocked on a deployment-config change outside either repo, same as the world map's
-`connect-src` requirement for `cdn.plot.ly` (§5.8):** the production CSP needs a `frame-src`
-allowance for `view.officeapps.live.com` before the embed will actually render — confirmed neither
-repo defines any CSP (no code-level fix available), and the Mac Mini's Cloudflare Tunnel uses a
-remote token with no local `config.yml`, meaning this is configured in the Cloudflare dashboard
-itself. Until that's added, the iframe will show Microsoft's own "can't open this" error (the
-plain download/open link works regardless, unaffected by CSP `frame-src`). Not an internship
-requirement change.
 
 ---
 
