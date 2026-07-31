@@ -1542,10 +1542,12 @@ body while every row of text stays legible.
 
 ## Release 11 — Final Presentation Link
 
-**Status: Planned.** `climate-emissions-analysis-project`. Tracked in `SPEC.md` §5.16. No
+**Status: Shipped.** `climate-emissions-analysis-project`. Tracked in `SPEC.md` §5.16. No
 `design-system` change. Two branches: `feature/9.1-about-presentation-embed` (initial iframe
 design, merged as PR #110, deployed live) superseded by `fix/9.2-presentation-open-new-tab`
-(current design — see "Revised" below, not yet merged).
+(current design — see "Revised" below, merged as PR #111, deployed and verified live: both links
+resolve correctly and "Open the presentation" opens Microsoft's viewer in a new tab rendering
+slide 1 of 17 of the actual deck).
 
 Adds a "Final Presentation" section to `AboutPage.tsx` for the internship review Q&A deck,
 requested specifically to preserve its original PowerPoint animations/transitions — ruling out a
@@ -1608,6 +1610,5 @@ Two things worth flagging for whoever picks this up next:
   CSP, but with a syntax error: `frame-src 'view.officeapps.live.com'` wraps the hostname in
   single quotes, which CSP reserves for keywords like `'self'`/`'none'`, not host sources, so as
   written that source is invalid and gets dropped — flagged for a fix to
-  `frame-src https://view.officeapps.live.com`). Moot after the revision above: new-tab links need
-  no `frame-src` entry at all. Flip this section to Shipped after `fix/9.2-presentation-open-new-tab`
-  merges, deploys, and both links are confirmed live.
+  `frame-src https://view.officeapps.live.com`, which was applied). Moot either way after the
+  revision above: new-tab links need no `frame-src` entry at all.

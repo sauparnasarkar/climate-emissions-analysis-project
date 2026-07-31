@@ -424,6 +424,7 @@ Sections to include:
 | v21 | Jul 2026 | §5.12 (Release 7) shipped: `design-system` #23 (palette + `SyChart`/`ChartCard` defaults) and `climate-emissions-analysis-project` #107 (retiring the now-redundant projection-palette override). Copilot caught a real bug in #23 — `xaxis.showgrid: false` hardcoded regardless of orientation, which would have broken Forecasts' `orientation="h"` feature-importance chart's value-axis gridlines — fixed and re-reviewed clean. Deploy itself surfaced a real process bug, unrelated to the code: the Mac Mini rebuild needs `DEPLOY_BASE_PATH` set at build time, not just serve time, or the built assets 404 under the wrong path. Verified live across all seven pages by reading actual Plotly/DOM state, not just visually; the override's redundancy was confirmed with a live A/B rather than assumed. Not an internship requirement change. |
 | v22 | Jul 2026 | Added §5.13 (`ENHANCEMENTS.md` Release 8, **Parked**): a climate-specific `data-theme="climate-analytics"` variant (Zeff-derived earth-green surfaces, seafoam accent, muted ramp), built and previewed locally on feature branches in both repos per explicit instruction — no PR, no merge, no deploy. Three surface-lightness variants tried live (dark forest-green, light pastel, medium sage); a reproducible AG Grid blank-render issue surfaced on the medium variant, not root-caused before the whole direction was abandoned in favor of keeping the existing navy `analytics` theme. Both branches left parked at the original dark-green variant's contents. Not an internship requirement change. |
 | v23 | Jul 2026 | Added §5.14 (Release 9, **Shipped**) and §5.15 (Release 10, **Shipped**), documentation catch-up for two already-deployed fixes: the BAU-only static legend on Scenario Comparison's three panels (`showLegend={i === 0}`, misaligning all three axes), and the unified-hover tooltip's position/security/transparency work — Plotly's own label box repositioned unpredictably near a chart's edges, replaced with a React tooltip pinned to the chart's middle; Copilot caught a real `innerHTML` injection risk, a `pointer-events`/scroll contradiction, and a stale file-path comment, all fixed; the tooltip's opacity was tuned twice (0.85, then 0.65) after live verification showed 0.85 still read as opaque. Added §5.16 (Release 11, **Planned**): embeds the internship review deck in the About page via Microsoft's web viewer, preserving its native PowerPoint animations — blocked on a production CSP change (`frame-src` for `view.officeapps.live.com`) that lives outside either repo. Not an internship requirement change. |
+| v24 | Jul 2026 | §5.16 (Release 11) revised and shipped: PR #110 (initial iframe embed) merged and deployed, then Copilot caught three real issues before merge (missing `rel="noopener"` on two `target="_blank"` links, a test hardcoding a URL the component built dynamically, an inaccurate code comment) — fixed. Post-merge, revised the design from an inline iframe to two `target="_blank"` links ("Open the presentation" via Microsoft's viewer, "Download the .pptx" direct) in PR #111 — a new-tab link needs no `frame-src` CSP allowance at all, since it's a top-level navigation rather than a same-page embed, making the CSP dependency moot (the CSP change was applied in the interim but had a syntax bug — a quoted hostname, `frame-src 'view.officeapps.live.com'`, which CSP treats as invalid since quotes are reserved for keywords — flagged and fixed). Verified live: both links resolve correctly and "Open the presentation" renders the actual deck in Microsoft's viewer. Not an internship requirement change. |
 
 ---
 
@@ -860,10 +861,13 @@ through the tooltip while text stays legible).
 
 ### 5.16 Final Presentation Link (Release 11)
 
-**Status: Planned.** `climate-emissions-analysis-project` only, no `design-system` change.
+**Status: Shipped.** `climate-emissions-analysis-project` only, no `design-system` change.
 `climate-emissions-analysis-project` branches `feature/9.1-about-presentation-embed` (initial
-iframe version, merged, superseded by this revision) and `fix/9.2-presentation-open-new-tab`
-(current design).
+iframe version, merged as PR #110) superseded by `fix/9.2-presentation-open-new-tab` (current
+design, merged as PR #111). Deployed to the Mac Mini and verified live: both the "Open the
+presentation" and "Download the .pptx" links resolve to the correct URLs with
+`target="_blank" rel="noopener noreferrer"`, and clicking "Open the presentation" opens Microsoft's
+viewer in a new tab rendering the deck correctly (confirmed slide 1 of 17).
 
 Adds a "Final Presentation" section to the About page linking to the internship review Q&A deck
 with its original PowerPoint animations/transitions intact — a PDF or plain download link
