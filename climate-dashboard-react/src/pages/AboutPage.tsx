@@ -10,7 +10,7 @@ export default function AboutPage() {
   const countries = useCountries();
   // Absolute URL, not relative -- Microsoft's viewer fetches this itself from its own
   // servers, so it needs a URL reachable from the public internet, not just this browser
-  // (won't resolve in local dev, where BASE_URL points at a local origin; that's expected).
+  // (won't resolve in local dev, since window.location.origin is localhost there; that's expected).
   const presentationUrl = `${window.location.origin}${import.meta.env.BASE_URL}GHG_Internship_Review_QA_Deck.pptx`;
 
   const methodologyRows = [
@@ -57,7 +57,7 @@ export default function AboutPage() {
       <Table
         columns={[
           { key: 'dataset', header: 'Dataset' },
-          { key: 'url', header: 'URL', wrap: true, render: (row) => <Link href={row.url} target="_blank" rel="noreferrer">{row.url}</Link> },
+          { key: 'url', header: 'URL', wrap: true, render: (row) => <Link href={row.url} target="_blank" rel="noopener noreferrer">{row.url}</Link> },
         ]}
         rows={DATA_SOURCE_ROWS}
         withBorder
@@ -75,7 +75,7 @@ export default function AboutPage() {
         style={{ width: '100%', height: 480, border: '1px solid var(--__s9cmpx-static-divider-weak)', borderRadius: 4 }}
       />
       <p className="__s9cmpx-body4" style={{ marginTop: 8 }}>
-        <Link href={presentationUrl} target="_blank" rel="noreferrer">Open or download the presentation</Link>
+        <Link href={presentationUrl} target="_blank" rel="noopener noreferrer">Open or download the presentation</Link>
       </p>
 
       <p className="__s9cmpx-body4" style={{ marginTop: 24, color: 'var(--__s9cmpx-static-text-weak)' }}>

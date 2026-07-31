@@ -55,7 +55,7 @@ describe('AboutPage', () => {
     vi.mocked(api.listCountries).mockReturnValue(new Promise(() => {}));
     render(<AboutPage />);
 
-    const expectedPptxUrl = `${window.location.origin}/GHG_Internship_Review_QA_Deck.pptx`;
+    const expectedPptxUrl = `${window.location.origin}${import.meta.env.BASE_URL}GHG_Internship_Review_QA_Deck.pptx`;
     const iframe = screen.getByTitle('GHG Internship Review Q&A Deck');
     expect(iframe).toHaveAttribute('src', `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(expectedPptxUrl)}`);
     expect(screen.getByRole('link', { name: 'Open or download the presentation' })).toHaveAttribute('href', expectedPptxUrl);
