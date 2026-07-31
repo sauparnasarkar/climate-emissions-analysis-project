@@ -177,14 +177,14 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
           <InlineAlert variant="warning">{compare.error}</InlineAlert>
         ) : compare.data ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
-            {SCENARIO_PANELS.map((scenario, i) => (
+            {SCENARIO_PANELS.map((scenario) => (
               <ChartCard key={scenario} title={scenario} headingLevel={3} expandable>
                 {(isExpanded) => (
                   <SyChart
                     height={isExpanded ? 600 : 300}
                     xTitle="Year"
                     yTitle="CO₂ (MtCO₂)"
-                    showLegend={i === 0}
+                    showLegend={false}
                     yRange={yRange}
                     ariaLabel={`Line chart of ${scenario} CO₂ emissions from 1990 to 2040 for ${selectedCountries.join(', ')}`}
                     series={(compare.data!.scenarios[scenario] ?? []).map((s) => ({
