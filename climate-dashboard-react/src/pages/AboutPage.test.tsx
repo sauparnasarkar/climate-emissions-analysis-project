@@ -51,13 +51,20 @@ describe('AboutPage', () => {
     expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
   });
 
-  it('embeds the presentation via Microsoft\'s viewer, pointed at the deployed pptx, with a direct-link fallback', () => {
+  it('links to the presentation via Microsoft\'s viewer, opening in a new tab, with a direct download link', () => {
     vi.mocked(api.listCountries).mockReturnValue(new Promise(() => {}));
     render(<AboutPage />);
 
     const expectedPptxUrl = `${window.location.origin}${import.meta.env.BASE_URL}GHG_Internship_Review_QA_Deck.pptx`;
-    const iframe = screen.getByTitle('GHG Internship Review Q&A Deck');
-    expect(iframe).toHaveAttribute('src', `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(expectedPptxUrl)}`);
-    expect(screen.getByRole('link', { name: 'Open or download the presentation' })).toHaveAttribute('href', expectedPptxUrl);
+
+    const viewerLink = screen.getByRole('link', { name: 'Open the presentation' });
+    expect(viewerLink).toHaveAttribute('href', `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(expectedPptxUrl)}`);
+    expect(viewerLink).toHaveAttribute('target', '_blank');
+    expect(viewerLink.getAttribute('rel')).toContain('noopener');
+
+    const downloadLink = screen.getByRole('link', { name: 'Download the .pptx' });
+    expect(downloadLink).toHaveAttribute('href', expectedPptxUrl);
+    expect(downloadLink).toHaveAttribute('target', '_blank');
+    expect(downloadLink.getAttribute('rel')).toContain('noopener');
   });
 });

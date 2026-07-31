@@ -1540,11 +1540,12 @@ Confirmed on the live site that 0.85 still read as effectively opaque; dropped t
 confirmed live (zoomed screenshot) that chart lines are now clearly visible through the tooltip
 body while every row of text stays legible.
 
-## Release 11 — Final Presentation Embed
+## Release 11 — Final Presentation Link
 
-**Status: Planned.** `climate-emissions-analysis-project` branch
-`feature/9.1-about-presentation-embed`, not yet merged. Tracked in `SPEC.md` §5.16. No
-`design-system` change.
+**Status: Planned.** `climate-emissions-analysis-project`. Tracked in `SPEC.md` §5.16. No
+`design-system` change. Two branches: `feature/9.1-about-presentation-embed` (initial iframe
+design, merged as PR #110, deployed live) superseded by `fix/9.2-presentation-open-new-tab`
+(current design — see "Revised" below, not yet merged).
 
 Adds a "Final Presentation" section to `AboutPage.tsx` for the internship review Q&A deck,
 requested specifically to preserve its original PowerPoint animations/transitions — ruling out a
@@ -1569,6 +1570,28 @@ expected and accepted limitation of local dev). A plain download/open link sits 
 as a fallback, confirmed to work independently of the iframe (it's a direct `<a href>` to the
 static file, unaffected by the CSP gate the iframe is behind).
 
+**Copilot review on PR #110 (all three real, fixed before merge):** both `target="_blank"` links
+in the file (the Data Sources URL link, pre-existing, and the new presentation fallback link) were
+missing an explicit `rel="noopener"` alongside `rel="noreferrer"` — `noreferrer` alone already
+blocks `window.opener` access in all current browsers, so there was no live vulnerability, but the
+explicit pairing is the conventional, linter-expected form and costs nothing, so added to both. The
+new test hard-coded the expected pptx URL as `${origin}/...` instead of matching the component's
+own `${origin}${import.meta.env.BASE_URL}...` construction — fixed to derive it the same way, so
+the assertion won't silently pass for the wrong reason if `BASE_URL` ever changes. A code comment
+describing the local-dev limitation was corrected — the actual cause is `window.location.origin`
+being `localhost`, not `BASE_URL` (which is only the deploy path prefix, unrelated to reachability).
+
+**Revised from an inline `<iframe>` embed to two `target="_blank"` links, before ever flipping this
+section to Shipped.** After PR #110 merged and deployed, decided a same-page iframe embed wasn't
+the right shape — replaced with two links that open in a new tab instead: one to the Office
+viewer URL, one a direct `.pptx` download, both `target="_blank" rel="noopener noreferrer"`. Beyond
+being simpler, this **removes the CSP dependency entirely**: a new-tab link is a full top-level
+navigation to `view.officeapps.live.com`, governed by no CSP directive that either repo or the
+production Cloudflare config need to touch, whereas an iframe embed needs an explicit `frame-src`
+allowance for the exact origin being framed. No further Cloudflare change is needed for this
+feature specifically (the world map's `cdn.plot.ly` `connect-src` requirement, §5.8, is unrelated
+and still applies — that's a real same-page fetch, not an embed).
+
 Two things worth flagging for whoever picks this up next:
 
 - **`.gitignore` gap, fixed narrowly rather than broadly.** The repo's blanket `*.pptx` rule
@@ -1580,12 +1603,11 @@ Two things worth flagging for whoever picks this up next:
   it shipped broken. Fixed with a narrow negation,
   `!climate-dashboard-react/public/*.pptx`, rather than loosening the broad rule or force-adding
   the file, so the reason a `.pptx` is tracked here (and only here) stays self-documenting.
-- **Blocked on a production CSP change outside either repo.** Same category of gap as the world
-  map's `cdn.plot.ly` `connect-src` requirement (`SPEC.md` §5.8): neither repo defines any CSP at
-  all (confirmed by grep), and the Mac Mini's Cloudflare Tunnel runs off a remote token with no
-  local `config.yml` to edit — meaning the CSP is set in the Cloudflare dashboard itself, reachable
-  only by whoever administers that account. Until a `frame-src` allowance for
-  `view.officeapps.live.com` is added there, the embedded iframe will show Microsoft's own "can't
-  open this for you" error; the fallback download/open link works regardless. Flip this section to
-  Shipped only after that CSP change is confirmed live and the iframe actually renders the deck,
-  not just after the PR merges.
+- **No longer blocked on a CSP change** — this was true of the original iframe design (needed a
+  `frame-src` allowance for `view.officeapps.live.com`, which was in fact added to the production
+  CSP, but with a syntax error: `frame-src 'view.officeapps.live.com'` wraps the hostname in
+  single quotes, which CSP reserves for keywords like `'self'`/`'none'`, not host sources, so as
+  written that source is invalid and gets dropped — flagged for a fix to
+  `frame-src https://view.officeapps.live.com`). Moot after the revision above: new-tab links need
+  no `frame-src` entry at all. Flip this section to Shipped after `fix/9.2-presentation-open-new-tab`
+  merges, deploys, and both links are confirmed live.
