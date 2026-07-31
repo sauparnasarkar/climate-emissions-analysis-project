@@ -864,11 +864,13 @@ through the tooltip while text stays legible).
 **Status: Shipped.** `climate-emissions-analysis-project` only, no `design-system` change.
 `climate-emissions-analysis-project` branches `feature/9.1-about-presentation-embed` (initial
 iframe version, merged as PR #110) superseded by `fix/9.2-presentation-open-new-tab` (current
-design, merged as PR #111), plus `fix/9.3-pwa-navigate-fallback-denylist` (PWA bug fix below).
-Deployed to the Mac Mini and verified live: both the "Open the presentation" and "Download the
-.pptx" links resolve to the correct URLs with `target="_blank" rel="noopener noreferrer"`, and
-clicking "Open the presentation" opens Microsoft's viewer in a new tab rendering the deck
-correctly (confirmed slide 1 of 17).
+design, merged as PR #111), `fix/9.3-pwa-navigate-fallback-denylist` (PWA bug fix below), and
+`fix/9.4-pptx-content-disposition` (Content-Type/Content-Disposition bug fix below). Deployed to
+the Mac Mini and verified live: both the "Open the presentation" and "Download the .pptx" links
+resolve to the correct URLs with `target="_blank" rel="noopener noreferrer"`, "Open the
+presentation" opens Microsoft's viewer in a new tab rendering the deck correctly (confirmed slide
+1 of 17), and "Download the .pptx" triggers an actual file download rather than rendering raw
+binary content in the tab.
 
 **Real bug found live after PR #111 shipped:** clicking "Download the .pptx" opened a new tab
 that redirected to the Overview page instead of downloading the file. Root cause: `vite-plugin-
@@ -881,6 +883,26 @@ a real static asset. Fixed in `vite.config.ts` by adding
 extension from the fallback (safe here since every app route is extensionless) — confirmed fixed
 locally via `vite preview` with a real service-worker-controlled page (clicking the link now
 downloads the file; the About page no longer redirects).
+
+**Second real bug found live after the above fix shipped:** with the redirect fixed, the download
+link opened a new tab showing the `.pptx`'s raw binary content instead of downloading it. Root
+cause: neither `vite dev` nor `vite preview` set a `Content-Type` for a `public/` file with an
+unrecognized extension (confirmed via `curl -sI`: empty `Content-Type` for `.pptx` in both modes,
+a known gap flagged — incorrectly, as it turned out — as non-blocking when this feature first
+shipped), so a browser with nothing registered for that MIME type sniffs the response and renders
+it as text. `vite preview` is the literal process the Mac Mini's Cloudflare Tunnel deploy forwards
+to (no separate reverse proxy or static host sets headers), so the fix had to live in
+`vite.config.ts` itself: a small Connect middleware (mirroring the existing
+`redirectBareBasePlugin` pattern, applied to both `configureServer` and `configurePreviewServer`)
+that sets `Content-Type: application/vnd.openxmlformats-officedocument.presentationml
+.presentation` and `Content-Disposition: attachment; filename="GHG_Internship_Review_QA_Deck
+.pptx"` for any request ending in `.pptx`. `Content-Disposition: attachment` also directly matches
+the link's own label ("Download the .pptx") — forces a download regardless of how any given
+browser would otherwise have sniffed the content. Doesn't affect the "Open the presentation" link,
+since Microsoft's viewer fetches the same URL server-side (like `curl`), not as a browser
+navigation that interprets `Content-Disposition`. Verified fixed locally: `curl -sI` shows both
+headers, and clicking the link in a real browser now triggers a genuine download instead of
+rendering garbled binary.
 
 Adds a "Final Presentation" section to the About page linking to the internship review Q&A deck
 with its original PowerPoint animations/transitions intact — a PDF or plain download link
