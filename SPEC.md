@@ -863,15 +863,28 @@ through the tooltip while text stays legible).
 
 **Status: Shipped.** `climate-emissions-analysis-project` only, no `design-system` change.
 `climate-emissions-analysis-project` branches `feature/9.1-about-presentation-embed` (initial
-iframe version, merged as PR #110) superseded by `fix/9.2-presentation-open-new-tab` (current
+iframe version, merged as PR #110) superseded by `fix/9.2-presentation-open-new-tab` (two-link
 design, merged as PR #111), `fix/9.3-pwa-navigate-fallback-denylist` (PWA bug fix below),
-`fix/9.4-pptx-content-disposition` (Content-Type/Content-Disposition bug fix below), and
-`fix/9.5-navigate-denylist-query-string` (denylist robustness fix below). Deployed to the Mac
-Mini and verified live: both the "Open the presentation" and "Download the .pptx" links resolve
-to the correct URLs with `target="_blank" rel="noopener noreferrer"`, "Open the presentation"
-opens Microsoft's viewer in a new tab rendering the deck correctly (confirmed slide 1 of 17), and
-"Download the .pptx" triggers an actual file download rather than rendering raw binary content in
-the tab.
+`fix/9.4-pptx-content-disposition` (Content-Type/Content-Disposition bug fix below),
+`fix/9.5-navigate-denylist-query-string` (denylist robustness fix below), and
+`fix/9.6-remove-pptx-download-link` (product decision, below) which is the current design.
+Deployed to the Mac Mini and verified live: "Open the presentation" resolves to the correct URL
+with `target="_blank" rel="noopener noreferrer"` and opens Microsoft's viewer in a new tab
+rendering the deck correctly (confirmed slide 1 of 17).
+
+**Product decision: no direct download link, viewer-only access.** The two-link design
+(`fix/9.2`) offered both "Open the presentation" and a direct "Download the .pptx" link. Decided
+the deck should only be viewable through Microsoft's online viewer, not offered as a direct
+download — removed the "Download the .pptx" link from `AboutPage.tsx` and the
+`pptxDownloadHeadersPlugin` middleware in `vite.config.ts` that existed solely to make that link's
+`Content-Type`/`Content-Disposition` behave correctly (see the second and fourth bugs below — both
+were specific to that link and are moot once it's gone). The `.pptx` itself is still served as a
+static asset (Microsoft's viewer still fetches it server-side via the embed URL), and its literal
+URL is still technically reachable by anyone who knows it or inspects the page — this only removes
+the UI affordance for downloading it, not access to the underlying file, which isn't meaningfully
+restrictable without a token-gated endpoint that would be disproportionate for an internship
+deck. The `navigateFallbackDenylist` fix (`fix/9.3`/`fix/9.5`, below) was kept — it's a general
+robustness fix for any static asset under `public/`, unrelated to whether a download link exists.
 
 **Real bug found live after PR #111 shipped:** clicking "Download the .pptx" opened a new tab
 that redirected to the Overview page instead of downloading the file. Root cause: `vite-plugin-
