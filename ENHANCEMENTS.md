@@ -1547,8 +1547,9 @@ body while every row of text stays legible.
 design, merged as PR #110, deployed live) superseded by `fix/9.2-presentation-open-new-tab`
 (current design — see "Revised" below, merged as PR #111, deployed and verified live: both links
 resolve correctly and "Open the presentation" opens Microsoft's viewer in a new tab rendering
-slide 1 of 17 of the actual deck), then `fix/9.3-pwa-navigate-fallback-denylist` and
-`fix/9.4-pptx-content-disposition` (two real bugs found live post-merge — see below).
+slide 1 of 17 of the actual deck), then `fix/9.3-pwa-navigate-fallback-denylist`,
+`fix/9.4-pptx-content-disposition`, and `fix/9.5-navigate-denylist-query-string` (three real bugs
+found live post-merge — see below).
 
 Adds a "Final Presentation" section to `AboutPage.tsx` for the internship review Q&A deck,
 requested specifically to preserve its original PowerPoint animations/transitions — ruling out a
@@ -1641,6 +1642,34 @@ as a browser navigation that interprets `Content-Disposition` — only an actual
 navigation honors that header. Verified fixed locally: `curl -sI` shows both headers on the
 response, and a real browser click now triggers an actual file download (new tab opens with an
 empty URL/title, the download-then-auto-close pattern) instead of rendering garbled binary.
+
+**Copilot review on PR #113 (one real issue, fixed before merge):** the middleware matches any
+`.pptx` request path, but the `Content-Disposition` filename was hardcoded to the one file that
+exists today — if a second `.pptx` were ever added to `public/`, it would download under the wrong
+suggested name. Fixed to derive it via `path.basename(pathname)` instead; confirmed with a request
+to a differently-named `.pptx` path that the header now reflects that file's own name, not the
+hardcoded one.
+
+**Fourth real bug, found live while investigating what first looked like the third bug
+recurring.** After PR #113 shipped, a user screenshot showed "Download the .pptx" rendering raw
+binary again — same symptom as the third bug. Investigated via a page-context `fetch()` with
+`cache: 'reload'` (bypasses the browser's own HTTP cache, unlike a plain `fetch()` or a `curl` from
+a different process) against the exact URL: confirmed the server was sending the correct headers.
+The screenshot was almost certainly this same browser's own stale disk-cache entry for that exact
+URL, cached during earlier testing sessions before the header fix shipped — not a live regression,
+and not fixable in application code (a returning visitor's own browser cache is outside the app's
+control; a first-time visitor would never hit this). But testing this surfaced a fifth, genuinely
+new bug: appending any query string to the `.pptx` URL (e.g. a cache-busting param used purely for
+testing) resurrected the *third* bug's redirect-to-Overview symptom. Root cause: Workbox's
+`NavigationRoute` tests its denylist against the full `pathname + search`, not just `pathname` —
+confirmed empirically, not assumed: the existing `\.[a-zA-Z0-9]{2,5}$` pattern stopped matching,
+and the SPA fallback fired again, the instant a query string was appended to the same `.pptx` URL
+that worked fine without one. Fixed by widening the regex to `/\.[a-zA-Z0-9]{2,5}(\?.*)?$/`,
+tolerating an optional trailing query string. Verified with a real service-worker-controlled page
+(after forcing `registration.update()` and confirming the new regex was actually active in the
+served `sw.js` before testing): navigating a fresh tab directly to a query-stringed `.pptx` URL now
+correctly triggers a download (the tab reverts to blank/new-tab state, the same signature confirmed
+throughout this section) instead of rendering the Overview page.
 
 Two things worth flagging for whoever picks this up next:
 

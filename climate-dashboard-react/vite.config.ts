@@ -152,7 +152,12 @@ export default defineConfig({
         // any path ending in a file extension so only pathless app routes (this app's own
         // routes are all extensionless: /, /historical, /about, etc.) fall back to the SPA
         // shell; real static files bypass the fallback and serve normally.
-        navigateFallbackDenylist: [/\.[a-zA-Z0-9]{2,5}$/],
+        // Workbox tests this denylist against `pathname + search` (confirmed empirically: a
+        // plain `\.ext$` pattern stopped matching, and the SPA fallback fired again, the moment
+        // a query string like `?cachebust=1` was appended to the same .pptx URL) -- the trailing
+        // `(\?.*)?` tolerates an optional query string so a cache-busting or tracking param
+        // doesn't silently resurrect the redirect bug.
+        navigateFallbackDenylist: [/\.[a-zA-Z0-9]{2,5}(\?.*)?$/],
         // Data freshness matters more than offline access for a live emissions
         // dashboard — go to the network first for API calls (short timeout
         // before falling back to any cached copy), and let Workbox's default
