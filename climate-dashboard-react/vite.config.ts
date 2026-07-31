@@ -64,9 +64,13 @@ function redirectBareBasePlugin(): Plugin {
 // reverse proxy or static host in front setting headers), so fixing it here fixes production.
 function pptxDownloadHeadersPlugin(): Plugin {
   const middleware = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
-    if (req.url?.split('?')[0]?.endsWith('.pptx')) {
+    const pathname = req.url?.split('?')[0]
+    if (pathname?.endsWith('.pptx')) {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
-      res.setHeader('Content-Disposition', 'attachment; filename="GHG_Internship_Review_QA_Deck.pptx"')
+      // Derived from the request path, not hardcoded -- so this doesn't quietly suggest the
+      // wrong filename if a second .pptx is ever added to public/ (this middleware matches
+      // any .pptx path, not just this one file).
+      res.setHeader('Content-Disposition', `attachment; filename="${path.basename(pathname)}"`)
     }
     next()
   }
