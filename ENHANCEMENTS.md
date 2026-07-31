@@ -1467,3 +1467,125 @@ record — `design-system`'s was explicitly restored to the original dark forest
 file contents (not left at the medium-sage state) via a new commit on top, non-destructively,
 rather than rewriting branch history. Neither branch has an open PR; nothing was merged or
 deployed.
+
+## Release 9 — Scenario Panel Legend Consistency
+
+**Status: Shipped.** `climate-emissions-analysis-project` PR #109. Tracked in `SPEC.md` §5.14.
+
+`ScenarioComparisonPage.tsx`'s three Country Comparison panels (BAU/Moderate/Aggressive) map over
+`SCENARIO_PANELS` and set `showLegend={i === 0}` on each `SyChart` call — only the first (BAU)
+panel in the array got a static legend rendered. That pushed BAU's y-axis down relative to
+Moderate/Aggressive (the legend consumes vertical space the other two don't lose), breaking
+horizontal axis alignment across the three-panel row, and read poorly on a narrow/mobile
+viewport. All three panels already show the same series breakdown via `hovermode: 'x unified'`
+on hover — the static legend was redundant on top of being inconsistent. Fixed by setting
+`showLegend={false}` uniformly (dropping the `i` index entirely, since it was only ever used for
+this one conditional). Merged, deployed, and verified live: all three panels' y-axes now align at
+the same baseline.
+
+## Release 10 — Fixed-Position, Translucent Hover Tooltip
+
+**Status: Shipped.** `design-system` PRs #24, #25, #26. Tracked in `SPEC.md` §5.15. Affects every
+cartesian (`line`/`bar`/`band`) `SyChart` instance app-wide, since `hovermode: 'x unified'` is set
+once at the layout level, not per page.
+
+### 10.1 — The problem
+
+Plotly's own unified-hover label box is positioned near the topmost active trace's own y-pixel at
+the hovered x. Since that value moves as you scan across a series, the box moves vertically with
+it, and Plotly also flips it from one side of the cursor to the other as the hover approaches
+either edge of the plot (to keep it from overflowing). Confirmed live on Scenario Comparison's
+10-series charts (`document.elementFromPoint`-style direct inspection of the rendered hover
+layer, not just visual guessing) that this made some rows genuinely hard to reach — you'd have to
+re-hover at a different x to see a row the box had scrolled past.
+
+### 10.2 — The fix (PR #24)
+
+Plotly's own hover *detection* (hit-testing, event firing) is left completely intact — it still
+drives the vertical spike guideline, which stays visible. Only the label box's own *rendering* is
+suppressed: confirmed via live DOM inspection that Plotly renders it as a `.legend`-classed group
+inside `.hoverlayer`, distinct from the `.spikeline` groups in the same layer, so a CSS rule
+scoped to `.hoverlayer > .legend` (in `overrides.css`, gated behind a
+`__s9cmpx-chart-plotly--custom-tooltip` class SyChart only applies for cartesian charts) hides
+just the box, not the guideline. A React-rendered `<div>` takes its place: pinned to the chart's
+vertical middle (`top: 50%; transform: translateY(-50%)`, so it never moves regardless of where
+the hovered trace's value sits), horizontally follows the cursor with edge clamping so it never
+overflows the chart's own left/right bounds, and is internally scrollable (`maxHeight` +
+`overflowY: auto`) if a series list is ever taller than the chart.
+
+### 10.3 — Copilot caught three real issues on PR #24, all fixed before merge
+
+- **`innerHTML` with interpolated series names/values** — a real HTML-injection risk, since
+  `SyChart` is a general-purpose component with no way to guarantee a caller's series `name`s or
+  axis categories are pre-sanitized. Rewritten to build the tooltip via `document.createElement`
+  and `.textContent` instead of template-string HTML.
+- **`pointerEvents: 'none'` directly contradicted the intended `overflowY: 'auto'` scroll
+  affordance** — with pointer events disabled, a user literally couldn't scroll a tooltip taller
+  than its container. Enabling pointer events surfaced a second problem: the tooltip is a sibling
+  element painted on top of the chart, so Plotly's own `plotly_unhover` fires the instant the
+  cursor reaches it (Plotly loses the pointer under an overlapping element) — an immediate hide on
+  that event lost the race and made the tooltip vanish before a reaching cursor arrived, confirmed
+  live before landing on the fix: a short grace-period `setTimeout` before hiding, canceled by
+  either a fresh `plotly_hover` or the tooltip's own `onMouseEnter`.
+- A comment referencing `ChartCard/SyChart.tsx` when the tooltip actually lives in
+  `SyChart/SyChart.tsx` — corrected.
+
+### 10.4 — Follow-up: opacity tuned twice after live verification (PRs #25, #26)
+
+Manual verification of the live deploy found the tooltip's flat `--static-layer-standard`
+background fully hid whatever chart lines it happened to sit over. Made translucent via the
+existing `withAlpha` helper (already used for band-chart fill opacity) at 0.85 opacity (#25) —
+resolved once per mount via `cssVar`, not per hover event, since it doesn't depend on hover data.
+Confirmed on the live site that 0.85 still read as effectively opaque; dropped to 0.65 (#26),
+confirmed live (zoomed screenshot) that chart lines are now clearly visible through the tooltip
+body while every row of text stays legible.
+
+## Release 11 — Final Presentation Embed
+
+**Status: Planned.** `climate-emissions-analysis-project` branch
+`feature/9.1-about-presentation-embed`, not yet merged. Tracked in `SPEC.md` §5.16. No
+`design-system` change.
+
+Adds a "Final Presentation" section to `AboutPage.tsx` for the internship review Q&A deck,
+requested specifically to preserve its original PowerPoint animations/transitions — ruling out a
+PDF export or a plain download link, neither of which plays animations. Considered and rejected:
+a client-side pptx-rendering library (no mature OSS option reliably replays native PowerPoint
+animation timing); Google Slides embed (requires a manual upload/publish step and has less
+reliable animation-fidelity conversion from PowerPoint's animation model); a PowerPoint-exported
+video (perfect fidelity of whatever was recorded, but fixed-timing rather than click-to-advance,
+and needs re-exporting by hand whenever the deck changes).
+
+Landed on embedding via Microsoft's own web viewer (`view.officeapps.live.com`), which needs no
+upload/publish step at all — it fetches the file directly from a URL the caller supplies. The
+deck is served as a plain static asset:
+`climate-dashboard-react/public/GHG_Internship_Review_QA_Deck.pptx`, copied from
+`docs/GHG_Internship_Review_Q&A_Deck.pptx` and renamed to drop the `&` (URL-safety, avoiding any
+double-encoding surprises across the Vite dev/preview server and the Cloudflare Tunnel). The
+embed URL is built at runtime (`window.location.origin` + `import.meta.env.BASE_URL` + filename)
+rather than hardcoded, so it resolves correctly whether running locally or under the production
+deploy prefix — confirmed the constructed URL is correct in both contexts, though the embed only
+actually *renders* on a publicly-reachable URL (Microsoft's servers can't fetch `localhost`, an
+expected and accepted limitation of local dev). A plain download/open link sits below the iframe
+as a fallback, confirmed to work independently of the iframe (it's a direct `<a href>` to the
+static file, unaffected by the CSP gate the iframe is behind).
+
+Two things worth flagging for whoever picks this up next:
+
+- **`.gitignore` gap, fixed narrowly rather than broadly.** The repo's blanket `*.pptx` rule
+  (confirmed via its own comment: "Generated artefacts — not part of the intern template", meant
+  for the mentor's own working drafts under `docs/`) was silently ignoring the new file under
+  `climate-dashboard-react/public/` too — it would have built and run correctly locally (Vite
+  just copies whatever physically exists in `public/`) while being completely absent from a fresh
+  clone or the Mac Mini's `git pull`-based deploy, a real "works on my machine" trap caught before
+  it shipped broken. Fixed with a narrow negation,
+  `!climate-dashboard-react/public/*.pptx`, rather than loosening the broad rule or force-adding
+  the file, so the reason a `.pptx` is tracked here (and only here) stays self-documenting.
+- **Blocked on a production CSP change outside either repo.** Same category of gap as the world
+  map's `cdn.plot.ly` `connect-src` requirement (`SPEC.md` §5.8): neither repo defines any CSP at
+  all (confirmed by grep), and the Mac Mini's Cloudflare Tunnel runs off a remote token with no
+  local `config.yml` to edit — meaning the CSP is set in the Cloudflare dashboard itself, reachable
+  only by whoever administers that account. Until a `frame-src` allowance for
+  `view.officeapps.live.com` is added there, the embedded iframe will show Microsoft's own "can't
+  open this for you" error; the fallback download/open link works regardless. Flip this section to
+  Shipped only after that CSP change is confirmed live and the iframe actually renders the deck,
+  not just after the PR merges.

@@ -423,6 +423,7 @@ Sections to include:
 | v20 | Jul 2026 | Added §5.12 (`ENHANCEMENTS.md` Release 7, **Planned**): chart palette lacks luminance contrast (mean 3.83:1 vs. an FT reference chart's independently-measured 7.40:1) plus stroke/marker/gridline defaults tuned for a light-background origin, found by comparing against a Financial Times reference chart. Every claim independently re-verified against current `design-system` source before planning. Two of the nine replacement palette tokens were reshaped after review found they collided in hue with this dashboard's own sentiment-positive/negative tokens — the exact "reads as good/bad news" risk the original proposal's own constraint was meant to prevent, but hadn't actually been checked against real token values. Not an internship requirement change. |
 | v21 | Jul 2026 | §5.12 (Release 7) shipped: `design-system` #23 (palette + `SyChart`/`ChartCard` defaults) and `climate-emissions-analysis-project` #107 (retiring the now-redundant projection-palette override). Copilot caught a real bug in #23 — `xaxis.showgrid: false` hardcoded regardless of orientation, which would have broken Forecasts' `orientation="h"` feature-importance chart's value-axis gridlines — fixed and re-reviewed clean. Deploy itself surfaced a real process bug, unrelated to the code: the Mac Mini rebuild needs `DEPLOY_BASE_PATH` set at build time, not just serve time, or the built assets 404 under the wrong path. Verified live across all seven pages by reading actual Plotly/DOM state, not just visually; the override's redundancy was confirmed with a live A/B rather than assumed. Not an internship requirement change. |
 | v22 | Jul 2026 | Added §5.13 (`ENHANCEMENTS.md` Release 8, **Parked**): a climate-specific `data-theme="climate-analytics"` variant (Zeff-derived earth-green surfaces, seafoam accent, muted ramp), built and previewed locally on feature branches in both repos per explicit instruction — no PR, no merge, no deploy. Three surface-lightness variants tried live (dark forest-green, light pastel, medium sage); a reproducible AG Grid blank-render issue surfaced on the medium variant, not root-caused before the whole direction was abandoned in favor of keeping the existing navy `analytics` theme. Both branches left parked at the original dark-green variant's contents. Not an internship requirement change. |
+| v23 | Jul 2026 | Added §5.14 (Release 9, **Shipped**) and §5.15 (Release 10, **Shipped**), documentation catch-up for two already-deployed fixes: the BAU-only static legend on Scenario Comparison's three panels (`showLegend={i === 0}`, misaligning all three axes), and the unified-hover tooltip's position/security/transparency work — Plotly's own label box repositioned unpredictably near a chart's edges, replaced with a React tooltip pinned to the chart's middle; Copilot caught a real `innerHTML` injection risk, a `pointer-events`/scroll contradiction, and a stale file-path comment, all fixed; the tooltip's opacity was tuned twice (0.85, then 0.65) after live verification showed 0.85 still read as opaque. Added §5.16 (Release 11, **Planned**): embeds the internship review deck in the About page via Microsoft's web viewer, preserving its native PowerPoint animations — blocked on a production CSP change (`frame-src` for `view.officeapps.live.com`) that lives outside either repo. Not an internship requirement change. |
 
 ---
 
@@ -817,6 +818,76 @@ at the original dark-green variant's file contents (not the medium-sage state) a
 record, rather than deleted.
 
 Not an internship requirement change.
+
+### 5.14 Scenario Panel Legend Consistency (Release 9)
+
+**Status: Shipped** — tracked in `ENHANCEMENTS.md` Release 9. `climate-emissions-analysis-project`
+PR #109. React-only.
+
+`ScenarioComparisonPage.tsx`'s three Country Comparison panels (BAU/Moderate/Aggressive) set
+`showLegend={i === 0}` on their `SyChart` calls — only the first (BAU) panel got a static legend,
+pushing its y-axis down relative to the other two and breaking horizontal alignment across the
+row, worse on mobile. All three panels already show the same series info via `hovermode: 'x
+unified'` on hover, so the static legend was redundant as well as inconsistent. Set to `false`
+uniformly. Merged, deployed, and verified live: all three panels' axes now align.
+
+### 5.15 Fixed-Position, Translucent Hover Tooltip (Release 10)
+
+**Status: Shipped** — tracked in `ENHANCEMENTS.md` Release 10. `design-system` PRs #24, #25, #26.
+React-only, affects every cartesian (line/bar/band) `SyChart` instance app-wide.
+
+Plotly's own `hovermode: 'x unified'` label box is positioned near the topmost active trace's own
+y-pixel at the hovered x — it moves as that value moves across the series and flips sides near
+the plot's edges, confirmed live on Scenario Comparison's 10-series charts to make some rows hard
+to reach without re-hovering. Fixed (#24) by keeping Plotly's own hover hit-testing and spike
+guideline intact, but suppressing only its label box's rendering (a CSS rule scoped to
+`.hoverlayer > .legend`, confirmed against the live DOM as the correct, distinct class) and
+substituting a React-rendered tooltip pinned to the chart's vertical middle — never moves,
+follows the cursor horizontally with edge clamping, and scrolls internally if a series list is
+taller than the chart. Copilot's review of #24 caught three real issues, all fixed before merge:
+tooltip content was built via `innerHTML` string interpolation (a real HTML-injection risk for a
+general-purpose component that doesn't control what callers pass as series names) — rewritten via
+`createElement`/`textContent`; `pointerEvents: 'none'` made the intended scroll affordance
+unreachable — fixed with pointer events enabled plus a grace-period delay before hiding on
+`plotly_unhover` (an immediate hide loses the race the moment the cursor reaches the tooltip,
+confirmed live); and a stale comment referencing the wrong file path.
+
+Follow-up, found on manual verification of the live deploy: the tooltip's flat
+`--static-layer-standard` background fully hid chart lines underneath it. Made translucent via the
+existing `withAlpha` helper (#25, 0.85 opacity — still read as effectively opaque once actually
+seen live; #26, dropped to 0.65, confirmed against the live site to clearly show chart lines
+through the tooltip while text stays legible).
+
+### 5.16 Final Presentation Embed (Release 11)
+
+**Status: Planned.** `climate-emissions-analysis-project` only, no `design-system` change.
+`climate-emissions-analysis-project` branch `feature/9.1-about-presentation-embed`.
+
+Adds a "Final Presentation" section to the About page embedding the internship review Q&A deck
+with its original PowerPoint animations/transitions intact — a PDF or plain download link
+wouldn't preserve those, so the deck is served as a static asset
+(`climate-dashboard-react/public/GHG_Internship_Review_QA_Deck.pptx`, renamed from the source
+`docs/GHG_Internship_Review_Q&A_Deck.pptx` to drop the `&` for URL-safety) and embedded via
+Microsoft's own web viewer (`view.officeapps.live.com`), which renders it with materially better
+animation fidelity than a Google Slides conversion would, and needs no manual upload/publish step
+— the viewer just fetches the file from its own public URL, computed at runtime via
+`window.location.origin` + `import.meta.env.BASE_URL` rather than hardcoded, so it resolves
+correctly under the deploy prefix. A plain download/open link sits below the iframe as a
+fallback.
+
+**Known gap, deliberately not fixed:** `.gitignore`'s repo-wide `*.pptx` rule (meant for the
+mentor's own working drafts under `docs/`, confirmed never part of the intern template) needed a
+narrow negation (`!climate-dashboard-react/public/*.pptx`) for this one file specifically, since
+it's now a real served asset, not a draft sitting in a working directory.
+
+**Blocked on a deployment-config change outside either repo, same as the world map's
+`connect-src` requirement for `cdn.plot.ly` (§5.8):** the production CSP needs a `frame-src`
+allowance for `view.officeapps.live.com` before the embed will actually render — confirmed neither
+repo defines any CSP (no code-level fix available), and the Mac Mini's Cloudflare Tunnel uses a
+remote token with no local `config.yml`, meaning this is configured in the Cloudflare dashboard
+itself. Until that's added, the iframe will show Microsoft's own "can't open this" error (the
+plain download/open link works regardless, unaffected by CSP `frame-src`). Not an internship
+requirement change.
 
 ---
 
