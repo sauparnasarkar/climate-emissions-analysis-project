@@ -110,6 +110,17 @@ export default defineConfig({
         // Workbox's 2MB default precache ceiling. Raised with headroom rather
         // than blocking PWA support on an unrelated bundle-splitting project.
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        // Without this, Workbox's default NavigationRoute intercepts *every* top-level
+        // navigation (mode: 'navigate') -- including a target="_blank" click on a plain
+        // <a href> to a static asset like the About page's .pptx -- and serves the SPA
+        // shell (index.html) instead of the actual file, since the route has no allowlist/
+        // denylist by default and doesn't distinguish an app route from a real static file.
+        // Confirmed live: clicking the presentation's "Download the .pptx" link opened a new
+        // tab that redirected to the Overview page instead of downloading the file. Denylist
+        // any path ending in a file extension so only pathless app routes (this app's own
+        // routes are all extensionless: /, /historical, /about, etc.) fall back to the SPA
+        // shell; real static files bypass the fallback and serve normally.
+        navigateFallbackDenylist: [/\.[a-zA-Z0-9]{2,5}$/],
         // Data freshness matters more than offline access for a live emissions
         // dashboard — go to the network first for API calls (short timeout
         // before falling back to any cached copy), and let Workbox's default
