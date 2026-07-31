@@ -1547,8 +1547,8 @@ body while every row of text stays legible.
 design, merged as PR #110, deployed live) superseded by `fix/9.2-presentation-open-new-tab`
 (current design — see "Revised" below, merged as PR #111, deployed and verified live: both links
 resolve correctly and "Open the presentation" opens Microsoft's viewer in a new tab rendering
-slide 1 of 17 of the actual deck), then `fix/9.3-pwa-navigate-fallback-denylist` (real PWA bug
-found live post-merge — see below).
+slide 1 of 17 of the actual deck), then `fix/9.3-pwa-navigate-fallback-denylist` and
+`fix/9.4-pptx-content-disposition` (two real bugs found live post-merge — see below).
 
 Adds a "Final Presentation" section to `AboutPage.tsx` for the internship review Q&A deck,
 requested specifically to preserve its original PowerPoint animations/transitions — ruling out a
@@ -1614,6 +1614,33 @@ any path ending in a file extension (safe here since every one of this app's rou
 extensionless). Verified fixed locally with a real service-worker-controlled `vite preview` page
 (not just a fresh unregistered load, since a worker only *controls* a page from its second load
 onward — confirmed `navigator.serviceWorker.controller` was truthy before testing the click).
+
+**Third real bug, found live immediately after the navigation-fallback fix shipped: the download
+rendered as raw binary instead of downloading.** With the redirect fixed, clicking "Download the
+.pptx" opened a new tab, but it displayed the file's garbled raw binary content rather than
+downloading it — a screenshot from the user's own browser showed the literal `PK` zip-header bytes
+and XML fragment names rendered as text (`.pptx` is a zip container; `PK` is the zip magic number).
+Root cause: neither `vite dev` nor `vite preview` set a `Content-Type` header for a `public/` file
+with an extension they don't recognize (`curl -sI` showed an empty `Content-Type` for `.pptx` in
+both modes — flagged as a known gap when this feature first shipped, but judged non-blocking at
+the time on the reasoning that "browsers/PowerPoint rely on the extension regardless"; that
+reasoning didn't hold for a plain browser tab with no PowerPoint file handler registered, which
+falls back to sniffing the response and rendering it as text). `vite preview` is the literal
+process the Mac Mini's Cloudflare Tunnel deploy forwards to — no separate reverse proxy or static
+host sits in front setting headers — so the fix had to live in `vite.config.ts` itself: a new
+`pptxDownloadHeadersPlugin`, a small Connect middleware mirroring the existing
+`redirectBareBasePlugin` pattern (applied to both `configureServer` and `configurePreviewServer`
+so dev and preview behave identically), setting `Content-Type: application/vnd.openxmlformats-
+officedocument.presentationml.presentation` and `Content-Disposition: attachment;
+filename="GHG_Internship_Review_QA_Deck.pptx"` for any request ending in `.pptx`. The explicit
+`Content-Disposition: attachment` does double duty — it also forces a download regardless of how
+any given browser's MIME-sniffing heuristics would otherwise have handled the response, matching
+the link's own label ("Download the .pptx") exactly. Confirmed this doesn't affect "Open the
+presentation": Microsoft's viewer fetches the same URL server-side, the same way `curl` does, not
+as a browser navigation that interprets `Content-Disposition` — only an actual top-level browser
+navigation honors that header. Verified fixed locally: `curl -sI` shows both headers on the
+response, and a real browser click now triggers an actual file download (new tab opens with an
+empty URL/title, the download-then-auto-close pattern) instead of rendering garbled binary.
 
 Two things worth flagging for whoever picks this up next:
 

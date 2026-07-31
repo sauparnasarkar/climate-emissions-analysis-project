@@ -54,6 +54,33 @@ function redirectBareBasePlugin(): Plugin {
   }
 }
 
+// Neither `vite dev` nor `vite preview` set a Content-Type for static files under public/
+// with an extension they don't recognize (confirmed via `curl -sI`: empty Content-Type for
+// .pptx in both modes) -- browsers without a plugin/handler for that MIME type then sniff
+// the response and, if it looks textual enough, render the raw binary as text instead of
+// downloading it. Confirmed live: the About page's "Download the .pptx" link opened a new
+// tab showing garbled binary content rather than downloading the file. `vite preview` is
+// the actual process the Mac Mini's Cloudflare Tunnel deploy forwards to (no separate
+// reverse proxy or static host in front setting headers), so fixing it here fixes production.
+function pptxDownloadHeadersPlugin(): Plugin {
+  const middleware = (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    if (req.url?.split('?')[0]?.endsWith('.pptx')) {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation')
+      res.setHeader('Content-Disposition', 'attachment; filename="GHG_Internship_Review_QA_Deck.pptx"')
+    }
+    next()
+  }
+  return {
+    name: 'pptx-download-headers',
+    configureServer(server) {
+      server.middlewares.use(middleware)
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(middleware)
+    },
+  }
+}
+
 // Proxied under the same prefix as the app itself, matching how Cloudflare Tunnel
 // forwards the full request path with no automatic prefix-stripping — the backend's
 // own routes are mounted at plain /api/..., so strip `base` back off before forwarding.
@@ -83,6 +110,7 @@ export default defineConfig({
   plugins: [
     react(),
     redirectBareBasePlugin(),
+    pptxDownloadHeadersPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
