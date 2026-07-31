@@ -37,5 +37,8 @@ data/.refresh_status
 
 # Generated artefacts — not part of the intern template
 *.pptx
+# ...except the one copy that's an actual served static asset (About page's embedded
+# presentation, SPEC.md §5.14), not a mentor working draft sitting in docs/.
+!climate-dashboard-react/public/*.pptx
 make_*.py
 .claude/settings.local.json
