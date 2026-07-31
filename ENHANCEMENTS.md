@@ -1543,11 +1543,12 @@ body while every row of text stays legible.
 ## Release 11 — Final Presentation Link
 
 **Status: Shipped.** `climate-emissions-analysis-project`. Tracked in `SPEC.md` §5.16. No
-`design-system` change. Two branches: `feature/9.1-about-presentation-embed` (initial iframe
+`design-system` change. Three branches: `feature/9.1-about-presentation-embed` (initial iframe
 design, merged as PR #110, deployed live) superseded by `fix/9.2-presentation-open-new-tab`
 (current design — see "Revised" below, merged as PR #111, deployed and verified live: both links
 resolve correctly and "Open the presentation" opens Microsoft's viewer in a new tab rendering
-slide 1 of 17 of the actual deck).
+slide 1 of 17 of the actual deck), then `fix/9.3-pwa-navigate-fallback-denylist` (real PWA bug
+found live post-merge — see below).
 
 Adds a "Final Presentation" section to `AboutPage.tsx` for the internship review Q&A deck,
 requested specifically to preserve its original PowerPoint animations/transitions — ruling out a
@@ -1593,6 +1594,26 @@ production Cloudflare config need to touch, whereas an iframe embed needs an exp
 allowance for the exact origin being framed. No further Cloudflare change is needed for this
 feature specifically (the world map's `cdn.plot.ly` `connect-src` requirement, §5.8, is unrelated
 and still applies — that's a real same-page fetch, not an embed).
+
+**Real bug found live after PR #111 shipped: PWA service worker swallowed the download link.**
+Clicking "Download the .pptx" opened a new tab that redirected to the Overview page instead of
+downloading the file — confirmed via browser automation (checked `location.href` after the click:
+still `/about` in the original tab, and the new tab's URL/title were empty, i.e. the browser
+treated it as a download rather than a navigable page once fixed). Root cause: `vite-plugin-pwa`'s
+generated `sw.js` registers Workbox's default `NavigationRoute` with no
+`navigateFallbackDenylist` — `e.registerRoute(new e.NavigationRoute(e.createHandlerBoundToURL
+("index.html")))`, confirmed by reading the actual built `sw.js` on the Mac Mini. This intercepts
+*every* top-level navigation request (`mode: 'navigate'`), including a plain `<a target="_blank">`
+click on a static asset, and serves the SPA shell instead — the route has no way to distinguish an
+app client-side route from a real file. `curl` and Microsoft's own server-side fetch (for "Open the
+presentation") both worked fine throughout, since neither is a browser navigation the service
+worker's `fetch` handler intercepts — only an actual browser link click surfaced this. Fixed in
+`vite.config.ts`'s `workbox` config: `navigateFallbackDenylist: [/\.[a-zA-Z0-9]{2,5}$/]`, excluding
+any path ending in a file extension (safe here since every one of this app's routes —
+`/`, `/historical`, `/country-profile`, `/data-explorer`, `/forecasts`, `/scenarios`, `/about` — is
+extensionless). Verified fixed locally with a real service-worker-controlled `vite preview` page
+(not just a fresh unregistered load, since a worker only *controls* a page from its second load
+onward — confirmed `navigator.serviceWorker.controller` was truthy before testing the click).
 
 Two things worth flagging for whoever picks this up next:
 

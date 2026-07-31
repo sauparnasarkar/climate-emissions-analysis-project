@@ -864,10 +864,23 @@ through the tooltip while text stays legible).
 **Status: Shipped.** `climate-emissions-analysis-project` only, no `design-system` change.
 `climate-emissions-analysis-project` branches `feature/9.1-about-presentation-embed` (initial
 iframe version, merged as PR #110) superseded by `fix/9.2-presentation-open-new-tab` (current
-design, merged as PR #111). Deployed to the Mac Mini and verified live: both the "Open the
-presentation" and "Download the .pptx" links resolve to the correct URLs with
-`target="_blank" rel="noopener noreferrer"`, and clicking "Open the presentation" opens Microsoft's
-viewer in a new tab rendering the deck correctly (confirmed slide 1 of 17).
+design, merged as PR #111), plus `fix/9.3-pwa-navigate-fallback-denylist` (PWA bug fix below).
+Deployed to the Mac Mini and verified live: both the "Open the presentation" and "Download the
+.pptx" links resolve to the correct URLs with `target="_blank" rel="noopener noreferrer"`, and
+clicking "Open the presentation" opens Microsoft's viewer in a new tab rendering the deck
+correctly (confirmed slide 1 of 17).
+
+**Real bug found live after PR #111 shipped:** clicking "Download the .pptx" opened a new tab
+that redirected to the Overview page instead of downloading the file. Root cause: `vite-plugin-
+pwa`'s generated `sw.js` registers Workbox's default `NavigationRoute` with no
+`navigateFallbackDenylist`, so it intercepts *every* top-level navigation (`mode: 'navigate'`) —
+including a `target="_blank"` click on a plain `<a href>` to a static file — and serves the SPA
+shell instead, since the route can't distinguish an app route (`/historical`, `/about`, etc.) from
+a real static asset. Fixed in `vite.config.ts` by adding
+`workbox.navigateFallbackDenylist: [/\.[a-zA-Z0-9]{2,5}$/]`, excluding any path ending in a file
+extension from the fallback (safe here since every app route is extensionless) — confirmed fixed
+locally via `vite preview` with a real service-worker-controlled page (clicking the link now
+downloads the file; the About page no longer redirects).
 
 Adds a "Final Presentation" section to the About page linking to the internship review Q&A deck
 with its original PowerPoint animations/transitions intact — a PDF or plain download link
