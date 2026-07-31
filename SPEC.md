@@ -422,6 +422,7 @@ Sections to include:
 | v19 | Jul 2026 | §5.11 follow-up (`ENHANCEMENTS.md` Release 6 §6.5, `design-system` #22): two real bugs found on the user's own iPhone shortly after Release 6 shipped — in landscape, an expanded chart didn't reliably cover the full viewport and couldn't be scrolled to reveal the rest, and the treemap's own tapped-tile detail box bled through a different chart's expanded overlay. Root cause was the overlay's viewport-offset-based sizing and unlocked background scroll on iOS Safari; fixed with `inset: 0` sizing plus a proper `position: fixed`-based scroll lock (bare `overflow: hidden` doesn't hold against iOS Safari's touch scrolling). Confirmed fixed on the reporting device after deploy. Not an internship requirement change. |
 | v20 | Jul 2026 | Added §5.12 (`ENHANCEMENTS.md` Release 7, **Planned**): chart palette lacks luminance contrast (mean 3.83:1 vs. an FT reference chart's independently-measured 7.40:1) plus stroke/marker/gridline defaults tuned for a light-background origin, found by comparing against a Financial Times reference chart. Every claim independently re-verified against current `design-system` source before planning. Two of the nine replacement palette tokens were reshaped after review found they collided in hue with this dashboard's own sentiment-positive/negative tokens — the exact "reads as good/bad news" risk the original proposal's own constraint was meant to prevent, but hadn't actually been checked against real token values. Not an internship requirement change. |
 | v21 | Jul 2026 | §5.12 (Release 7) shipped: `design-system` #23 (palette + `SyChart`/`ChartCard` defaults) and `climate-emissions-analysis-project` #107 (retiring the now-redundant projection-palette override). Copilot caught a real bug in #23 — `xaxis.showgrid: false` hardcoded regardless of orientation, which would have broken Forecasts' `orientation="h"` feature-importance chart's value-axis gridlines — fixed and re-reviewed clean. Deploy itself surfaced a real process bug, unrelated to the code: the Mac Mini rebuild needs `DEPLOY_BASE_PATH` set at build time, not just serve time, or the built assets 404 under the wrong path. Verified live across all seven pages by reading actual Plotly/DOM state, not just visually; the override's redundancy was confirmed with a live A/B rather than assumed. Not an internship requirement change. |
+| v22 | Jul 2026 | Added §5.13 (`ENHANCEMENTS.md` Release 8, **Parked**): a climate-specific `data-theme="climate-analytics"` variant (Zeff-derived earth-green surfaces, seafoam accent, muted ramp), built and previewed locally on feature branches in both repos per explicit instruction — no PR, no merge, no deploy. Three surface-lightness variants tried live (dark forest-green, light pastel, medium sage); a reproducible AG Grid blank-render issue surfaced on the medium variant, not root-caused before the whole direction was abandoned in favor of keeping the existing navy `analytics` theme. Both branches left parked at the original dark-green variant's contents. Not an internship requirement change. |
 
 ---
 
@@ -788,6 +789,34 @@ contrast problem, scoped to Forecasts/Scenario Comparison) was retired in
 override in the running app and comparing the Scenario Comparison panels side by side), not
 assumed from the token math alone. Legend-inside-plot and title-hierarchy items remain deferred,
 optional, and out of scope for this release.
+
+### 5.13 Climate Theme Variant (Release 8)
+
+**Status: Parked — feature branch only, not merged.** A follow-on to Release 7: repositioning the
+GHG dashboard's dark-theme identity from generic corporate navy to a climate-specific one, derived
+from Pentagram's Zeff brand system (earth-green surfaces, seafoam/cooled-cyan accent, muted
+categorical ramp). Tracked in `ENHANCEMENTS.md` Release 8. React-only, no `api`/`app.py` change.
+
+Implemented as a genuinely separate `data-theme="climate-analytics"` theme (not a redefinition of
+`analytics`, which keeps its navy surfaces and neon ramp for other consumers) on
+`design-system` branch `feature/8.1-climate-analytics-theme` and
+`climate-emissions-analysis-project` branch `feature/8.1-climate-analytics-theme` — both pushed,
+neither opened as a PR nor merged. Per explicit instruction, the whole thing was built and
+previewed locally (feature branches only, `npm run dev` against a local API instance, no deploy)
+so the result could be seen running before any decision to merge — the opposite of the
+merge-then-verify-live sequencing every other release in this document used.
+
+Three surface-lightness variants were tried live, in order: the original dark forest-green/Zeff
+derivation (surfaces luminance-matched to navy's own tokens, categorical ramp reshaped to avoid
+the sentiment-green/red hue zones); a full light pastel/sage theme (read as too light once actually
+seen running); a medium-toned sage between the two (surfaced a reproducible AG Grid rendering issue
+— large paginated tables painted blank white despite correct computed styles, root cause not
+isolated before the direction was abandoned). After comparing all three live, the decision was to
+keep none of them and stay on the existing navy `analytics` theme — both feature branches were left
+at the original dark-green variant's file contents (not the medium-sage state) as the parked
+record, rather than deleted.
+
+Not an internship requirement change.
 
 ---
 

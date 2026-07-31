@@ -1406,3 +1406,64 @@ Trends' multi-country chart confirmed the reshaped `-03`/`-09` tokens, 2.75px st
 `orientation="h"` trace; `ChartCard` confirmed rendering at `rgb(18, 30, 53)` (`#121e35`, the page
 background) via `getComputedStyle`; Overview, Country Profile, Data Explorer, and About all
 confirmed unaffected/unregressed.
+
+## Release 8 — Climate Theme Variant (Parked)
+
+**Status: Parked — feature branch only, not merged, not deployed.** Tracked in `SPEC.md` §5.13.
+
+A follow-on to Release 7: repositioning the dashboard's dark theme from generic corporate navy to
+a climate-specific identity derived from Pentagram's Zeff brand system — earth-green surfaces, a
+seafoam/cooled-cyan accent, and a muted categorical ramp in place of Release 7's neon one.
+
+### 8.1 — Explicit instruction: build and preview before any merge decision
+
+Unlike every prior release, the user asked upfront to see the whole thing running before deciding
+whether to keep it — the opposite of this project's usual merge-then-deploy-then-verify-live
+sequence. Both repos got a `feature/8.1-climate-analytics-theme` branch, neither ever opened as a
+PR: `design-system`'s carries the actual theme (new `climate-analytics.css`, `analytics.css`'s
+shared selectors widened to cover it, Storybook wiring); `climate-emissions-analysis-project`'s
+just flips `App.tsx`'s `data-theme` and adds the stylesheet import in `main.tsx`. Verified with
+`npm run dev` against a local `uvicorn` instance (real data, no deploy) rather than the Mac Mini —
+since `climate-dashboard-react` aliases straight to `design-system/src`, having the design-system
+branch checked out locally was enough for the running app to reflect it immediately.
+
+### 8.2 — The dark-green derivation
+
+Surfaces/dividers/text/categorical-ramp values were given verbatim by the consumer and
+independently re-verified (every relative-luminance/contrast figure recomputed exactly). Two
+things the request flagged as needing derivation rather than assumption: `--color-brand-100/200`
+(SyChart's gridline/zeroline tokens) and the `.ag-theme-s9cmpx` AG Grid block, both derived by
+matching each navy token's own contrast-against-background, hue-rotated to the new surface hue.
+Everything else that was navy/cyan-hued got a systematic straight hue rotation, flagged in the CSS
+file's own comments as lower-rigor than the individually-verified items. Seafoam-verbatim for
+"large fills" (hero panels/selected states/chart bands) was deliberately left unwired — no single
+existing token in the theme cleanly represents that role.
+
+### 8.3 — Three variants tried live, none kept
+
+After the dark-green derivation was previewed and approved-in-spirit, the user asked to try a
+"light, muted mint... sage or pastel" variant instead. That required a real architectural change,
+not just new hex values: a light theme is structurally different from a dark one (dark-on-light
+ink, light sentiment washes, etc.), so it was rebuilt as an independent theme layered on the
+project's existing light-theme defaults (the same pattern its `green`/`blue` theme variants already
+use) rather than as a variant of the dark `analytics` block. Seen running, it read as too light —
+the user asked for something between that and the original dark forest-green. A medium-toned sage
+iteration followed (surfaces re-luminance-matched to a genuine midpoint, ink direction re-checked
+empirically rather than assumed, since a "medium" green still leans light for contrast purposes,
+categorical ramp re-derived a third time for the new lightness band).
+
+The medium variant surfaced a real, reproducible problem: `climate-dashboard-react`'s larger
+paginated AG Grid tables (Data Explorer's dataset preview, Forecasts' summary table) rendered
+blank white in every screenshot, despite `getComputedStyle` confirming correct sage colors and
+content on the actual row elements — reproduced in a fresh tab and in a production build (`vite
+preview`), ruling out a dev-server/HMR artifact, but not root-caused (smaller, non-paginated AG
+Grid tables on the same pages rendered correctly) before the direction was abandoned.
+
+### 8.4 — Outcome
+
+After comparing all three variants live, the decision was to keep none of them and stay on the
+existing navy `analytics` theme. Both feature branches were left pushed rather than deleted, as a
+record — `design-system`'s was explicitly restored to the original dark forest-green variant's
+file contents (not left at the medium-sage state) via a new commit on top, non-destructively,
+rather than rewriting branch history. Neither branch has an open PR; nothing was merged or
+deployed.
