@@ -1933,3 +1933,41 @@ count-up/4200ms stop → 2400ms stop) is a reminder that pacing like this is ver
 when you see it live" judgment call, not something to over-engineer a configuration system for
 up front — the constants stayed as plain named numbers in `OverviewPage.tsx` throughout, not
 exposed as a prop or setting, which made each iteration a one-line change.
+
+### Release 12 fourth follow-up: 5-year steps, no KPI count-up
+
+**Status: Shipped.** `climate-emissions-analysis-project`, committed directly to `main` (no
+feature branch, PR, or Copilot review — per explicit instruction). React-only. Two changes
+requested together in one message: step every 5 years instead of every 10, and drop the KPI
+count-up animation entirely so the tier numbers change in lockstep with the map instead of easing.
+
+**5-year steps.** `useYearAnimation`'s stop-computation function renamed `computeDecadeStops` →
+`computeAutoplayStops` (the old name stopped describing it) and its hardcoded `10`-year increment
+replaced with a named `STEP_YEARS = 5` constant. For the real 1990–2024 range this produces
+`[1990, 1995, 2000, 2005, 2010, 2015, 2020, 2024]` — 8 stops instead of 5. Manual scrubbing via
+`seek()`/the `Slider` needed no change, as before.
+
+**No KPI count-up.** At a 1200ms tick interval (this session's third follow-up), the tier numbers'
+count-up animation was either still visibly easing when the next tick fired or lagging noticeably
+behind the map's own instant color change — animating a value that's about to be replaced again in
+barely more than a second reads as motion for its own sake rather than something worth the visual
+noise. `TierSummaryPanel`'s three metrics (Countries, `CO₂ (year)`, `% Change since 1990`) now
+render their formatted value directly rather than through `CountUpText`, snapping in step with the
+map on every tick. `KPI_COUNT_UP_MS` removed entirely as now-dead. `CountUpText` itself is
+untouched — still used, unaffected, for the two `KpiStat` cards elsewhere on Overview (Fastest
+Growth/Largest Reduction), which count up exactly once from the initial page load and were never
+wired to `currentYear` in the first place, so "the KPI animation" the request referred to was
+specifically the tier panel's synced numbers, not those.
+
+`useYearAnimation.test.ts` rewritten in full for 5-year steps (all the numeric stop assertions
+shifted from decade values to 5-year values; the "resume after a manual seek" test's seek target
+changed to a year that's genuinely non-stop under the new scheme). `OverviewPage.test.tsx`'s tier-
+number assertions changed from `toHaveLength(2)` (the old aria-hidden + visually-hidden
+`CountUpText` pair) to a single `getByText`/`toBeInTheDocument()`, since these three metrics no
+longer render duplicate text nodes at all.
+
+Verified: `tsc --noEmit` clean, full `vitest` suite (66 tests) passing, no new lint warnings, and a
+live check both pre-deploy (dev server against the real API) and post-deploy (`labs.syena.io`)
+confirming a genuine 5-year stop mid-run (landed on 2005, then 2000 on a separate check), correct
+settled figures with zero animation lag, a clean finish at 2024 with Play/Pause flipping back
+immediately, and no console errors.

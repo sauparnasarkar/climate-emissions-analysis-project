@@ -429,6 +429,7 @@ Sections to include:
 | v26 | Aug 2026 | §5.17 follow-up (`climate-emissions-analysis-project` #119, **Shipped**): autoplay now steps by decade (1990, 2000, 2010, 2020, 2024) instead of year by year, prompted by feedback that year-over-year change was too gradual to notice live — manual scrubbing is unaffected, still any year in range. Fixed a genuine one-tick lag surfaced while implementing this (Play/Pause only updated one dwell period after the animation actually finished, invisible at 35 fast ticks but obvious at 5 slower ones). Copilot review clean. Verified live pre- and post-deploy. Not an internship requirement change. |
 | v27 | Aug 2026 | §5.17 second follow-up (`climate-emissions-analysis-project` #120, **Shipped**, same day as v26): split the KPI count-up duration (1200ms) from the autoplay dwell interval (4200ms) — previously the same 1800ms constant, so the count-up was still easing when the next decade jump fired. The ~3s gap between them is now genuine settled, readable time per stop. No Copilot review requested for this one, per explicit instruction. Verified live across multiple real decade stops. Not an internship requirement change. |
 | v28 | Aug 2026 | §5.17 third follow-up (same day): `ANIMATION_STOP_MS` tuned down from 4200ms to 2400ms after live feedback that the resulting ~3s settled hold read as too long a pause — `KPI_COUNT_UP_MS` unchanged at 1200ms, leaving a ~1.2s settled window per stop. Committed and pushed directly to `main` per explicit instruction (no feature branch/PR/review for this one). Verified live. Not an internship requirement change. |
+| v29 | Aug 2026 | §5.17 fourth follow-up (same day): autoplay now steps every 5 years (`STEP_YEARS = 5` in `useYearAnimation`, renamed `computeDecadeStops` → `computeAutoplayStops`) instead of every 10; the KPI tier numbers (Countries/CO₂/% Change) no longer count up at all — they snap directly to the new value each tick, since a 1200ms-interval animation was either lagging behind the map or still easing when the next tick fired. `KPI_COUNT_UP_MS` removed; `ANIMATION_STOP_MS` set to 1200ms. `CountUpText` itself is untouched and still used for the two KpiStat cards (Fastest Growth/Largest Reduction), which count up once on load and aren't tied to the year animation. Committed and pushed directly to `main` per explicit instruction. Verified live. Not an internship requirement change. |
 
 ---
 
@@ -1074,6 +1075,24 @@ from 4200ms to 2400ms (`KPI_COUNT_UP_MS` unchanged at 1200ms), leaving a ~1.2s s
 stop. Committed and pushed directly to `main` per explicit instruction — no feature branch, PR, or
 review for this one. Verified live post-deploy: multiple real decade stops still settle to the
 correct figures, Play/Pause still flips back immediately on reaching 2024, console clean.
+
+**Fourth follow-up: 5-year steps, no KPI count-up (same day).** Two changes requested directly
+together: step every 5 years instead of every 10 (`STEP_YEARS = 5` in `useYearAnimation`,
+`computeDecadeStops` renamed `computeAutoplayStops` since "decade" no longer describes it — for
+the real range this produces `[1990, 1995, 2000, ..., 2020, 2024]`, 8 stops instead of 5), and
+drop the KPI count-up animation entirely — the tier numbers (Countries/CO₂/% Change) now snap
+directly to their new value in step with the map rather than easing toward it, since at a 1200ms
+tick interval the count-up was either lagging visibly behind the map or still mid-ease when the
+next tick fired. `KPI_COUNT_UP_MS` removed; `ANIMATION_STOP_MS` set to 1200ms. `CountUpText`
+itself and its accessibility handling (aria-hidden animated span + visually-hidden true-value
+span) are untouched and still used for the two KpiStat cards elsewhere on the page (Fastest
+Growth/Largest Reduction), which count up once from the initial page load and were never tied to
+`currentYear`. `useYearAnimation.test.ts` rewritten for 5-year steps; `OverviewPage.test.tsx`'s
+tier-number assertions changed from asserting 2 occurrences (the old aria-hidden/visually-hidden
+pair) to 1, since these three metrics no longer render through `CountUpText` at all. Committed and
+pushed directly to `main` per explicit instruction. Verified live pre- and post-deploy: confirmed a
+genuine 5-year stop mid-run (e.g. landing on 2005/2000), correct settled figures with no animation
+lag, clean finish at 2024, console clean.
 
 ---
 
