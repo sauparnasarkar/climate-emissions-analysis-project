@@ -8,18 +8,11 @@ import { useYearAnimation } from '../hooks/useYearAnimation';
 import { MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR } from '../constants';
 import type { OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
 
-// How long the KPI numbers take to count up to their new value at each autoplay stop --
-// deliberately shorter than ANIMATION_STOP_MS below, leaving the numbers sitting still and
-// fully readable for the remainder of the stop rather than still counting (or immediately
-// jumping again) right up until the next tick.
-const KPI_COUNT_UP_MS = 1200;
-
-// Dwell time at each autoplay stop (useYearAnimation steps by decade, not by year -- year-
-// over-year change is gradual enough to be hard to notice, while a decade jump is glaring).
-// Set above KPI_COUNT_UP_MS -- the gap between them (here, ~1.2s) is how long the settled
-// numbers and map color actually stay on screen before the next stop. Tuned down from an
-// initial 4200ms after live feedback that the resulting ~3s hold read as too long a pause.
-const ANIMATION_STOP_MS = 2400;
+// Dwell time at each autoplay stop (useYearAnimation steps every 5 years, not by year -- year-
+// over-year change is gradual enough to be hard to notice, while a multi-year jump is glaring).
+// The KPI tier numbers snap directly to their new value each stop rather than counting up --
+// no separate animation duration to coordinate with this one.
+const ANIMATION_STOP_MS = 1200;
 
 // A muted neutral clearly outside MAGNITUDE_SCALE's light-cream-to-deep-red ramp, so a
 // no-data country never gets mistaken for a real (if low) value.
@@ -100,7 +93,11 @@ function animatedTierRow(
 // Each card shows the same three metrics vertically; the wrapper class carries this
 // component's one-off responsive/layout CSS the same way overview-tier-table (its
 // table-based predecessor) scoped its own header-background rule.
-function TierSummaryPanel({ rows, year, durationMs }: { rows: TierRow[]; year: number; durationMs?: number }) {
+// No count-up animation here -- these three metrics change every autoplay tick (as often as
+// every 1.2s), so they snap directly to the new value in step with the map rather than easing,
+// which would otherwise either lag behind the map or still be mid-animation when the next tick
+// arrives. CountUpText (below) stays reserved for values that only ever change once, on load.
+function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
   return (
     <div className="overview-tier-panel">
       <style>{`
@@ -117,20 +114,16 @@ function TierSummaryPanel({ rows, year, durationMs }: { rows: TierRow[]; year: n
           </div>
           <div className="overview-tier-panel__metric">
             <span className="__s9cmpx-body2">Countries</span>
-            <span className="__s9cmpx-headline4"><CountUpText value={row.countries} format={(n) => Math.round(n).toLocaleString()} durationMs={durationMs} /></span>
+            <span className="__s9cmpx-headline4">{Math.round(row.countries).toLocaleString()}</span>
           </div>
           <div className="overview-tier-panel__metric">
             <span className="__s9cmpx-body2">{`CO₂ (${year})`}</span>
-            <span className="__s9cmpx-headline4"><CountUpText value={row.co2Total} format={(n) => `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`} durationMs={durationMs} /></span>
+            <span className="__s9cmpx-headline4">{`${row.co2Total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}</span>
           </div>
           <div className="overview-tier-panel__metric">
             <span className="__s9cmpx-body2">% Change since 1990</span>
             <span className="__s9cmpx-headline4" style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
-              {row.suppressPctChange ? (
-                '—'
-              ) : (
-                <CountUpText value={row.pctChange} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} durationMs={durationMs} />
-              )}
+              {row.suppressPctChange ? '—' : `${row.pctChange >= 0 ? '+' : ''}${row.pctChange.toFixed(1)}%`}
             </span>
           </div>
         </div>
@@ -234,7 +227,6 @@ function AnimatedWorldMap({
 
       <TierSummaryPanel
         year={currentYear}
-        durationMs={KPI_COUNT_UP_MS}
         rows={[
           animatedTierRow('All Countries', 'grid', allCountriesTier.countries_count, allCountriesTier.co2_by_year, yearIdx),
           animatedTierRow('Expanded (Coverage + ≥100 Mt)', 'document', expandedTier.countries_count, expandedTier.co2_by_year, yearIdx),

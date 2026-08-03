@@ -4,9 +4,12 @@ import { useReducedMotion } from 'design-system';
 export interface UseYearAnimationOptions {
   minYear: number;
   maxYear: number;
-  /** Milliseconds dwelt at each autoplay stop (see computeDecadeStops -- not one per year). */
+  /** Milliseconds dwelt at each autoplay stop (see computeAutoplayStops -- not one per year). */
   intervalMs?: number;
 }
+
+/** Autoplay steps every STEP_YEARS years (minYear, minYear+STEP_YEARS, ..., then maxYear). */
+const STEP_YEARS = 5;
 
 export interface UseYearAnimationResult {
   currentYear: number;
@@ -21,15 +24,15 @@ export interface UseYearAnimationResult {
 }
 
 /**
- * Autoplay stops: minYear, then every decade boundary after it, then maxYear (if maxYear isn't
- * already a decade boundary). Year-over-year change is gradual enough that stepping through
- * every single year makes the trend hard to notice; jumping decade to decade makes it obvious
- * at a glance, which is the point of the animation. Manual scrubbing (`seek`) is unaffected --
- * it always allows any year in [minYear, maxYear], not just these stops.
+ * Autoplay stops: minYear, then every STEP_YEARS-year boundary after it, then maxYear (if
+ * maxYear isn't already one of those boundaries). Year-over-year change is gradual enough that
+ * stepping through every single year makes the trend hard to notice; jumping every few years
+ * makes it obvious at a glance, which is the point of the animation. Manual scrubbing (`seek`)
+ * is unaffected -- it always allows any year in [minYear, maxYear], not just these stops.
  */
-function computeDecadeStops(minYear: number, maxYear: number): number[] {
+function computeAutoplayStops(minYear: number, maxYear: number): number[] {
   const stops = [minYear];
-  for (let year = Math.ceil((minYear + 1) / 10) * 10; year < maxYear; year += 10) {
+  for (let year = Math.ceil((minYear + 1) / STEP_YEARS) * STEP_YEARS; year < maxYear; year += STEP_YEARS) {
     stops.push(year);
   }
   if (stops[stops.length - 1] !== maxYear) stops.push(maxYear);
@@ -44,7 +47,7 @@ function computeDecadeStops(minYear: number, maxYear: number): number[] {
  */
 export function useYearAnimation({ minYear, maxYear, intervalMs = 1800 }: UseYearAnimationOptions): UseYearAnimationResult {
   const reducedMotion = useReducedMotion();
-  const stops = useMemo(() => computeDecadeStops(minYear, maxYear), [minYear, maxYear]);
+  const stops = useMemo(() => computeAutoplayStops(minYear, maxYear), [minYear, maxYear]);
   const [currentYear, setCurrentYear] = useState(reducedMotion ? maxYear : stops[0]);
   const [isPlaying, setIsPlaying] = useState(!reducedMotion);
   // Avoids a stale-closure read of currentYear inside the interval callback below without

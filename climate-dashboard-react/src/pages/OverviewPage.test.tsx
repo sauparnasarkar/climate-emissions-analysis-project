@@ -101,17 +101,17 @@ describe('OverviewPage', () => {
     expect(screen.getByText('Selected')).toBeInTheDocument();
     // 'CO₂ (2024)' appears once per tier card (All Countries / Expanded / Selected = 3).
     expect(screen.getAllByText('CO₂ (2024)')).toHaveLength(3);
-    // CountUpText renders each value twice -- an aria-hidden visible span plus a
-    // visually-hidden one carrying the same final value for screen readers (SPEC.md §5.10).
-    expect(screen.getAllByText('37,406 MtCO₂')).toHaveLength(2);
-    expect(screen.getAllByText('34,477 MtCO₂')).toHaveLength(2);
+    // Tier numbers snap directly to their value (no CountUpText/aria-hidden duplication --
+    // these change every autoplay tick, unlike the one-time KpiStat count-ups below).
+    expect(screen.getByText('37,406 MtCO₂')).toBeInTheDocument();
+    expect(screen.getByText('34,477 MtCO₂')).toBeInTheDocument();
     // Selected's CO2 total is now computed client-side from WORLD_MAP_SERIES (25324 at
     // index 1), not read from RESPONSE.selected.latest_co2_total directly.
-    expect(screen.getAllByText('25,324 MtCO₂')).toHaveLength(2);
+    expect(screen.getByText('25,324 MtCO₂')).toBeInTheDocument();
     // (25324 - 14350) / 14350 * 100 = 76.47...% -> "+76.5%", same figure the old
     // server-computed RESPONSE.selected.pct_change_since_1990 fixture used to assert,
     // now independently reproduced by the client-side computation.
-    expect(screen.getAllByText('+76.5%')).toHaveLength(2);
+    expect(screen.getByText('+76.5%')).toBeInTheDocument();
     expect(screen.getByText('Top Movers Since 1990 (10 Selected Countries)')).toBeInTheDocument();
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(FEATURED);
   });
@@ -229,7 +229,7 @@ describe('OverviewPage', () => {
     // 370 MtCO₂ now comes from WORLD_MAP_SERIES' Vietnam entry at the current frame (index 1,
     // year 2024), summed client-side over the new ['Vietnam']-only selection -- the same
     // number the old server-computed RESPONSE.selected.latest_co2_total fixture used to carry.
-    expect(await screen.findAllByText('370 MtCO₂')).toHaveLength(2);
+    expect(await screen.findByText('370 MtCO₂')).toBeInTheDocument();
     expect(await screen.findByText('Fastest Growth — Vietnam')).toBeInTheDocument();
     expect(vi.mocked(api.overview)).toHaveBeenLastCalledWith(['Vietnam']);
   });
