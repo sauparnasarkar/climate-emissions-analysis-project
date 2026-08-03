@@ -1,21 +1,42 @@
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
-from ..constants import FEATURED_COUNTRIES, MAX_SELECTED_COUNTRIES
-from ..data_loaders import DataNotFoundError, load_expanded_countries, load_features, load_raw_sovereign
-from ..schemas import CountryValue, MoverRow, OverviewResponse, OverviewTierMetrics, WorldMapPoint
+from ..constants import (
+    FEATURED_COUNTRIES,
+    MAX_SELECTED_COUNTRIES,
+    PCT_CHANGE_BASELINE_YEAR,
+    WORLD_MAP_YEAR_END,
+    WORLD_MAP_YEAR_START,
+)
+from ..data_loaders import (
+    DataNotFoundError,
+    load_expanded_countries,
+    load_features,
+    load_raw_sovereign,
+    load_world_map_series,
+)
+from ..schemas import CountryValue, MoverRow, OverviewResponse, OverviewTierMetrics, WorldMapPoint, WorldMapTimeSeries
 
 router = APIRouter()
 
 
-def _tier_metrics(df: pd.DataFrame, label: str, countries_count: int) -> OverviewTierMetrics:
+def _tier_metrics(df: pd.DataFrame, label: str, countries_count: int, include_yearly: bool = False) -> OverviewTierMetrics:
     latest_year = int(df["year"].max())
     latest_total = float(df[df["year"] == latest_year]["co2"].sum())
-    base_total = float(df[df["year"] == 1990]["co2"].sum())
+    base_total = float(df[df["year"] == PCT_CHANGE_BASELINE_YEAR]["co2"].sum())
     # A single user-selected country (now possible via `countries`) may have no 1990 row at
     # all -- guard the same way MoverRow's per-country pct_change already tolerates missing
     # baselines, rather than 500ing on a division by zero.
     pct_change = (latest_total - base_total) / base_total * 100 if base_total else 0.0
+    # Only computed for All Countries/Expanded (SPEC.md §5.17.5) -- Selected is summed
+    # client-side from the same WorldMapTimeSeries payload the frontend already holds, since
+    # re-deriving it here would need to run once per selection change for no benefit.
+    co2_by_year: list[float] = []
+    if include_yearly:
+        by_year = df.groupby("year")["co2"].sum()
+        co2_by_year = [
+            float(by_year.get(year, 0.0)) for year in range(WORLD_MAP_YEAR_START, WORLD_MAP_YEAR_END + 1)
+        ]
     return OverviewTierMetrics(
         label=label,
         countries_count=countries_count,
@@ -23,6 +44,7 @@ def _tier_metrics(df: pd.DataFrame, label: str, countries_count: int) -> Overvie
         latest_co2_total=latest_total,
         co2_1990_total=base_total,
         pct_change_since_1990=pct_change,
+        co2_by_year=co2_by_year,
     )
 
 
@@ -105,8 +127,8 @@ def get_overview(countries: list[str] | None = Query(None)):
     ]
 
     return OverviewResponse(
-        all_countries=_tier_metrics(df_all, "All Countries", df_all["country"].nunique()),
-        expanded_countries=_tier_metrics(df_expanded, "Expanded", len(expanded)),
+        all_countries=_tier_metrics(df_all, "All Countries", df_all["country"].nunique(), include_yearly=True),
+        expanded_countries=_tier_metrics(df_expanded, "Expanded", len(expanded), include_yearly=True),
         selected=_tier_metrics(df_selected, "Selected", len(selected)),
         selected_country_list=selected,
         latest_year_bar=latest_year_bar,
@@ -115,3 +137,16 @@ def get_overview(countries: list[str] | None = Query(None)):
         largest_reduction=largest_reduction,
         world_map=world_map,
     )
+
+
+@router.get("/overview/world-map-series", response_model=WorldMapTimeSeries)
+def get_world_map_series():
+    """SPEC.md §5.17 -- the animated choropleth's full year-by-year payload. Selection-invariant
+    (no `countries` param): served on its own route rather than folded into /overview, which
+    re-fetches on every country-selection change and would otherwise ship this ~50KB columnar
+    payload on every one of those re-fetches for no reason."""
+    try:
+        series = load_world_map_series()
+    except DataNotFoundError as e:
+        raise HTTPException(status_code=503, detail=e.message)
+    return WorldMapTimeSeries(**series)

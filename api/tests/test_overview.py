@@ -1,4 +1,4 @@
-from .conftest import write_fixture, write_selected_countries_json
+from .conftest import owid_raw_world_map_series_df, write_fixture, write_selected_countries_json
 
 
 def test_overview_happy_path_defaults_to_featured(client):
@@ -189,3 +189,97 @@ def test_overview_503_when_raw_owid_data_missing(data_dir):
     resp = TestClient(app).get("/api/overview")
     assert resp.status_code == 503
     assert "owid-co2-data.csv" in resp.json()["detail"]
+
+
+def test_overview_co2_by_year_present_for_all_and_expanded_empty_for_selected(client):
+    """SPEC.md §5.17.5 -- co2_by_year backs the animated choropleth's synced KPI numbers for
+    All Countries/Expanded; Selected is summed client-side instead, so the API never computes
+    it (empty list, not omitted/null, per the schema's `= []` default)."""
+    resp = client.get("/api/overview")
+    body = resp.json()
+
+    assert len(body["all_countries"]["co2_by_year"]) == 35  # WORLD_MAP_YEAR_START..END inclusive
+    assert len(body["expanded_countries"]["co2_by_year"]) == 35
+    assert body["selected"]["co2_by_year"] == []
+
+    # owid_raw_df's fixture has China/US/Germany at co2=100.0 each for year 1990 (load_raw_sovereign
+    # includes every sovereign country, not just FEATURED_COUNTRIES, but Canada's only fixture row
+    # is 1995) -- All Countries' 1990 total is exactly their sum.
+    assert body["all_countries"]["co2_by_year"][0] == 300.0
+    # A year with no fixture rows at all reindexes to 0.0, not null/omitted.
+    assert body["all_countries"]["co2_by_year"][1] == 0.0  # 1991
+
+
+def test_world_map_series_shape_ordering_and_value_range(data_dir):
+    owid_raw_world_map_series_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview/world-map-series")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["years"] == list(range(1990, 2025))
+    # Deterministic order: sorted by iso_code, not fixture insertion order (China/US/Kiribati/Monaco).
+    assert body["iso_codes"] == sorted(["CHN", "USA", "KIR", "MCO"])
+    assert body["countries"][body["iso_codes"].index("CHN")] == "China"
+    assert len(body["values"]) == 35
+    assert all(len(row) == 4 for row in body["values"])
+
+    # value_range spans every year, not just one -- max is China's 2024 value (8000 + 34*150),
+    # min is Kiribati's constant 50.0 (lower than any US value, which ranges 5000 down to 4650.0).
+    assert body["value_range"] == [50.0, 8000.0 + 34 * 150.0]
+
+
+def test_world_map_series_no_data_gaps(data_dir):
+    """Kiribati (mirrors the real CXR/ERI/FSM/MHL/NAM/TLS pattern) has no data until 1995, then
+    is complete; Monaco (mirrors the real MCO/SMR/VAT pattern) has no data in any year."""
+    owid_raw_world_map_series_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview/world-map-series")
+    body = resp.json()
+    kir_idx = body["iso_codes"].index("KIR")
+    mco_idx = body["iso_codes"].index("MCO")
+    year_1990_idx = body["years"].index(1990)
+    year_1995_idx = body["years"].index(1995)
+
+    assert body["values"][year_1990_idx][kir_idx] is None
+    assert body["values"][year_1995_idx][kir_idx] == 50.0
+    assert all(body["values"][y][mco_idx] is None for y in range(len(body["years"])))
+
+
+def test_world_map_series_503_when_raw_owid_data_missing(data_dir):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview/world-map-series")
+    assert resp.status_code == 503
+    assert "owid-co2-data.csv" in resp.json()["detail"]
+
+
+def test_world_map_series_value_range_excludes_literal_zero(data_dir):
+    """A real entity (Antarctica, confirmed against the actual OWID data) reports literal 0.0
+    co2 in some years -- genuinely zero, not missing. log10(0) is undefined, so value_range's
+    floor must be the smallest *positive* value, not 0.0, or a zLog consumer's colorRange would
+    compute a null zmin."""
+    import pandas as pd
+
+    rows = [
+        ("Antarctica", 1990, 0.0, "ATA"),
+        ("Antarctica", 2024, 0.0, "ATA"),
+        ("China", 1990, 0.004, "CHN"),  # smallest genuinely positive value in this fixture
+        ("China", 2024, 8000.0, "CHN"),
+    ]
+    pd.DataFrame(rows, columns=["country", "year", "co2", "iso_code"]).to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/overview/world-map-series")
+    body = resp.json()
+    assert body["value_range"] == [0.004, 8000.0]

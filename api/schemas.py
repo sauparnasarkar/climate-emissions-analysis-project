@@ -37,6 +37,14 @@ class OverviewTierMetrics(BaseModel):
     latest_co2_total: float
     co2_1990_total: float
     pct_change_since_1990: float
+    # Per-year CO2 total, parallel to WorldMapTimeSeries.years (SPEC.md §5.17.5) -- lets the
+    # Overview page's animated choropleth drive its KPI numbers from the same year the map is
+    # currently showing, instead of a decorative 0-to-final count-up. Populated for All
+    # Countries/Expanded only (see overview.py's _tier_metrics); Selected is summed client-side
+    # from the same WorldMapTimeSeries payload instead, since it changes with the user's
+    # country selection and re-fetching it per selection change would defeat the point of a
+    # selection-invariant, fetch-once series endpoint.
+    co2_by_year: list[float] = []
 
 
 class OverviewResponse(BaseModel):
@@ -52,6 +60,27 @@ class OverviewResponse(BaseModel):
     # `countries`/Selected, matching the All Countries tier's own "never gets its own chart"
     # framing (the tier table already shows an aggregate; the map shows the full breakdown).
     world_map: list[WorldMapPoint]
+
+
+class WorldMapTimeSeries(BaseModel):
+    """SPEC.md §5.17.1 -- the animated choropleth's full 1990-2024 payload. Columnar (values
+    indexed [yearIdx][countryIdx]), not a per-year list of WorldMapPoint objects: measured at
+    8.3x smaller (50KB vs 414KB) for the full country x year grid, and it's the shape Plotly
+    wants per animation frame, so the frontend does no reshaping. Selection-invariant --
+    deliberately not part of OverviewResponse, which re-fetches on every country-selection
+    change; this is fetched once and cached (see load_world_map_series)."""
+
+    iso_codes: list[str]
+    countries: list[str]  # parallel to iso_codes, for hover labels
+    years: list[int]
+    values: list[list[Optional[float]]]  # values[yearIdx][countryIdx], Mt CO2
+    # Global min/max across ALL years, not just one -- load-bearing for SyChart's colorRange
+    # prop, which must stay fixed across every animation frame or the color scale re-normalizes
+    # per frame and hides real magnitude growth (SPEC.md §5.17.2). The minimum excludes exact
+    # zero (see load_world_map_series): a handful of real entries (Antarctica) report literal
+    # 0.0 co2, which log10 can't represent -- the floor here is the smallest genuinely positive
+    # value, safe to pass straight through to a zLog-scaled colorRange without a null zmin.
+    value_range: tuple[float, float]
 
 
 class TimeseriesSeries(BaseModel):
