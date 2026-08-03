@@ -1884,3 +1884,32 @@ Copilot's review was a clean pass, no comments. Verified live pre- and post-depl
 sequence land on 2010 mid-run and 2024 at the end with Play/Pause flipping back immediately, and
 confirmed Namibia's no-data gray rendering at 1990 is unaffected by the pacing change (the no-data
 trace logic itself didn't change, only when frames are dispatched).
+
+### Release 12 second follow-up: separate KPI count-up duration from autoplay interval
+
+**Status: Shipped.** `climate-emissions-analysis-project` PR #120, same day as the decade-autoplay
+follow-up above. React-only. Reported live immediately after that change shipped: the KPI numbers
+didn't have enough time to sit still and be read before the slider advanced to the next decade.
+
+Root cause: `TierSummaryPanel`'s `CountUpText` instances and `useYearAnimation`'s tick interval
+were both driven by the same constant (`ANIMATION_STOP_MS`, 1800ms) — the count-up animation was
+still easing toward its target right up until the same 1800ms mark triggered the next decade jump,
+so the numbers never actually held still.
+
+Split into two named constants in `OverviewPage.tsx`:
+
+| constant | value | role |
+|---|---|---|
+| `KPI_COUNT_UP_MS` | 1200ms | how long the count-up itself takes to ease to its new value |
+| `ANIMATION_STOP_MS` | 4200ms | total dwell per autoplay stop, passed to `useYearAnimation`'s `intervalMs` |
+
+The ~3s gap between them (4200 − 1200) is genuine settled, fully-readable time where the numbers
+and the map's color both stay put before the next stop fires — the actual fix the report asked
+for. No logic changed, only which constant feeds which prop.
+
+No Copilot review requested for this one, per explicit instruction — small, low-risk change (two
+numeric constants, no new code paths), verified directly instead: `tsc --noEmit` clean, the full
+`vitest` suite (66 tests) unaffected since none of them assert on the specific millisecond values,
+and a live check against the real API and (post-deploy) `labs.syena.io` confirming multiple real
+decade stops (1990, 2000, 2010, 2024) each show correct, settled figures matching the API exactly,
+with the Play/Pause control still flipping back to "Play" immediately on reaching 2024.

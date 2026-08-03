@@ -427,6 +427,7 @@ Sections to include:
 | v24 | Jul 2026 | §5.16 (Release 11) revised and shipped: PR #110 (initial iframe embed) merged and deployed, then Copilot caught three real issues before merge (missing `rel="noopener"` on two `target="_blank"` links, a test hardcoding a URL the component built dynamically, an inaccurate code comment) — fixed. Post-merge, revised the design from an inline iframe to two `target="_blank"` links ("Open the presentation" via Microsoft's viewer, "Download the .pptx" direct) in PR #111 — a new-tab link needs no `frame-src` CSP allowance at all, since it's a top-level navigation rather than a same-page embed, making the CSP dependency moot (the CSP change was applied in the interim but had a syntax bug — a quoted hostname, `frame-src 'view.officeapps.live.com'`, which CSP treats as invalid since quotes are reserved for keywords — flagged and fixed). Verified live: both links resolve correctly and "Open the presentation" renders the actual deck in Microsoft's viewer. Not an internship requirement change. |
 | v25 | Aug 2026 | Added §5.17 (Release 12, **Shipped**): the Overview world map animates through 1990–2024, synced with the KPI/tier numbers. Three PRs — `design-system` #28 (`SyChart` `colorRange`/`animationFrame`/no-data trace, `Slider` keyboard nav, `useReducedMotion`), `climate-emissions-analysis-project` #117 (`/overview/world-map-series`, `co2_by_year`), #118 (Overview page wiring) — each reviewed via the `copilot-review-loop` skill; #28's review caught two real issues (a `colorRange` zmin/null footgun, a no-data trace only provisioned when the *initial* frame had nulls), both fixed and re-verified live before a clean re-review; #117/#118 came back clean. Two corrections to the original draft found by checking the real data before implementing: 9 no-data countries, not 6 (three microstates report zero data for the *entire* range, not an early-1990s gap); Antarctica's literal `0.0` CO₂ required excluding exact zero from `value_range`'s floor (log10(0) is undefined). Verified live pre- and post-deploy: zoom held across a full animation run, `world-map-series` fetched exactly once regardless of selection changes, no-data countries render correctly. Not an internship requirement change. |
 | v26 | Aug 2026 | §5.17 follow-up (`climate-emissions-analysis-project` #119, **Shipped**): autoplay now steps by decade (1990, 2000, 2010, 2020, 2024) instead of year by year, prompted by feedback that year-over-year change was too gradual to notice live — manual scrubbing is unaffected, still any year in range. Fixed a genuine one-tick lag surfaced while implementing this (Play/Pause only updated one dwell period after the animation actually finished, invisible at 35 fast ticks but obvious at 5 slower ones). Copilot review clean. Verified live pre- and post-deploy. Not an internship requirement change. |
+| v27 | Aug 2026 | §5.17 second follow-up (`climate-emissions-analysis-project` #120, **Shipped**, same day as v26): split the KPI count-up duration (1200ms) from the autoplay dwell interval (4200ms) — previously the same 1800ms constant, so the count-up was still easing when the next decade jump fired. The ~3s gap between them is now genuine settled, readable time per stop. No Copilot review requested for this one, per explicit instruction. Verified live across multiple real decade stops. Not an internship requirement change. |
 
 ---
 
@@ -1043,7 +1044,8 @@ manual seek advances to the next stop *after* wherever the user left off (e.g. s
 Play → next stop is 2020), not the next index in the stop list. Dwell time per stop raised to
 1800ms (from 600ms/year) — 5 stops instead of 35 means total autoplay time actually *drops* to
 ~9s (from ~21s) despite each stop lasting 3× longer, while giving both the map's color jump and
-the KPI count-up time to register before the next stop.
+the KPI count-up time to register before the next stop. (Further tuned in a same-day follow-up,
+PR #120 — see below.)
 
 Implementing this surfaced a genuine one-tick lag in the original (year-by-year) design, invisible
 at 35 roughly-one-second ticks but obvious at 5 stops of 1.8s each: `isPlaying` only flipped to
@@ -1053,6 +1055,17 @@ instant the final stop is reached (a separate effect keyed on `currentYear` reac
 stop), verified live: the button now flips back to "Play" immediately when the map lands on 2024,
 both on `localhost` against the real API and post-deploy on `labs.syena.io`. Copilot's review of
 #119 was a clean pass, no comments.
+
+**Second follow-up: separate the KPI count-up duration from the autoplay interval (PR #120,
+same day).** Reported live immediately after #119 shipped: the KPI numbers didn't have time to sit
+still before the slider advanced, since the count-up's own duration and the autoplay tick interval
+were the same constant (both 1800ms) — the numbers were still easing right up until the next jump
+fired. Split into two constants: `KPI_COUNT_UP_MS` (1200ms, how long the count-up itself takes) and
+`ANIMATION_STOP_MS` (4200ms, total dwell per stop, passed to `useYearAnimation`'s `intervalMs`). The
+~3s gap between them is genuine settled, fully-readable time before the next stop. No Copilot
+review requested for this small a change, per explicit instruction. Verified live pre- and
+post-deploy across multiple real decade stops (1990/2000/2010/2024), each showing correct settled
+figures matching the API exactly.
 
 ---
 
