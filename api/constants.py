@@ -8,6 +8,17 @@ COUNTRIES = FEATURED_COUNTRIES  # back-compat alias — nothing new should refer
 
 MAX_SELECTED_COUNTRIES = 10
 
+# The animated choropleth's year range (SPEC.md §5.17). Kept separate from
+# PCT_CHANGE_BASELINE_YEAR below even though both are 1990 today -- one is the animation's
+# range start, the other is the "% change since" baseline year; they're conceptually distinct
+# and shouldn't be silently coupled by sharing a constant.
+WORLD_MAP_YEAR_START = 1990
+WORLD_MAP_YEAR_END = 2024
+
+# The year every tier's "% change since 1990" figure is computed against (overview.py's
+# _tier_metrics) -- previously a bare literal.
+PCT_CHANGE_BASELINE_YEAR = 1990
+
 # Mirrors notebook/constants.py's NON_SOVEREIGN verbatim — kept in sync by hand, same
 # three-way-mirror convention as FEATURED_COUNTRIES across notebook/, api/, and app.py.
 NON_SOVEREIGN = [

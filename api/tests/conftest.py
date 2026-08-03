@@ -26,6 +26,7 @@ _LOADERS = [
     data_loaders.load_scenarios,
     data_loaders.load_raw,
     data_loaders.load_raw_sovereign,
+    data_loaders.load_world_map_series,
     data_loaders.load_filtered,
     data_loaders.load_expanded_countries,
     data_loaders.load_model_comparison,
@@ -134,6 +135,29 @@ def owid_raw_df() -> pd.DataFrame:
     # it's a sum of. Real OWID aggregate rows have no iso_code either.
     rows.append(("World", 2010, 9999.0, 9999.0, 9999.0, None))
     return pd.DataFrame(rows, columns=["country", "year", "co2", "methane", "nitrous_oxide", "iso_code"])
+
+
+def owid_raw_world_map_series_df() -> pd.DataFrame:
+    """Full WORLD_MAP_YEAR_START..END (1990-2024) range for a small country set, including a
+    real always-eventually-resolves gap (mirrors CXR/ERI/FSM/MHL/NAM/TLS -- no data until a
+    later year, then complete) and a real always-null country (mirrors Monaco/San Marino/
+    Vatican -- present every year, co2 always null) -- both confirmed against the real OWID
+    data before writing this fixture, not assumed. Deliberately NOT part of FIXTURE_BUILDERS/
+    full_data: the sparse 5-year owid_raw_df() fixture above is right for every other test
+    (load_raw/load_raw_sovereign don't care about year-to-year continuity), but
+    load_world_map_series' own no-data-gap and value_range behavior needs genuine full-range
+    coverage to exercise meaningfully. Written directly to a bare data_dir by tests that need
+    it, not via write_fixture/FIXTURE_BUILDERS.
+    """
+    rows = []
+    for year in range(1990, 2025):
+        rows.append(("China", year, 8000.0 + (year - 1990) * 150.0, "CHN"))
+        rows.append(("United States", year, 5000.0 - (year - 1990) * 10.0, "USA"))
+    for year in range(1995, 2025):
+        rows.append(("Kiribati", year, 50.0, "KIR"))
+    for year in range(1990, 2025):
+        rows.append(("Monaco", year, None, "MCO"))
+    return pd.DataFrame(rows, columns=["country", "year", "co2", "iso_code"])
 
 
 def ghg_filtered_df() -> pd.DataFrame:

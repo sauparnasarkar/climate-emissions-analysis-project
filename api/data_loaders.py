@@ -7,7 +7,7 @@ from functools import lru_cache
 
 import pandas as pd
 
-from .constants import FEATURED_COUNTRIES
+from .constants import FEATURED_COUNTRIES, WORLD_MAP_YEAR_END, WORLD_MAP_YEAR_START
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
@@ -91,6 +91,69 @@ def load_raw_sovereign() -> pd.DataFrame:
     cols = ["country", "year", "co2", "iso_code"]
     df_r = pd.read_csv(path, usecols=cols)
     return df_r[df_r["iso_code"].notna() & (df_r["year"] >= 1990)].copy()
+
+
+@lru_cache(maxsize=1)
+def load_world_map_series() -> dict:
+    """SPEC.md §5.17.1 -- the animated choropleth's full WORLD_MAP_YEAR_START..END payload,
+    pivoted into a columnar shape once and cached (this data is selection-invariant, so it's
+    fetched once by the frontend regardless of country-selection changes, unlike
+    load_raw_sovereign() which backs the selection-scoped /overview endpoint).
+
+    No app.py mirror -- unlike every other loader in this file (whose docstring-level "mirrors
+    app.py's @st.cache_data loaders 1:1" convention this loader deliberately breaks), since
+    SPEC.md §5.17 is React-only with no equivalent Streamlit feature planned.
+
+    Country order (iso_codes/countries) is fixed by sorting on iso_code once here, since
+    `values[yearIdx][countryIdx]` is a positional index that must stay stable across requests.
+    Each iso_code's country name is taken from its first matching row -- spot-checked against
+    the real dataset before writing this (not assumed): zero iso_codes have more than one
+    distinct country name across 1990-2024.
+
+    Real no-data gaps (verified against the actual data, not just SPEC.md's draft claim of "6
+    countries, all resolved by 1995"): 6 countries have a partial early-1990s gap (CXR, ERI,
+    FSM, MHL, NAM, TLS -- resolved by 1995, matching the draft), but 3 more have *zero* co2 data
+    across the entire range (MCO Monaco, SMR San Marino, VAT Vatican City) -- these simply never
+    report emissions data in OWID. Not a bug in this loader; the no-data trace design (SyChart)
+    handles any number of always/sometimes-null countries generically, so this doesn't need
+    special-casing here."""
+    path = _path("owid-co2-data.csv")
+    if not os.path.exists(path):
+        raise DataNotFoundError("data/owid-co2-data.csv not found.")
+    cols = ["country", "year", "co2", "iso_code"]
+    df_r = pd.read_csv(path, usecols=cols)
+    df_r = df_r[
+        df_r["iso_code"].notna()
+        & (df_r["year"] >= WORLD_MAP_YEAR_START)
+        & (df_r["year"] <= WORLD_MAP_YEAR_END)
+    ]
+
+    country_meta = df_r[["iso_code", "country"]].drop_duplicates(subset="iso_code").sort_values("iso_code")
+    iso_codes = country_meta["iso_code"].tolist()
+    countries = country_meta["country"].tolist()
+    years = list(range(WORLD_MAP_YEAR_START, WORLD_MAP_YEAR_END + 1))
+
+    pivot = df_r.pivot(index="year", columns="iso_code", values="co2").reindex(index=years, columns=iso_codes)
+    values = [[None if pd.isna(v) else float(v) for v in row] for row in pivot.to_numpy()]
+
+    # The floor excludes exact zero, not just null -- confirmed against the real data:
+    # Antarctica (a real ISO-3 code, iso_code.notna() lets it through this filter same as
+    # every other entity in it) reports literal 0.0 co2 for 2008-2024, genuinely rather than
+    # a missing value. log10(0) is undefined, and this range exists specifically to feed a
+    # log-scaled color axis (see the class docstring) -- a 0.0 floor would make `colorRange`'s
+    # lower bound produce a null zmin once log-transformed. The smallest genuinely *positive*
+    # value (confirmed against real data: 0.004 Mt, vs. 0.0 including the zero rows) is the
+    # correct log-scale floor.
+    positive_co2 = df_r[df_r["co2"] > 0]["co2"]
+    value_range = (float(positive_co2.min()), float(df_r["co2"].max()))
+
+    return {
+        "iso_codes": iso_codes,
+        "countries": countries,
+        "years": years,
+        "values": values,
+        "value_range": value_range,
+    }
 
 
 @lru_cache(maxsize=1)
