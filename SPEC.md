@@ -426,6 +426,7 @@ Sections to include:
 | v23 | Jul 2026 | Added §5.14 (Release 9, **Shipped**) and §5.15 (Release 10, **Shipped**), documentation catch-up for two already-deployed fixes: the BAU-only static legend on Scenario Comparison's three panels (`showLegend={i === 0}`, misaligning all three axes), and the unified-hover tooltip's position/security/transparency work — Plotly's own label box repositioned unpredictably near a chart's edges, replaced with a React tooltip pinned to the chart's middle; Copilot caught a real `innerHTML` injection risk, a `pointer-events`/scroll contradiction, and a stale file-path comment, all fixed; the tooltip's opacity was tuned twice (0.85, then 0.65) after live verification showed 0.85 still read as opaque. Added §5.16 (Release 11, **Planned**): embeds the internship review deck in the About page via Microsoft's web viewer, preserving its native PowerPoint animations — blocked on a production CSP change (`frame-src` for `view.officeapps.live.com`) that lives outside either repo. Not an internship requirement change. |
 | v24 | Jul 2026 | §5.16 (Release 11) revised and shipped: PR #110 (initial iframe embed) merged and deployed, then Copilot caught three real issues before merge (missing `rel="noopener"` on two `target="_blank"` links, a test hardcoding a URL the component built dynamically, an inaccurate code comment) — fixed. Post-merge, revised the design from an inline iframe to two `target="_blank"` links ("Open the presentation" via Microsoft's viewer, "Download the .pptx" direct) in PR #111 — a new-tab link needs no `frame-src` CSP allowance at all, since it's a top-level navigation rather than a same-page embed, making the CSP dependency moot (the CSP change was applied in the interim but had a syntax bug — a quoted hostname, `frame-src 'view.officeapps.live.com'`, which CSP treats as invalid since quotes are reserved for keywords — flagged and fixed). Verified live: both links resolve correctly and "Open the presentation" renders the actual deck in Microsoft's viewer. Not an internship requirement change. |
 | v25 | Aug 2026 | Added §5.17 (Release 12, **Shipped**): the Overview world map animates through 1990–2024, synced with the KPI/tier numbers. Three PRs — `design-system` #28 (`SyChart` `colorRange`/`animationFrame`/no-data trace, `Slider` keyboard nav, `useReducedMotion`), `climate-emissions-analysis-project` #117 (`/overview/world-map-series`, `co2_by_year`), #118 (Overview page wiring) — each reviewed via the `copilot-review-loop` skill; #28's review caught two real issues (a `colorRange` zmin/null footgun, a no-data trace only provisioned when the *initial* frame had nulls), both fixed and re-verified live before a clean re-review; #117/#118 came back clean. Two corrections to the original draft found by checking the real data before implementing: 9 no-data countries, not 6 (three microstates report zero data for the *entire* range, not an early-1990s gap); Antarctica's literal `0.0` CO₂ required excluding exact zero from `value_range`'s floor (log10(0) is undefined). Verified live pre- and post-deploy: zoom held across a full animation run, `world-map-series` fetched exactly once regardless of selection changes, no-data countries render correctly. Not an internship requirement change. |
+| v26 | Aug 2026 | §5.17 follow-up (`climate-emissions-analysis-project` #119, **Shipped**): autoplay now steps by decade (1990, 2000, 2010, 2020, 2024) instead of year by year, prompted by feedback that year-over-year change was too gradual to notice live — manual scrubbing is unaffected, still any year in range. Fixed a genuine one-tick lag surfaced while implementing this (Play/Pause only updated one dwell period after the animation actually finished, invisible at 35 fast ticks but obvious at 5 slower ones). Copilot review clean. Verified live pre- and post-deploy. Not an internship requirement change. |
 
 ---
 
@@ -981,8 +982,8 @@ itself) that this preserves a user's map zoom/pan exactly across a full ~23s ani
 the ordinary `Plotly.react` path a `series` prop change takes does not. The choropleth `series`
 passed to `SyChart` is memoized to the initial year only and must never change reference for the
 component's lifetime, or the animation would both lose the user's zoom and pay for a full
-re-render (hover handlers rebound, the resize `ResizeObserver` torn down/recreated) every ~600ms
-tick. `useYearAnimation` (new hook, `climate-dashboard-react`) owns `currentYear`/`isPlaying`,
+re-render (hover handlers rebound, the resize `ResizeObserver` torn down/recreated) every tick.
+`useYearAnimation` (new hook, `climate-dashboard-react`) owns `currentYear`/`isPlaying`,
 autoplays on mount, and — gated on design-system's new live-subscribed `useReducedMotion` hook —
 pins at the final year with Play disabled (manual scrubbing still works) when
 `prefers-reduced-motion` is set. All Countries/Expanded's per-year KPI totals come from the API's
@@ -1029,6 +1030,29 @@ no-data country) renders in the muted no-data gray at 1990 and resolves to real 
 mid-90s, and the KPI/tier numbers settle to the exact figures the API returns (218 countries /
 37,398 MtCO₂ / +68.6% for All Countries at 2024, matching the API response byte-for-byte). Console
 clean throughout.
+
+**Follow-up: decade-stepped autoplay, not year-by-year (`climate-emissions-analysis-project`
+#119).** Shipped the same day, prompted by direct feedback after using the year-by-year version
+live: annual change is gradual enough to be hard to notice while autoplay steps through it one
+year at a time, whereas jumping decade to decade (1990, 2000, 2010, 2020, then 2024) makes the
+trend obvious at a glance. `useYearAnimation` now autoplays through a fixed stop list — `minYear`,
+every decade boundary after it, then `maxYear` — instead of incrementing by 1 each tick; manual
+scrubbing (the `Slider`/`seek()`) is completely unaffected, since it was already independent of
+whatever stepping scheme autoplay uses and still allows any year in range. Resuming Play after a
+manual seek advances to the next stop *after* wherever the user left off (e.g. seek to 2015, hit
+Play → next stop is 2020), not the next index in the stop list. Dwell time per stop raised to
+1800ms (from 600ms/year) — 5 stops instead of 35 means total autoplay time actually *drops* to
+~9s (from ~21s) despite each stop lasting 3× longer, while giving both the map's color jump and
+the KPI count-up time to register before the next stop.
+
+Implementing this surfaced a genuine one-tick lag in the original (year-by-year) design, invisible
+at 35 roughly-one-second ticks but obvious at 5 stops of 1.8s each: `isPlaying` only flipped to
+`false` the tick *after* reaching the final stop, not on arrival, so the Play/Pause control read as
+stale for a full extra dwell period after the animation had visibly finished. Fixed by stopping the
+instant the final stop is reached (a separate effect keyed on `currentYear` reaching the last
+stop), verified live: the button now flips back to "Play" immediately when the map lands on 2024,
+both on `localhost` against the real API and post-deploy on `labs.syena.io`. Copilot's review of
+#119 was a clean pass, no comments.
 
 ---
 

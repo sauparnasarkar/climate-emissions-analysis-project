@@ -1831,3 +1831,56 @@ exactly), then confirmed the rendered page settles to those exact figures once `
 count-up animation completes (a fast screenshot taken immediately after navigation caught the
 numbers mid-transition at 0 — expected behavior, not a bug, since `CountUpText` always eases from
 its previous value on mount). Console clean.
+
+### Release 12 follow-up: decade-stepped autoplay
+
+**Status: Shipped.** `climate-emissions-analysis-project` PR #119, merged the same day as Release
+12 itself. React-only. Prompted directly by feedback after using the year-by-year autoplay live:
+annual emissions change is gradual enough that stepping through every single year makes the trend
+hard to notice, whereas jumping decade to decade is glaring. The user's own framing: "the year-by-
+year transition makes it difficult to see the evolving of the emitters as the change is gradual,
+whereas decade level changes can be more glaring."
+
+`useYearAnimation` now autoplays through a fixed stop list — `minYear`, every decade boundary after
+it, then `maxYear` (appended only if it isn't already a decade boundary, avoiding a duplicate final
+stop) — computed generically from whatever `minYear`/`maxYear` the caller passes, not hardcoded to
+1990/2024. For the real 1990–2024 range this produces exactly `[1990, 2000, 2010, 2020, 2024]`.
+Manual scrubbing via the `Slider`/`seek()` needed no change at all — it was already independent of
+whatever stepping scheme autoplay used internally, and still allows any year in range. Resuming
+Play after a manual seek to a non-stop year (e.g. 2015) advances to the next stop strictly *after*
+that year (2020), not the next index in the stop list — otherwise seeking backward past an already-
+visited stop and hitting Play would either replay a stop already seen or skip one arbitrarily.
+
+Dwell time per stop raised from 600ms (one per year) to 1800ms (one per stop) — with 5 stops
+instead of 35, total autoplay time actually *drops* to ~9s (from ~21s) despite each stop lasting 3×
+longer, while giving both the map's color jump and the KPI count-up time to actually register
+before the next stop fires.
+
+**Real bug found while implementing, not in the original design:** the tick logic that decides
+when to stop autoplay only flipped `isPlaying` to `false` the tick *after* reaching the final stop,
+not upon arrival — at 35 roughly-one-second ticks this one-tick lag was invisible, but surfaced
+immediately once verified live with only 5 stops at 1.8s each: the Play/Pause button visibly read
+"Pause" for a full extra 1.8s after the map had already landed on 2024 and stopped changing, which
+reads as a stale or broken control. Root cause: the interval callback's `next === undefined` branch
+(meaning "no stop left after the current year") was the only place `setIsPlaying(false)` fired, and
+that branch is only reached on the tick *after* arrival, since the tick that arrives at the final
+stop takes the normal "advance to next stop" branch instead. Fixed with a second, separate effect
+keyed on `currentYear` reaching `stops[stops.length - 1]`, which fires in the same render the final
+stop is reached — confirmed live (both against the real API on `localhost` and again post-deploy
+on `labs.syena.io`) that the button now flips back to "Play" the instant the map lands on 2024, no
+lag. The same effect also correctly handles a degenerate single-stop range (`minYear === maxYear`)
+without needing a tick at all, since it fires on mount if `currentYear` already equals the only
+stop.
+
+`useYearAnimation.test.ts` rewritten for the decade-stop model: stepping sequence lands on
+2000/2010/2020/2024 rather than 1991/1992/…; a new test confirms no duplicate final stop when
+`maxYear` already falls on a decade boundary; the final-stop-immediate-stop fix has its own
+assertion (`isPlaying` false in the *same* tick that reaches the last stop, not the next one);
+resuming Play after a seek to a non-stop year is asserted to advance to the correct next stop;
+replay-from-start, reduced-motion gating, and the live OS-setting-change case all carried over
+from the year-by-year test suite with values adjusted for the new stops.
+
+Copilot's review was a clean pass, no comments. Verified live pre- and post-deploy: watched the
+sequence land on 2010 mid-run and 2024 at the end with Play/Pause flipping back immediately, and
+confirmed Namibia's no-data gray rendering at 1990 is unaffected by the pacing change (the no-data
+trace logic itself didn't change, only when frames are dispatched).
