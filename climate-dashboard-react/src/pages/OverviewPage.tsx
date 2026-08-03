@@ -8,12 +8,19 @@ import { useYearAnimation } from '../hooks/useYearAnimation';
 import { MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR } from '../constants';
 import type { OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
 
+// How long the KPI numbers take to count up to their new value at each autoplay stop --
+// deliberately shorter than ANIMATION_STOP_MS below, leaving the numbers sitting still and
+// fully readable for the remainder of the stop rather than still counting (or immediately
+// jumping again) right up until the next tick.
+const KPI_COUNT_UP_MS = 1200;
+
 // Dwell time at each autoplay stop (useYearAnimation steps by decade, not by year -- year-
 // over-year change is gradual enough to be hard to notice, while a decade jump is glaring).
-// 5 stops (minYear, each decade after it, maxYear) x 1800ms is long enough for both the map's
-// color jump and the KPI count-up to register before the next stop, ~9s total -- still faster
-// than a year-by-year run despite the slower per-stop pace, since there are 7x fewer stops.
-const ANIMATION_STOP_MS = 1800;
+// Set well above KPI_COUNT_UP_MS -- the gap between them (here, ~3s) is how long the settled
+// numbers and map color actually stay on screen before the next stop, which is the whole point
+// of slowing down: found live that the original pace advanced before the KPI count-up (and the
+// reader) had time to register the new figures.
+const ANIMATION_STOP_MS = 4200;
 
 // A muted neutral clearly outside MAGNITUDE_SCALE's light-cream-to-deep-red ramp, so a
 // no-data country never gets mistaken for a real (if low) value.
@@ -228,7 +235,7 @@ function AnimatedWorldMap({
 
       <TierSummaryPanel
         year={currentYear}
-        durationMs={ANIMATION_STOP_MS}
+        durationMs={KPI_COUNT_UP_MS}
         rows={[
           animatedTierRow('All Countries', 'grid', allCountriesTier.countries_count, allCountriesTier.co2_by_year, yearIdx),
           animatedTierRow('Expanded (Coverage + ≥100 Mt)', 'document', expandedTier.countries_count, expandedTier.co2_by_year, yearIdx),
