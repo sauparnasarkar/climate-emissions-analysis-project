@@ -425,6 +425,7 @@ Sections to include:
 | v22 | Jul 2026 | Added §5.13 (`ENHANCEMENTS.md` Release 8, **Parked**): a climate-specific `data-theme="climate-analytics"` variant (Zeff-derived earth-green surfaces, seafoam accent, muted ramp), built and previewed locally on feature branches in both repos per explicit instruction — no PR, no merge, no deploy. Three surface-lightness variants tried live (dark forest-green, light pastel, medium sage); a reproducible AG Grid blank-render issue surfaced on the medium variant, not root-caused before the whole direction was abandoned in favor of keeping the existing navy `analytics` theme. Both branches left parked at the original dark-green variant's contents. Not an internship requirement change. |
 | v23 | Jul 2026 | Added §5.14 (Release 9, **Shipped**) and §5.15 (Release 10, **Shipped**), documentation catch-up for two already-deployed fixes: the BAU-only static legend on Scenario Comparison's three panels (`showLegend={i === 0}`, misaligning all three axes), and the unified-hover tooltip's position/security/transparency work — Plotly's own label box repositioned unpredictably near a chart's edges, replaced with a React tooltip pinned to the chart's middle; Copilot caught a real `innerHTML` injection risk, a `pointer-events`/scroll contradiction, and a stale file-path comment, all fixed; the tooltip's opacity was tuned twice (0.85, then 0.65) after live verification showed 0.85 still read as opaque. Added §5.16 (Release 11, **Planned**): embeds the internship review deck in the About page via Microsoft's web viewer, preserving its native PowerPoint animations — blocked on a production CSP change (`frame-src` for `view.officeapps.live.com`) that lives outside either repo. Not an internship requirement change. |
 | v24 | Jul 2026 | §5.16 (Release 11) revised and shipped: PR #110 (initial iframe embed) merged and deployed, then Copilot caught three real issues before merge (missing `rel="noopener"` on two `target="_blank"` links, a test hardcoding a URL the component built dynamically, an inaccurate code comment) — fixed. Post-merge, revised the design from an inline iframe to two `target="_blank"` links ("Open the presentation" via Microsoft's viewer, "Download the .pptx" direct) in PR #111 — a new-tab link needs no `frame-src` CSP allowance at all, since it's a top-level navigation rather than a same-page embed, making the CSP dependency moot (the CSP change was applied in the interim but had a syntax bug — a quoted hostname, `frame-src 'view.officeapps.live.com'`, which CSP treats as invalid since quotes are reserved for keywords — flagged and fixed). Verified live: both links resolve correctly and "Open the presentation" renders the actual deck in Microsoft's viewer. Not an internship requirement change. |
+| v25 | Aug 2026 | Added §5.17 (Release 12, **Shipped**): the Overview world map animates through 1990–2024, synced with the KPI/tier numbers. Three PRs — `design-system` #28 (`SyChart` `colorRange`/`animationFrame`/no-data trace, `Slider` keyboard nav, `useReducedMotion`), `climate-emissions-analysis-project` #117 (`/overview/world-map-series`, `co2_by_year`), #118 (Overview page wiring) — each reviewed via the `copilot-review-loop` skill; #28's review caught two real issues (a `colorRange` zmin/null footgun, a no-data trace only provisioned when the *initial* frame had nulls), both fixed and re-verified live before a clean re-review; #117/#118 came back clean. Two corrections to the original draft found by checking the real data before implementing: 9 no-data countries, not 6 (three microstates report zero data for the *entire* range, not an early-1990s gap); Antarctica's literal `0.0` CO₂ required excluding exact zero from `value_range`'s floor (log10(0) is undefined). Verified live pre- and post-deploy: zoom held across a full animation run, `world-map-series` fetched exactly once regardless of selection changes, no-data countries render correctly. Not an internship requirement change. |
 
 ---
 
@@ -960,6 +961,74 @@ same-page fetch.
 mentor's own working drafts under `docs/`, confirmed never part of the intern template) needed a
 narrow negation (`!climate-dashboard-react/public/*.pptx`) for this one file specifically, since
 it's now a real served asset, not a draft sitting in a working directory.
+
+### 5.17 Animated Choropleth Time-Series (Release 12)
+
+**Status: Shipped.** Tracked in `ENHANCEMENTS.md` Release 12. Turns the Overview world map from a
+static latest-year snapshot into an autoplaying, scrubbable 1990–2024 sequence, synchronized with
+the KPI/tier numbers so they read the actual totals for whichever year the map is currently
+showing rather than a decorative 0→final count-up. Three PRs: `design-system` #28 (`colorRange`/
+`animationFrame`/no-data trace on `SyChart`, `Slider` keyboard nav, new `useReducedMotion` hook),
+`climate-emissions-analysis-project` #117 (`GET /overview/world-map-series`, `co2_by_year`), #118
+(the Overview page wiring itself). Not an internship requirement change.
+
+**Architecture.** The color axis is pinned across every frame (`colorRange` → `zmin`/`zmax` +
+`zauto: false`) — without this, an animated chart re-normalizes its color scale to each frame's
+own min/max, hiding real magnitude growth behind constant-looking colors. Per-frame updates go
+through a new `animationFrame` prop, applied via a direct `Plotly.restyle` in an effect isolated
+from `SyChart`'s main render effect — confirmed live (Storybook and, after deploy, production
+itself) that this preserves a user's map zoom/pan exactly across a full ~23s animation run, while
+the ordinary `Plotly.react` path a `series` prop change takes does not. The choropleth `series`
+passed to `SyChart` is memoized to the initial year only and must never change reference for the
+component's lifetime, or the animation would both lose the user's zoom and pay for a full
+re-render (hover handlers rebound, the resize `ResizeObserver` torn down/recreated) every ~600ms
+tick. `useYearAnimation` (new hook, `climate-dashboard-react`) owns `currentYear`/`isPlaying`,
+autoplays on mount, and — gated on design-system's new live-subscribed `useReducedMotion` hook —
+pins at the final year with Play disabled (manual scrubbing still works) when
+`prefers-reduced-motion` is set. All Countries/Expanded's per-year KPI totals come from the API's
+new `co2_by_year` field; Selected is summed client-side from the same `world-map-series` payload
+restricted to the current selection, since re-fetching it per selection change would defeat the
+point of a selection-invariant, fetch-once endpoint.
+
+**Two corrections found by verifying against the real data before implementing, not assumed from
+the original draft spec:**
+- **9 no-data countries, not 6.** The original draft claimed only 6 countries (`CXR, ERI, FSM,
+  MHL, NAM, TLS`) have any missing year, all resolved by 1995. Verified against the actual OWID
+  data: three more — Monaco, San Marino, Vatican City — report **zero** CO₂ data across the
+  *entire* 1990–2024 range, not just an early-1990s gap. No code change was needed (the no-data
+  trace design handles any number of always/sometimes-null countries generically), but the
+  world-map-series loader's docstring documents the real figure.
+- **A literal-zero value breaks a log-scaled floor.** Antarctica reports genuine `0.0` CO₂ for
+  2008–2024 (real, not missing — it has a real ISO-3 code and passes the `iso_code.notna()`
+  filter same as every other entity). `log10(0)` is undefined, so `WorldMapTimeSeries.value_range`
+  excludes exact zero from its floor, using the smallest genuinely positive value instead
+  (confirmed: `0.004` Mt, not `0.0`) — otherwise a zLog-scaled `colorRange` would compute a null
+  `zmin`.
+
+**Copilot review (design-system #28) caught two real issues, both fixed before merge:** (1) the
+same zLog-guarded log10 transform applied to `colorRange`'s bounds could itself produce a `null`
+`zmin` if a caller passed a non-positive lower bound (e.g. a naive `colorRange: [0, max]`) —
+Plotly's behavior with `zmin: null` alongside `zauto: false` is undefined and could silently
+re-enable auto-scaling, defeating the point of pinning the range at all; fixed with a defensive
+floor (`Number.MIN_VALUE`) distinct from the per-data-point transform (where `null` legitimately
+means "no color for this point"). (2) The no-data trace's existence was decided once, at the
+initial `Plotly.react` call, based on whether *that* render's `colorValues` happened to contain a
+null — an animated choropleth whose first frame was fully populated would permanently lose
+no-data highlighting for every later frame that did introduce a gap, since `animationFrame`'s own
+effect never re-runs the trace-construction code. Fixed by always constructing the trace (with
+empty `locations` when there's nothing to highlight yet — costs nothing, renders nothing). Both
+re-verified live (Storybook `ChoroplethAnimated` story + `Plotly` state inspection) before the
+re-review came back clean.
+
+**Verified live after deploy** against `labs.syena.io/ghg-emissions-analysis` (service worker and
+Cache Storage cleared first, per the standing deploy-verification practice): the map animates
+1990→2024, zoom held exactly across the full run, `world-map-series` fetched exactly once per
+page load regardless of country-selection changes (confirmed via network inspection, both
+pre-deploy against the real API and post-deploy against production), Namibia (a real early-1990s
+no-data country) renders in the muted no-data gray at 1990 and resolves to real data by the
+mid-90s, and the KPI/tier numbers settle to the exact figures the API returns (218 countries /
+37,398 MtCO₂ / +68.6% for All Countries at 2024, matching the API response byte-for-byte). Console
+clean throughout.
 
 ---
 

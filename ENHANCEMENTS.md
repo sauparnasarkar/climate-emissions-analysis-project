@@ -1706,3 +1706,128 @@ Two things worth flagging for whoever picks this up next:
   written that source is invalid and gets dropped — flagged for a fix to
   `frame-src https://view.officeapps.live.com`, which was applied). Moot either way after the
   revision above: new-tab links need no `frame-src` entry at all.
+
+## Release 12 — Animated Choropleth Time-Series
+
+**Status: Shipped.** Tracked in `SPEC.md` §5.17. Three PRs across both repos: `design-system` #28
+(`SyChart` `colorRange`/`animationFrame`/no-data trace, `Slider` keyboard nav, new
+`useReducedMotion` hook), `climate-emissions-analysis-project` #117 (`GET
+/overview/world-map-series`, `OverviewTierMetrics.co2_by_year`), #118 (the Overview page wiring —
+`useYearAnimation`, `AnimatedWorldMap`, Play/Pause + year `Slider`). Each reviewed and merged via
+the `copilot-review-loop` skill. Not an internship requirement change.
+
+Turns the Overview world map from a static latest-year snapshot into an autoplaying, scrubbable
+1990–2024 sequence, synchronized with the KPI/tier numbers so they read the actual totals for
+whichever year the map is currently showing — not a decorative 0→final count-up layered on top of
+an otherwise-static map.
+
+### The one architectural decision that drove everything else
+
+`SyChart` had no way for a consumer to update its choropleth's colors without a full
+`Plotly.react` re-render — which resets any zoom/pan the user has applied (confirmed live:
+zooming, then pushing a new `colorValues` array through the `series` prop, loses the zoom; the
+same update via a direct `Plotly.restyle` call preserves it exactly). The fix: a new
+`animationFrame?: { colorValues: Array<number | null> }` prop on `SyChartProps`, watched by a
+second, small `useEffect` — deliberately *not* joined to the big effect that owns `series`,
+`height`, and everything else — which calls `Plotly.restyle` directly. Rejected a classic
+`forwardRef`/`useImperativeHandle` escape hatch as unnecessary: it would hand every consumer of a
+shared component an untyped "call arbitrary Plotly method" surface, where the narrow, prop-driven
+`animationFrame` does the same job while keeping `SyChart` purely declarative from the outside.
+
+The consumer-side implication: the choropleth `series` array passed to `SyChart` must be memoized
+to the *initial* year only and never change reference for the component's lifetime — every
+subsequent frame goes through `animationFrame` instead. Getting this wrong is easy and the symptom
+is subtle (the map still animates, just with a full teardown/rebuild per frame and the user's zoom
+silently reset each time), so this is called out explicitly in both the prop's own doc comment and
+the app-side `AnimatedWorldMap` component.
+
+### `colorRange` — the true blocker
+
+Without a way to pin the color axis across frames, the animation would be actively misleading, not
+just unpolished: every year would re-normalize its own min/max, so 1990's largest emitter would
+render identically to 2024's, hiding the real growth in magnitude behind constant-looking colors.
+`colorRange?: [number, number]` on `SyChartSeries`, applied as `zmin`/`zmax` + `zauto: false`
+(choropleth) or `cmin`/`cmax` (treemap/bar) — same units as `colorValues`, i.e. pre-log when `zLog`
+is set, so a caller never has to think about log space (the same guarded `Math.log10` transform
+`colorValues` itself already gets is applied to both bounds).
+
+### No-data trace
+
+Six countries (the original draft's claim) — later corrected to nine, see below — have no CO₂ data
+in some years. Plotly simply doesn't draw a location with a `null` z-value, leaving the map
+background showing through, which against this app's dark theme reads as ocean, not "no data." A
+second, flat-colored choropleth trace, rendered underneath the primary data trace and restyled on
+the same `animationFrame` tick, makes the gap visually unambiguous — confirmed live by zooming into
+Namibia (a real early-1990s no-data country) at year 1990 and watching it resolve to real data by
+the mid-90s as the animation played.
+
+### API: a new, selection-invariant endpoint
+
+`GET /overview/world-map-series` serves the full 1990–2024 range in a columnar shape
+(`values[yearIdx][countryIdx]`) — measured 8.3× smaller (≈62 KB against the real dataset) than a
+per-year-list-of-objects shape, and the layout `SyChart`'s `colorRange`/`animationFrame` want
+directly, so the frontend does no reshaping. Deliberately not folded into the existing `/overview`
+endpoint, which re-fetches on every country-selection change — attaching this payload to that
+endpoint would ship it on every one of those re-fetches for no reason. Confirmed live (both
+pre-deploy against the real API and post-deploy against production) that it's fetched exactly once
+per page load, regardless of how many times the country selection changes.
+
+`OverviewTierMetrics` gained `co2_by_year`, populated for All Countries/Expanded only — Selected is
+summed client-side from the same `world-map-series` payload restricted to the current selection,
+since re-computing it server-side would mean re-fetching (or re-deriving) it on every selection
+change, defeating the point of a selection-invariant endpoint.
+
+### Two corrections found by checking the real data, not assumed from the draft
+
+- **Nine no-data countries, not six.** The original draft (based on a general pass over the
+  dataset) named six countries with an early-1990s gap, all resolved by 1995 (`CXR, ERI, FSM, MHL,
+  NAM, TLS`). Verified against the actual OWID data before implementing: three more — Monaco, San
+  Marino, Vatican City — report **zero** CO₂ data across the *entire* 1990–2024 range, not a
+  temporary gap. No code change was needed (the no-data trace design handles any number of
+  always/sometimes-null countries generically), but `load_world_map_series`'s docstring documents
+  the real figure rather than the draft's.
+- **A literal zero breaks a log-scaled floor.** Antarctica has a real ISO-3 code and reports
+  genuine `0.0` CO₂ for 2008–2024 — not missing data, an actual zero. `log10(0)` is undefined, so
+  `WorldMapTimeSeries.value_range`'s floor excludes exact zero, using the smallest genuinely
+  positive value instead (confirmed: `0.004` Mt, not `0.0`) — otherwise a zLog-scaled `colorRange`
+  computed from the naive min would produce a null `zmin`.
+
+### Copilot review (design-system #28) — two real findings, both fixed before merge
+
+1. **`colorRange`'s own log10 transform could produce the same null-zmin problem it exists to
+   prevent.** If a caller passed a `colorRange` with a non-positive lower bound (e.g. a naive
+   `[0, max]`), the zLog-guarded transform would return `null` for that bound, and Plotly's
+   behavior with `zmin: null` alongside `zauto: false` is undefined — it could silently fall back
+   to auto-scaling, defeating the entire point of pinning the range. Fixed with a defensive floor
+   (`Number.MIN_VALUE`) on the bound-transform specifically, kept distinct from the per-data-point
+   transform (where `null` legitimately means "no color for this point," an intentional and
+   different case).
+2. **The no-data trace's existence was decided once, at mount, based on whether that render's data
+   happened to contain a null.** An animated choropleth whose first frame was fully populated would
+   permanently lose no-data highlighting for every later frame that did introduce a gap, since
+   `animationFrame`'s own effect never re-runs the trace-construction code that decides whether the
+   trace exists at all. Fixed by always constructing the trace — with empty `locations` when
+   there's nothing to highlight yet, which costs nothing and renders nothing — removing the whole
+   class of bug rather than special-casing it.
+
+Both re-verified live (the `ChoroplethAnimated` Storybook story + direct `Plotly` state inspection)
+before Copilot's re-review came back clean ("No further issues"). The api (#117) and app (#118)
+PRs each came back clean on first review, no fixes needed.
+
+### Verified live, pre- and post-deploy
+
+Pre-deploy (a git worktree running the app against the real local API): zoomed the map, then let a
+full ~23s animation run play out — zoom held exactly at the end (`geo.projection.scale`/`center`
+unchanged). `world-map-series` fetched exactly once per page load (confirmed via network
+inspection across two reloads); removing a country from the selection triggered a new `/overview`
+call but no new `world-map-series` call. Namibia rendered in the no-data gray at 1990 and resolved
+to real data by the mid-90s. Console clean throughout.
+
+Post-deploy, against `labs.syena.io/ghg-emissions-analysis` (service worker and Cache Storage
+cleared first, per the standing practice): fetched `/api/overview` and `/api/overview/world-map-series`
+directly to confirm the real response shape (218 countries, 35 years, `value_range` maxing at
+12,289 Mt — matching the independently-derived China-2024-peak figure from `SPEC.md` §5.17.2
+exactly), then confirmed the rendered page settles to those exact figures once `CountUpText`'s
+count-up animation completes (a fast screenshot taken immediately after navigation caught the
+numbers mid-transition at 0 — expected behavior, not a bug, since `CountUpText` always eases from
+its previous value on mount). Console clean.
