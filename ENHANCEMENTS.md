@@ -1913,3 +1913,23 @@ numeric constants, no new code paths), verified directly instead: `tsc --noEmit`
 and a live check against the real API and (post-deploy) `labs.syena.io` confirming multiple real
 decade stops (1990, 2000, 2010, 2024) each show correct, settled figures matching the API exactly,
 with the Play/Pause control still flipping back to "Play" immediately on reaching 2024.
+
+### Release 12 third follow-up: shorten the dwell time
+
+**Status: Shipped.** `climate-emissions-analysis-project`, committed directly to `main` (no
+feature branch, PR, or Copilot review — per explicit instruction, given how small and low-risk the
+change was). React-only. Reported live immediately after the second follow-up shipped: the ~3s
+settled hold that fixed the previous "numbers don't stay still" report had overshot — it now read
+as too long a pause between decade jumps.
+
+`ANIMATION_STOP_MS` tuned down from 4200ms to 2400ms; `KPI_COUNT_UP_MS` left unchanged at 1200ms,
+so the settled window per stop is now ~1.2s instead of ~3s. Verified: `tsc --noEmit` clean, the
+full `vitest` suite (66 tests, unaffected — none assert on the specific millisecond values), and a
+live check post-deploy against `labs.syena.io` confirming multiple real decade stops still settle
+to the correct figures with Play/Pause flipping back immediately on reaching 2024.
+
+Three same-day tuning passes on one control (600ms/year → 1800ms/stop → split into 1200ms
+count-up/4200ms stop → 2400ms stop) is a reminder that pacing like this is very much a "know it
+when you see it live" judgment call, not something to over-engineer a configuration system for
+up front — the constants stayed as plain named numbers in `OverviewPage.tsx` throughout, not
+exposed as a prop or setting, which made each iteration a one-line change.

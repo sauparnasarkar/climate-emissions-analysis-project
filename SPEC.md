@@ -428,6 +428,7 @@ Sections to include:
 | v25 | Aug 2026 | Added §5.17 (Release 12, **Shipped**): the Overview world map animates through 1990–2024, synced with the KPI/tier numbers. Three PRs — `design-system` #28 (`SyChart` `colorRange`/`animationFrame`/no-data trace, `Slider` keyboard nav, `useReducedMotion`), `climate-emissions-analysis-project` #117 (`/overview/world-map-series`, `co2_by_year`), #118 (Overview page wiring) — each reviewed via the `copilot-review-loop` skill; #28's review caught two real issues (a `colorRange` zmin/null footgun, a no-data trace only provisioned when the *initial* frame had nulls), both fixed and re-verified live before a clean re-review; #117/#118 came back clean. Two corrections to the original draft found by checking the real data before implementing: 9 no-data countries, not 6 (three microstates report zero data for the *entire* range, not an early-1990s gap); Antarctica's literal `0.0` CO₂ required excluding exact zero from `value_range`'s floor (log10(0) is undefined). Verified live pre- and post-deploy: zoom held across a full animation run, `world-map-series` fetched exactly once regardless of selection changes, no-data countries render correctly. Not an internship requirement change. |
 | v26 | Aug 2026 | §5.17 follow-up (`climate-emissions-analysis-project` #119, **Shipped**): autoplay now steps by decade (1990, 2000, 2010, 2020, 2024) instead of year by year, prompted by feedback that year-over-year change was too gradual to notice live — manual scrubbing is unaffected, still any year in range. Fixed a genuine one-tick lag surfaced while implementing this (Play/Pause only updated one dwell period after the animation actually finished, invisible at 35 fast ticks but obvious at 5 slower ones). Copilot review clean. Verified live pre- and post-deploy. Not an internship requirement change. |
 | v27 | Aug 2026 | §5.17 second follow-up (`climate-emissions-analysis-project` #120, **Shipped**, same day as v26): split the KPI count-up duration (1200ms) from the autoplay dwell interval (4200ms) — previously the same 1800ms constant, so the count-up was still easing when the next decade jump fired. The ~3s gap between them is now genuine settled, readable time per stop. No Copilot review requested for this one, per explicit instruction. Verified live across multiple real decade stops. Not an internship requirement change. |
+| v28 | Aug 2026 | §5.17 third follow-up (same day): `ANIMATION_STOP_MS` tuned down from 4200ms to 2400ms after live feedback that the resulting ~3s settled hold read as too long a pause — `KPI_COUNT_UP_MS` unchanged at 1200ms, leaving a ~1.2s settled window per stop. Committed and pushed directly to `main` per explicit instruction (no feature branch/PR/review for this one). Verified live. Not an internship requirement change. |
 
 ---
 
@@ -1066,6 +1067,13 @@ fired. Split into two constants: `KPI_COUNT_UP_MS` (1200ms, how long the count-u
 review requested for this small a change, per explicit instruction. Verified live pre- and
 post-deploy across multiple real decade stops (1990/2000/2010/2024), each showing correct settled
 figures matching the API exactly.
+
+**Third follow-up: shorten the dwell time (same day).** The ~3s settled hold the second follow-up
+introduced turned out to read as too long a pause once seen live. `ANIMATION_STOP_MS` tuned down
+from 4200ms to 2400ms (`KPI_COUNT_UP_MS` unchanged at 1200ms), leaving a ~1.2s settled window per
+stop. Committed and pushed directly to `main` per explicit instruction — no feature branch, PR, or
+review for this one. Verified live post-deploy: multiple real decade stops still settle to the
+correct figures, Play/Pause still flips back immediately on reaching 2024, console clean.
 
 ---
 
