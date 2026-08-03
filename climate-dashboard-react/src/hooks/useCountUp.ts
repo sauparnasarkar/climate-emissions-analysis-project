@@ -1,21 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
+import { useReducedMotion } from 'design-system';
 
 /** Animates from the previous value (0 on first mount) to `target` over `durationMs`. */
 export function useCountUp(target: number, durationMs = 1500): number {
   const [value, setValue] = useState(0);
   const fromRef = useRef(0);
+  // Live-subscribed (unlike this hook's own previous one-shot matchMedia check) -- shared
+  // with design-system's SidebarNav and this app's useYearAnimation, so all three agree on
+  // the current reduced-motion state without re-implementing the check three times.
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     const from = fromRef.current;
     const to = target;
-    // Same matchMedia pattern design-system's SidebarNav already uses for its own
-    // transitions -- skip straight to the final value instead of animating (SPEC.md §5.10).
-    // matchMedia itself (not just window) is guarded -- some non-browser/older-browser
-    // environments have a window global without it, which would otherwise throw here.
-    const reduceMotion =
-      typeof window !== 'undefined' &&
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (from === to || reduceMotion) {
       setValue(to);
       fromRef.current = to;
@@ -35,7 +32,7 @@ export function useCountUp(target: number, durationMs = 1500): number {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [target, durationMs]);
+  }, [target, durationMs, reduceMotion]);
 
   return value;
 }

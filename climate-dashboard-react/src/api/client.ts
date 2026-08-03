@@ -14,6 +14,7 @@ import type {
   ScenarioCompareResponse,
   ScenarioCumulativeResponse,
   ScenarioTimeseriesResponse,
+  WorldMapTimeSeries,
 } from './types';
 import { ApiError } from './types';
 
@@ -45,6 +46,10 @@ export const api = {
     countries.forEach((c) => params.append('countries', c));
     return get<OverviewResponse>(`/overview?${params}`);
   },
+
+  // Selection-invariant -- no `countries` param. Fetched once regardless of how many times
+  // the user changes their country selection (SPEC.md §5.17.1).
+  worldMapSeries: () => get<WorldMapTimeSeries>('/overview/world-map-series'),
 
   listCountries: () => get<CountriesResponse>('/countries'),
 
