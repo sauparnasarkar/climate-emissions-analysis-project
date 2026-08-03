@@ -16,11 +16,10 @@ const KPI_COUNT_UP_MS = 1200;
 
 // Dwell time at each autoplay stop (useYearAnimation steps by decade, not by year -- year-
 // over-year change is gradual enough to be hard to notice, while a decade jump is glaring).
-// Set well above KPI_COUNT_UP_MS -- the gap between them (here, ~3s) is how long the settled
-// numbers and map color actually stay on screen before the next stop, which is the whole point
-// of slowing down: found live that the original pace advanced before the KPI count-up (and the
-// reader) had time to register the new figures.
-const ANIMATION_STOP_MS = 4200;
+// Set above KPI_COUNT_UP_MS -- the gap between them (here, ~1.2s) is how long the settled
+// numbers and map color actually stay on screen before the next stop. Tuned down from an
+// initial 4200ms after live feedback that the resulting ~3s hold read as too long a pause.
+const ANIMATION_STOP_MS = 2400;
 
 // A muted neutral clearly outside MAGNITUDE_SCALE's light-cream-to-deep-red ramp, so a
 // no-data country never gets mistaken for a real (if low) value.
