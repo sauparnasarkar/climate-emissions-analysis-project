@@ -8,10 +8,12 @@ import { useYearAnimation } from '../hooks/useYearAnimation';
 import { MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR } from '../constants';
 import type { OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
 
-// One color-scale step per animation tick (SPEC.md §5.17.3) -- chosen from the spec's
-// recommended 500-700ms range: fast enough to hold attention over a 35-year run (~21s
-// total), slow enough that each year is actually readable.
-const ANIMATION_FRAME_MS = 600;
+// Dwell time at each autoplay stop (useYearAnimation steps by decade, not by year -- year-
+// over-year change is gradual enough to be hard to notice, while a decade jump is glaring).
+// 5 stops (minYear, each decade after it, maxYear) x 1800ms is long enough for both the map's
+// color jump and the KPI count-up to register before the next stop, ~9s total -- still faster
+// than a year-by-year run despite the slower per-stop pace, since there are 7x fewer stops.
+const ANIMATION_STOP_MS = 1800;
 
 // A muted neutral clearly outside MAGNITUDE_SCALE's light-cream-to-deep-red ramp, so a
 // no-data country never gets mistaken for a real (if low) value.
@@ -150,7 +152,7 @@ function AnimatedWorldMap({
   const { currentYear, isPlaying, toggle, seek, reducedMotion } = useYearAnimation({
     minYear,
     maxYear,
-    intervalMs: ANIMATION_FRAME_MS,
+    intervalMs: ANIMATION_STOP_MS,
   });
   const yearIdx = currentYear - minYear;
 
@@ -226,7 +228,7 @@ function AnimatedWorldMap({
 
       <TierSummaryPanel
         year={currentYear}
-        durationMs={ANIMATION_FRAME_MS}
+        durationMs={ANIMATION_STOP_MS}
         rows={[
           animatedTierRow('All Countries', 'grid', allCountriesTier.countries_count, allCountriesTier.co2_by_year, yearIdx),
           animatedTierRow('Expanded (Coverage + ≥100 Mt)', 'document', expandedTier.countries_count, expandedTier.co2_by_year, yearIdx),
