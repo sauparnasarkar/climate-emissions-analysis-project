@@ -2012,3 +2012,43 @@ the start of the range (India, much of Africa and South America) now read as vis
 deeper red or maroon by the end, a clear improvement over the old scale's near-uniform orange.
 `tsc --noEmit` clean, full `vitest` suite (66 tests) unaffected, no new lint warnings, console clean
 on both the local dev check and the production check.
+
+### Release 12 sixth follow-up: slider range labels and a moving current-value label
+
+**Status: Shipped.** `design-system` PR #29 + `climate-emissions-analysis-project` PR #121, both
+reviewed via the `copilot-review-loop` skill and merged. React-only. Requested directly: indicate
+the year slider's start/end years, and show a label that moves with the thumb as it plays or is
+scrubbed.
+
+**`design-system` (`Slider`, PR #29):** two new opt-in props, additive to the existing `showValue`
+(a static line above the track), not a replacement for it:
+
+- `showRangeLabels` — renders `min`/`max` as a row below the track's two ends.
+- `showThumbValue` — a small floating label positioned directly above the thumb via the same `pct`
+  calculation the thumb's own `left` already uses, so it tracks live regardless of *how* the value
+  changes (drag, keyboard, or a programmatic change like this app's autoplay). `aria-hidden="true"`,
+  since the value is already exposed via the slider role's own `aria-valuenow` — this is a purely
+  visual aid, `pointerEvents: 'none'` so it never interferes with dragging.
+
+New Storybook story (`YearRangeWithMovingLabel`) demonstrates both against the actual 1990–2024 use
+case, with interaction tests confirming the range labels render and the current value appears in
+both the static header and the moving bubble.
+
+Copilot's review of #29 was a clean pass — one harmless note (an explicit `position: 'relative'`
+added to the track `div` is redundant, since the vendor CSS already sets it), no action needed.
+
+**`climate-emissions-analysis-project` (Overview page, PR #121):** wired both new props into the
+year `Slider`. Copilot's review was also clean — a single prop-only diff, no logic or test-surface
+change, 66 Vitest tests unaffected.
+
+**Same-turn follow-up, no separate PR needed initially but folded into #121 before merge:** the
+old static "Year ... 2024" value next to the label was reported as redundant once the moving label
+shows the same number in context, and removed (`showValue={false}` — the `label="Year"` text
+itself stays, only the value span goes).
+
+Verified live, pre- and post-deploy: the moving label tracks the thumb correctly through a full
+autoplay run, confirmed no clipping at either range extreme (checked 1990 and 2024 directly — the
+bubble's `translate(-50%, ...)` centering means it slightly overflows the track's own edge at
+either extreme, but stays within the `ChartCard`'s padding with nothing cut off), no layout clash
+with the Play button or the `ChartCard` title, and the static value label confirmed removed. Console
+clean on both checks.

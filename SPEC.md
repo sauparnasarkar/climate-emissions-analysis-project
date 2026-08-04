@@ -431,6 +431,7 @@ Sections to include:
 | v28 | Aug 2026 | §5.17 third follow-up (same day): `ANIMATION_STOP_MS` tuned down from 4200ms to 2400ms after live feedback that the resulting ~3s settled hold read as too long a pause — `KPI_COUNT_UP_MS` unchanged at 1200ms, leaving a ~1.2s settled window per stop. Committed and pushed directly to `main` per explicit instruction (no feature branch/PR/review for this one). Verified live. Not an internship requirement change. |
 | v29 | Aug 2026 | §5.17 fourth follow-up (same day): autoplay now steps every 5 years (`STEP_YEARS = 5` in `useYearAnimation`, renamed `computeDecadeStops` → `computeAutoplayStops`) instead of every 10; the KPI tier numbers (Countries/CO₂/% Change) no longer count up at all — they snap directly to the new value each tick, since a 1200ms-interval animation was either lagging behind the map or still easing when the next tick fired. `KPI_COUNT_UP_MS` removed; `ANIMATION_STOP_MS` set to 1200ms. `CountUpText` itself is untouched and still used for the two KpiStat cards (Fastest Growth/Largest Reduction), which count up once on load and aren't tied to the year animation. Committed and pushed directly to `main` per explicit instruction. Verified live. Not an internship requirement change. |
 | v30 | Aug 2026 | §5.17 fifth follow-up: `MAGNITUDE_SCALE` widened from a 3-stop cream/orange/deep-red interpolation to ColorBrewer's YlOrRd 9-stop sequential palette (pale yellow → orange → deep maroon), after live feedback that the 1990-vs-2024 difference wasn't visually clear enough — `colorRange` itself stays the true global min/max (SPEC.md §5.17.2, unchanged, must not be narrowed/widened or the per-frame color re-normalization problem it exists to prevent would return); only the color resolution across that fixed range increased. Verified live pre- and post-deploy comparing 1991 directly against 2020/2024. Not an internship requirement change. |
+| v31 | Aug 2026 | §5.17 sixth follow-up: `design-system` Slider gained `showRangeLabels` (min/max at the track's ends) and `showThumbValue` (a floating label tracking the thumb live) — `design-system` PR #29, `climate-emissions-analysis-project` PR #121 wiring them into the Overview year slider, both reviewed via `copilot-review-loop` (both clean, no findings) and merged. A same-turn follow-up removed the slider's old static "Year ... 2024" value label (`showValue={false}`), now redundant once the moving label shows the same number in context. Verified live pre- and post-deploy: no clipping at either range extreme, no layout clash with the Play button, console clean. Not an internship requirement change. |
 
 ---
 
@@ -1108,6 +1109,23 @@ same `zLog` transform, far more graduated color across the values that actually 
 Verified live pre- and post-deploy comparing 1991 directly against 2020/2024: countries that were
 pale yellow/light orange early in the range now read as visibly, distinctly deeper red/maroon
 later on.
+
+**Sixth follow-up: slider range labels and a moving current-value label.** Requested directly:
+indicate the year slider's start/end years, and show a label that moves with the thumb as it plays
+or is scrubbed. `design-system`'s `Slider` gained two new opt-in props (PR #29): `showRangeLabels`
+(renders `min`/`max` below the track's two ends) and `showThumbValue` (a small floating label
+above the thumb, positioned via the same `pct` calculation the thumb itself already uses, so it
+tracks live regardless of whether the value changes via drag, keyboard, or — as here — autoplay).
+Both additive to the existing `showValue` (a static line above the track), not a replacement.
+`climate-emissions-analysis-project` PR #121 wired both into the Overview page's year `Slider`. A
+same-turn follow-up then removed the old static "Year ... 2024" value next to the label
+(`showValue={false}`), reported as redundant once the moving label shows the same number in
+context. Both PRs reviewed via the `copilot-review-loop` skill — both came back clean, no findings
+(design-system's review noted one harmless redundancy, an unneeded explicit `position: relative`
+already set by the vendor CSS, no action needed). Verified live pre- and post-deploy: the moving
+label tracks the thumb correctly through a full autoplay run with no clipping at either range
+extreme (1990/2024), no layout clash with the Play button or `ChartCard` title, and the static
+value label confirmed removed.
 
 ---
 
