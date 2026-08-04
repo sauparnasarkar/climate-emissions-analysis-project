@@ -14,17 +14,31 @@ import type { OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
 // no separate animation duration to coordinate with this one.
 const ANIMATION_STOP_MS = 1200;
 
-// A muted neutral clearly outside MAGNITUDE_SCALE's light-cream-to-deep-red ramp, so a
+// A muted neutral clearly outside MAGNITUDE_SCALE's pale-yellow-to-deep-maroon ramp, so a
 // no-data country never gets mistaken for a real (if low) value.
 const NO_DATA_COLOR = '#4a4a4a';
 
-// Sequential light -> amber -> deep-red magnitude scale for the world map, distinct from
-// both the % Change chart's green/crimson delta pair and Scenario Comparison's green-only
+// Sequential pale-yellow -> orange -> deep-maroon magnitude scale for the world map, distinct
+// from both the % Change chart's green/crimson delta pair and Scenario Comparison's green-only
 // reduction-upside scale -- three visually distinct conventions, each used for one concept.
+// 9 stops (ColorBrewer's YlOrRd), not 3 -- colorRange is pinned across the whole 1990-2024
+// animation (SPEC.md §5.17.2) and most countries, most years, sit in the same middle band of
+// that fixed range, where a coarse 3-stop scale interpolates almost linearly and reads as
+// near-identical shades of orange. More stops means more perceptually distinct color at the
+// values that actually vary year to year, making the 1990-vs-2024 difference easier to read at
+// a glance without touching colorRange itself (which must stay the true global min/max, per
+// §5.17.2 -- narrowing or padding it would re-introduce the per-frame-renormalization problem
+// that prop exists to prevent).
 const MAGNITUDE_SCALE: Array<[number, string]> = [
-  [0, '#fff2cc'],
-  [0.5, '#f0a24a'],
-  [1, '#7a1f1f'],
+  [0, '#ffffcc'],
+  [0.125, '#ffeda0'],
+  [0.25, '#fed976'],
+  [0.375, '#feb24c'],
+  [0.5, '#fd8d3c'],
+  [0.625, '#fc4e2a'],
+  [0.75, '#e31a1c'],
+  [0.875, '#bd0026'],
+  [1, '#800026'],
 ];
 
 // Standard clip-based visually-hidden technique -- design-system has no existing utility
