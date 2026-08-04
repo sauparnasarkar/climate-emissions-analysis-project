@@ -218,7 +218,17 @@ function AnimatedWorldMap({
             {isPlaying ? 'Pause' : 'Play'}
           </Button>
           <div style={{ flex: 1 }}>
-            <Slider label="Year" min={minYear} max={maxYear} step={1} value={currentYear} onChange={seek} showValue />
+            <Slider
+              label="Year"
+              min={minYear}
+              max={maxYear}
+              step={1}
+              value={currentYear}
+              onChange={seek}
+              showValue={false}
+              showRangeLabels
+              showThumbValue
+            />
           </div>
         </div>
         {/* No explicit height here, expanded or not -- the choropleth's own ResizeObserver
