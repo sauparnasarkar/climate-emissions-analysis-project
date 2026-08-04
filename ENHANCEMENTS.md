@@ -1971,3 +1971,44 @@ live check both pre-deploy (dev server against the real API) and post-deploy (`l
 confirming a genuine 5-year stop mid-run (landed on 2005, then 2000 on a separate check), correct
 settled figures with zero animation lag, a clean finish at 2024 with Play/Pause flipping back
 immediately, and no console errors.
+
+### Release 12 fifth follow-up: richer color palette
+
+**Status: Shipped.** `climate-emissions-analysis-project`, feature branch + merge to `main` on
+explicit go-ahead. React-only. Reported live: the visual difference between 1990 and 2024 wasn't
+clear enough — the map didn't look dramatically different at the two ends of the animation despite
+real emissions having grown ~69% globally.
+
+Before touching anything, clarified which "range" the request meant (asked directly, since a
+literal wider *numeric* `colorRange` would make things worse, not better — see below), confirming
+it was about color richness, not the pinned min/max.
+
+`colorRange` itself (`worldMapSeries.value_range`, the true global min/max across every country and
+year, §5.17.2) had to stay exactly as-is: it's deliberately pinned across the whole animation so
+the color scale doesn't re-normalize per frame, which is the entire reason the animation is
+trustworthy at all — widening or narrowing that range would silently reintroduce the "1990's
+largest emitter renders identically to 2024's" problem §5.17.2 exists to prevent. The actual
+problem was `MAGNITUDE_SCALE`, the CSS-color side of the mapping: only 3 stops (`#fff2cc` pale
+cream → `#f0a24a` orange → `#7a1f1f` deep red), which Plotly interpolates almost linearly across
+the full log-scaled range. Since most countries in most years sit in the same middle band of that
+range, they all land in the same narrow, nearly-linear middle segment of a 3-stop gradient and read
+as similar shades of orange regardless of real magnitude difference.
+
+Replaced with ColorBrewer's YlOrRd (Yellow-Orange-Red) 9-class sequential palette — a well-
+established, perceptually-tuned choropleth palette:
+
+```
+#ffffcc, #ffeda0, #fed976, #feb24c, #fd8d3c, #fc4e2a, #e31a1c, #bd0026, #800026
+```
+
+at evenly-spaced stops (0, 0.125, 0.25, ..., 1.0). Same `colorRange`, same `zLog` transform, same
+`NO_DATA_COLOR` (`#4a4a4a`, still visually distinct from every new stop — neutral gray against a
+yellow/orange/red family, no collision at either end). Only the color *resolution* across the fixed
+range changed.
+
+Verified live, pre- and post-deploy: paused autoplay, seeked to 1991, screenshotted, seeked to
+2024, screenshotted, and compared directly — countries that were pale yellow or light orange near
+the start of the range (India, much of Africa and South America) now read as visibly, distinctly
+deeper red or maroon by the end, a clear improvement over the old scale's near-uniform orange.
+`tsc --noEmit` clean, full `vitest` suite (66 tests) unaffected, no new lint warnings, console clean
+on both the local dev check and the production check.

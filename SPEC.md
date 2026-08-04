@@ -430,6 +430,7 @@ Sections to include:
 | v27 | Aug 2026 | §5.17 second follow-up (`climate-emissions-analysis-project` #120, **Shipped**, same day as v26): split the KPI count-up duration (1200ms) from the autoplay dwell interval (4200ms) — previously the same 1800ms constant, so the count-up was still easing when the next decade jump fired. The ~3s gap between them is now genuine settled, readable time per stop. No Copilot review requested for this one, per explicit instruction. Verified live across multiple real decade stops. Not an internship requirement change. |
 | v28 | Aug 2026 | §5.17 third follow-up (same day): `ANIMATION_STOP_MS` tuned down from 4200ms to 2400ms after live feedback that the resulting ~3s settled hold read as too long a pause — `KPI_COUNT_UP_MS` unchanged at 1200ms, leaving a ~1.2s settled window per stop. Committed and pushed directly to `main` per explicit instruction (no feature branch/PR/review for this one). Verified live. Not an internship requirement change. |
 | v29 | Aug 2026 | §5.17 fourth follow-up (same day): autoplay now steps every 5 years (`STEP_YEARS = 5` in `useYearAnimation`, renamed `computeDecadeStops` → `computeAutoplayStops`) instead of every 10; the KPI tier numbers (Countries/CO₂/% Change) no longer count up at all — they snap directly to the new value each tick, since a 1200ms-interval animation was either lagging behind the map or still easing when the next tick fired. `KPI_COUNT_UP_MS` removed; `ANIMATION_STOP_MS` set to 1200ms. `CountUpText` itself is untouched and still used for the two KpiStat cards (Fastest Growth/Largest Reduction), which count up once on load and aren't tied to the year animation. Committed and pushed directly to `main` per explicit instruction. Verified live. Not an internship requirement change. |
+| v30 | Aug 2026 | §5.17 fifth follow-up: `MAGNITUDE_SCALE` widened from a 3-stop cream/orange/deep-red interpolation to ColorBrewer's YlOrRd 9-stop sequential palette (pale yellow → orange → deep maroon), after live feedback that the 1990-vs-2024 difference wasn't visually clear enough — `colorRange` itself stays the true global min/max (SPEC.md §5.17.2, unchanged, must not be narrowed/widened or the per-frame color re-normalization problem it exists to prevent would return); only the color resolution across that fixed range increased. Verified live pre- and post-deploy comparing 1991 directly against 2020/2024. Not an internship requirement change. |
 
 ---
 
@@ -1093,6 +1094,20 @@ pair) to 1, since these three metrics no longer render through `CountUpText` at 
 pushed directly to `main` per explicit instruction. Verified live pre- and post-deploy: confirmed a
 genuine 5-year stop mid-run (e.g. landing on 2005/2000), correct settled figures with no animation
 lag, clean finish at 2024, console clean.
+
+**Fifth follow-up: richer color palette.** Reported live: the visual difference between 1990 and
+2024 wasn't clear enough. `colorRange` itself is deliberately pinned to the true global min/max
+across the whole animation (§5.17.2) and had to stay that way — widening or narrowing it would
+reintroduce the per-frame color re-normalization problem that prop exists to prevent, and most
+countries, most years, sit in the same middle band of that fixed range regardless. The actual
+issue was that `MAGNITUDE_SCALE`'s old 3-stop interpolation (pale cream → orange → deep red) gave
+that middle band almost no color resolution, so a country's value doubling over the animation
+often produced only a subtle shift within a near-uniform orange. Replaced with ColorBrewer's
+YlOrRd 9-stop sequential palette (pale yellow through orange to deep maroon) — same `colorRange`,
+same `zLog` transform, far more graduated color across the values that actually vary year to year.
+Verified live pre- and post-deploy comparing 1991 directly against 2020/2024: countries that were
+pale yellow/light orange early in the range now read as visibly, distinctly deeper red/maroon
+later on.
 
 ---
 
