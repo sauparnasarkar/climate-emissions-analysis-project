@@ -433,6 +433,7 @@ Sections to include:
 | v30 | Aug 2026 | §5.17 fifth follow-up: `MAGNITUDE_SCALE` widened from a 3-stop cream/orange/deep-red interpolation to ColorBrewer's YlOrRd 9-stop sequential palette (pale yellow → orange → deep maroon), after live feedback that the 1990-vs-2024 difference wasn't visually clear enough — `colorRange` itself stays the true global min/max (SPEC.md §5.17.2, unchanged, must not be narrowed/widened or the per-frame color re-normalization problem it exists to prevent would return); only the color resolution across that fixed range increased. Verified live pre- and post-deploy comparing 1991 directly against 2020/2024. Not an internship requirement change. |
 | v31 | Aug 2026 | §5.17 sixth follow-up: `design-system` Slider gained `showRangeLabels` (min/max at the track's ends) and `showThumbValue` (a floating label tracking the thumb live) — `design-system` PR #29, `climate-emissions-analysis-project` PR #121 wiring them into the Overview year slider, both reviewed via `copilot-review-loop` (both clean, no findings) and merged. A same-turn follow-up removed the slider's old static "Year ... 2024" value label (`showValue={false}`), now redundant once the moving label shows the same number in context. Verified live pre- and post-deploy: no clipping at either range extreme, no layout clash with the Play button, console clean. Not an internship requirement change. |
 | v32 | Aug 2026 | Added §5.18 (Release 13, **Shipped**): a deterministic, data-derived headline sentence above a compressed tier table on Overview (`climate-emissions-analysis-project` PR #122), plus two independent `design-system` fixes (PR #30) — the Slider thumb raised from 16×16/20×20 to 24×24 to meet WCAG 2.2 §2.5.8, and `SyChart`'s no-data choropleth trace given an explicit "No data reported" hover in place of a silent `hoverinfo: 'skip'`. Both PRs reviewed via `copilot-review-loop`; #122 came back clean (one cosmetic wording observation confirmed as spec-intentional, not a bug); #30's first review attempt failed at the infrastructure level (runner never acquired) and was re-requested, second attempt clean. Verified live pre- and post-deploy: headline matches the hand-verified default-selection example, disappears at 0 selected countries, compressed table doesn't stretch the hero row past the map's height, slider thumb measures exactly 24×24, no-data hovertemplate confirmed via the live Plotly trace. Not an internship requirement change. |
+| v33 | Aug 2026 | §5.18 follow-up (`climate-emissions-analysis-project` PR #123, **Shipped**): fixed two issues found in live review of Release 13 — the "Since 1990" eyebrow and the headline sentence itself both stated the timeframe (fixed by dropping the redundant inline "since 1990" from the sentence), and "Expanded (Coverage + ≥100 Mt)" truncated to "Expanded (Cover..." in the compressed table's Tier column (measured 204px needed vs. 133px available), losing the coverage/materiality qualifier that tier's definition rests on — fixed by replacing the shared 4-column table with a full-width tier-name heading per row above a compact 3-column metric strip. Copilot review clean. Verified live via direct DOM measurement (`scrollWidth`/`clientWidth` equality), not just visual inspection. Not an internship requirement change. |
 
 ---
 
@@ -1203,6 +1204,18 @@ Storage cleared first): the Overview year slider's thumb measures exactly 24×24
 `getBoundingClientRect()`, and the no-data (gray) countries' Plotly trace carries the new
 `"%{location}<br>No data reported<extra></extra>"` hovertemplate in place of the old silent
 `hoverinfo: 'skip'`.
+
+**Follow-up (`climate-emissions-analysis-project` PR #123):** two issues found in live review of
+the just-shipped panel. First, the "Since 1990" eyebrow and the headline sentence itself both
+stated the timeframe — fixed by dropping the inline "since 1990" from the sentence now that the
+eyebrow carries it alone. Second, the compressed table's Tier column gave "Expanded (Coverage +
+≥100 Mt)" 133px against a measured 204px needed, clipping to "Expanded (Cover..." and losing the
+coverage/materiality qualifier that tier's whole definition rests on — fixed by replacing the
+single 4-column table with a full-width tier-name heading per row above a compact 3-column metric
+strip, giving the name the panel's entire width to wrap into. Copilot's review of #123 came back
+clean. Verified live pre- and post-deploy via direct DOM measurement (`scrollWidth`/`clientWidth`
+equality, not just visual inspection): zero truncated elements, zero redundant "since 1990"
+occurrences in the rendered sentence.
 
 ---
 

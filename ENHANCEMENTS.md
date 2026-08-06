@@ -2185,3 +2185,42 @@ touched none of those files before merging), `climate-dashboard-react` rebuilt w
 Mac Mini rebuild needs this at build time, not just serve time), `vitepreview` LaunchAgent
 unloaded/reloaded (`uvicorn` untouched — no `api`/`app.py` change in this release). `design-system`
 needed no separate deploy step of its own, consumed live via the source alias.
+
+### Release 13 follow-up: headline redundancy and tier-name truncation
+
+**Status: Shipped.** `climate-emissions-analysis-project` PR #123, React-only. Two issues found in
+live review of the just-shipped panel, both real:
+
+1. **"Since 1990" stated twice in three lines.** The eyebrow label and the headline sentence
+   itself both carried the timeframe — "Since 1990 / China has grown the most in absolute terms
+   (+9,806 MtCO₂ *since 1990*), while...". The eyebrow's own purpose (anchoring the sentence
+   against the live-scrubbable map beside it) was sound; the sentence just didn't need to repeat
+   it once the eyebrow existed. Dropped "since 1990" from both `overviewHeadline.ts` sentence
+   branches (distinct-leaders and same-country-collapsed) — the eyebrow now carries the timeframe
+   alone. New test asserts the rendered sentence never contains the phrase, in either branch.
+2. **Real truncation, not cosmetic.** Measured directly against the DOM: "Expanded (Coverage +
+   ≥100 Mt)" needs 204px and the compressed table's Tier column was giving it 133px — 71px short,
+   clipping to "Expanded (Cover..." and losing the coverage/materiality qualifier this tier's
+   entire definition rests on (the reason 40 countries are selected out of 218). The % Change
+   column header clipped too, by a much smaller margin.
+
+   Fix: dropped the single 4-column `Table` for a full-width tier-name heading per row above a
+   compact 3-column metric strip (Countries/CO₂/%Change) — the tier name gets the panel's entire
+   ~380-450px width to wrap into instead of a cramped fourth of a shared row, while the three
+   short, fixed-format numeric metrics (never the truncation risk) move into a `display: grid,
+   gridTemplateColumns: repeat(3, 1fr)` strip below it. Still one visually compact bordered block
+   (a shared panel border, per-row top borders, no per-tier cards or icons) — not a reversion to
+   the taller original card layout. `Table` import and `TierRow`'s `[key: string]: unknown` index
+   signature both dropped as no longer needed.
+
+   Live DOM measurement post-fix: `scrollWidth === clientWidth` on the tier-name element and all
+   three "% Chg. since 1990" metric labels — none truncated.
+
+Copilot's review of #123 came back clean, no findings. `overviewHeadline.test.ts` gained a
+dedicated regression test asserting the sentence never contains "since 1990" in either branch;
+`OverviewPage.test.tsx`'s tier-metric-label count assertion changed from 1 (a shared column
+header, the now-reverted Table shape) back to 3 (one inline label per tier row, matching the
+per-row heading-plus-strip structure). Verified live pre- and post-deploy
+(`labs.syena.io/ghg-emissions-analysis`, service worker/Cache Storage cleared first): both fixes
+confirmed via direct DOM measurement rather than only visually — zero "since 1990" occurrences in
+the rendered sentence text, zero truncated elements in the tier panel.
