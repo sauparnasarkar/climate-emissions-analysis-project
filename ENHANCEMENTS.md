@@ -2052,3 +2052,136 @@ bubble's `translate(-50%, ...)` centering means it slightly overflows the track'
 either extreme, but stays within the `ChartCard`'s padding with nothing cut off), no layout clash
 with the Play button or the `ChartCard` title, and the static value label confirmed removed. Console
 clean on both checks.
+
+## Release 13 — Overview Headline Sentence, Compressed Tier Panel, Slider Touch Target & No-Data Hover
+
+**Status: Shipped.** Bundles two unrelated efforts from the same review pass under one release
+(SPEC.md §5.18), following the §5.9/Release 3.1 precedent — no dependency between them and no
+shared code, but no reason that requires separate release numbers either.
+
+### Headline sentence + compressed tier panel (`climate-emissions-analysis-project` PR #122)
+
+Added a one-sentence, data-derived headline above the Overview page's tier table, in the hero
+row's existing right-hand column rather than a new full-width section, to avoid re-growing page
+height after prior releases (the 2/3-map/1/3-KPI restructure, §5.10) fought it down. Deterministic
+string templating from `OverviewResponse.top_movers`, explicitly not an LLM call: this project
+verifies every number before stating it, and free-form generation can't be unit-tested for factual
+correctness the way a template can.
+
+New `src/lib/overviewHeadline.ts` — the first standalone utility module in `src/lib/` alongside
+`basePath.ts` — derives `absGrower`, `pctGrower`, `mostStable`, and up to two `decliners` via
+hand-rolled `maxBy`/`minBy` (no `lodash` dependency in this project) rather than trusting
+`top_movers`' given sort order, which is a server-side (Python) contract not encoded in the TS
+type. Handles every edge case the draft spec called out — `absGrower === pctGrower` collapses to
+one clause instead of naming the same country twice, zero decliners drops the final clause
+entirely, fewer than 4 usable rows suppresses only the "most stable" clause, ties resolve
+deterministically via first-in-input-order — plus one the draft didn't call out: exactly one
+decliner needs its own singular-wording branch ("`X` shows the steepest decline"), not the plural
+template with an empty second slot. Rows with a `null` `absolute_change`/`pct_change` are excluded
+from consideration entirely rather than coerced to `0`, since "0% change" is a substantive claim,
+not a safe fallback for "unknown." Labeled with a "Since 1990" eyebrow so it doesn't read as
+describing whatever year the adjacent, user-scrubbable §5.17 animated map happens to be paused on.
+
+`OverviewHeadline` is gated on `selected.length > 0` — a correctness fix over the original spec
+draft, not something the draft itself specified: `top_movers` reflects the server's default
+selection even when the local `selected` array is empty, which would otherwise narrate a phantom
+selection right next to the "Select at least one country" warning. Uses the exact same gate the
+Selected tier row already relied on.
+
+`AnimatedWorldMap`'s returned Fragment previously had exactly two top-level children (the map
+`ChartCard`, then `TierSummaryPanel`), which CSS Grid treated as its two direct items. Adapted only
+the second child — now a wrapper `<div>` containing `OverviewHeadline` above `TierSummaryPanel` —
+without touching the grid itself or `useYearAnimation`/the map, which were already working and
+shipped as part of §5.17.
+
+`TierSummaryPanel` recompressed from three per-tier cards (each with a per-tier icon column) to a
+single `Table`, freeing the vertical space the headline needs. Direct precedent for exactly this
+shape already existed in this file's own git history — commit `47c6e3d` did this once before,
+later reverted to cards in `a4d3967` for unrelated reasons. `Table<Row extends Record<string,
+unknown>>`'s generic constraint meant `TierRow` needed its `[key: string]: unknown` index
+signature back, the same fix made once before (`bf84e76`) and dropped when cards replaced the
+table (`940ccb9`). The per-tier `Icon`/`TierIcon` machinery was dropped entirely — a compressed
+table has no room for a 20px icon column.
+
+Copilot's review of #122 came back clean — one cosmetic observation: a positive-but-near-zero
+`mostStable` value reads as "stayed comparatively flat," mildly odd wording for a country that
+still grew, in an all-growth selection. Confirmed this is exactly SPEC.md §5.18.1's own specified
+algorithm (`minBy(topMovers, m => Math.abs(m.pctChange))`) and template wording, not a deviation
+introduced by this implementation — replied explaining that, no code change made. 9 new
+`overviewHeadline.test.ts` cases (null filtering, same-leader collapse, 0/1/2-decliner wording,
+the `MIN_SELECTION_FOR_STABLE_CLAUSE` boundary, tie-breaking) plus 3 new/updated
+`OverviewPage.test.tsx` assertions (headline renders with the multi-mover fixture, absent at 0
+selected, "Since 1990" eyebrow present; the `CO₂ (2024)` header-count assertion changed from 3 —
+one per card — to 1, a single column header).
+
+Verified live pre- and post-deploy (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache
+Storage cleared first): the headline renders and matches this section's own hand-verified example
+(China +9,806 MtCO₂ absolute/since 1990, India +452.5% fastest rate, United States −4.4% most
+stable, United Kingdom/Germany steepest declines at −48.0%/−45.7%); disappears when deselecting to
+0 countries and reappears on "Reset to default"; the compressed table doesn't stretch the hero row
+past the map's own height (`alignItems: 'stretch'` on the grid would otherwise reintroduce the
+dead-space problem §5.10 fixed); both the ≥1400px two-column and <1400px single-column breakpoints
+render correctly; console clean through a full animation run.
+
+### Slider touch target + SyChart no-data hover (`design-system` PR #30)
+
+Two independent, small fixes, bundled in one PR since neither shares code or has an ordering
+dependency with the other.
+
+**Slider touch target (WCAG 2.2 §2.5.8).** `.__s9cmpx-slider__thumb` was 16×16 at rest, 20×20 on
+`:hover` in the vendored CSS — both below the 24×24 CSS px minimum, and `:hover` doesn't help
+keyboard or touch users reach even that still-failing size. Fixed in `overrides.css` (this repo's
+own bug-fix layer on top of the vendored CSS, per its `CLAUDE.md` — never hand-edit the vendor
+file directly) by raising the resting size to 24×24 and matching `:hover` to the same value, so
+hover becomes a no-op instead of a shrink. Followed the exact template of this same file's existing
+`.__s9cmpx-tags__remove-button` WCAG fix (comment style: what the vendor bug is, how it was
+confirmed, why the chosen value doesn't overreach) but landed at a different conclusion on size:
+that fix stayed at 24×24 rather than 44×44 specifically because the tags button sits in a dense,
+crowded list; the slider thumb sits alone on an otherwise-open track (the whole track is already
+the effective drag target — `Slider.tsx`'s `onPointerDown` fires from anywhere on it, so this was
+always a rendered-target-size fix, not a drag-precision one), so there's no adjacent-element reason
+to keep it small — 24×24 chosen over 44×44 to stay proportionate to the compact inline slider row
+next to the Play/Pause button. New Storybook `play` assertion on the `Playground` story
+(`getBoundingClientRect() >= 24×24`) — no existing story asserted thumb pixel size before this.
+
+**SyChart no-data hover text.** The no-data choropleth trace used `hoverinfo: 'skip'`, giving
+no-data countries a silent, uninformative hover — correct in that it avoided a false numeric value,
+but read as an unresponsive control. Replaced with an explicit `hovertemplate` defaulting to "No
+data reported," extracted into a new `noDataHovertemplate()` helper in `chartMath.ts` (this file's
+already-established home for `SyChart`'s Plotly-free pure logic, per its own `CLAUDE.md` — kept
+`SyChart`/`Score`'s existing pattern of extracting pure logic for direct unit-testing rather than
+only through a rendered story) and a new optional `SyChartSeries` field, `noDataHoverText`, for
+callers wanting a more specific label than the generic default. The unrelated `'band'` kind's own
+`hoverinfo: 'skip'` (its invisible lower-bound line for confidence-interval shading) was
+deliberately left untouched — confirmed via `grep` that the string appears at exactly two lines in
+the file, only one of which was the actual fix target.
+
+Copilot's first review attempt on #30 failed at the infrastructure level — "the job was not
+acquired by Runner of type hosted even after multiple attempts" — not an actual completed review,
+confirmed via the check-run's own annotation before re-requesting rather than assuming a silent
+pass meant "clean." The second attempt reviewed all 6 changed files cleanly, no comments.
+
+Consuming apps need no code change for either fix to land: `climate-dashboard-react`'s
+`vite.config.ts` aliases `design-system` straight to its source directory (`design-system` has no
+`main`/`module`/`exports` field and a static `"version": "0.0.0"` — it isn't consumed as a
+versioned package at all in this setup), so both fixes are live the moment `design-system`'s `main`
+is merged, no version bump or reinstall needed.
+
+Verified live pre- and post-deploy (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache
+Storage cleared first): the Overview year slider's thumb measures exactly 24×24 via a direct
+`getBoundingClientRect()` check against the live DOM; the no-data (gray) countries' Plotly trace
+carries the new `"%{location}<br>No data reported<extra></extra>"` hovertemplate in place of the
+old silent `hoverinfo: 'skip'`, confirmed by reading the live `.js-plotly-plot` trace data directly
+rather than only visually.
+
+### Deploy
+
+Both PRs merged via the `copilot-review-loop` skill running in parallel across the two repos.
+Deployed to the Mac Mini: fast-forward `git merge origin/main` in both `climate-emissions-analysis-
+project` and `design-system` checkouts (leaving the unrelated, expected `notebook/`/`data/`
+modifications from the weekly `ghg-data-refresh` job untouched — confirmed the incoming commits
+touched none of those files before merging), `climate-dashboard-react` rebuilt with
+`DEPLOY_BASE_PATH=/ghg-emissions-analysis/` set at build time (the known Release 7 gotcha — the
+Mac Mini rebuild needs this at build time, not just serve time), `vitepreview` LaunchAgent
+unloaded/reloaded (`uvicorn` untouched — no `api`/`app.py` change in this release). `design-system`
+needed no separate deploy step of its own, consumed live via the source alias.

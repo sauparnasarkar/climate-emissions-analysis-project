@@ -432,6 +432,7 @@ Sections to include:
 | v29 | Aug 2026 | §5.17 fourth follow-up (same day): autoplay now steps every 5 years (`STEP_YEARS = 5` in `useYearAnimation`, renamed `computeDecadeStops` → `computeAutoplayStops`) instead of every 10; the KPI tier numbers (Countries/CO₂/% Change) no longer count up at all — they snap directly to the new value each tick, since a 1200ms-interval animation was either lagging behind the map or still easing when the next tick fired. `KPI_COUNT_UP_MS` removed; `ANIMATION_STOP_MS` set to 1200ms. `CountUpText` itself is untouched and still used for the two KpiStat cards (Fastest Growth/Largest Reduction), which count up once on load and aren't tied to the year animation. Committed and pushed directly to `main` per explicit instruction. Verified live. Not an internship requirement change. |
 | v30 | Aug 2026 | §5.17 fifth follow-up: `MAGNITUDE_SCALE` widened from a 3-stop cream/orange/deep-red interpolation to ColorBrewer's YlOrRd 9-stop sequential palette (pale yellow → orange → deep maroon), after live feedback that the 1990-vs-2024 difference wasn't visually clear enough — `colorRange` itself stays the true global min/max (SPEC.md §5.17.2, unchanged, must not be narrowed/widened or the per-frame color re-normalization problem it exists to prevent would return); only the color resolution across that fixed range increased. Verified live pre- and post-deploy comparing 1991 directly against 2020/2024. Not an internship requirement change. |
 | v31 | Aug 2026 | §5.17 sixth follow-up: `design-system` Slider gained `showRangeLabels` (min/max at the track's ends) and `showThumbValue` (a floating label tracking the thumb live) — `design-system` PR #29, `climate-emissions-analysis-project` PR #121 wiring them into the Overview year slider, both reviewed via `copilot-review-loop` (both clean, no findings) and merged. A same-turn follow-up removed the slider's old static "Year ... 2024" value label (`showValue={false}`), now redundant once the moving label shows the same number in context. Verified live pre- and post-deploy: no clipping at either range extreme, no layout clash with the Play button, console clean. Not an internship requirement change. |
+| v32 | Aug 2026 | Added §5.18 (Release 13, **Shipped**): a deterministic, data-derived headline sentence above a compressed tier table on Overview (`climate-emissions-analysis-project` PR #122), plus two independent `design-system` fixes (PR #30) — the Slider thumb raised from 16×16/20×20 to 24×24 to meet WCAG 2.2 §2.5.8, and `SyChart`'s no-data choropleth trace given an explicit "No data reported" hover in place of a silent `hoverinfo: 'skip'`. Both PRs reviewed via `copilot-review-loop`; #122 came back clean (one cosmetic wording observation confirmed as spec-intentional, not a bug); #30's first review attempt failed at the infrastructure level (runner never acquired) and was re-requested, second attempt clean. Verified live pre- and post-deploy: headline matches the hand-verified default-selection example, disappears at 0 selected countries, compressed table doesn't stretch the hero row past the map's height, slider thumb measures exactly 24×24, no-data hovertemplate confirmed via the live Plotly trace. Not an internship requirement change. |
 
 ---
 
@@ -1126,6 +1127,82 @@ already set by the vendor CSS, no action needed). Verified live pre- and post-de
 label tracks the thumb correctly through a full autoplay run with no clipping at either range
 extreme (1990/2024), no layout clash with the Play button or `ChartCard` title, and the static
 value label confirmed removed.
+
+### 5.18 Overview Headline Sentence, Compressed Tier Panel, Slider Touch Target & No-Data Hover (Release 13)
+
+**Status: Shipped.** Bundles two unrelated efforts from the same review pass under one release,
+following the precedent set by §5.9 (Release 3.1) — no dependency between them and no shared code,
+but no reason that requires separate release numbers either.
+
+**5.18.1–5.18.2 (`climate-emissions-analysis-project` PR #122, React-only).** Added a one-sentence,
+data-derived headline to the Overview page's hero row, placed above a compressed tier table inside
+the existing right-hand column rather than as a new full-width section — keeping page height flat
+after prior releases (the 2/3-map/1/3-KPI restructure) fought it down. Deterministic string
+templating from `top_movers`, explicitly not an LLM call: this project verifies every number before
+stating it, and free-form generation can't be unit-tested for factual correctness the way a
+template can. New `src/lib/overviewHeadline.ts` derives `absGrower`/`pctGrower`/`mostStable`/
+`decliners` itself via hand-rolled `maxBy`/`minBy` (no `lodash` in this project) rather than
+trusting `top_movers`' given sort order, which is a server-side contract not encoded in the TS
+type. Handles the edge cases the draft flagged — `absGrower === pctGrower` collapses to one clause,
+zero decliners drops the final clause, fewer than 4 usable rows suppresses only the "most stable"
+clause, ties resolve deterministically — plus one the draft didn't call out: exactly one decliner
+needs its own singular-wording branch, not the plural template with an empty second slot. Labeled
+with a "Since 1990" eyebrow so it doesn't appear to describe whatever year the adjacent, user-
+scrubbable animated map happens to be paused on.
+
+Gated on `selected.length > 0`, a correctness fix over the original draft: `top_movers` reflects
+the server's default selection even when the local `selected` array is empty, which would
+otherwise narrate a phantom selection right next to the "Select at least one country" warning —
+the same gate the Selected tier row already used.
+
+`TierSummaryPanel` recompressed from three per-tier cards (with a per-tier icon column) to a single
+`Table`, freeing the vertical space the headline needs — direct precedent for exactly this shape
+already existed in this file's own history (`47c6e3d`, later reverted to cards in `a4d3967` for
+unrelated reasons). `TierRow` needed its `[key: string]: unknown` index signature back (`Table`'s
+own generic constraint), the same fix made once before (`bf84e76`) and dropped when cards replaced
+the table (`940ccb9`).
+
+Copilot's review of #122 came back clean — one cosmetic observation (a positive-but-near-zero
+`mostStable` value reads as "stayed comparatively flat," which is mildly odd wording for a country
+that still grew) was confirmed to be exactly this section's own specified algorithm and template
+wording, not a deviation, so left as-is. 9 new `overviewHeadline.test.ts` cases plus 3 new/updated
+`OverviewPage.test.tsx` assertions. Verified live pre- and post-deploy: the headline matches this
+section's own hand-verified example (China +9,806 MtCO₂/+452.5%, United States −4.4%, United
+Kingdom/Germany steepest declines at −48.0%/−45.7%), disappears at 0 selected countries and
+reappears on reset, and the compressed table doesn't stretch the hero row past the map's own height
+(`alignItems: 'stretch'` would otherwise reintroduce the dead-space problem §5.10 fixed).
+
+**5.18.3–5.18.4 (`design-system` PR #30).** Two independent, small fixes, bundled in one PR since
+neither shares code or has an ordering dependency:
+
+- **Slider touch target.** `.__s9cmpx-slider__thumb` was 16×16 at rest, 20×20 on `:hover` — both
+  below WCAG 2.2 §2.5.8's 24×24 CSS px minimum, and `:hover` doesn't help keyboard or touch users
+  reach even that still-failing size. Fixed in `overrides.css` (not the vendored CSS directly, per
+  this repo's own convention) by raising the resting size to 24×24 and matching `:hover` to the
+  same value so hover is a no-op rather than a shrink — following the exact template of this same
+  file's existing `.__s9cmpx-tags__remove-button` WCAG fix, but landing at 24×24 rather than that
+  fix's own reasoning for staying small: the slider thumb sits alone on open track space, not
+  crowded against sibling controls the way a tag's remove button is. New Storybook `play` assertion
+  (`getBoundingClientRect() >= 24×24`) — no existing story asserted thumb pixel size before this.
+- **No-data hover text.** `SyChart`'s no-data choropleth trace used `hoverinfo: 'skip'`, giving
+  no-data countries a silent, uninformative hover. Replaced with an explicit `hovertemplate`
+  ("No data reported" by default), extracted to a new `noDataHovertemplate()` helper in
+  `chartMath.ts` (this file's own established home for `SyChart`'s Plotly-free pure logic, so it's
+  unit-testable without pulling in `plotly.js-dist-min`) and a new optional `SyChartSeries` field,
+  `noDataHoverText`, for callers that want a more specific label than the generic default.
+
+Copilot's first review attempt on #30 failed at the infrastructure level ("the job was not acquired
+by Runner of type hosted even after multiple attempts") rather than completing — re-requested;
+the second attempt reviewed all 6 changed files cleanly, no comments. Consuming apps need no code
+change for either fix: `climate-dashboard-react`'s `vite.config.ts` aliases `design-system` straight
+to its source (no `main`/`exports`/version to bump), so both land the moment `design-system`'s
+`main` is merged.
+
+Verified live pre- and post-deploy (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache
+Storage cleared first): the Overview year slider's thumb measures exactly 24×24 via
+`getBoundingClientRect()`, and the no-data (gray) countries' Plotly trace carries the new
+`"%{location}<br>No data reported<extra></extra>"` hovertemplate in place of the old silent
+`hoverinfo: 'skip'`.
 
 ---
 
