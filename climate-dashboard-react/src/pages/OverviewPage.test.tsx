@@ -54,7 +54,17 @@ const RESPONSE: OverviewResponse = {
   selected: { label: 'Selected', countries_count: 10, latest_year: 2024, latest_co2_total: 25324, co2_1990_total: 14350, pct_change_since_1990: 76.5, co2_by_year: [] },
   selected_country_list: FEATURED,
   latest_year_bar: [{ country: 'China', value: 12000 }],
-  top_movers: [{ country: 'China', co2_1990: 2000, co2_latest: 12000, absolute_change: 10000, pct_change: 500 }],
+  // Reflects SPEC.md §5.18.1's own hand-verified default-selection example -- exercises a
+  // distinct abs-grower (China) vs. pct-grower (India), a near-zero "most stable" entry
+  // (United States), and two decliners (United Kingdom, Germany), enough rows to trigger the
+  // headline sentence's "most stable" clause (rows.length >= 4).
+  top_movers: [
+    { country: 'China', co2_1990: 2378, co2_latest: 12184, absolute_change: 9806, pct_change: 412.4 },
+    { country: 'India', co2_1990: 681, co2_latest: 3763, absolute_change: 3082, pct_change: 452.6 },
+    { country: 'United States', co2_1990: 5104, co2_latest: 4853, absolute_change: -251, pct_change: -4.9 },
+    { country: 'United Kingdom', co2_1990: 592, co2_latest: 306, absolute_change: -286, pct_change: -48.3 },
+    { country: 'Germany', co2_1990: 1042, co2_latest: 561, absolute_change: -481, pct_change: -46.2 },
+  ],
   fastest_growth: { country: 'China', co2_1990: 2000, co2_latest: 12000, absolute_change: 10000, pct_change: 500 },
   largest_reduction: { country: 'United Kingdom', co2_1990: 600, co2_latest: 300, absolute_change: -300, pct_change: -50 },
   world_map: [{ country: 'China', iso_code: 'CHN', value: 12000 }],
@@ -99,8 +109,9 @@ describe('OverviewPage', () => {
     expect(screen.getByText('All Countries')).toBeInTheDocument();
     expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
     expect(screen.getByText('Selected')).toBeInTheDocument();
-    // 'CO₂ (2024)' appears once per tier card (All Countries / Expanded / Selected = 3).
-    expect(screen.getAllByText('CO₂ (2024)')).toHaveLength(3);
+    // The compressed tier table renders 'CO₂ (2024)' once as a column header, not once per
+    // row (SPEC.md §5.18.2 -- previously one per card when each tier was its own card).
+    expect(screen.getAllByText('CO₂ (2024)')).toHaveLength(1);
     // Tier numbers snap directly to their value (no CountUpText/aria-hidden duplication --
     // these change every autoplay tick, unlike the one-time KpiStat count-ups below).
     expect(screen.getByText('37,406 MtCO₂')).toBeInTheDocument();
@@ -114,6 +125,21 @@ describe('OverviewPage', () => {
     expect(screen.getByText('+76.5%')).toBeInTheDocument();
     expect(screen.getByText('Top Movers Since 1990 (10 Selected Countries)')).toBeInTheDocument();
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(FEATURED);
+  });
+
+  it('renders the headline sentence (with its "Since 1990" eyebrow) for the default selection', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    render(<OverviewPage />);
+
+    expect(await screen.findByText('Since 1990')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'China has grown the most in absolute terms (+9,806 MtCO₂ since 1990), while India has the fastest growth rate (+452.6%). ' +
+          'United States has stayed comparatively flat (-4.9%), while United Kingdom and Germany show the steepest declines (-48.3%, -46.2%).',
+      ),
+    ).toBeInTheDocument();
   });
 
   it('fetches world-map-series exactly once, regardless of how many times the selection changes', async () => {
@@ -253,6 +279,10 @@ describe('OverviewPage', () => {
     // All Countries/Expanded stay rendered regardless of the (now empty) selection.
     expect(screen.getByText('All Countries')).toBeInTheDocument();
     expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
+    // The headline sentence narrates data.top_movers, which still reflects whatever the
+    // server defaulted to (FEATURED_COUNTRIES) even with local `selected` at 0 -- gated out
+    // here so it doesn't describe a phantom selection next to this same warning.
+    expect(screen.queryByText('Since 1990')).not.toBeInTheDocument();
   });
 
   it('"Reset to default" restores the featured selection and refetches', async () => {
