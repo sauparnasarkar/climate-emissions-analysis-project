@@ -109,9 +109,9 @@ describe('OverviewPage', () => {
     expect(screen.getByText('All Countries')).toBeInTheDocument();
     expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
     expect(screen.getByText('Selected')).toBeInTheDocument();
-    // The compressed tier table renders 'CO₂ (2024)' once as a column header, not once per
-    // row (SPEC.md §5.18.2 -- previously one per card when each tier was its own card).
-    expect(screen.getAllByText('CO₂ (2024)')).toHaveLength(1);
+    // Each tier row carries its own inline 'CO₂ (2024)' metric label (SPEC.md §5.18.2's
+    // heading-above-a-metric-strip layout, one per tier: All Countries/Expanded/Selected).
+    expect(screen.getAllByText('CO₂ (2024)')).toHaveLength(3);
     // Tier numbers snap directly to their value (no CountUpText/aria-hidden duplication --
     // these change every autoplay tick, unlike the one-time KpiStat count-ups below).
     expect(screen.getByText('37,406 MtCO₂')).toBeInTheDocument();
@@ -136,10 +136,13 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('Since 1990')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'China has grown the most in absolute terms (+9,806 MtCO₂ since 1990), while India has the fastest growth rate (+452.6%). ' +
+        'China has grown the most in absolute terms (+9,806 MtCO₂), while India has the fastest growth rate (+452.6%). ' +
           'United States has stayed comparatively flat (-4.9%), while United Kingdom and Germany show the steepest declines (-48.3%, -46.2%).',
       ),
     ).toBeInTheDocument();
+    // The "Since 1990" eyebrow already carries the timeframe -- the sentence itself must not
+    // repeat it, or the two collide in the same three lines (reported live).
+    expect(screen.queryByText(/since 1990/i, { selector: 'p' })).not.toBeInTheDocument();
   });
 
   it('fetches world-map-series exactly once, regardless of how many times the selection changes', async () => {
