@@ -1,12 +1,13 @@
 import { useMemo, useState, type CSSProperties } from 'react';
-import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Icon, Slider } from 'design-system';
+import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Table, Slider } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useCountUp } from '../hooks/useCountUp';
 import { useYearAnimation } from '../hooks/useYearAnimation';
+import { buildHeadlineSentence } from '../lib/overviewHeadline';
 import { MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR } from '../constants';
-import type { OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
+import type { MoverRow, OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
 
 // Dwell time at each autoplay stop (useYearAnimation steps every 5 years, not by year -- year-
 // over-year change is gradual enough to be hard to notice, while a multi-year jump is glaring).
@@ -70,14 +71,9 @@ function CountUpText({ value, format, durationMs }: { value: number; format: (n:
   );
 }
 
-// One glyph per tier so the three cards are visually distinguishable at a glance, not just by
-// their text label: grid (every country), document (a defined/documented criteria-based subset),
-// check (an explicit user selection). All three already exist in design-system's Icon set.
-type TierIcon = 'grid' | 'document' | 'check';
-
 interface TierRow {
+  [key: string]: unknown;
   tier: string;
-  icon: TierIcon;
   countries: number;
   co2Total: number;
   pctChange: number;
@@ -91,7 +87,6 @@ interface TierRow {
 // plain number -- it doesn't vary by year.
 function animatedTierRow(
   title: string,
-  icon: TierIcon,
   countriesCount: number,
   co2ByYear: number[],
   yearIdx: number,
@@ -99,49 +94,57 @@ function animatedTierRow(
   const co2Total = co2ByYear[yearIdx] ?? 0;
   const base = co2ByYear[0] ?? 0;
   const pctChange = base ? ((co2Total - base) / base) * 100 : 0;
-  return { tier: title, icon, countries: countriesCount, co2Total, pctChange, suppressPctChange: yearIdx === 0 };
+  return { tier: title, countries: countriesCount, co2Total, pctChange, suppressPctChange: yearIdx === 0 };
 }
 
-// Three stacked mini cards (one per tier) instead of a 4-column table — reads better at
-// ~33% width than a table whose columns would otherwise be squeezed illegibly narrow.
-// Each card shows the same three metrics vertically; the wrapper class carries this
-// component's one-off responsive/layout CSS the same way overview-tier-table (its
-// table-based predecessor) scoped its own header-background rule.
+// A single compressed table instead of one card per tier (SPEC.md §5.18.2) -- frees up vertical
+// space in the hero row's right column for OverviewHeadline above it, without growing the row's
+// total height past what the map card on the left already occupies.
 // No count-up animation here -- these three metrics change every autoplay tick (as often as
 // every 1.2s), so they snap directly to the new value in step with the map rather than easing,
 // which would otherwise either lag behind the map or still be mid-animation when the next tick
 // arrives. CountUpText (below) stays reserved for values that only ever change once, on load.
 function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
   return (
-    <div className="overview-tier-panel">
-      <style>{`
-        .overview-tier-panel { display: flex; flex-direction: column; gap: 12px; }
-        .overview-tier-panel__card { padding: 12px 16px; border: 1px solid var(--__s9cmpx-static-divider-weak); border-radius: 8px; flex: 1; }
-        .overview-tier-panel__metric { display: flex; justify-content: space-between; padding: 4px 0; }
-        .overview-tier-panel__metric + .overview-tier-panel__metric { border-top: 1px solid var(--__s9cmpx-static-divider-weak); }
-      `}</style>
-      {rows.map((row) => (
-        <div key={row.tier} className="overview-tier-panel__card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <span className="__s9cmpx-headline5" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{row.tier}</span>
-            <Icon name={row.icon} size={20} style={{ color: 'var(--__s9cmpx-interactive-fill-link-default, #1c5ece)' }} />
-          </div>
-          <div className="overview-tier-panel__metric">
-            <span className="__s9cmpx-body2">Countries</span>
-            <span className="__s9cmpx-headline4">{Math.round(row.countries).toLocaleString()}</span>
-          </div>
-          <div className="overview-tier-panel__metric">
-            <span className="__s9cmpx-body2">{`CO₂ (${year})`}</span>
-            <span className="__s9cmpx-headline4">{`${row.co2Total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}</span>
-          </div>
-          <div className="overview-tier-panel__metric">
-            <span className="__s9cmpx-body2">% Change since 1990</span>
-            <span className="__s9cmpx-headline4" style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
+    <Table<TierRow>
+      size="small"
+      withBorder
+      columns={[
+        { key: 'tier', header: 'Tier' },
+        { key: 'countries', header: 'Countries', align: 'right' },
+        {
+          key: 'co2Total',
+          header: `CO₂ (${year})`,
+          align: 'right',
+          render: (row) => `${row.co2Total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`,
+        },
+        {
+          key: 'pctChange',
+          header: '% Chg. since 1990',
+          align: 'right',
+          render: (row) => (
+            <span style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
               {row.suppressPctChange ? '—' : `${row.pctChange >= 0 ? '+' : ''}${row.pctChange.toFixed(1)}%`}
             </span>
-          </div>
-        </div>
-      ))}
+          ),
+        },
+      ]}
+      rows={rows}
+    />
+  );
+}
+
+// The Overview headline sentence (SPEC.md §5.18.1) -- a deterministic, data-derived one-sentence
+// summary of who's grown/declined the most since 1990, placed above the compressed tier table in
+// the hero row's right column. Renders nothing when there's not enough usable data (see
+// buildHeadlineSentence's own null cases).
+function OverviewHeadline({ topMovers }: { topMovers: MoverRow[] }) {
+  const sentence = buildHeadlineSentence(topMovers);
+  if (!sentence) return null;
+  return (
+    <div style={{ padding: '12px 16px', border: '1px solid var(--__s9cmpx-static-divider-weak)', borderRadius: 8 }}>
+      <span className="__s9cmpx-label3" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Since 1990</span>
+      <p className="__s9cmpx-body2" style={{ margin: '4px 0 0' }}>{sentence}</p>
     </div>
   );
 }
@@ -154,11 +157,13 @@ function AnimatedWorldMap({
   selected,
   allCountriesTier,
   expandedTier,
+  topMovers,
 }: {
   worldMapSeries: WorldMapTimeSeries;
   selected: string[];
   allCountriesTier: OverviewTierMetrics;
   expandedTier: OverviewTierMetrics;
+  topMovers: MoverRow[];
 }) {
   const minYear = worldMapSeries.years[0];
   const maxYear = worldMapSeries.years[worldMapSeries.years.length - 1];
@@ -249,16 +254,24 @@ function AnimatedWorldMap({
         </div>
       </ChartCard>
 
-      <TierSummaryPanel
-        year={currentYear}
-        rows={[
-          animatedTierRow('All Countries', 'grid', allCountriesTier.countries_count, allCountriesTier.co2_by_year, yearIdx),
-          animatedTierRow('Expanded (Coverage + ≥100 Mt)', 'document', expandedTier.countries_count, expandedTier.co2_by_year, yearIdx),
-          ...(selected.length > 0
-            ? [animatedTierRow('Selected', 'check', selected.length, selectedCo2ByYear, yearIdx)]
-            : []),
-        ]}
-      />
+      <div className="overview-hero-right" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {/* Gated on the local `selected` (not just data.top_movers' own contents) -- when
+            deselected to 0, top_movers still reflects whatever the server defaulted to
+            (FEATURED_COUNTRIES), which would otherwise narrate a phantom selection right next
+            to the "Select at least one country" warning below. Same gate the Selected tier row
+            already uses just below. */}
+        {selected.length > 0 && <OverviewHeadline topMovers={topMovers} />}
+        <TierSummaryPanel
+          year={currentYear}
+          rows={[
+            animatedTierRow('All Countries', allCountriesTier.countries_count, allCountriesTier.co2_by_year, yearIdx),
+            animatedTierRow('Expanded (Coverage + ≥100 Mt)', expandedTier.countries_count, expandedTier.co2_by_year, yearIdx),
+            ...(selected.length > 0
+              ? [animatedTierRow('Selected', selected.length, selectedCo2ByYear, yearIdx)]
+              : []),
+          ]}
+        />
+      </div>
     </>
   );
 }
@@ -310,6 +323,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           selected={selected}
           allCountriesTier={data.all_countries}
           expandedTier={data.expanded_countries}
+          topMovers={data.top_movers}
         />
       </div>
 
