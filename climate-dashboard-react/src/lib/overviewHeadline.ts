@@ -54,11 +54,13 @@ export function buildHeadlineSentence(topMovers: MoverRow[]): string | null {
     .slice(0, 2);
 
   // First sentence: who grew the most (absolute vs. rate), collapsed to one clause when the
-  // same country tops both.
+  // same country tops both. Doesn't repeat "since 1990" inline -- the caller's "Since 1990"
+  // eyebrow already carries that timeframe, and stating it twice in the same three lines reads
+  // as a copy-editing miss rather than emphasis.
   const growthSentence =
     absGrower.country === pctGrower.country
-      ? `${absGrower.country} has grown the most, both in absolute terms (+${formatMt(absGrower.absoluteChange)} MtCO₂) and by growth rate (${formatPct(absGrower.pctChange)}%), since 1990.`
-      : `${absGrower.country} has grown the most in absolute terms (+${formatMt(absGrower.absoluteChange)} MtCO₂ since 1990), while ${pctGrower.country} has the fastest growth rate (${formatPct(pctGrower.pctChange)}%).`;
+      ? `${absGrower.country} has grown the most, both in absolute terms (+${formatMt(absGrower.absoluteChange)} MtCO₂) and by growth rate (${formatPct(absGrower.pctChange)}%).`
+      : `${absGrower.country} has grown the most in absolute terms (+${formatMt(absGrower.absoluteChange)} MtCO₂), while ${pctGrower.country} has the fastest growth rate (${formatPct(pctGrower.pctChange)}%).`;
 
   // Second sentence: stability + declines. Either half (or the whole sentence) may be omitted.
   const secondClauses: string[] = [];

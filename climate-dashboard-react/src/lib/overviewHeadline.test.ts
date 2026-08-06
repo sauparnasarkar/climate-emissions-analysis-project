@@ -33,9 +33,27 @@ describe('buildHeadlineSentence', () => {
       row('Germany', -180, -46),
     ]);
     expect(sentence).toBe(
-      'China has grown the most in absolute terms (+9,806 MtCO₂ since 1990), while India has the fastest growth rate (+452.0%). ' +
+      'China has grown the most in absolute terms (+9,806 MtCO₂), while India has the fastest growth rate (+452.0%). ' +
         'United States has stayed comparatively flat (-4.0%), while United Kingdom and Germany show the steepest declines (-48.0%, -46.0%).',
     );
+  });
+
+  it('never repeats "since 1990" inline -- the caller\'s eyebrow label already carries the timeframe', () => {
+    const distinctLeaders = buildHeadlineSentence([
+      row('China', 9806, 250),
+      row('India', 1900, 452),
+      row('United States', 400, -4),
+      row('United Kingdom', -200, -48),
+    ]);
+    expect(distinctLeaders?.toLowerCase()).not.toContain('since 1990');
+
+    const collapsedLeader = buildHeadlineSentence([
+      row('China', 8000, 250),
+      row('India', 1900, 100),
+      row('United States', 400, 8),
+      row('United Kingdom', -200, -35),
+    ]);
+    expect(collapsedLeader?.toLowerCase()).not.toContain('since 1990');
   });
 
   it('collapses to one clause when the absolute and rate growth leaders are the same country', () => {

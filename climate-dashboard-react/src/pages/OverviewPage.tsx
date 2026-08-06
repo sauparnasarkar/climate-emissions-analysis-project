@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties } from 'react';
-import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Table, Slider } from 'design-system';
+import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
@@ -72,7 +72,6 @@ function CountUpText({ value, format, durationMs }: { value: number; format: (n:
 }
 
 interface TierRow {
-  [key: string]: unknown;
   tier: string;
   countries: number;
   co2Total: number;
@@ -97,40 +96,48 @@ function animatedTierRow(
   return { tier: title, countries: countriesCount, co2Total, pctChange, suppressPctChange: yearIdx === 0 };
 }
 
-// A single compressed table instead of one card per tier (SPEC.md §5.18.2) -- frees up vertical
-// space in the hero row's right column for OverviewHeadline above it, without growing the row's
-// total height past what the map card on the left already occupies.
+// Each tier gets a full-width heading line (its name, e.g. "Expanded (Coverage + ≥100 Mt)") above
+// a compact 3-column metric strip, rather than a single 4-column table (SPEC.md §5.18.2 original
+// shape). A shared 4-column table crammed the tier name into ~130px of a ~380-450px-wide panel --
+// measured directly against the DOM: "Expanded (Coverage + ≥100 Mt)" needs 204px and was getting
+// 133px, truncating to "Expanded (Cover..." and losing the coverage/materiality qualifier this
+// tier's whole definition rests on. Promoting the name to its own full-width line gives it the
+// panel's entire width to wrap into instead, while Countries/CO₂/%Change -- short, fixed-format
+// numbers that were never the truncation risk -- stay in a compact strip below it. Still one
+// visually compact block (a shared border, no per-tier cards/icons), not the taller card layout
+// this replaced.
 // No count-up animation here -- these three metrics change every autoplay tick (as often as
 // every 1.2s), so they snap directly to the new value in step with the map rather than easing,
 // which would otherwise either lag behind the map or still be mid-animation when the next tick
 // arrives. CountUpText (below) stays reserved for values that only ever change once, on load.
 function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
   return (
-    <Table<TierRow>
-      size="small"
-      withBorder
-      columns={[
-        { key: 'tier', header: 'Tier' },
-        { key: 'countries', header: 'Countries', align: 'right' },
-        {
-          key: 'co2Total',
-          header: `CO₂ (${year})`,
-          align: 'right',
-          render: (row) => `${row.co2Total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`,
-        },
-        {
-          key: 'pctChange',
-          header: '% Chg. since 1990',
-          align: 'right',
-          render: (row) => (
-            <span style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
-              {row.suppressPctChange ? '—' : `${row.pctChange >= 0 ? '+' : ''}${row.pctChange.toFixed(1)}%`}
-            </span>
-          ),
-        },
-      ]}
-      rows={rows}
-    />
+    <div style={{ border: '1px solid var(--__s9cmpx-static-divider-weak)', borderRadius: 8, overflow: 'hidden' }}>
+      {rows.map((row, i) => (
+        <div
+          key={row.tier}
+          style={{ padding: '8px 12px', borderTop: i === 0 ? undefined : '1px solid var(--__s9cmpx-static-divider-weak)' }}
+        >
+          <div className="__s9cmpx-label3" style={{ marginBottom: 6 }}>{row.tier}</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            <div>
+              <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Countries</div>
+              <div className="__s9cmpx-body2">{Math.round(row.countries).toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{`CO₂ (${year})`}</div>
+              <div className="__s9cmpx-body2">{`${row.co2Total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}</div>
+            </div>
+            <div>
+              <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>% Chg. since 1990</div>
+              <div className="__s9cmpx-body2" style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
+                {row.suppressPctChange ? '—' : `${row.pctChange >= 0 ? '+' : ''}${row.pctChange.toFixed(1)}%`}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
