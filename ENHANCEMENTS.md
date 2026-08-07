@@ -2310,3 +2310,75 @@ every country in the picker down to 0 — the core fix; the headline stayed visi
 (rather than disappearing, the pre-fix behavior); the below-the-fold Top Movers section still
 showed "Largest Reduction — United Kingdom," confirming `top_movers` continues reacting to the
 picker exactly as before; console clean throughout.
+
+### Release 13 third follow-up: highlight countries, color values in the headline
+
+**Status: Shipped.** `climate-emissions-analysis-project` PR #125, React-only. Requested directly:
+highlight the countries named in the headline sentence, and color the numeric values using this
+app's color-coding convention. The convention already existed and didn't need inventing —
+`TierSummaryPanel`'s % Change column colors an increase `NEGATIVE_COLOR` (more emissions, bad) and
+a decrease `POSITIVE_COLOR` (less, good) — so the work was applying that existing rule to the
+headline, not choosing a new one.
+
+**The architecture question.** `buildHeadlineSentence` was a pure function returning a plain
+string. Styling individual words within an already-assembled string means either (a) regex-based
+post-processing to re-find country names and numbers inside the final text — fragile, since a
+country name could coincidentally appear as a substring elsewhere, and offers no way to know a
+value's sign without re-parsing it back out of formatted text like `"-45.7%"` — or (b) having the
+function build tagged segments directly, since it already knows exactly which piece of text
+corresponds to which country or value at the moment it assembles them. Chose (b): a new
+`HeadlineSegment` union type (`{ kind: 'text' }` / `{ kind: 'country' }` / `{ kind: 'value';
+sentiment: 'positive' | 'negative' }`), and `buildHeadlineSentence` now returns
+`HeadlineSegment[] | null` instead of `string | null`.
+
+`sentiment` is computed once, at the point each value is known (`raw >= 0 ? 'negative' :
+'positive'` — the same `>= 0` rule `TierSummaryPanel`'s existing pctChange coloring already uses),
+and treated as a **derived fact** the function states, not a color choice — the actual
+`NEGATIVE_COLOR`/`POSITIVE_COLOR` mapping happens in the rendering component. This mirrors the
+split this file already established for the "Since 1990" eyebrow and the `scope` parameter
+(SPEC.md §5.18.5): the pure function owns facts and prose, the component owns presentation. Kept
+the absolute-change display's existing quirk of always showing a leading `+` (`formatMtSigned`,
+new, mirrors `formatPct`'s existing signed-formatting convention) inside the colored `value`
+segment now, rather than as a separate uncolored text segment in front of it — a minor visual
+tightening (the whole "+9,806 MtCO₂" token now reads as one colored unit) that doesn't change the
+flattened text output.
+
+A new `headlineSegmentsToText(segments)` helper flattens segments back into the original plain
+sentence (`segments.map(s => s.text).join('')`) — confirmed byte-for-byte identical to every
+existing test's expected string, proving this was a pure structural refactor with zero wording
+change. All the actual derivation logic (`maxBy`/`minBy`/decliners/edge cases) is untouched; only
+how the pieces get assembled changed, from template-literal string concatenation to pushing typed
+segments onto an array.
+
+**Rendering.** `OverviewHeadline` maps segments to JSX: `country` → `<strong>`, `value` → a `<span
+style={{ color: sentiment === 'negative' ? NEGATIVE_COLOR : POSITIVE_COLOR }}>`, `text` → the raw
+string (no wrapper needed). Both color constants were already imported in `OverviewPage.tsx` for
+the tier table, so no new import.
+
+**Test fallout.** The dedicated headline test's exact-string `screen.getByText(fullSentence)`
+assertion broke — the sentence is no longer one text node, so RTL's default text-node matching
+can't find it directly. Fixed with a custom matcher function checking the `<p>` element's full
+`textContent` against the expected string (`(_, element) => element?.tagName === 'P' &&
+element.textContent === expectedText`), then added targeted assertions on top of that match: `
+within(paragraph).getByText('China').tagName === 'STRONG'` for bolding, and `
+within(paragraph).getByText('+452.5%')).toHaveStyle({ color: NEGATIVE_COLOR })` for coloring —
+this is the first place this test file needed a split-text matcher, so it's now the template for
+any future rich-text rendering test in this codebase. `overviewHeadline.test.ts` gained direct
+segment-level tests (country segments appear in the right order, values carry the correct
+sentiment, the same-country collapse case produces exactly one country segment not two) alongside
+every existing test, all updated to flatten segments via the new helper before asserting on wording.
+
+Copilot's review of #125 posted **no comment at all** — before treating that as clean, checked the
+`copilot_work_started`/`copilot_work_finished` timeline pair (both present) and, critically, the
+`copilot` check-run's `conclusion` field directly: `success`, not `cancelled` — the exact
+distinction that mattered on the Release 13 first follow-up's PR #30, where a similarly
+comment-free result turned out to be an infrastructure failure (`"the job was not acquired by
+Runner of type hosted"`), not a real review. Confirming the conclusion field rather than just the
+absence of a flagged comment is what made this genuinely safe to merge.
+
+Verified live pre- and post-deploy (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache
+Storage cleared first, `vitepreview` LaunchAgent rebuilt/restarted — this release is
+`climate-dashboard-react`-only, no `api/` change, so `uvicorn` was untouched): country names bold,
+China's absolute change and India's growth rate (both increases) render red, United
+States/Germany/Russia's values (all decreases) render green, visually consistent with the tier
+table's own coloring; console clean.

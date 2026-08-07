@@ -435,6 +435,7 @@ Sections to include:
 | v32 | Aug 2026 | Added §5.18 (Release 13, **Shipped**): a deterministic, data-derived headline sentence above a compressed tier table on Overview (`climate-emissions-analysis-project` PR #122), plus two independent `design-system` fixes (PR #30) — the Slider thumb raised from 16×16/20×20 to 24×24 to meet WCAG 2.2 §2.5.8, and `SyChart`'s no-data choropleth trace given an explicit "No data reported" hover in place of a silent `hoverinfo: 'skip'`. Both PRs reviewed via `copilot-review-loop`; #122 came back clean (one cosmetic wording observation confirmed as spec-intentional, not a bug); #30's first review attempt failed at the infrastructure level (runner never acquired) and was re-requested, second attempt clean. Verified live pre- and post-deploy: headline matches the hand-verified default-selection example, disappears at 0 selected countries, compressed table doesn't stretch the hero row past the map's height, slider thumb measures exactly 24×24, no-data hovertemplate confirmed via the live Plotly trace. Not an internship requirement change. |
 | v33 | Aug 2026 | §5.18 follow-up (`climate-emissions-analysis-project` PR #123, **Shipped**): fixed two issues found in live review of Release 13 — the "Since 1990" eyebrow and the headline sentence itself both stated the timeframe (fixed by dropping the redundant inline "since 1990" from the sentence), and "Expanded (Coverage + ≥100 Mt)" truncated to "Expanded (Cover..." in the compressed table's Tier column (measured 204px needed vs. 133px available), losing the coverage/materiality qualifier that tier's definition rests on — fixed by replacing the shared 4-column table with a full-width tier-name heading per row above a compact 3-column metric strip. Copilot review clean. Verified live via direct DOM measurement (`scrollWidth`/`clientWidth` equality), not just visual inspection. Not an internship requirement change. |
 | v34 | Aug 2026 | Added §5.18.5 (**Shipped**, `climate-emissions-analysis-project` PR #124): decoupled the headline sentence from `selected`/`top_movers` — it silently changed (and could look inconsistent) the moment a user changed the picker, since it sits above the fold, easy to miss re-reading. New `headline_movers` API field: a fixed top 10 sovereign countries by latest-year CO₂, computed from `df_all`/`df_map` (the same selection-invariant universe `world_map` already uses), never `df_selected`; `top_movers` untouched, still backing the below-the-fold Top Movers cards/chart. `buildHeadlineSentence` gained a required `scope` parameter ("Among {scope}, ...") kept out of the pure function for the same reason the "Since 1990" eyebrow already is. The `selected.length > 0` gate on the headline is removed entirely — it now stays visible even at 0 selected countries. Verified against real 2024 data before writing: the true top 10 emitters is not `FEATURED_COUNTRIES` — the United Kingdom drops out of the headline entirely, Germany becomes the steepest decliner, Russia enters in the UK's place. Copilot review clean. Verified live pre- and post-deploy: headline text confirmed byte-identical before/after deselecting every country (the core fix), stays visible at 0 selected, below-the-fold Top Movers section confirmed still reacting to the picker (United Kingdom still shown there), console clean. Not an internship requirement change. |
+| v35 | Aug 2026 | Added §5.18.6 (**Shipped**, `climate-emissions-analysis-project` PR #125): highlighted the headline sentence — country names bolded, increase/decrease values colored via the app's existing `NEGATIVE_COLOR` (increase, bad)/`POSITIVE_COLOR` (decrease, good) convention, the same rule `TierSummaryPanel`'s % Change column already applies. `buildHeadlineSentence` now returns tagged `HeadlineSegment[]` (text/country/value, with a derived `sentiment` on values) instead of a plain string, so the renderer styles each part directly rather than parsing prose back apart — `sentiment` is a derived fact, kept separate from the actual color choice, the same wording/derivation split the "Since 1990" eyebrow and `scope` parameter already follow. A new `headlineSegmentsToText` helper flattens segments back to plain text, confirmed byte-identical to the prior string output in tests. Copilot review came back with a clean `success` check-run conclusion and no comments — confirmed genuine (not silence masking an infra failure, per the §5.18.5 PR #30 precedent) by checking the conclusion field directly, not just the absence of a comment. Verified live pre- and post-deploy: bold country names, red increase values, green decrease values, console clean. Not an internship requirement change. |
 
 ---
 
@@ -1256,6 +1257,39 @@ post-deploy (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache Storag
 headline text confirmed **byte-identical** before and after deselecting every country in the
 picker (the core fix); stays visible at 0 selected; the below-the-fold Top Movers section confirmed
 still reacting to the picker (United Kingdom still shown there, unaffected); console clean.
+
+#### 5.18.6 Highlight country names and color values in the headline (Shipped, PR #125)
+
+Requested directly: highlight the countries named in the headline sentence, and color the numeric
+values using this app's existing color-coding convention. That convention already exists —
+`TierSummaryPanel`'s % Change column colors an increase `NEGATIVE_COLOR` (more emissions is bad)
+and a decrease `POSITIVE_COLOR` (less is good) — so the fix is to apply the same rule to the
+headline rather than invent a new one.
+
+`buildHeadlineSentence` changed from returning a plain string to a `HeadlineSegment[]` — tagged
+`text`/`country`/`value` pieces, with a derived `sentiment: 'positive' | 'negative'` on each value
+segment (whether the underlying number is an increase or decrease). The actual color choice stays
+a rendering concern, applied by `OverviewHeadline` from `sentiment` — the same wording/derivation
+split this file already used for the "Since 1990" eyebrow and the `scope` parameter (SPEC.md
+§5.18.5): the pure function states facts, the component decides how to present them. A new
+`headlineSegmentsToText` helper flattens segments back to plain text for tests; confirmed
+byte-for-byte identical to the prior string output for every existing test case, so this was a
+pure structural refactor, not a wording change.
+
+`OverviewHeadline` renders `country` segments as `<strong>` and `value` segments with an inline
+`color` based on `sentiment`. Existing exact-string test assertions on the rendered sentence broke
+(the text is now split across multiple DOM nodes, not one text node) — replaced with a custom
+matcher checking the `<p>`'s full `textContent`, plus new assertions confirming specific country
+names render as `<strong>` and specific values carry the correct color via `toHaveStyle`.
+
+Copilot's review of #125 posted no comment at all — confirmed this was a genuine clean pass, not
+silence masking an infrastructure failure (the exact failure mode seen on §5.18.3–5.18.4's PR #30),
+by checking the `copilot` check-run's `conclusion` field directly: `success`, not `cancelled`.
+
+Verified live pre- and post-deploy (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache
+Storage cleared first): country names render bold, increase values (China's absolute change,
+India's growth rate) render red, decrease values (United States, Germany, Russia) render green,
+visually consistent with the tier table's own coloring; console clean.
 
 ---
 
