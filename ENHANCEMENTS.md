@@ -2224,3 +2224,89 @@ per-row heading-plus-strip structure). Verified live pre- and post-deploy
 (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache Storage cleared first): both fixes
 confirmed via direct DOM measurement rather than only visually — zero "since 1990" occurrences in
 the rendered sentence text, zero truncated elements in the tier panel.
+
+### Release 13 second follow-up: decouple the headline from the country picker
+
+**Status: Shipped.** `climate-emissions-analysis-project` PR #124, both `api/` and
+`climate-dashboard-react/` (one PR — same git repo, direct precedent for a single commit spanning
+both, e.g. `53b9370`/`30aa68a`). Prompted by a direct question about what the headline sentence
+was actually describing: the answer, checked against `api/routers/overview.py`, was "whatever's
+currently selected in the picker" — correct today only because the picker's default
+(`FEATURED_COUNTRIES`) happens to coincide with a sensible-looking story, and silently wrong the
+moment a user changes the selection, since the headline sits above the fold and is easy to miss
+re-reading while the picker lives below it.
+
+**Backend.** New `TOP_N_HEADLINE = 10` constant in `api/constants.py`, placed next to
+`PCT_CHANGE_BASELINE_YEAR` (both consumed directly in `overview.py`'s movers logic). New
+`headline_movers: list[MoverRow]` field on `OverviewResponse`, computed in a new block in
+`overview.py` — inserted after the existing `world_map` construction since it needs
+`df_all`/`all_latest_year`/`df_map`, all already in scope there, no new loader calls. The set is
+fixed by `df_map.nlargest(TOP_N_HEADLINE, "co2")` **before** the baseline/latest/pct-change
+figures are computed — a materially different selection mechanism from `top_movers`, which takes
+whichever countries are in `selected` with no cap at all. Uses `PCT_CHANGE_BASELINE_YEAR` properly
+rather than the literal `1990` the existing `top_movers` block hardcodes (an existing
+inconsistency, not copied into the new code). Sorted by `co2_latest` descending, not `pct_change`
+like `top_movers` — the set itself was chosen by magnitude, so returning it in that order is
+self-documenting; the frontend's `buildHeadlineSentence` derives every fact itself regardless of
+input order (verified directly in the file), so this is a pure API-clarity choice, commented
+explicitly so a future maintainer doesn't "fix" it into consistency by mistake. `top_movers`
+itself is completely untouched.
+
+Two new tests: `test_overview_headline_movers_unaffected_by_countries_param` (mirrors the existing
+`world_map` invariance test exactly — the load-bearing regression proof, using the standard
+`client` fixture since proving invariance doesn't need magnitude diversity) and
+`test_overview_headline_movers_ordering_and_top_n_cap` (a new dedicated 12-country fixture,
+`owid_raw_headline_df()`, following `owid_raw_world_map_series_df()`'s exact precedent of NOT
+being part of `FIXTURE_BUILDERS`/`full_data` — the shared 4-country fixture can't exercise a real
+top-10 cap; the new fixture includes two countries just below the cutoff to prove they're
+excluded despite otherwise-complete 1990/2024 pairs).
+
+**Frontend.** `buildHeadlineSentence` gains a required second parameter, `scope: string` — the
+caller supplies the exact wording ("the top 10 emitters by 2024 output"), fused via a plain comma
+splice onto the sentence's first clause: `"Among ${scope}, ${...}"`. Required, not
+optional/defaulted, since the sentence now always describes a fixed scope rather than being
+conditionally rendered. Kept out of the pure function for the same reason the file's own doc
+comment already gives for the "Since 1990" eyebrow: it's a rendering/wording concern, not a
+derived fact, so the function stays independently testable against arbitrary scope text — the
+same discipline that made the Release 13 first follow-up's redundant-"since 1990" bug a one-line
+fix rather than a rearchitecture. All derivation logic (`maxBy`/`minBy`/decliners/edge cases) is
+unchanged.
+
+`AnimatedWorldMap`'s `topMovers` prop renamed to `headlineMovers`, now fed `data.headline_movers`.
+`scope` is computed inline from props already in scope — `headlineMovers.length` and
+`allCountriesTier.latest_year` (confirmed via `_tier_metrics`: `all_countries.latest_year ==
+int(df_all["year"].max())`, i.e. exactly the backend's `all_latest_year` — no new API field
+needed for this). The `selected.length > 0` gate on `OverviewHeadline` — previously needed because
+`top_movers` reflected the server's default selection even when `selected` was empty — is removed
+entirely: `headline_movers` doesn't depend on the picker at all, so the headline now stays visible
+even at 0 selected countries. The below-the-fold Top Movers section's `moverCountries`/`moverPct`
+(still `data.top_movers`) and its "Top Movers Since 1990 (N Selected Countries)" heading are
+completely untouched.
+
+`RESPONSE.headline_movers` in `OverviewPage.test.tsx` is a **different**, independent 10-country
+fixture from `top_movers`'s existing 5-country one, deliberately, to prove independence in tests
+rather than accidentally re-testing the same array twice. The "deselecting to 0" test's assertion
+flipped from `queryByText('Since 1990')).not.toBeInTheDocument()` to
+`findByText('Since 1990')).toBeInTheDocument()` — the single most load-bearing test change proving
+the fix actually works.
+
+Verified against real 2024 OWID data before implementing (not assumed): the true top 10 emitters
+(China, United States, India, Russia, Japan, Indonesia, Iran, Saudi Arabia, South Korea, Germany)
+is not `FEATURED_COUNTRIES` — the United Kingdom drops out of the headline entirely (its 48%
+decline was only ever there because it's in the curated `FEATURED_COUNTRIES` list, not its raw
+tonnage), Germany becomes the steepest decliner, Russia (−29.8%) enters in the UK's place.
+
+Copilot's review of #124 came back clean, no findings — confirmed, per this project's now-standard
+discipline, by checking the `copilot_work_started`/`copilot_work_finished` timeline event pair
+matched the substantive review comment's timestamp, not just treating a posted comment as
+sufficient on its own (the Release 13 first follow-up's PR #30 had already shown a posted-looking
+signal can actually be an infrastructure failure).
+
+Verified live pre- and post-deploy (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache
+Storage cleared first, both `uvicorn` and `vitepreview` LaunchAgents restarted since this release
+touches both `api/` and `climate-dashboard-react/`): headline text read directly from the live DOM
+via `document.querySelectorAll` and confirmed **byte-identical** before and after deselecting
+every country in the picker down to 0 — the core fix; the headline stayed visible throughout
+(rather than disappearing, the pre-fix behavior); the below-the-fold Top Movers section still
+showed "Largest Reduction — United Kingdom," confirming `top_movers` continues reacting to the
+picker exactly as before; console clean throughout.

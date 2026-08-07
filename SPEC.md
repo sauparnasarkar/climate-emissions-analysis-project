@@ -434,6 +434,7 @@ Sections to include:
 | v31 | Aug 2026 | §5.17 sixth follow-up: `design-system` Slider gained `showRangeLabels` (min/max at the track's ends) and `showThumbValue` (a floating label tracking the thumb live) — `design-system` PR #29, `climate-emissions-analysis-project` PR #121 wiring them into the Overview year slider, both reviewed via `copilot-review-loop` (both clean, no findings) and merged. A same-turn follow-up removed the slider's old static "Year ... 2024" value label (`showValue={false}`), now redundant once the moving label shows the same number in context. Verified live pre- and post-deploy: no clipping at either range extreme, no layout clash with the Play button, console clean. Not an internship requirement change. |
 | v32 | Aug 2026 | Added §5.18 (Release 13, **Shipped**): a deterministic, data-derived headline sentence above a compressed tier table on Overview (`climate-emissions-analysis-project` PR #122), plus two independent `design-system` fixes (PR #30) — the Slider thumb raised from 16×16/20×20 to 24×24 to meet WCAG 2.2 §2.5.8, and `SyChart`'s no-data choropleth trace given an explicit "No data reported" hover in place of a silent `hoverinfo: 'skip'`. Both PRs reviewed via `copilot-review-loop`; #122 came back clean (one cosmetic wording observation confirmed as spec-intentional, not a bug); #30's first review attempt failed at the infrastructure level (runner never acquired) and was re-requested, second attempt clean. Verified live pre- and post-deploy: headline matches the hand-verified default-selection example, disappears at 0 selected countries, compressed table doesn't stretch the hero row past the map's height, slider thumb measures exactly 24×24, no-data hovertemplate confirmed via the live Plotly trace. Not an internship requirement change. |
 | v33 | Aug 2026 | §5.18 follow-up (`climate-emissions-analysis-project` PR #123, **Shipped**): fixed two issues found in live review of Release 13 — the "Since 1990" eyebrow and the headline sentence itself both stated the timeframe (fixed by dropping the redundant inline "since 1990" from the sentence), and "Expanded (Coverage + ≥100 Mt)" truncated to "Expanded (Cover..." in the compressed table's Tier column (measured 204px needed vs. 133px available), losing the coverage/materiality qualifier that tier's definition rests on — fixed by replacing the shared 4-column table with a full-width tier-name heading per row above a compact 3-column metric strip. Copilot review clean. Verified live via direct DOM measurement (`scrollWidth`/`clientWidth` equality), not just visual inspection. Not an internship requirement change. |
+| v34 | Aug 2026 | Added §5.18.5 (**Shipped**, `climate-emissions-analysis-project` PR #124): decoupled the headline sentence from `selected`/`top_movers` — it silently changed (and could look inconsistent) the moment a user changed the picker, since it sits above the fold, easy to miss re-reading. New `headline_movers` API field: a fixed top 10 sovereign countries by latest-year CO₂, computed from `df_all`/`df_map` (the same selection-invariant universe `world_map` already uses), never `df_selected`; `top_movers` untouched, still backing the below-the-fold Top Movers cards/chart. `buildHeadlineSentence` gained a required `scope` parameter ("Among {scope}, ...") kept out of the pure function for the same reason the "Since 1990" eyebrow already is. The `selected.length > 0` gate on the headline is removed entirely — it now stays visible even at 0 selected countries. Verified against real 2024 data before writing: the true top 10 emitters is not `FEATURED_COUNTRIES` — the United Kingdom drops out of the headline entirely, Germany becomes the steepest decliner, Russia enters in the UK's place. Copilot review clean. Verified live pre- and post-deploy: headline text confirmed byte-identical before/after deselecting every country (the core fix), stays visible at 0 selected, below-the-fold Top Movers section confirmed still reacting to the picker (United Kingdom still shown there), console clean. Not an internship requirement change. |
 
 ---
 
@@ -1216,6 +1217,45 @@ strip, giving the name the panel's entire width to wrap into. Copilot's review o
 clean. Verified live pre- and post-deploy via direct DOM measurement (`scrollWidth`/`clientWidth`
 equality, not just visual inspection): zero truncated elements, zero redundant "since 1990"
 occurrences in the rendered sentence.
+
+#### 5.18.5 Decouple the headline sentence from the country picker (Shipped, PR #124)
+
+The headline read `top_movers`, computed from whichever countries are `selected` in the picker —
+so it silently changed (and could read as inconsistent) the moment a user changed the selection,
+since it sits above the fold, easy to miss re-reading. Prompted by a direct question about what
+the headline was actually describing: "whatever's currently selected," correct today only because
+the picker's default happens to coincide with a sensible story.
+
+New API field, independent of `selected`: `headline_movers`, a fixed top 10 sovereign countries by
+absolute latest-year CO₂, computed from `df_all`/`df_map` (the same selection-invariant universe
+`world_map` already uses), never `df_selected`. `top_movers` is completely untouched — still
+computed from `selected`, still backing the separate Top Movers cards/chart below the fold, which
+correctly keep reacting to the picker.
+
+`buildHeadlineSentence` gained a required `scope` parameter — the caller supplies the framing
+clause ("the top 10 emitters by 2024 output"), fused via a comma splice onto the sentence's first
+clause ("Among {scope}, {country} has grown the most..."). Kept out of the pure function for the
+same reason the "Since 1990" eyebrow already is: a wording concern, not a derived fact, so the
+function's output stays independently testable. The `selected.length > 0` gate on the headline —
+previously needed because `top_movers` reflected the server's default selection even when
+`selected` was empty — is removed entirely, since `headline_movers` no longer depends on the
+picker at all; the headline now stays visible even at 0 selected countries.
+
+Verified against real 2024 OWID data before implementing: the true top 10 emitters (China, United
+States, India, Russia, Japan, Indonesia, Iran, Saudi Arabia, South Korea, Germany) is not
+`FEATURED_COUNTRIES` — the United Kingdom drops out of the headline entirely (its 48% decline was
+only ever there because it's in the curated `FEATURED_COUNTRIES` list, not its raw tonnage);
+Germany becomes the steepest decliner; Russia (−29.8%) enters in the UK's place.
+
+Copilot's review of #124 came back clean, no findings. Two new backend tests:
+`test_overview_headline_movers_unaffected_by_countries_param` (the load-bearing regression proof —
+mirrors the existing `world_map` invariance test) and
+`test_overview_headline_movers_ordering_and_top_n_cap` (a dedicated 12-country fixture proving the
+`TOP_N_HEADLINE` cap actually excludes the 11th/12th-largest emitters). Verified live pre- and
+post-deploy (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache Storage cleared first):
+headline text confirmed **byte-identical** before and after deselecting every country in the
+picker (the core fix); stays visible at 0 selected; the below-the-fold Top Movers section confirmed
+still reacting to the picker (United Kingdom still shown there, unaffected); console clean.
 
 ---
 
