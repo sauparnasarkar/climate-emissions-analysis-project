@@ -65,6 +65,25 @@ const RESPONSE: OverviewResponse = {
     { country: 'United Kingdom', co2_1990: 592, co2_latest: 306, absolute_change: -286, pct_change: -48.3 },
     { country: 'Germany', co2_1990: 1042, co2_latest: 561, absolute_change: -481, pct_change: -46.2 },
   ],
+  // Independent, 10-country fixture (SPEC.md §5.18.5) -- deliberately DIFFERENT from top_movers
+  // above, to prove in tests that the headline sentence no longer shares data with the
+  // selection-scoped Top Movers section. Reflects the real hand-verified top-10-emitters
+  // example: China/India/United States/Germany/Russia are the four "interesting" entries the
+  // sentence names; the other five (Japan/Indonesia/Iran/Saudi Arabia/South Korea) are filler
+  // with moderate positive pct_change that doesn't disturb absGrower/pctGrower/mostStable/
+  // decliners selection.
+  headline_movers: [
+    { country: 'China', co2_1990: 2378, co2_latest: 12184, absolute_change: 9806, pct_change: 412.4 },
+    { country: 'India', co2_1990: 420, co2_latest: 2320, absolute_change: 1900, pct_change: 452.5 },
+    { country: 'United States', co2_1990: 5000, co2_latest: 4780, absolute_change: -220, pct_change: -4.4 },
+    { country: 'Germany', co2_1990: 1000, co2_latest: 543, absolute_change: -457, pct_change: -45.7 },
+    { country: 'Russia', co2_1990: 1000, co2_latest: 702, absolute_change: -298, pct_change: -29.8 },
+    { country: 'Japan', co2_1990: 1000, co2_latest: 1150, absolute_change: 150, pct_change: 15.0 },
+    { country: 'Indonesia', co2_1990: 300, co2_latest: 840, absolute_change: 540, pct_change: 180.0 },
+    { country: 'Iran', co2_1990: 300, co2_latest: 660, absolute_change: 360, pct_change: 120.0 },
+    { country: 'Saudi Arabia', co2_1990: 250, co2_latest: 800, absolute_change: 550, pct_change: 220.0 },
+    { country: 'South Korea', co2_1990: 400, co2_latest: 780, absolute_change: 380, pct_change: 95.0 },
+  ],
   fastest_growth: { country: 'China', co2_1990: 2000, co2_latest: 12000, absolute_change: 10000, pct_change: 500 },
   largest_reduction: { country: 'United Kingdom', co2_1990: 600, co2_latest: 300, absolute_change: -300, pct_change: -50 },
   world_map: [{ country: 'China', iso_code: 'CHN', value: 12000 }],
@@ -136,8 +155,8 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('Since 1990')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'China has grown the most in absolute terms (+9,806 MtCO₂), while India has the fastest growth rate (+452.6%). ' +
-          'United States has stayed comparatively flat (-4.9%), while United Kingdom and Germany show the steepest declines (-48.3%, -46.2%).',
+        'Among the top 10 emitters by 2024 output, China has grown the most in absolute terms (+9,806 MtCO₂), while India has the fastest growth rate (+452.5%). ' +
+          'United States has stayed comparatively flat (-4.4%), while Germany and Russia show the steepest declines (-45.7%, -29.8%).',
       ),
     ).toBeInTheDocument();
     // The "Since 1990" eyebrow already carries the timeframe -- the sentence itself must not
@@ -282,10 +301,10 @@ describe('OverviewPage', () => {
     // All Countries/Expanded stay rendered regardless of the (now empty) selection.
     expect(screen.getByText('All Countries')).toBeInTheDocument();
     expect(screen.getByText('Expanded (Coverage + ≥100 Mt)')).toBeInTheDocument();
-    // The headline sentence narrates data.top_movers, which still reflects whatever the
-    // server defaulted to (FEATURED_COUNTRIES) even with local `selected` at 0 -- gated out
-    // here so it doesn't describe a phantom selection next to this same warning.
-    expect(screen.queryByText('Since 1990')).not.toBeInTheDocument();
+    // headline_movers (SPEC.md §5.18.5) is a fixed top-10-emitters set from the server,
+    // completely independent of `selected` -- unlike the old top_movers-backed headline, it
+    // must stay visible even when every country has been deselected from the picker.
+    expect(await screen.findByText('Since 1990')).toBeInTheDocument();
   });
 
   it('"Reset to default" restores the featured selection and refetches', async () => {

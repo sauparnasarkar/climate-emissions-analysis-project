@@ -160,6 +160,36 @@ def owid_raw_world_map_series_df() -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["country", "year", "co2", "iso_code"])
 
 
+def owid_raw_headline_df() -> pd.DataFrame:
+    """12 sovereign countries at 1990 and 2024 with widely separated co2 magnitudes -- lets
+    headline_movers (SPEC.md §5.18.5) exercise a real top-10-of-12 cap (proving the 2
+    lowest-emitting countries are excluded) with unambiguous nlargest() selection. Deliberately
+    NOT part of FIXTURE_BUILDERS/full_data, mirroring owid_raw_world_map_series_df's own
+    precedent -- only headline_movers tests need this many countries with real magnitude
+    separation. Written directly to a bare data_dir by tests that need it."""
+    rows_2024_desc = [
+        ("China", "CHN", 2378.0, 12184.0),
+        ("United States", "USA", 5104.0, 4880.0),
+        ("India", "IND", 681.0, 3082.0),
+        ("Russia", "RUS", 2200.0, 1544.0),
+        ("Japan", "JPN", 1050.0, 1020.0),
+        ("Germany", "DEU", 1042.0, 566.0),
+        ("Iran", "IRN", 220.0, 780.0),
+        ("South Korea", "KOR", 240.0, 610.0),
+        ("Saudi Arabia", "SAU", 150.0, 720.0),
+        ("Indonesia", "IDN", 130.0, 700.0),
+        # Below the top-10 cutoff at 2024 -- proves nlargest excludes them despite each having
+        # an otherwise-complete 1990/2024 pair.
+        ("Poland", "POL", 400.0, 300.0),
+        ("Vietnam", "VNM", 20.0, 320.0),
+    ]
+    out = []
+    for country, iso, co2_1990, co2_2024 in rows_2024_desc:
+        out.append((country, 1990, co2_1990, iso))
+        out.append((country, 2024, co2_2024, iso))
+    return pd.DataFrame(out, columns=["country", "year", "co2", "iso_code"])
+
+
 def ghg_filtered_df() -> pd.DataFrame:
     # Kenya is outside both FIXTURE_COUNTRIES and the real api.constants.COUNTRIES focus
     # list — load_filtered() deliberately does NOT restrict to COUNTRIES (unlike load_raw),

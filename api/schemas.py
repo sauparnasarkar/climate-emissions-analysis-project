@@ -54,6 +54,14 @@ class OverviewResponse(BaseModel):
     selected_country_list: list[str]
     latest_year_bar: list[CountryValue]
     top_movers: list[MoverRow]
+    # Fixed top TOP_N_HEADLINE sovereign countries by latest-year CO2 -- always the same set
+    # regardless of `countries`/Selected (SPEC.md §5.18.5), backing the Overview page's
+    # always-on headline sentence. Sorted by co2_latest descending (biggest emitters first,
+    # matching how the set itself was selected) -- deliberately NOT by pct_change like
+    # top_movers; the frontend's buildHeadlineSentence derives every fact itself regardless of
+    # input order, so this ordering is a response-shape clarity choice, not something frontend
+    # correctness depends on.
+    headline_movers: list[MoverRow]
     fastest_growth: MoverRow
     largest_reduction: MoverRow
     # Always every sovereign country's own latest year -- unfiltered, independent of

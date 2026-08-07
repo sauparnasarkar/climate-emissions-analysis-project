@@ -5,6 +5,7 @@ from ..constants import (
     FEATURED_COUNTRIES,
     MAX_SELECTED_COUNTRIES,
     PCT_CHANGE_BASELINE_YEAR,
+    TOP_N_HEADLINE,
     WORLD_MAP_YEAR_END,
     WORLD_MAP_YEAR_START,
 )
@@ -126,6 +127,38 @@ def get_overview(countries: list[str] | None = Query(None)):
         for _, r in df_map.iterrows()
     ]
 
+    # headline_movers (SPEC.md §5.18.5): a fixed "top emitters" story, computed from df_all/df_map
+    # (the same selection-invariant universe world_map uses), never df_selected -- so it can't
+    # silently change when `selected` changes. The top-TOP_N_HEADLINE set is fixed by latest-year
+    # co2 magnitude *before* baseline/latest/pct-change figures are computed -- materially
+    # different from top_movers above, which takes whichever countries are in `selected` with no
+    # cap at all.
+    headline_countries = df_map.nlargest(TOP_N_HEADLINE, "co2")["country"].tolist()
+    df_headline = df_all[df_all["country"].isin(headline_countries)]
+
+    co2_baseline_by_country = df_headline[df_headline["year"] == PCT_CHANGE_BASELINE_YEAR].set_index("country")["co2"]
+    co2_headline_latest_by_country = df_headline[df_headline["year"] == all_latest_year].set_index("country")["co2"]
+    headline_absolute_change = co2_headline_latest_by_country - co2_baseline_by_country
+    headline_pct_change = headline_absolute_change / co2_baseline_by_country * 100
+
+    headline_movers_df = pd.DataFrame({
+        "co2_1990": co2_baseline_by_country,
+        "co2_latest": co2_headline_latest_by_country,
+        "absolute_change": headline_absolute_change,
+        "pct_change": headline_pct_change,
+    }).dropna().sort_values("co2_latest", ascending=False)
+
+    headline_movers = [
+        MoverRow(
+            country=country,
+            co2_1990=row["co2_1990"],
+            co2_latest=row["co2_latest"],
+            absolute_change=row["absolute_change"],
+            pct_change=row["pct_change"],
+        )
+        for country, row in headline_movers_df.iterrows()
+    ]
+
     return OverviewResponse(
         all_countries=_tier_metrics(df_all, "All Countries", df_all["country"].nunique(), include_yearly=True),
         expanded_countries=_tier_metrics(df_expanded, "Expanded", len(expanded), include_yearly=True),
@@ -133,6 +166,7 @@ def get_overview(countries: list[str] | None = Query(None)):
         selected_country_list=selected,
         latest_year_bar=latest_year_bar,
         top_movers=top_movers,
+        headline_movers=headline_movers,
         fastest_growth=fastest_growth,
         largest_reduction=largest_reduction,
         world_map=world_map,
