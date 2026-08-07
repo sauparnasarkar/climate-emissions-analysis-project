@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import { ChartCard, SyChart, Select, DataTable, InlineAlert, Spinner } from 'design-system';
+import { ChartCard, SyChart, Select, DataTable, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
+import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
+import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { CountryProfileTableRow } from '../api/types';
 import { POSITIVE_COLOR_HEX, NEGATIVE_COLOR_HEX } from '../constants';
 
@@ -15,16 +17,28 @@ const COLUMNS: ColDef<CountryProfileTableRow>[] = [
   { field: 'ghg_intensity', headerName: 'GHG Intensity (kg CO₂e/$ GDP)' },
 ];
 
+// Stable labels (SPEC.md §5.19) -- distinct from the ChartCards' own titles, which are always
+// suffixed with the currently-selected country.
+const JUMP_ITEMS: JumpLinkItem[] = [
+  { id: 'emissions', label: 'Emissions', href: '#emissions' },
+  { id: 'per-capita', label: 'Per Capita', href: '#per-capita' },
+  { id: 'yoy-change', label: 'YoY Change', href: '#yoy-change' },
+  { id: 'key-stats', label: 'Key Statistics', href: '#key-stats' },
+];
+
 // Split out so the country-profile fetch only ever starts once the expanded country list
 // (and its featured-default seed) are already known — avoiding a wasted initial fetch for
 // an undefined country before GET /api/countries resolves.
 function CountryProfileContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   const [country, setCountry] = useState<string>(featured[0]);
   const { data, error, loading } = useAsync(() => api.countryProfile(country), [country]);
+  const reduceMotion = useReducedMotion();
+  useJumpToHashOnLoad(Boolean(data), reduceMotion);
 
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Country Profile</h1>
+      <JumpLinks items={JUMP_ITEMS} />
 
       <Select
         label={`Select a country (${expanded.length} available)`}
@@ -43,19 +57,19 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
               shrink below 280px still overflows a ~272px content area on the narrowest
               real phones (320px viewport, e.g. Galaxy S9+), even with auto-fit. */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, margin: '16px 0' }}>
-            <ChartCard title={`CO₂ Emissions — ${country}`} headingLevel={2} expandable>
+            <ChartCard id="emissions" title={`CO₂ Emissions — ${country}`} headingLevel={2} expandable>
               {(isExpanded) => (
                 <SyChart height={isExpanded ? 560 : 280} xTitle="Year" yTitle="CO₂ (MtCO₂)" showLegend={false} ariaLabel={`Line chart of total CO₂ emissions for ${country} from ${data.years[0]} to ${data.years[data.years.length - 1]}`} series={[{ name: 'CO₂', x: data.years, y: data.co2, kind: 'line' }]} />
               )}
             </ChartCard>
-            <ChartCard title={`CO₂ per Capita — ${country}`} headingLevel={2} expandable>
+            <ChartCard id="per-capita" title={`CO₂ per Capita — ${country}`} headingLevel={2} expandable>
               {(isExpanded) => (
                 <SyChart height={isExpanded ? 560 : 280} xTitle="Year" yTitle="tCO₂/person" showLegend={false} ariaLabel={`Line chart of CO₂ emissions per capita for ${country} from ${data.years[0]} to ${data.years[data.years.length - 1]}`} series={[{ name: 'CO₂ per Capita', x: data.years, y: data.co2_per_capita, kind: 'line' }]} />
               )}
             </ChartCard>
           </div>
 
-          <ChartCard title={`Year-on-Year CO₂ Change — ${country}`} headingLevel={2}>
+          <ChartCard id="yoy-change" title={`Year-on-Year CO₂ Change — ${country}`} headingLevel={2}>
             <SyChart
               height={280}
               xTitle="Year"
@@ -72,7 +86,7 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
             />
           </ChartCard>
 
-          <div style={{ marginTop: 24 }}>
+          <div id="key-stats" style={{ marginTop: 24 }}>
             <h2 className="__s9cmpx-headline6">Key Statistics</h2>
             <DataTable columns={COLUMNS} rows={data.table} />
           </div>

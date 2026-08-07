@@ -1,13 +1,24 @@
 import { useMemo, useState, type CSSProperties } from 'react';
-import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider } from 'design-system';
+import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, useReducedMotion } from 'design-system';
+import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useCountUp } from '../hooks/useCountUp';
 import { useYearAnimation } from '../hooks/useYearAnimation';
+import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { buildHeadlineSentence } from '../lib/overviewHeadline';
 import { MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR } from '../constants';
 import type { MoverRow, OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
+
+// Stable, hand-authored jump-nav labels (SPEC.md §5.19) -- never copied from a ChartCard's own
+// (often dynamic) title. "Map" and "By Country" would otherwise collide if taken verbatim from
+// their titles, which share the literal prefix "CO₂ Emissions by Country".
+const JUMP_ITEMS: JumpLinkItem[] = [
+  { id: 'map', label: 'Map', href: '#map' },
+  { id: 'by-country', label: 'By Country', href: '#by-country' },
+  { id: 'pct-change', label: '% Change', href: '#pct-change' },
+];
 
 // Dwell time at each autoplay stop (useYearAnimation steps every 5 years, not by year -- year-
 // over-year change is gradual enough to be hard to notice, while a multi-year jump is glaring).
@@ -241,7 +252,7 @@ function AnimatedWorldMap({
 
   return (
     <>
-      <ChartCard title={`CO₂ Emissions by Country (${currentYear})`} headingLevel={2} expandable>
+      <ChartCard id="map" title={`CO₂ Emissions by Country (${currentYear})`} headingLevel={2} expandable>
         <div style={{ marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
           <Button variant="ghost-blue" onClick={toggle} disabled={reducedMotion}>
             {isPlaying ? 'Pause' : 'Play'}
@@ -315,6 +326,11 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // Selection-invariant -- deps: [] means this fires exactly once for the page's lifetime,
   // regardless of how many times `selected` changes (SPEC.md §5.17.1).
   const { data: worldMapSeries, error: worldMapError, loading: worldMapLoading } = useAsync(() => api.worldMapSeries(), []);
+  const reduceMotion = useReducedMotion();
+  // Handles a bookmarked/shared #anchor already in the URL (SPEC.md §5.19) -- called
+  // unconditionally (before the early returns below) per the Rules of Hooks; the hook itself
+  // only actually jumps once `data`/`worldMapSeries` (and therefore the jump targets) exist.
+  useJumpToHashOnLoad(Boolean(data && worldMapSeries), reduceMotion);
 
   // useAsync preserves the previous `data` while a refetch is in flight (only `loading`
   // flips), so only block on a spinner before anything has ever loaded — once `data`
@@ -332,6 +348,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: 0 }}>GHG Emissions Trend Analysis and Forecasting</h1>
+      <JumpLinks items={JUMP_ITEMS} />
       <p className="__s9cmpx-body1" style={{ margin: '4px 0 16px', color: 'var(--__s9cmpx-static-text-weak)' }}>
         An end-to-end analysis of greenhouse gas emissions for {data.expanded_countries.countries_count} major countries using the OWID CO₂ dataset,
         regression models, and ETS(A,Ad,N) forecasting.
@@ -363,28 +380,37 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         <Button variant="ghost-blue" onClick={() => setSelected(featured)}>Reset to default</Button>
       </div>
 
+      {/* Headings live outside the selected.length gate (matching HistoricalTrendsPage's own
+          pattern) so #by-country/#pct-change are always real, jumpable DOM targets (SPEC.md
+          §5.19) -- previously this whole block was one InlineAlert-or-fragment ternary with no
+          persistent element to anchor to when deselected to 0. */}
+      <h2 id="by-country" className="__s9cmpx-headline6" style={{ marginTop: 24 }}>By Country</h2>
       {selected.length === 0 ? (
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>
       ) : (
-        <>
-          <ChartCard title={`CO₂ Emissions by Country (${data.selected.latest_year})`} headingLevel={2}>
-            <SyChart
-              height={320}
-              xTitle="Country"
-              yTitle="CO₂ (MtCO₂)"
-              showLegend={false}
-              ariaLabel={`Bar chart of total CO₂ emissions in ${data.selected.latest_year} for ${barSeries.length} countries, ranging from ${Math.min(...barValues).toLocaleString()} to ${Math.max(...barValues).toLocaleString()} MtCO₂`}
-              // Explicit brand color -- a single-series bar chart would otherwise default to
-              // the categorical palette's index-0 token, which Release 7 (SPEC.md §5.12)
-              // deliberately made near-white for multi-line chart hierarchies. That reads as a
-              // washed-out, colorless bar rather than a real color, so this chart gets the
-              // app's own brand blue instead.
-              series={[{ name: 'CO₂', x: barSeries, y: barValues, kind: 'bar', color: 'var(--__s9cmpx-color-brand-500)' }]}
-            />
-          </ChartCard>
+        <ChartCard title={`CO₂ Emissions by Country (${data.selected.latest_year})`} headingLevel={3}>
+          <SyChart
+            height={320}
+            xTitle="Country"
+            yTitle="CO₂ (MtCO₂)"
+            showLegend={false}
+            ariaLabel={`Bar chart of total CO₂ emissions in ${data.selected.latest_year} for ${barSeries.length} countries, ranging from ${Math.min(...barValues).toLocaleString()} to ${Math.max(...barValues).toLocaleString()} MtCO₂`}
+            // Explicit brand color -- a single-series bar chart would otherwise default to
+            // the categorical palette's index-0 token, which Release 7 (SPEC.md §5.12)
+            // deliberately made near-white for multi-line chart hierarchies. That reads as a
+            // washed-out, colorless bar rather than a real color, so this chart gets the
+            // app's own brand blue instead.
+            series={[{ name: 'CO₂', x: barSeries, y: barValues, kind: 'bar', color: 'var(--__s9cmpx-color-brand-500)' }]}
+          />
+        </ChartCard>
+      )}
 
-          <div style={{ marginTop: 24 }}>
-            <h2 className="__s9cmpx-headline6">Top Movers Since 1990 ({data.selected_country_list.length} Selected Countries)</h2>
+      <div id="pct-change" style={{ marginTop: 24 }}>
+        <h2 className="__s9cmpx-headline6">Top Movers Since 1990 ({data.selected_country_list.length} Selected Countries)</h2>
+        {selected.length === 0 ? (
+          <InlineAlert variant="warning">Select at least one country.</InlineAlert>
+        ) : (
+          <>
             <p className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
               Fastest growth and largest reduction in CO₂ emissions, 1990 → {data.selected.latest_year}, among the {data.selected_country_list.length} selected countries.
             </p>
@@ -423,9 +449,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
                 }]}
               />
             </ChartCard>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

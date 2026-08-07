@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import { ChartCard, SyChart, Select, DataTable, Accordion, InlineAlert, Spinner } from 'design-system';
+import { ChartCard, SyChart, Select, DataTable, Accordion, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
 import type { AccordionItem } from 'design-system/components/Accordion/Accordion';
+import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
+import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { EtsParameterRow, ForecastSummaryRow } from '../api/types';
 
 const SUMMARY_COLUMNS: ColDef<ForecastSummaryRow>[] = [
@@ -36,12 +38,18 @@ function countryCount(n: number): string {
 // undefined country before GET /api/countries resolves.
 function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedCountry: string }) {
   const [country, setCountry] = useState<string>(seedCountry);
+  // Lifted so a jump-nav click can force a specific panel open before scrolling to it (SPEC.md
+  // §5.19) -- a closed Accordion panel's content isn't even mounted, so scrolling there without
+  // opening it first would land on nothing.
+  const [openAccordionIds, setOpenAccordionIds] = useState<string[]>([]);
+  const reduceMotion = useReducedMotion();
 
   const forecast = useAsync(() => api.forecast(country), [country]);
   const summary = useAsync(() => api.forecastSummary('expanded'), []);
   const modelComparison = useAsync(() => api.modelComparison(), []);
   const etsParams = useAsync(() => api.etsParameters(), []);
   const featureImportance = useAsync(() => api.featureImportance(), []);
+  useJumpToHashOnLoad(true, reduceMotion);
 
   const accordionItems: AccordionItem[] = [];
 
@@ -91,16 +99,41 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
     });
   }
 
+  // Opens an Accordion panel (if not already open) before the jump-nav click scrolls to it --
+  // JumpLinks awaits this and then a double-rAF settle before measuring scroll position, so the
+  // page doesn't need to know about that timing itself.
+  const openPanel = (id: string) => () =>
+    setOpenAccordionIds((ids) => (ids.includes(id) ? ids : [...ids, id]));
+
+  // Stable labels (SPEC.md §5.19), distinct from each ChartCard's own (often dynamic) title.
+  // The 3 accordion-backed items only appear once their data has actually loaded (matching
+  // accordionItems' own conditional construction above) and target the panel's own DOM id
+  // (`${id}-accordion-panel`, Accordion's existing convention), not the bare accordion item id.
+  const jumpItems: JumpLinkItem[] = [
+    { id: 'forecast-chart', label: 'Forecast Chart', href: '#forecast-chart' },
+    { id: 'forecast-summary', label: 'Forecast Summary', href: '#forecast-summary' },
+    ...(modelComparison.data
+      ? [{ id: 'model-comparison-accordion-panel', label: 'Model Comparison', href: '#model-comparison-accordion-panel', onBeforeJump: openPanel('model-comparison') }]
+      : []),
+    ...(etsParams.data
+      ? [{ id: 'ets-params-accordion-panel', label: 'ETS Parameters', href: '#ets-params-accordion-panel', onBeforeJump: openPanel('ets-params') }]
+      : []),
+    ...(featureImportance.data
+      ? [{ id: 'feature-importance-accordion-panel', label: 'Feature Importance', href: '#feature-importance-accordion-panel', onBeforeJump: openPanel('feature-importance') }]
+      : []),
+  ];
+
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>ETS(A,Ad,N) Emissions Forecasts (2019–2043)</h1>
+      <JumpLinks items={jumpItems} />
       <p className="__s9cmpx-body1" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Forecasts from Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, with 95% confidence intervals extending to 2043.
       </p>
 
       <Select label={`Select a country (${expanded.length} available)`} options={expanded.map((c) => ({ value: c, label: c }))} value={country} onChange={setCountry} />
 
-      <div style={{ margin: '16px 0' }}>
+      <div id="forecast-chart" style={{ margin: '16px 0' }}>
         {forecast.loading ? (
           <Spinner />
         ) : forecast.error ? (
@@ -123,7 +156,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
         ) : null}
       </div>
 
-      <h2 className="__s9cmpx-headline6">
+      <h2 id="forecast-summary" className="__s9cmpx-headline6">
         {summary.data ? `Forecast Summary — ${countryCount(summary.data.rows.length)}` : 'Forecast Summary'}
       </h2>
       {summary.loading ? (
@@ -136,7 +169,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
 
       {accordionItems.length > 0 && (
         <div style={{ marginTop: 24 }}>
-          <Accordion multiple items={accordionItems} />
+          <Accordion multiple items={accordionItems} openIds={openAccordionIds} onOpenChange={setOpenAccordionIds} />
         </div>
       )}
     </div>

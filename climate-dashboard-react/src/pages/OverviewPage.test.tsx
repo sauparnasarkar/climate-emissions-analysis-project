@@ -107,11 +107,31 @@ const WORLD_MAP_SERIES: WorldMapTimeSeries = {
   value_range: [21, 25324],
 };
 
+// JumpLinks (SPEC.md §5.19) calls design-system's useReducedMotion during render -- jsdom has
+// no window.matchMedia at all, so every test needs this stub regardless of whether it cares
+// about reduced motion specifically.
+function mockReducedMotion(matches: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)' ? matches : false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+}
+
 beforeEach(() => {
   vi.mocked(useYearAnimation).mockReturnValue(DEFAULT_ANIMATION);
+  mockReducedMotion(false);
 });
 
 afterEach(() => {
+  // Not vi.unstubAllGlobals() -- that would also wipe the global ResizeObserver stub
+  // src/test/setup.ts establishes once for the whole file (design-system's DataTable needs
+  // it), breaking every test after the first. beforeEach already re-stubs matchMedia fresh
+  // before each test, so there's nothing stale left for this to clean up anyway.
   vi.clearAllMocks();
 });
 
@@ -308,7 +328,11 @@ describe('OverviewPage', () => {
       await user.click(button);
     }
 
-    expect(await screen.findByText('Select at least one country.')).toBeInTheDocument();
+    // The warning now appears once per gated section (By Country, Top Movers/% Change) --
+    // headings for both sit outside the selected.length gate (SPEC.md §5.19, so #by-country/
+    // #pct-change are always real jump targets), so each renders its own InlineAlert instead
+    // of one shared alert for the whole block.
+    expect(await screen.findAllByText('Select at least one country.')).toHaveLength(2);
     expect(screen.queryByText('Selected')).not.toBeInTheDocument();
     // All Countries/Expanded stay rendered regardless of the (now empty) selection.
     expect(screen.getByText('All Countries')).toBeInTheDocument();
@@ -317,6 +341,24 @@ describe('OverviewPage', () => {
     // completely independent of `selected` -- unlike the old top_movers-backed headline, it
     // must stay visible even when every country has been deselected from the picker.
     expect(await screen.findByText('Since 1990')).toBeInTheDocument();
+    // #by-country/#pct-change (SPEC.md §5.19) stay real, jumpable DOM targets even with 0
+    // selected -- previously this whole block was one InlineAlert-or-fragment ternary with no
+    // persistent element for a jump-nav link to land on.
+    expect(document.getElementById('by-country')).not.toBeNull();
+    expect(document.getElementById('pct-change')).not.toBeNull();
+  });
+
+  it('renders a Jump To nav under the h1 linking to all three sections', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    render(<OverviewPage />);
+
+    const nav = await screen.findByRole('navigation', { name: 'Jump links' });
+    const links = within(nav).getAllByRole('link');
+    expect(links.map((l) => l.textContent)).toEqual(['Map', 'By Country', '% Change']);
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#map', '#by-country', '#pct-change']);
+    expect(document.getElementById('map')).not.toBeNull();
   });
 
   it('"Reset to default" restores the featured selection and refetches', async () => {
@@ -332,7 +374,7 @@ describe('OverviewPage', () => {
     for (const button of removeButtons) {
       await user.click(button);
     }
-    await screen.findByText('Select at least one country.');
+    await screen.findAllByText('Select at least one country.');
 
     vi.mocked(api.overview).mockClear();
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);

@@ -1,8 +1,22 @@
-import { render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import type { CountriesResponse, CountryProfileResponse } from '../api/types';
 import CountryProfilePage from './CountryProfilePage';
+
+// JumpLinks (SPEC.md §5.19) calls design-system's useReducedMotion during render -- jsdom has
+// no window.matchMedia at all, so every test needs this stub. Same pattern as useCountUp.test.ts.
+function mockReducedMotion(matches: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)' ? matches : false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+}
 
 vi.mock('../api/client', () => ({ api: { countryProfile: vi.fn(), listCountries: vi.fn() } }));
 
@@ -33,7 +47,15 @@ const RESPONSE: CountryProfileResponse = {
   table: [{ year: 2021, co2: 11000, co2_per_capita: 7.4, co2_yoy_pct_change: 10.5, ghg_intensity: 0.3 }],
 };
 
+beforeEach(() => {
+  mockReducedMotion(false);
+});
+
 afterEach(() => {
+  // Not vi.unstubAllGlobals() -- that would also wipe the global ResizeObserver stub
+  // src/test/setup.ts establishes once for the whole file (design-system's DataTable needs
+  // it), breaking every test after the first. beforeEach already re-stubs matchMedia fresh
+  // before each test, so there's nothing stale left for this to clean up anyway.
   vi.clearAllMocks();
 });
 
@@ -45,6 +67,20 @@ describe('CountryProfilePage', () => {
 
     expect(await screen.findByText('CO₂ Emissions — China')).toBeInTheDocument();
     expect(vi.mocked(api.countryProfile)).toHaveBeenCalledWith('China');
+  });
+
+  it('renders a Jump To nav under the h1 linking to all four sections', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
+    render(<CountryProfilePage />);
+    await screen.findByText('CO₂ Emissions — China');
+
+    const nav = await screen.findByRole('navigation', { name: 'Jump links' });
+    const links = within(nav).getAllByRole('link');
+    expect(links.map((l) => l.textContent)).toEqual(['Emissions', 'Per Capita', 'YoY Change', 'Key Statistics']);
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#emissions', '#per-capita', '#yoy-change', '#key-stats']);
+    expect(document.getElementById('emissions')).not.toBeNull();
+    expect(document.getElementById('key-stats')).not.toBeNull();
   });
 
   it('re-fetches with a newly selected, expanded-but-not-featured country', async () => {

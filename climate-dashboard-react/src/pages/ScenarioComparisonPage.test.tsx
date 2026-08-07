@@ -1,8 +1,22 @@
-import { render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import type { CountriesResponse, ScenarioCompareResponse, ScenarioCumulativeResponse } from '../api/types';
 import ScenarioComparisonPage from './ScenarioComparisonPage';
+
+// JumpLinks (SPEC.md §5.19) calls design-system's useReducedMotion during render -- jsdom has
+// no window.matchMedia at all, so every test needs this stub. Same pattern as useCountUp.test.ts.
+function mockReducedMotion(matches: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)' ? matches : false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+}
 
 vi.mock('../api/client', () => ({
   api: { listCountries: vi.fn(), scenarioCumulative: vi.fn(), scenarioCompare: vi.fn() },
@@ -60,7 +74,15 @@ const COMPARE: ScenarioCompareResponse = {
   },
 };
 
+beforeEach(() => {
+  mockReducedMotion(false);
+});
+
 afterEach(() => {
+  // Not vi.unstubAllGlobals() -- that would also wipe the global ResizeObserver stub
+  // src/test/setup.ts establishes once for the whole file (design-system's DataTable needs
+  // it), breaking every test after the first. beforeEach already re-stubs matchMedia fresh
+  // before each test, so there's nothing stale left for this to clean up anyway.
   vi.clearAllMocks();
 });
 
@@ -76,6 +98,22 @@ describe('ScenarioComparisonPage', () => {
     expect(screen.getByRole('heading', { name: 'Moderate' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Aggressive' })).toBeInTheDocument();
     expect(vi.mocked(api.scenarioCompare)).toHaveBeenCalledWith(['China']);
+  });
+
+  it('renders a Jump To nav under the h1 linking to all three sections, always present regardless of selection', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    render(<ScenarioComparisonPage />);
+    await screen.findByRole('heading', { name: 'BAU' });
+
+    const nav = await screen.findByRole('navigation', { name: 'Jump links' });
+    const links = within(nav).getAllByRole('link');
+    expect(links.map((l) => l.textContent)).toEqual(['Reduction Map', 'Country Comparison', 'Cumulative Impact']);
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#reduction-map', '#country-comparison', '#cumulative-impact']);
+    expect(document.getElementById('reduction-map')).not.toBeNull();
+    expect(document.getElementById('country-comparison')).not.toBeNull();
+    expect(document.getElementById('cumulative-impact')).not.toBeNull();
   });
 
   it('refetches the comparison panels when the country selection changes', async () => {

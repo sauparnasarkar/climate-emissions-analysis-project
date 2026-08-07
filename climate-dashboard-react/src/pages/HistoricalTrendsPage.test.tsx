@@ -1,8 +1,22 @@
-import { render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import type { CountriesResponse, HistoricalDecadeCompositionResponse, HistoricalTimeseriesResponse } from '../api/types';
 import HistoricalTrendsPage from './HistoricalTrendsPage';
+
+// JumpLinks (SPEC.md §5.19) calls design-system's useReducedMotion during render -- jsdom has
+// no window.matchMedia at all, so every test needs this stub. Same pattern as useCountUp.test.ts.
+function mockReducedMotion(matches: boolean) {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn().mockImplementation((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)' ? matches : false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
+}
 
 vi.mock('../api/client', () => ({
   api: { listCountries: vi.fn(), historicalTimeseries: vi.fn(), historicalDecadeComposition: vi.fn() },
@@ -38,7 +52,15 @@ const COMPOSITION: HistoricalDecadeCompositionResponse = {
   series: [{ gas: 'co2', gas_label: 'CO₂', share: [70, 72] }],
 };
 
+beforeEach(() => {
+  mockReducedMotion(false);
+});
+
 afterEach(() => {
+  // Not vi.unstubAllGlobals() -- that would also wipe the global ResizeObserver stub
+  // src/test/setup.ts establishes once for the whole file (design-system's DataTable needs
+  // it), breaking every test after the first. beforeEach already re-stubs matchMedia fresh
+  // before each test, so there's nothing stale left for this to clean up anyway.
   vi.clearAllMocks();
 });
 
@@ -56,6 +78,22 @@ describe('HistoricalTrendsPage', () => {
     // API call.
     expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(FEATURED, 'co2');
     expect(vi.mocked(api.historicalDecadeComposition)).toHaveBeenCalledWith(FEATURED);
+  });
+
+  it('renders a Jump To nav under the h1 linking to both sections', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+    vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    render(<HistoricalTrendsPage />);
+
+    const nav = await screen.findByRole('navigation', { name: 'Jump links' });
+    const links = within(nav).getAllByRole('link');
+    expect(links.map((l) => l.textContent)).toEqual(['Emissions Over Time', 'GHG Share by Decade']);
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#emissions-over-time', '#ghg-by-decade']);
+    // Both targets exist unconditionally (headings sit outside the selection gate), regardless
+    // of the default selection or loading state.
+    expect(document.getElementById('emissions-over-time')).not.toBeNull();
+    expect(document.getElementById('ghg-by-decade')).not.toBeNull();
   });
 
   it('shows a warning instead of calling the timeseries API when no countries are selected', async () => {
