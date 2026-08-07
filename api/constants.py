@@ -19,6 +19,11 @@ WORLD_MAP_YEAR_END = 2024
 # _tier_metrics) -- previously a bare literal.
 PCT_CHANGE_BASELINE_YEAR = 1990
 
+# How many top-emitting sovereign countries the Overview headline sentence covers (SPEC.md
+# §5.18.5) -- a fixed set independent of the country picker's `selected`/`countries`, unlike
+# MAX_SELECTED_COUNTRIES above which caps the *picker's* own selection.
+TOP_N_HEADLINE = 10
+
 # Mirrors notebook/constants.py's NON_SOVEREIGN verbatim — kept in sync by hand, same
 # three-way-mirror convention as FEATURED_COUNTRIES across notebook/, api/, and app.py.
 NON_SOVEREIGN = [

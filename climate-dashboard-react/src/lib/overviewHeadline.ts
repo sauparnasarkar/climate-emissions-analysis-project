@@ -29,15 +29,21 @@ function formatPct(value: number): string {
 }
 
 /**
- * Builds the Overview page's deterministic "Since 1990" headline sentence from `top_movers`.
- * Returns `null` when there's nothing usable to say (no rows with both figures present).
+ * Builds the Overview page's deterministic "Since 1990" headline sentence from
+ * `headline_movers`. Returns `null` when there's nothing usable to say (no rows with both
+ * figures present).
  *
- * Derives every fact itself rather than trusting `topMovers`' given order -- "sorted descending
- * by pct_change" is a server-side (Python) contract not encoded in `MoverRow` itself, so a
- * `topMovers[0]` shortcut would silently break if that contract ever changed.
+ * `scope` is a caller-supplied clause describing which countries are in view (e.g. "the top 10
+ * emitters by 2024 output") -- kept out of this function for the same reason the "Since 1990"
+ * eyebrow label is: it's a rendering/wording concern, not a derived fact, so the pure function's
+ * output stays independently testable against arbitrary scope text (SPEC.md §5.18.5).
+ *
+ * Derives every fact itself rather than trusting `headlineMovers`' given order -- "sorted
+ * descending by co2_latest" is a server-side (Python) contract not encoded in `MoverRow` itself,
+ * so a `headlineMovers[0]` shortcut would silently break if that contract ever changed.
  */
-export function buildHeadlineSentence(topMovers: MoverRow[]): string | null {
-  const rows: HeadlineRow[] = topMovers
+export function buildHeadlineSentence(headlineMovers: MoverRow[], scope: string): string | null {
+  const rows: HeadlineRow[] = headlineMovers
     .filter((m): m is MoverRow & { absolute_change: number; pct_change: number } =>
       m.absolute_change != null && m.pct_change != null,
     )
@@ -56,11 +62,13 @@ export function buildHeadlineSentence(topMovers: MoverRow[]): string | null {
   // First sentence: who grew the most (absolute vs. rate), collapsed to one clause when the
   // same country tops both. Doesn't repeat "since 1990" inline -- the caller's "Since 1990"
   // eyebrow already carries that timeframe, and stating it twice in the same three lines reads
-  // as a copy-editing miss rather than emphasis.
+  // as a copy-editing miss rather than emphasis. "Among {scope}, " is fused onto the front via a
+  // plain comma splice -- the clause that follows already starts with a capitalized proper noun
+  // (a country name), so no further capitalization/punctuation adjustment is needed at the join.
   const growthSentence =
     absGrower.country === pctGrower.country
-      ? `${absGrower.country} has grown the most, both in absolute terms (+${formatMt(absGrower.absoluteChange)} MtCO₂) and by growth rate (${formatPct(absGrower.pctChange)}%).`
-      : `${absGrower.country} has grown the most in absolute terms (+${formatMt(absGrower.absoluteChange)} MtCO₂), while ${pctGrower.country} has the fastest growth rate (${formatPct(pctGrower.pctChange)}%).`;
+      ? `Among ${scope}, ${absGrower.country} has grown the most, both in absolute terms (+${formatMt(absGrower.absoluteChange)} MtCO₂) and by growth rate (${formatPct(absGrower.pctChange)}%).`
+      : `Among ${scope}, ${absGrower.country} has grown the most in absolute terms (+${formatMt(absGrower.absoluteChange)} MtCO₂), while ${pctGrower.country} has the fastest growth rate (${formatPct(pctGrower.pctChange)}%).`;
 
   // Second sentence: stability + declines. Either half (or the whole sentence) may be omitted.
   const secondClauses: string[] = [];

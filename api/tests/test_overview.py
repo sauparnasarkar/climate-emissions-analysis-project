@@ -1,4 +1,4 @@
-from .conftest import owid_raw_world_map_series_df, write_fixture, write_selected_countries_json
+from .conftest import owid_raw_headline_df, owid_raw_world_map_series_df, write_fixture, write_selected_countries_json
 
 
 def test_overview_happy_path_defaults_to_featured(client):
@@ -144,6 +144,38 @@ def test_overview_top_movers_ordering(client):
     pct_values = [m["pct_change"] for m in body["top_movers"]]
     assert pct_values == sorted(pct_values, reverse=True)
     assert round(movers_by_country["China"], 1) == round((11000 - 2400) / 2400 * 100, 1)
+
+
+def test_overview_headline_movers_unaffected_by_countries_param(client):
+    """headline_movers (SPEC.md §5.18.5) is a fixed top-emitters set, independent of `selected`
+    -- the entire point of the fix. Load-bearing regression test for the whole feature."""
+    default_headline = client.get("/api/overview").json()["headline_movers"]
+    scoped_headline = client.get("/api/overview", params={"countries": ["China"]}).json()["headline_movers"]
+    assert default_headline == scoped_headline
+
+
+def test_overview_headline_movers_ordering_and_top_n_cap(data_dir):
+    """Uses a dedicated 12-country fixture (the shared 4-country owid_raw_df() can't exercise a
+    real top-10 cap) to prove Poland/Vietnam (11th/12th by 2024 co2, each with an otherwise-
+    complete 1990/2024 pair) are excluded by TOP_N_HEADLINE, and that the list is sorted by
+    co2_latest descending, not pct_change like top_movers."""
+    write_fixture(data_dir, "ghg_features.csv")  # /overview needs load_features() to succeed
+    owid_raw_headline_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    body = TestClient(app).get("/api/overview").json()
+    headline = body["headline_movers"]
+
+    assert len(headline) == 10
+    countries = {m["country"] for m in headline}
+    assert "Poland" not in countries
+    assert "Vietnam" not in countries
+    co2_values = [m["co2_latest"] for m in headline]
+    assert co2_values == sorted(co2_values, reverse=True)
+    assert headline[0]["country"] == "China"
+    assert round(headline[0]["pct_change"], 1) == round((12184 - 2378) / 2378 * 100, 1)
 
 
 def test_overview_latest_year_bar_scoped_to_selected(full_data):

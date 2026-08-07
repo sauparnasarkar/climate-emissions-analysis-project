@@ -48,6 +48,10 @@ export interface OverviewResponse {
   selected_country_list: string[];
   latest_year_bar: CountryValue[];
   top_movers: MoverRow[];
+  // Fixed top-N sovereign countries by latest-year CO2 -- always the same set regardless of
+  // `countries`/Selected (SPEC.md §5.18.5), backing the Overview page's always-on headline
+  // sentence. Sorted by co2_latest descending, unlike top_movers' pct_change-descending order.
+  headline_movers: MoverRow[];
   fastest_growth: MoverRow;
   largest_reduction: MoverRow;
   world_map: WorldMapPoint[];

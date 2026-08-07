@@ -141,12 +141,13 @@ function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
   );
 }
 
-// The Overview headline sentence (SPEC.md §5.18.1) -- a deterministic, data-derived one-sentence
-// summary of who's grown/declined the most since 1990, placed above the compressed tier table in
-// the hero row's right column. Renders nothing when there's not enough usable data (see
-// buildHeadlineSentence's own null cases).
-function OverviewHeadline({ topMovers }: { topMovers: MoverRow[] }) {
-  const sentence = buildHeadlineSentence(topMovers);
+// The Overview headline sentence (SPEC.md §5.18.1, decoupled from the picker in §5.18.5) -- a
+// deterministic, data-derived one-sentence summary of who's grown/declined the most since 1990
+// among a fixed top-emitters set, placed above the compressed tier table in the hero row's right
+// column. Renders nothing when there's not enough usable data (see buildHeadlineSentence's own
+// null cases).
+function OverviewHeadline({ headlineMovers, scope }: { headlineMovers: MoverRow[]; scope: string }) {
+  const sentence = buildHeadlineSentence(headlineMovers, scope);
   if (!sentence) return null;
   return (
     <div style={{ padding: '12px 16px', border: '1px solid var(--__s9cmpx-static-divider-weak)', borderRadius: 8 }}>
@@ -164,13 +165,13 @@ function AnimatedWorldMap({
   selected,
   allCountriesTier,
   expandedTier,
-  topMovers,
+  headlineMovers,
 }: {
   worldMapSeries: WorldMapTimeSeries;
   selected: string[];
   allCountriesTier: OverviewTierMetrics;
   expandedTier: OverviewTierMetrics;
-  topMovers: MoverRow[];
+  headlineMovers: MoverRow[];
 }) {
   const minYear = worldMapSeries.years[0];
   const maxYear = worldMapSeries.years[worldMapSeries.years.length - 1];
@@ -262,12 +263,13 @@ function AnimatedWorldMap({
       </ChartCard>
 
       <div className="overview-hero-right" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Gated on the local `selected` (not just data.top_movers' own contents) -- when
-            deselected to 0, top_movers still reflects whatever the server defaulted to
-            (FEATURED_COUNTRIES), which would otherwise narrate a phantom selection right next
-            to the "Select at least one country" warning below. Same gate the Selected tier row
-            already uses just below. */}
-        {selected.length > 0 && <OverviewHeadline topMovers={topMovers} />}
+        {/* Selection-invariant (SPEC.md §5.18.5) -- headlineMovers is a fixed top-N set from the
+            server, independent of the picker, so this stays visible even at 0 selected
+            countries (unlike the Selected tier row just below, which is still gated). */}
+        <OverviewHeadline
+          headlineMovers={headlineMovers}
+          scope={`the top ${headlineMovers.length} emitters by ${allCountriesTier.latest_year} output`}
+        />
         <TierSummaryPanel
           year={currentYear}
           rows={[
@@ -330,7 +332,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           selected={selected}
           allCountriesTier={data.all_countries}
           expandedTier={data.expanded_countries}
-          topMovers={data.top_movers}
+          headlineMovers={data.headline_movers}
         />
       </div>
 
