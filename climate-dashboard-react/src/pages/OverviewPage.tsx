@@ -146,13 +146,29 @@ function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
 // among a fixed top-emitters set, placed above the compressed tier table in the hero row's right
 // column. Renders nothing when there's not enough usable data (see buildHeadlineSentence's own
 // null cases).
+// Country names are bolded and increase/decrease values colored (SPEC.md §5.18.6) -- the same
+// NEGATIVE_COLOR (increase, bad)/POSITIVE_COLOR (decrease, good) convention TierSummaryPanel's
+// own % Change column already uses, so a value here reads consistently with the rest of the
+// page rather than introducing a third color rule.
 function OverviewHeadline({ headlineMovers, scope }: { headlineMovers: MoverRow[]; scope: string }) {
-  const sentence = buildHeadlineSentence(headlineMovers, scope);
-  if (!sentence) return null;
+  const segments = buildHeadlineSentence(headlineMovers, scope);
+  if (!segments) return null;
   return (
     <div style={{ padding: '12px 16px', border: '1px solid var(--__s9cmpx-static-divider-weak)', borderRadius: 8 }}>
       <span className="__s9cmpx-label3" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Since 1990</span>
-      <p className="__s9cmpx-body2" style={{ margin: '4px 0 0' }}>{sentence}</p>
+      <p className="__s9cmpx-body2" style={{ margin: '4px 0 0' }}>
+        {segments.map((seg, i) => {
+          if (seg.kind === 'country') return <strong key={i}>{seg.text}</strong>;
+          if (seg.kind === 'value') {
+            return (
+              <span key={i} style={{ color: seg.sentiment === 'negative' ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
+                {seg.text}
+              </span>
+            );
+          }
+          return seg.text;
+        })}
+      </p>
     </div>
   );
 }

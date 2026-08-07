@@ -1,9 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import { useYearAnimation } from '../hooks/useYearAnimation';
 import { ApiError } from '../api/types';
 import type { CountriesResponse, OverviewResponse, WorldMapTimeSeries } from '../api/types';
+import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../constants';
 import OverviewPage from './OverviewPage';
 
 vi.mock('../api/client', () => ({ api: { listCountries: vi.fn(), overview: vi.fn(), worldMapSeries: vi.fn() } }));
@@ -146,19 +147,30 @@ describe('OverviewPage', () => {
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(FEATURED);
   });
 
-  it('renders the headline sentence (with its "Since 1990" eyebrow) for the default selection', async () => {
+  it('renders the headline sentence (with its "Since 1990" eyebrow), bolding country names and coloring increase/decrease values', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     render(<OverviewPage />);
 
     expect(await screen.findByText('Since 1990')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Among the top 10 emitters by 2024 output, China has grown the most in absolute terms (+9,806 MtCO₂), while India has the fastest growth rate (+452.5%). ' +
-          'United States has stayed comparatively flat (-4.4%), while Germany and Russia show the steepest declines (-45.7%, -29.8%).',
-      ),
-    ).toBeInTheDocument();
+    // The sentence now renders as multiple child nodes (bolded country names, colored values),
+    // not one text node -- match on the <p>'s full textContent instead of a single string node.
+    const expectedText =
+      'Among the top 10 emitters by 2024 output, China has grown the most in absolute terms (+9,806 MtCO₂), while India has the fastest growth rate (+452.5%). ' +
+      'United States has stayed comparatively flat (-4.4%), while Germany and Russia show the steepest declines (-45.7%, -29.8%).';
+    const paragraph = screen.getByText((_, element) => element?.tagName === 'P' && element.textContent === expectedText);
+    expect(paragraph).toBeInTheDocument();
+
+    // Country names are bolded (SPEC.md §5.18.6).
+    expect(within(paragraph).getByText('China').tagName).toBe('STRONG');
+    expect(within(paragraph).getByText('India').tagName).toBe('STRONG');
+
+    // An increase in emissions (more CO2, bad) is colored NEGATIVE_COLOR; a decrease (good) is
+    // colored POSITIVE_COLOR -- the same convention TierSummaryPanel's % Change column uses.
+    expect(within(paragraph).getByText('+452.5%')).toHaveStyle({ color: NEGATIVE_COLOR });
+    expect(within(paragraph).getByText('-4.4%')).toHaveStyle({ color: POSITIVE_COLOR });
+
     // The "Since 1990" eyebrow already carries the timeframe -- the sentence itself must not
     // repeat it, or the two collide in the same three lines (reported live).
     expect(screen.queryByText(/since 1990/i, { selector: 'p' })).not.toBeInTheDocument();
