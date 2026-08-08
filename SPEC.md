@@ -1519,6 +1519,45 @@ browser-automation tooling for the same pre-existing reason noted earlier in thi
 point in the session that tool's smooth-scroll and even basic click-registration reliability had
 degraded further, unrelated to the shipped code.
 
+**Third post-ship bug report: clicking a near-top target still scrolled, hiding the nav itself for
+no benefit.** The user clarified precisely what they meant by the first bug report — not that the
+scroll undershot (that was the second report, above), but that on Country Profile, clicking
+"Emissions" or "Per Capita" scrolled the page a little even though both charts were already fully
+visible without scrolling, just enough to push the `JumpLinks` nav row itself (and the page's own
+`<h1>`) out of view, with nothing new brought on screen to show for it. Since the distance was
+under `BackToTop`'s threshold, the button never appeared either — leaving no easy way back up
+except a manual scroll.
+
+**The fix.** `scrollToJumpTarget` now checks whether the target is already fully within the
+viewport (`getBoundingClientRect().top >= 0 && bottom <= window.innerHeight`) before doing
+anything else, and skips scrolling entirely when it is — focus still moves to the target either
+way, for accessibility consistency. All of the shortfall-spacer and scroll-event-dispatch logic
+from the two earlier fixes above now lives inside the "actually needs to scroll" branch, otherwise
+unchanged.
+
+**A regression test that took three iterations to get right, and a genuinely useful discovery about
+this test harness along the way.** The first attempt asserted position immediately after a raw
+`scrollIntoView` precondition-setup call — passed regardless of whether the fix was present,
+because setting the precondition via `block: 'start'` positioned the target at *exactly* the
+position a buggy click handler would also produce, so there was nothing left to distinguish. The
+second attempt discovered, via a diagnostic dump, that this Storybook browser-mode test harness
+does not unmount previous stories' rendered DOM between `play`-function runs within the same file —
+every preceding story's own content (and scroll position) accumulates in `document.body`, so
+nothing genuinely starts "at the top of the page" by default, which had been silently corrupting
+several `rect.top`/`offsetTop` measurements across this whole release's testing without being
+caught until now. Landed on establishing the precondition explicitly via `block: 'center'` (leaving
+real room both above and below the target) combined with forcing reduced motion for deterministic
+timing — confirmed by reverting the fix and re-running: fails at exactly the undesired scroll
+position (`866` → `1298`) without it, passes with it.
+
+Deployed and verified live against the exact reported scenario: on production, clicking "Per
+Capita" on Country Profile now leaves `window.scrollY` at `0` (unchanged) while correctly moving
+focus to the target — directly confirmed via `document.activeElement`, not just inferred. The
+`Key Statistics` case (needs a real scroll) still correctly updates the hash and moves focus on
+production; the visual scroll animation itself remained unobservable through this session's own
+degraded browser-automation tooling, the same pre-existing limitation as the prior two fixes, not a
+gap in the shipped logic itself.
+
 ---
 
 ## 6. Post-Ship Corrections to Internship Curriculum Notebooks

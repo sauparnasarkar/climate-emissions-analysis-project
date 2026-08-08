@@ -2764,3 +2764,48 @@ reliability had degraded further than earlier in the release (even basic click r
 just smooth-scroll animation, became inconsistent in the same tab) — real-browser click-through
 verification of the visual scroll landing wasn't achievable through that tool this time, a
 continuation of the same pre-existing environment limitation, not a code concern.
+
+### Third post-ship bug report: clicking a near-top target still scrolled, for no benefit
+
+The user's clarification of the *first* bug report turned out to describe a genuinely different,
+third bug — not "the button never appears" (report one) and not "the scroll undershoots the top"
+(report two), but: on Country Profile, clicking "Emissions" or "Per Capita" scrolled the page a
+little even though both charts were already fully visible without scrolling at all, just enough to
+push the `JumpLinks` nav row itself (and the page's own `<h1>`) out of view, with nothing new
+brought into view to justify it. Since the scroll distance was under `BackToTop`'s threshold, the
+button never appeared either — leaving no easy way back up except a manual scroll, exactly matching
+what the user described watching happen.
+
+**The fix.** `scrollToJumpTarget` now checks, before anything else, whether the target is already
+fully contained within the viewport (`rect.top >= 0 && rect.bottom <= window.innerHeight`) and
+skips scrolling entirely when it is. Focus still moves to the target either way — a click should
+still mean something for a keyboard/screen-reader user even when nothing visually moves. All of the
+shortfall-spacer and scroll-event-dispatch logic from the two earlier fixes now lives inside the
+"the target actually isn't fully visible yet" branch, otherwise unchanged.
+
+**Three attempts at a regression test, and a genuinely useful discovery about the test harness
+itself along the way.** The first attempt set up its "already visible" precondition with a raw
+`scrollIntoView({ block: 'start' })` call, then asserted position didn't change after the real
+click — but passed regardless of whether the fix was present, because `block: 'start'` positions
+the target at *exactly* the same spot a buggy click handler would also produce; there was nothing
+left for the assertion to distinguish. Investigating why led to a second, more useful discovery: a
+diagnostic dump of `document.body.children` showed this Storybook browser-mode test harness doesn't
+unmount previous stories' rendered DOM between `play`-function runs within the same file — every
+earlier story's own content (and scroll position) silently accumulates in `document.body`, so
+nothing genuinely starts "at the top of the page" by default. This had likely been quietly
+corrupting `rect.top`/`offsetTop` measurements throughout this whole release's testing without ever
+being caught, since every earlier test either didn't care about absolute position or used spacers
+generous enough to swamp the effect. The working version establishes its precondition with
+`block: 'center'` instead (leaving genuine room both above and below the target, so a real bug is
+actually distinguishable from the fix) combined with forcing reduced motion for deterministic
+timing. Confirmed by reverting the fix and re-running: fails at exactly the wrong scroll position
+(`866` → `1298`, precisely what a `block: 'start'` scroll would produce) without it, passes with it.
+
+Deployed and verified live directly against the reported scenario, not just inferred from the fix
+logic: on production, clicking "Per Capita" on Country Profile now leaves `window.scrollY` at `0`
+(read directly, not assumed) while `document.activeElement` confirms focus still correctly lands on
+the target. The "Key Statistics" case (the one that genuinely needs to scroll, from the second bug
+report) still correctly updates the hash and moves focus on production — the visual scroll
+animation itself remained unobservable through this session's own degraded browser-automation
+tooling by this point, the same pre-existing limitation noted for the two earlier fixes, not a gap
+in what actually shipped.
