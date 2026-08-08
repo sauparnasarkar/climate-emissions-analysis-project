@@ -2809,3 +2809,129 @@ report) still correctly updates the hash and moves focus on production — the v
 animation itself remained unobservable through this session's own degraded browser-automation
 tooling by this point, the same pre-existing limitation noted for the two earlier fixes, not a gap
 in what actually shipped.
+
+### Fourth post-ship bug report: "skip scroll when visible" needed an exception for later sections
+
+The user confirmed the third fix worked as intended, but wanted one more allowance: a section that
+*isn't* the page's top section should always scroll to the top when its link is clicked, even if it
+happens to already be visible — otherwise the link looks broken, like it isn't pointing anywhere.
+Two concrete examples: Country Profile's "YoY Change" (the 3rd of 4 jump items) and Historical
+Trends' "GHG Share by Decade" (the 2nd and last item). Both had inherited the third fix's
+"already-visible → skip" behavior even though neither is genuinely the page's top section — they
+just happened to already be on screen, which the third fix's own logic couldn't tell apart from
+actually being the top.
+
+**The first attempt at fixing this was itself wrong — caught before the user ever saw it, purely
+through this session's own habit of live-verifying immediately after every deploy.** It defined
+"top section" geometrically: a target counts if its document-relative position is less than
+`window.innerHeight`, i.e. "would this be visible with zero scrolling." Every Storybook test
+passed. But testing it live on production immediately after deploying (part of this session's
+standing verification routine, not a special extra step taken because something felt off) turned up
+a direct counterexample: on a perfectly ordinary 1920x963 desktop viewport, Country Profile's "YoY
+Change" sits only 604px down the page — comfortably inside a 963px-tall viewport — so it still got
+classified as top-section and its link still did nothing. The very fix meant to resolve the bug
+report reproduced the bug report, on the exact example the user had named.
+
+**The corrected fix (`design-system` PR #37) treats "top section" as a structural fact instead of a
+geometric one.** Only `items[0]` — literally the first entry in a page's `JumpLinks` array, the one
+that renders immediately after the page's `<h1>` — is ever eligible to skip its scroll when already
+visible. Every other item always scrolls flush to the top when clicked, full stop, regardless of
+whatever viewport happens to already have it in view. `scrollToJumpTarget` now takes an explicit
+`isTopSection` option instead of inferring one, set by `JumpLinks`' own click handler as `item.id
+=== items[0]?.id`. Callers that don't pass it at all — `BackToTop`'s own click handler, and a
+page's hash-on-load effect — always scroll unconditionally, which is correct for both: "back to
+top" always means go all the way, and a freshly loaded page with a `#anchor` already in its URL
+should just land there, the same as the browser's own native hash-scroll would.
+
+Both regression stories were rewritten around this structural definition — `overview` (items[0])
+must not scroll when already visible; `research` (a later item) must always scroll to top even when
+already visible — and confirmed to genuinely discriminate against the *first, flawed* attempt's
+geometric code (both fail against it), not just against the pre-fourth-fix baseline. Deployed and
+verified against both of the user's own named examples: "YoY Change" now reaches `scrollY = 556`
+with `BackToTop` appearing; "GHG Share by Decade" now scrolls where it previously did nothing.
+
+### Anchor-placement bug report: "By Country"/"Country Comparison" should land on the picker
+
+Reported alongside the fourth bug: on Overview, the "By Country" jump target sits on the section's
+own `<h2>`, but the country picker that section actually needs — shared with the "% Change" section
+further down — sits *above* that heading, not below it. Confirmed with exact document-position
+math against production: the heading sits at y=728, the picker at y=656, 72px above. Scrolling the
+heading to the top of the viewport (exactly what the anchor was doing) leaves the picker 72px
+*above* the fold, scrolled out of view — the one control a user actually needs after following the
+link ("I want to change my selection") isn't reachable without an extra manual scroll up, which
+defeats a good chunk of the point of having a jump link there at all. Scenario Comparison's
+"Country Comparison" target got the identical treatment for consistency, even though its own picker
+already sat close to (just below, not above) its own heading.
+
+Fixed in `climate-dashboard-react` (PR #128): moved the `id` from each page's `<h2>` heading onto
+the `country-picker-row` div itself, in both `OverviewPage.tsx` and `ScenarioComparisonPage.tsx`.
+Both picker rows were already unconditionally rendered (never gated behind a selection state, same
+as the headings they replaced as anchor targets), so no existing test needed to change — the
+existing assertions only checked that the target `id` exists somewhere in the DOM, not where.
+Deployed and verified live: Overview's "By Country" now lands with the "Select countries" picker
+flush at the top of the viewport, with the "By Country" heading and its chart both visible right
+below it.
+
+### Fifth post-ship bug, found by accident while verifying the fourth: the shortfall spacer's own cleanup silently undid the fix it was cleaning up after
+
+While live-verifying that "GHG Share by Decade" now scrolls (the fourth fix, above), direct
+`scrollY` polling over the course of the scroll caught something the earlier position-only
+snapshots had never caught: `scrollY` genuinely reached the intended flush-to-top position (`671`,
+with the second fix's shortfall spacer from Release 15's earlier work still in place) — and then,
+the instant that spacer was removed on `scrollend`, snapped straight back down to `255`. That's the
+exact "previous section stays visible" bug the second fix (the shortfall spacer, described earlier
+in this release) exists to prevent, reproduced live on the very page that originally motivated it.
+
+**Root-caused as structural, not a timing race — the kind of bug no amount of waiting longer before
+removal could have fixed.** Removing a spacer that is the *only* thing making a target's position
+reachable will always make the browser re-clamp `scrollY` back down, because `scrollTop` is
+continuously clamped to `[0, scrollHeight - clientHeight]` as the document resizes — true no matter
+how long the code waits first. The original regression test (`ClickScrollsFullyToTopEvenNearPageBottom`,
+from the second fix) only ever looked correct because its own assertion happened to run before the
+scheduled removal fired; it was never actually testing the state that mattered.
+
+**The fix (`design-system` PR #38): stop removing the spacer on any timer or event at all.**
+Instead, it's reclaimed lazily — at the very start of the *next* jump, tracked via a module-level
+`activeSpacer` variable, cleaned up right before deciding anything about the new jump. The
+reasoning: a scroll adjustment as a side effect of the user's *own next click* isn't surprising the
+way one appearing out of nowhere, seconds after they'd already moved on, would be. A new regression
+test (`ClickStaysFlushToTopAfterScrollSettles`) dispatches a real `scrollend` event and then waits
+past the *old* 1-second fallback-removal window before asserting the position still holds — proving
+the fix holds over time, not just for one lucky instant right after the click. Confirmed genuinely
+discriminating by reverting to the old removal-on-settle logic and re-running: fails at `827.9`
+(reclamped back down), passes with the fix.
+
+**Two follow-up commits pushed by Copilot's review during this PR's own review cycle — one reverted,
+one kept, both independently verified rather than taken on faith.** The first tried to improve on
+the fix's one real cosmetic tradeoff (a small amount of blank scrollable space can linger below a
+page's last section until the user's next jump) by proactively reclaiming the spacer via a
+persistent `window` `scroll` listener, torn down once the user scrolls back to a position that's
+valid without it. Pulling the commit and running `BackToTop.stories.tsx` in isolation — not
+combined with `JumpLinks.stories.tsx`, so this wasn't just the familiar cross-story DOM-accumulation
+quirk — surfaced a real regression: a listener armed by one story's spacer stays registered on
+`window` past that story's own lifetime (this harness doesn't unmount between stories), and when a
+later, unrelated story dispatches its own synthetic `scroll` event, that stale listener fires,
+removes its spacer, and the resulting document resize re-clamps `scrollY` synchronously — before
+`BackToTop`'s *own* visibility listener, registered on that same event, gets a chance to read the
+value. The button silently never appears. This is the identical class of bug the whole PR exists to
+fix, just relocated from a one-shot timed removal into a longer-lived global listener with more
+surface area for exactly this kind of cross-listener interference. Reverted with a PR comment
+explaining the mechanism, then re-requested review on the reverted state rather than layering a fix
+for the new bug on top of the change that caused it.
+
+Copilot's second commit was unrelated to any of that: switching one story's `userEvent.click(...)`
+to a raw DOM `.click()` call, since Playwright's `userEvent.click` can auto-scroll a target into an
+interactable position *before* clicking it, which would contaminate that story's own
+"scroll shouldn't have moved" assertion for reasons that have nothing to do with the app's actual
+click-handling logic. This commit didn't touch the reverted source file at all — verified
+independently anyway (`tsc`, the full `JumpLinks`/`BackToTop` story suite, and the project's full
+`npm run test`, 193/193) before merging.
+
+Deployed and verified: the spacer-plus-instant-scroll mechanics were confirmed directly against
+production by manually replicating `scrollToJumpTarget`'s exact math and calling `scrollIntoView`
+with `behavior: 'auto'` — the target landed exactly flush (`scrollY = 672 = targetY`) and held there
+1.2 seconds later, spacer still present. The `smooth`-animation path itself remained unobservable
+through this session's own browser-automation tooling — confirmed separately, on the same tab, that
+`behavior: 'auto'` scrolls correctly and instantly, isolating the gap to that tool's already-known
+inability to progress `smooth` scroll animation frames (not a defect in what shipped), the same
+pre-existing limitation noted throughout this release.
