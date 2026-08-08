@@ -2538,3 +2538,48 @@ to and focuses the right target; keyboard Tab+Enter activation works; a fresh pa
 `/forecasts#model-comparison-accordion-panel` fresh — the exact case the PR #126 review caught —
 correctly opens the Model Comparison panel and scrolls/focuses it; jump-link `href`s resolve to
 real, copyable anchor URLs.
+
+## Release 15 — Floating "Back to Top" Button (Planned)
+
+**Status: Planned.** SPEC.md §5.20. Requested directly, as a companion to Release 14's jump nav: a
+floating button that appears once the user scrolls below the fold and, on click, returns to the
+top of the page. Checked first whether `design-system` already had something reusable for this the
+way `JumpLinks` turned out to be for Release 14 — it doesn't (no existing component, no unused
+vendored CSS class for a floating/back-to-top/FAB pattern) — so this one is a genuine new build,
+not a reuse-and-extend.
+
+**Page-agnostic, unlike Release 14.** The jump nav needed per-page wiring because each page has
+different sections and labels. A back-to-top button doesn't — same behavior everywhere — and
+`climate-dashboard-react`'s `App.tsx` already wraps every route in one shared shell (`<Header>` /
+`<SidebarNav>` / `<main id="main-content">` / `<Routes>` / `<Footer>`), the same shell that already
+centralizes route-change title/focus management in one effect rather than duplicating it per page.
+So this needs exactly one new `design-system` component plus one line in `App.tsx`, not six
+per-page integrations.
+
+**Planned `design-system` component: `BackToTop`.** Composed from the existing `Button`
+(`iconOnly` + `fullRadius` + `iconLeft="chevron-up"` + `variant="primary"`) rather than
+custom-styled from scratch — confirmed via the vendored CSS that `icon-only` + `full-radius`
+together already render a circular icon button, so no new visual styling needs inventing.
+Positioned `fixed`, bottom-right, honoring the same `env(safe-area-inset-*)` padding `App.tsx`'s
+shell already applies. A `window` `scroll` listener toggles visibility once `scrollY` passes a
+`threshold` prop (400px default). The click handler calls `window.scrollTo({ top: 0, behavior })`
+with `behavior` driven by `useReducedMotion()` — the same `'auto'`-under-reduced-motion,
+`'smooth'`-otherwise rule `scrollToJumpTarget` (Release 14) already established — then, given an
+optional `targetId` prop, moves focus there once the scroll settles, mirroring
+`scrollToJumpTarget`'s own scroll-then-focus convention instead of leaving focus wherever the click
+happened to land.
+
+**Planned `climate-emissions-analysis-project` change: one line.** `<BackToTop
+targetId="main-content" />` added once in `App.tsx`, outside `<Routes>`. `targetId="main-content"`
+deliberately reuses the exact `<main id="main-content" tabIndex={-1}>` element `App.tsx`'s existing
+route-change effect already focuses on in-app navigation, so a back-to-top click lands focus in the
+same place a normal page navigation already does — one consistent focus-landing convention, not two.
+
+**Planned sequencing.** `design-system` PR first, `climate-dashboard-react` PR second — same
+dependency order as Release 14, for the same reason: the app PR needs the component the
+design-system PR adds. Planned verification: Storybook `play`-function coverage (hidden below the
+threshold, visible past it, click calls `scrollTo` and moves focus, respects a mocked
+reduced-motion preference); an `App.test.tsx` assertion that the button is absent at `scrollY = 0`
+and present past the threshold; live verification across all six pages plus About — button
+appears/disappears at the right scroll position, click returns to top with focus landing on
+`#main-content`, and it's reachable and activatable via keyboard alone (Tab, then Enter/Space).
