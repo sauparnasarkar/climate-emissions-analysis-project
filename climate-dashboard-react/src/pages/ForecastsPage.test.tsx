@@ -78,6 +78,7 @@ afterEach(() => {
   // it), breaking every test after the first. beforeEach already re-stubs matchMedia fresh
   // before each test, so there's nothing stale left for this to clean up anyway.
   vi.clearAllMocks();
+  window.location.hash = '';
 });
 
 describe('ForecastsPage', () => {
@@ -184,5 +185,19 @@ describe('ForecastsPage', () => {
 
     expect(await screen.findByRole('button', { name: 'Five-Model Comparison Table (MAE / RMSE)' })).toHaveAttribute('aria-expanded', 'true');
     expect(document.getElementById('model-comparison-accordion-panel')).not.toBeNull();
+  });
+
+  it('a bookmarked URL targeting an accordion panel opens that panel and scrolls to it once its data loads', async () => {
+    // Regression test for a bug the PR #126 review caught: useJumpToHashOnLoad used to fire on
+    // first render (before modelComparison/etsParams/featureImportance resolved), so a bookmarked
+    // #model-comparison-accordion-panel URL silently no-opped -- the panel doesn't exist in the
+    // DOM until its data has loaded AND the panel is open.
+    Element.prototype.scrollIntoView = vi.fn();
+    window.location.hash = '#model-comparison-accordion-panel';
+    mockAllResolved();
+    render(<ForecastsPage />);
+
+    expect(await screen.findByRole('button', { name: 'Five-Model Comparison Table (MAE / RMSE)' })).toHaveAttribute('aria-expanded', 'true');
+    expect(document.activeElement?.id).toBe('model-comparison-accordion-panel');
   });
 });

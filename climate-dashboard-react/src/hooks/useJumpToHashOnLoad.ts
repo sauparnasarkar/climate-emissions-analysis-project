@@ -16,5 +16,8 @@ export function useJumpToHashOnLoad(ready: boolean, reduceMotion: boolean): void
     handled.current = true;
     const hash = window.location.hash.slice(1);
     if (hash) scrollToJumpTarget(hash, { reduceMotion });
-  }, [ready, reduceMotion]);
+    // reduceMotion isn't a dep -- handled.current makes this a one-shot effect, so a later
+    // change to reduceMotion could never trigger a second run anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 }

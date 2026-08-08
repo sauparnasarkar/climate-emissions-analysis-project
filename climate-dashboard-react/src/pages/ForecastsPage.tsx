@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { ChartCard, SyChart, Select, DataTable, Accordion, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
 import type { AccordionItem } from 'design-system/components/Accordion/Accordion';
@@ -25,6 +25,14 @@ const ETS_COLUMNS: ColDef<EtsParameterRow>[] = [
   { field: 'phi', headerName: 'φ (damping)' },
 ];
 
+// Panel DOM id (Accordion's `${id}-accordion-panel` convention) -> accordion item id, for
+// resolving a bookmarked hash-jump target to the panel it needs opened first (SPEC.md §5.19).
+const PANEL_TO_ACCORDION_ID: Record<string, string> = {
+  'model-comparison-accordion-panel': 'model-comparison',
+  'ets-params-accordion-panel': 'ets-params',
+  'feature-importance-accordion-panel': 'feature-importance',
+};
+
 function humanize(field: string): string {
   return field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -49,7 +57,23 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
   const modelComparison = useAsync(() => api.modelComparison(), []);
   const etsParams = useAsync(() => api.etsParameters(), []);
   const featureImportance = useAsync(() => api.featureImportance(), []);
-  useJumpToHashOnLoad(true, reduceMotion);
+
+  // A bookmarked/shared URL might target one of the 3 accordion-backed panels below -- those
+  // don't exist in the DOM until their data has loaded AND the panel is open, unlike
+  // #forecast-chart/#forecast-summary which are unconditionally in the DOM from first render.
+  // Open the targeted panel (once its data is ready) before useJumpToHashOnLoad is allowed to fire.
+  const hashAtMount = useRef(window.location.hash.slice(1));
+  const targetAccordionId = PANEL_TO_ACCORDION_ID[hashAtMount.current];
+  const allAccordionDataReady = Boolean(modelComparison.data && etsParams.data && featureImportance.data);
+
+  useEffect(() => {
+    if (targetAccordionId && allAccordionDataReady) {
+      setOpenAccordionIds((ids) => (ids.includes(targetAccordionId) ? ids : [...ids, targetAccordionId]));
+    }
+  }, [targetAccordionId, allAccordionDataReady]);
+
+  const hashJumpReady = targetAccordionId ? allAccordionDataReady && openAccordionIds.includes(targetAccordionId) : true;
+  useJumpToHashOnLoad(hashJumpReady, reduceMotion);
 
   const accordionItems: AccordionItem[] = [];
 
