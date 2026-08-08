@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Header, SidebarNav, Footer } from 'design-system';
+import { Header, SidebarNav, Footer, BackToTop } from 'design-system';
 import type { SidebarNavItem, SidebarNavGroup } from 'design-system/components/SidebarNav/SidebarNav';
 
 import OverviewPage from './pages/OverviewPage';
@@ -173,6 +173,10 @@ function App() {
           href="#" — this app has no policies page, so suppress it rather than
           ship a dead link. */}
       <Footer copyright="IDEAS TIH Summer Internship 2026 · Mentor: Sauparna Sarkar" links={[]} />
+      {/* Page-agnostic (SPEC.md §5.20), unlike JumpLinks -- wired once here rather than per page.
+          targetId reuses the same #main-content landmark the route-change effect above already
+          focuses on in-app navigation, so a back-to-top click lands focus in the same place. */}
+      <BackToTop targetId="main-content" />
     </div>
   );
 }
