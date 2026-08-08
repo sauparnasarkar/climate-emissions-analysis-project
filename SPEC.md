@@ -1369,42 +1369,71 @@ the scroll lands, confirmed directly on the exact bookmarked-URL case the review
 (`/forecasts#model-comparison-accordion-panel`); jump-link `href`s resolve to real, copyable anchor
 URLs.
 
-### 5.20 Floating "Back to Top" Button (Planned, Release 15)
+### 5.20 Floating "Back to Top" Button (Shipped, Release 15)
 
-**Status: Planned.** Requested directly, as a companion to §5.19's jump nav: a floating button that
-appears once the user has scrolled below the fold and, on click, scrolls back to the top of the
-page. Unlike §5.19, this is page-agnostic — the same behavior on every page — so it needs exactly
-one new `design-system` component plus one wiring point in `climate-dashboard-react`'s shared
-`App.tsx` shell, not six per-page integrations. Confirmed no existing vendored CSS or unused
-component covers this (unlike §5.19's `JumpLinks` find) — this one is a genuine new build.
+**Status: Shipped.** `design-system` PR #32 + `climate-emissions-analysis-project` PR #127.
+Requested directly, as a companion to §5.19's jump nav: a floating button that appears once the
+user has scrolled below the fold and, on click, returns to the top of the page. Unlike §5.19, this
+is page-agnostic — the same behavior on every page — so it needed exactly one new `design-system`
+component plus one wiring point in `climate-dashboard-react`'s shared `App.tsx` shell, not six
+per-page integrations. Confirmed no existing vendored CSS or unused component covers this (unlike
+§5.19's `JumpLinks` find) — this one was a genuine new build.
 
 **`design-system`: new `BackToTop` component.** Composed from the existing `Button` (`iconOnly`,
-`fullRadius`, `iconLeft="chevron-up"`, `variant="primary"`) rather than custom-styled from scratch,
-matching this project's established reuse-first convention — `iconOnly` + `fullRadius` together
-already render a circular icon button. Wrapped in a `position: fixed` container, bottom-right,
-respecting the same `env(safe-area-inset-*)` handling `App.tsx` already applies at the shell level.
-Visibility toggles on a `window` `scroll` listener once `window.scrollY` exceeds a `threshold` prop
-(default 400px). Click handler calls `window.scrollTo({ top: 0, behavior })`, `behavior` driven by
-`useReducedMotion()` exactly like `scrollToJumpTarget` (§5.19) — `'auto'` under reduced motion,
-`'smooth'` otherwise — then, if a `targetId` prop is supplied, moves focus to that element once
-scroll settles, mirroring `scrollToJumpTarget`'s own focus-management convention rather than
-leaving focus stranded wherever the click happened to land.
+`fullRadius`, `iconLeft="chevron-up"`, `variant="primary"`) rather than custom-styled from scratch
+— `iconOnly` + `fullRadius` together already render a circular icon button. Wrapped in a `position:
+fixed` container, bottom-right, respecting the same `env(safe-area-inset-*)` handling `App.tsx`
+already applies at the shell level; `z-index: var(--__s9cmpx-z-index-modal)` to clear the sidebar
+nav's own z-index, the same fix `ChartCard`'s expand overlay already needed for the same reason.
+Visibility toggles on a plain `window` `scroll` listener once `window.scrollY` exceeds a `threshold`
+prop (default 400px) — no `requestAnimationFrame` throttling, unlike an earlier draft of this
+component: live Storybook testing showed rAF callbacks can go unfired in a backgrounded/non-visible
+test-runner tab, so the simpler direct `setState` call is both correct and more testable.
+
+**A real cross-browser scroll bug, found and fixed before merge.** The original implementation
+called `window.scrollTo({ top: 0, behavior })` directly, mirroring the plan's draft. Live testing
+turned up that `window.scrollTo({ behavior: 'smooth' })` does not reliably animate in some browser
+contexts this app runs in — confirmed via direct `scrollY` polling, the call was a complete no-op
+under `'smooth'` while `behavior: 'auto'` worked instantly and correctly every time. `Element.
+scrollIntoView({ behavior: 'smooth' })` — the mechanism `scrollToJumpTarget` (§5.19) already
+uses — did not share this problem. Fixed by having `BackToTop` require callers to pass a real
+element id via `targetId` and call `scrollToJumpTarget(targetId, { reduceMotion })` directly rather
+than scrolling the window itself; `targetId` is optional in the type but effectively required in
+practice (the one real caller always has a landmark to point at), with an instant, non-animated
+`window.scrollTo(0, 0)` retained only as a fallback if it's omitted.
+
+**Two more issues found by Copilot's review, both real.** First: activating the button via
+keyboard (Enter/Space while focused) and landing back below the visibility threshold would unmount
+the button — `if (!visible) return null` — while it still held keyboard focus, silently dropping a
+keyboard user's focus into the void. Fixed with a `focusWithin` state (`onFocusCapture`/
+`onBlurCapture`) that keeps the button mounted as long as it still contains focus, independent of
+`visible`. Second, smaller: a Storybook story's `window.matchMedia` override (forcing reduced
+motion for deterministic testing) was applied at render time with no teardown, leaking into
+subsequent stories in the same test run — fixed with proper `beforeEach`/`afterEach` story hooks.
+Both fixes were pushed by Copilot directly to the PR branch; verified correct and merged in
+alongside this session's own `scrollToJumpTarget` change (the two touched adjacent but
+non-overlapping code, reconciled by hand where the same story file needed both).
 
 **`climate-emissions-analysis-project`: one line in `App.tsx`.** `<BackToTop targetId="main-content" />`
-added once to the shared app shell (outside `<Routes>`, so it doesn't need per-page duplication);
-`targetId="main-content"` reuses the same `<main id="main-content" tabIndex={-1}>` element
-`App.tsx`'s existing route-change focus-management effect already targets, so a "back to top" click
-lands focus in the same place an in-app navigation already does.
+added once to the shared app shell (outside `<Routes>`), reusing the same `<main id="main-content"
+tabIndex={-1}>` element `App.tsx`'s existing route-change focus-management effect already targets
+— a "back to top" click lands focus in the same place an in-app navigation already does. No
+`App.test.tsx` was added: `BackToTop`'s own behavior is already covered by its Storybook stories in
+isolation, and the one-line wiring itself was verified via live browser testing rather than a new
+test file that would need to mock the app's full page/routing/API surface just to check one
+declarative line.
 
-Sequencing: `design-system` PR first, `climate-dashboard-react` PR second (same order as §5.19,
-for the same reason — the app PR depends on the just-added component). Verification plan: Storybook
-`play`-function coverage (visible only past the threshold, click calls `scrollTo`/moves focus,
-respects a mocked reduced-motion preference); a new `App.test.tsx` (or extension of one, if it
-already exists) assertion that the button is absent at `scrollY = 0` and present past the
-threshold, on at least one page; live verification across all six pages plus About (scroll down,
-confirm the button appears, click it, confirm the page returns to top and focus lands on
-`#main-content`); keyboard-operability check (button is a real `<button>`, reachable via Tab,
-activates via Enter/Space).
+Sequencing followed the plan: `design-system` PR #32 landed first, `climate-emissions-analysis-project`
+PR #127 second. Live verification (dev server first, then production with service worker/Cache
+Storage cleared) confirmed: the button is absent at the top of the page and appears once scrolled
+past the threshold; clicking it moves focus to `#main-content`, confirmed via direct
+`document.activeElement` inspection since real smooth-scroll-animation completion isn't reliably
+observable through this session's own browser-automation tooling (a limitation of that tool in this
+session, not of the shipped code — the underlying instant/`'auto'` scroll path, which the automation
+tool *can* observe reliably, was separately confirmed correct). Deploy pulled `design-system` before
+`climate-dashboard-react` on the Mac Mini, since the app's build failed against a stale
+`design-system` checkout missing the new export — the same dependency-ordering lesson §5.19's deploy
+already established.
 
 ---
 

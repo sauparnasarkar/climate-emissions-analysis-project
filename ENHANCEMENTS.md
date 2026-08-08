@@ -2539,47 +2539,115 @@ to and focuses the right target; keyboard Tab+Enter activation works; a fresh pa
 correctly opens the Model Comparison panel and scrolls/focuses it; jump-link `href`s resolve to
 real, copyable anchor URLs.
 
-## Release 15 — Floating "Back to Top" Button (Planned)
+## Release 15 — Floating "Back to Top" Button
 
-**Status: Planned.** SPEC.md §5.20. Requested directly, as a companion to Release 14's jump nav: a
-floating button that appears once the user scrolls below the fold and, on click, returns to the
-top of the page. Checked first whether `design-system` already had something reusable for this the
-way `JumpLinks` turned out to be for Release 14 — it doesn't (no existing component, no unused
-vendored CSS class for a floating/back-to-top/FAB pattern) — so this one is a genuine new build,
-not a reuse-and-extend.
+**Status: Shipped.** `design-system` PR #32 + `climate-emissions-analysis-project` PR #127
+(SPEC.md §5.20). Requested directly, as a companion to Release 14's jump nav: a floating button
+that appears once the user scrolls below the fold and, on click, returns to the top of the page.
+Checked first whether `design-system` already had something reusable for this the way `JumpLinks`
+turned out to be for Release 14 — it didn't (no existing component, no unused vendored CSS class
+for a floating/back-to-top/FAB pattern) — so this one was a genuine new build, not a reuse-and-extend.
 
 **Page-agnostic, unlike Release 14.** The jump nav needed per-page wiring because each page has
 different sections and labels. A back-to-top button doesn't — same behavior everywhere — and
 `climate-dashboard-react`'s `App.tsx` already wraps every route in one shared shell (`<Header>` /
 `<SidebarNav>` / `<main id="main-content">` / `<Routes>` / `<Footer>`), the same shell that already
 centralizes route-change title/focus management in one effect rather than duplicating it per page.
-So this needs exactly one new `design-system` component plus one line in `App.tsx`, not six
+So this needed exactly one new `design-system` component plus one line in `App.tsx`, not six
 per-page integrations.
 
-**Planned `design-system` component: `BackToTop`.** Composed from the existing `Button`
-(`iconOnly` + `fullRadius` + `iconLeft="chevron-up"` + `variant="primary"`) rather than
-custom-styled from scratch — confirmed via the vendored CSS that `icon-only` + `full-radius`
-together already render a circular icon button, so no new visual styling needs inventing.
-Positioned `fixed`, bottom-right, honoring the same `env(safe-area-inset-*)` padding `App.tsx`'s
-shell already applies. A `window` `scroll` listener toggles visibility once `scrollY` passes a
-`threshold` prop (400px default). The click handler calls `window.scrollTo({ top: 0, behavior })`
-with `behavior` driven by `useReducedMotion()` — the same `'auto'`-under-reduced-motion,
-`'smooth'`-otherwise rule `scrollToJumpTarget` (Release 14) already established — then, given an
-optional `targetId` prop, moves focus there once the scroll settles, mirroring
-`scrollToJumpTarget`'s own scroll-then-focus convention instead of leaving focus wherever the click
-happened to land.
+### `design-system` component: `BackToTop`
 
-**Planned `climate-emissions-analysis-project` change: one line.** `<BackToTop
-targetId="main-content" />` added once in `App.tsx`, outside `<Routes>`. `targetId="main-content"`
-deliberately reuses the exact `<main id="main-content" tabIndex={-1}>` element `App.tsx`'s existing
-route-change effect already focuses on in-app navigation, so a back-to-top click lands focus in the
-same place a normal page navigation already does — one consistent focus-landing convention, not two.
+Composed from the existing `Button` (`iconOnly` + `fullRadius` + `iconLeft="chevron-up"` +
+`variant="primary"`) rather than custom-styled from scratch — confirmed via the vendored CSS that
+`icon-only` + `full-radius` together already render a circular icon button, so no new visual
+styling needed inventing. Positioned `fixed`, bottom-right, honoring the same
+`env(safe-area-inset-*)` padding `App.tsx`'s shell already applies, with `z-index:
+var(--__s9cmpx-z-index-modal)` to clear the sidebar nav's own z-index — the same fix `ChartCard`'s
+expand overlay already needed for the same reason, confirmed by grepping this file's own prior
+z-index lessons before picking a value. A plain `window` `scroll` listener toggles visibility once
+`scrollY` passes a `threshold` prop (400px default) — the first draft rAF-throttled this, dropped
+after live Storybook testing showed `requestAnimationFrame` callbacks can simply never fire in a
+backgrounded/non-foregrounded test-runner tab, breaking the visibility toggle entirely in that
+environment; a plain synchronous `setState` call turned out both correct and more testable, with no
+real performance cost worth trading away testability for.
 
-**Planned sequencing.** `design-system` PR first, `climate-dashboard-react` PR second — same
-dependency order as Release 14, for the same reason: the app PR needs the component the
-design-system PR adds. Planned verification: Storybook `play`-function coverage (hidden below the
-threshold, visible past it, click calls `scrollTo` and moves focus, respects a mocked
-reduced-motion preference); an `App.test.tsx` assertion that the button is absent at `scrollY = 0`
-and present past the threshold; live verification across all six pages plus About — button
-appears/disappears at the right scroll position, click returns to top with focus landing on
-`#main-content`, and it's reachable and activatable via keyboard alone (Tab, then Enter/Space).
+### A real cross-browser scroll bug, found before merge
+
+The first working version called `window.scrollTo({ top: 0, behavior })` directly on click,
+matching the plan's draft exactly. Live testing (polling `window.scrollY` over several seconds
+after a real click) showed this was a complete no-op under `behavior: 'smooth'` in some of the
+browser contexts this app runs in — not slow, not eventually-consistent, genuinely stuck at the
+pre-click scroll position indefinitely. `behavior: 'auto'` (instant) worked correctly every time.
+Isolated further: `Element.scrollIntoView({ behavior: 'smooth' })` — the mechanism
+`scrollToJumpTarget` (Release 14) already uses for JumpLinks — did not share this problem when
+tested against a real element with a real position. This was reproducible via direct script
+injection and via genuine click-triggered activation alike, ruling out a user-activation-gating
+explanation.
+
+Fixed by having `BackToTop` stop calling `window.scrollTo` for its primary path entirely:
+`handleClick` now calls `scrollToJumpTarget(targetId, { reduceMotion })` directly whenever a
+`targetId` is supplied, reusing Release 14's already-shipped, already-proven mechanism rather than
+re-implementing scroll-plus-focus logic a second time with different (and apparently less
+reliable) browser behavior. `targetId` stayed optional in the prop type — for API symmetry and
+because a truly standalone `BackToTop` with no landmark to point at is a reasonable use elsewhere
+— but is effectively required in practice: the one real caller (`climate-dashboard-react`'s
+`App.tsx`) always has `#main-content` to target. An instant, non-animated `window.scrollTo(0, 0)`
+remains as the fallback for the no-`targetId` case, deliberately not attempting the (now known
+unreliable) smooth variant there either.
+
+### Two more issues found by Copilot's review
+
+**A real accessibility bug, found and fixed by Copilot directly.** Activating the button via
+keyboard (focus it, press Enter/Space) and landing back below the visibility threshold would
+unmount the button — `if (!visible) return null` — while it still held keyboard focus, silently
+dropping a keyboard user's focus into the void with nothing announced and nowhere for their next
+Tab press to go. Copilot's own fix pushed directly to the PR branch: a `focusWithin` state, set via
+`onFocusCapture`/cleared via `onBlurCapture` (checking `relatedTarget` isn't still inside the
+wrapper), that keeps the button mounted as long as it still contains focus, independent of
+`visible`. Confirmed this doesn't conflict with the `targetId` path's own focus handoff — when a
+real `targetId` is given, `scrollToJumpTarget` moves focus to that element as part of the same
+click, which is outside the button's own wrapper and correctly lets `focusWithin` go false and the
+button unmount once it's genuinely no longer needed; the fix's real value is specifically for the
+no-`targetId` fallback case, where nothing else claims focus afterward.
+
+**A smaller test-hygiene fix, also pushed by Copilot.** A Storybook story's `window.matchMedia`
+override (forcing reduced motion, for a deterministic click-scroll assertion) was applied once at
+render time with no teardown — leaking the stub into every subsequent story run in the same test
+session. Fixed with proper Storybook `beforeEach`/`afterEach` story hooks restoring the original
+`matchMedia` after each run, rather than a render-time side effect with no corresponding cleanup.
+
+Both of Copilot's fixes were verified correct and merged in by hand alongside this session's own
+`scrollToJumpTarget` change — the two touched the same story file in adjacent but
+non-conflicting regions (git's automatic merge resolved `BackToTop.tsx` cleanly on its own; only
+`BackToTop.stories.tsx` needed manual reconciliation), confirmed via a full re-run of the
+Storybook suite (166/166 passing) after combining them.
+
+### `climate-emissions-analysis-project`: one line in `App.tsx`
+
+`<BackToTop targetId="main-content" />` added once in `App.tsx`, outside `<Routes>`.
+`targetId="main-content"` deliberately reuses the exact `<main id="main-content" tabIndex={-1}>`
+element `App.tsx`'s existing route-change effect already focuses on in-app navigation, so a
+back-to-top click lands focus in the same place a normal page navigation already does — one
+consistent focus-landing convention, not two. No new `App.test.tsx` was added: `BackToTop`'s own
+behavior (visibility toggling, click-scroll-focus, keyboard-focus retention) is already covered by
+its own Storybook stories in isolation, and mocking the full page tree, routing, and API layer just
+to assert one declarative line would cost more than it proves — verified instead via live browser
+testing of the actual wired app.
+
+Sequencing followed the plan exactly: `design-system` PR #32 landed first, then
+`climate-emissions-analysis-project` PR #127. Deploy pulled `design-system` before
+`climate-dashboard-react` on the Mac Mini for the same reason Release 14's deploy needed the same
+order — the app's build failed against a stale `design-system` checkout missing the new
+`BackToTop` export until `design-system`'s own checkout was fast-forwarded first.
+
+Verified live pre- and post-deploy (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache
+Storage cleared first, `vitepreview` LaunchAgent rebuilt/restarted — no `api/` change in this
+release, `uvicorn` untouched): the button is absent at the top of the page and appears once
+scrolled past the threshold; clicking it moves focus to `#main-content`, confirmed via direct
+`document.activeElement` inspection. Real smooth-scroll-animation *completion* wasn't reliably
+observable through this session's own browser-automation tooling specifically — a limitation of
+that tool in this session (the same class of issue already documented for Release 14's dropped
+modified-click Storybook test), not evidence of a problem in the shipped code; the underlying
+instant/`'auto'` scroll path, which the automation tool could observe reliably, was separately and
+repeatedly confirmed correct before relying on it.
