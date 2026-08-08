@@ -175,8 +175,13 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
       ) : null}
 
       <div style={{ marginTop: 24 }}>
-        <h2 id="country-comparison" className="__s9cmpx-headline6">Country Comparison</h2>
-        <div className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
+        <h2 className="__s9cmpx-headline6">Country Comparison</h2>
+        {/* id lives here, not on the heading above -- matching Overview's "By Country" fix
+            (SPEC.md §5.19/§5.20): the jump target should land on the picker a user actually
+            needs to interact with, not just its heading, so the dropdown is guaranteed to be
+            the first thing on screen after following the link rather than requiring a further
+            manual scroll to reach it. */}
+        <div id="country-comparison" className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
           <MultiSelect
             label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
             options={expanded.map((c) => ({ value: c, label: c }))}

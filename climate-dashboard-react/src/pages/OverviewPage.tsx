@@ -369,7 +369,13 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         />
       </div>
 
-      <div className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 12 }}>
+      {/* id lives here, not on the "By Country" heading below -- this picker sits above that
+          heading (it's shared with the % Change section further down), so anchoring "by-country"
+          to the heading alone left the picker itself scrolled out of view above the jump
+          target, confirmed live: the dropdown a user needs to change their selection wasn't
+          visible after following the link. Anchoring the wrapping row instead means the picker
+          is the first thing on screen, exactly what "By Country" should feel like it jumps to. */}
+      <div id="by-country" className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 12 }}>
         <MultiSelect
           label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
           options={expanded.map((c) => ({ value: c, label: c }))}
@@ -380,11 +386,11 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         <Button variant="ghost-blue" onClick={() => setSelected(featured)}>Reset to default</Button>
       </div>
 
-      {/* Headings live outside the selected.length gate (matching HistoricalTrendsPage's own
-          pattern) so #by-country/#pct-change are always real, jumpable DOM targets (SPEC.md
-          §5.19) -- previously this whole block was one InlineAlert-or-fragment ternary with no
-          persistent element to anchor to when deselected to 0. */}
-      <h2 id="by-country" className="__s9cmpx-headline6" style={{ marginTop: 24 }}>By Country</h2>
+      {/* Heading lives outside the selected.length gate (matching HistoricalTrendsPage's own
+          pattern) -- previously this whole block was one InlineAlert-or-fragment ternary with no
+          persistent element to anchor to when deselected to 0. #pct-change (below) is unaffected
+          by this change, still real and jumpable the same way (SPEC.md §5.19). */}
+      <h2 className="__s9cmpx-headline6" style={{ marginTop: 24 }}>By Country</h2>
       {selected.length === 0 ? (
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>
       ) : (
