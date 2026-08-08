@@ -1291,6 +1291,84 @@ Storage cleared first): country names render bold, increase values (China's abso
 India's growth rate) render red, decrease values (United States, Germany, Russia) render green,
 visually consistent with the tier table's own coloring; console clean.
 
+### 5.19 Per-Page "Jump To" Navigation (Shipped, Release 14)
+
+**Status: Shipped.** `design-system` PR #31 + `climate-emissions-analysis-project` PR #126. A
+small in-page anchor-link row under each of the six main pages' `<h1>`, letting a user jump
+straight to a below-the-fold section instead of scrolling — Overview and Forecasts each have 3–5
+sections; the rest have 2–4.
+
+**Reuse over new-build.** The draft spec called for a new `Chip`-based `JumpNav` component. Before
+implementing, research found `design-system` already shipped an unused `JumpLinks` component
+(`src/components/JumpLinks/JumpLinks.tsx`, exported from `src/index.ts`, real vendored CSS,
+confirmed zero usages in either repo) built for exactly this purpose, styled as underline tabs
+rather than pill chips. Presented as an explicit choice; reusing `JumpLinks` was selected —
+eliminating the need for the `Chip` `href` variant the draft also called for.
+
+**`design-system` changes (PR #31).** `ChartCard` gained a passthrough `id?: string` (the
+underlying `Card` already forwarded `id` via `{...rest}`, so this was a one-line addition).
+`JumpLinks`' `JumpLinkItem` gained an optional `onBeforeJump?: () => void | Promise<void>`, awaited
+before scrolling — used by Forecasts to force-open a collapsed `Accordion` panel before jumping
+into it. The click handler mirrors `SidebarNav`'s existing interception guard (a modified click —
+ctrl/cmd/shift/alt — or a non-primary mouse button is never intercepted, so "open in new
+tab"/"copy link address" keep working natively). A new exported `scrollToJumpTarget(id, opts)`
+helper factors the scroll/focus logic out for reuse by the consuming apps' own hash-on-load effect.
+`Accordion` gained an optional controlled `openIds`/`onOpenChange` pair (additive; the sole
+existing consumer, `ForecastsPage`, was fully uncontrolled and unaffected).
+
+Copilot's review of #31 found one real bug: the click handler's `e.preventDefault()` (needed to run
+the scroll/focus sequence instead of a native jump) meant the URL hash never actually updated,
+breaking "copy link address" and back-button behavior. Fixed by adding a `window.history.pushState`
+call after the scroll. A Storybook `play`-function test asserting a modified click is *not*
+intercepted reproducibly crashed the Storybook/vitest browser-mode test runner (root-caused via
+bisection to a real native hash-navigation completing inside that specific test harness, not a bug
+in the interception-guard code itself, which is a direct port of `SidebarNav`'s already-shipped
+logic) — dropped that one story, documented why in a code comment, and covered that behavior via
+live browser verification instead.
+
+**`climate-emissions-analysis-project` changes (PR #126).** All six pages (Overview, Historical
+Trends, Country Profile, Forecasts, Scenario Comparison, Data Explorer) render a `<JumpLinks>` row
+under their `<h1>`, plus a new shared `useJumpToHashOnLoad` hook so a bookmarked/shared `#anchor`
+URL lands on the right section once data resolves, not just at the page top. For three pages
+(Historical Trends, Scenario Comparison, Data Explorer) the target `<h2>` headings were already
+unconditionally rendered, so no refactor was needed. Overview was the exception: its "By Country"
+and "% Change" sections previously had their entire heading-and-content block inside the
+`selected.length === 0` ternary — refactored to match the pattern the other pages already used
+(heading outside the gate, only the chart/content beneath it conditional), the same pattern
+Historical Trends already established. A side effect: the "Select at least one country." warning
+now renders once per gated section (2×) instead of once — a deliberate, accepted behavior change.
+
+Forecasts is the special case: 3 of its 5 jump targets live inside a collapsed-by-default
+`Accordion`. Each of those `JumpLinkItem`s' `onBeforeJump` opens its panel via `Accordion`'s new
+controlled `openIds`; `JumpLinks` awaits that, then a double-`requestAnimationFrame` settle (to let
+the panel's DOM mutation actually lay out) before measuring scroll position.
+
+Copilot's review of #126 found one real bug: `useJumpToHashOnLoad(true, ...)` on Forecasts fired
+immediately on first render — before the 3 accordion-backed targets' data (and therefore the panel
+elements themselves) existed in the DOM — so a bookmarked `#model-comparison-accordion-panel` URL
+silently no-opped. Fixed by resolving the hash against a `PANEL_TO_ACCORDION_ID` map at mount,
+opening the matching panel once its data loads, and only then letting the hash-jump hook fire;
+`#forecast-chart`/`#forecast-summary` (always in the DOM from first render) keep firing
+immediately. Added a regression test and verified the fix live pre-deploy.
+
+A genuine test-infrastructure bug was found and fixed along the way, unrelated to the feature
+itself: `vi.unstubAllGlobals()`, copied into five page test files' `afterEach` from
+`useCountUp.test.ts`'s established pattern, also wiped the global `ResizeObserver` stub
+`src/test/setup.ts` establishes once per file for `design-system`'s `DataTable` — breaking every
+`DataTable`-rendering test after the first in each file. Confirmed via `git stash` bisection that
+this was a real regression, not pre-existing flakiness; fixed by dropping the blanket unstub (each
+file's `beforeEach` already re-stubs `matchMedia` fresh, so nothing else needed cleaning up).
+
+Verified live pre- and post-deploy (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache
+Storage cleared first, both `design-system` and `climate-dashboard-react` checkouts fast-forwarded
+on the Mac Mini, `vitepreview` rebuilt/restarted — no `api/` change, `uvicorn` untouched): all six
+pages' jump rows render the correct labels/hrefs; clicking scrolls to and focuses the right target;
+keyboard Tab+Enter activation works; a fresh page load with a `#anchor` already in the URL lands on
+the right section once data resolves; Forecasts' 3 accordion items visibly open their panel before
+the scroll lands, confirmed directly on the exact bookmarked-URL case the review caught
+(`/forecasts#model-comparison-accordion-panel`); jump-link `href`s resolve to real, copyable anchor
+URLs.
+
 ---
 
 ## 6. Post-Ship Corrections to Internship Curriculum Notebooks

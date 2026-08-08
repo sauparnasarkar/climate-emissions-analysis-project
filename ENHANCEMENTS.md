@@ -2382,3 +2382,159 @@ Storage cleared first, `vitepreview` LaunchAgent rebuilt/restarted — this rele
 China's absolute change and India's growth rate (both increases) render red, United
 States/Germany/Russia's values (all decreases) render green, visually consistent with the tier
 table's own coloring; console clean.
+
+## Release 14 — Per-Page "Jump To" Navigation
+
+**Status: Shipped.** `design-system` PR #31 + `climate-emissions-analysis-project` PR #126
+(SPEC.md §5.19). A small in-page anchor-link row under each of the six main pages' `<h1>`, letting
+a user jump straight to a below-the-fold section instead of scrolling.
+
+### The reuse discovery that reshaped the plan
+
+The original draft called for a new `Chip`-based `JumpNav` component, built from scratch: a `Chip`
+`href` variant plus a hand-rolled click handler doing smooth-scroll and focus management. Before
+implementing, a planning pass turned up something the draft hadn't accounted for: `design-system`
+already shipped a `JumpLinks` component (`src/components/JumpLinks/JumpLinks.tsx`), exported from
+`src/index.ts`, with real vendored CSS (`__s9cmpx-jump-links` family) already present in the
+stylesheet — and confirmed, via a direct grep across both repos, to have **zero actual usages**
+anywhere except its own story file. Built for exactly this use case (in-page anchor navigation,
+styled as underline tabs rather than pill chips) and never wired up.
+
+Presented as an explicit choice rather than assumed: reuse `JumpLinks` (extending it with the
+scroll/focus/click-interception behavior the draft wanted), or build the draft's `Chip`-based
+`JumpNav` from scratch. Reuse was chosen — it eliminated the need for the `Chip` `href` variant
+entirely and meant the visual design (underline tabs) didn't need inventing either.
+
+### `design-system` changes (PR #31)
+
+**`ChartCard` gained a passthrough `id?: string`.** The underlying `Card` component already
+extended `React.HTMLAttributes<HTMLDivElement>` and spread `{...rest}` onto its own outer `<div>`,
+so it already supported `id` — `ChartCard` itself just needed to accept and forward it, a one-line
+addition confirmed via direct read before writing it.
+
+**`JumpLinks` gained scroll/focus/click-interception behavior plus an `onBeforeJump` hook.** New
+optional field on `JumpLinkItem`: `onBeforeJump?: () => void | Promise<void>`, run and awaited
+before the scroll — used by Forecasts to force-open a collapsed `Accordion` panel before jumping
+into it (see below). Per-item rather than a page-level id-keyed lookup, since only 3 of Forecasts'
+5 items actually need it and this keeps each item's wiring colocated with itself. The click handler
+mirrors `SidebarNav.tsx`'s exact interception guard: a modified click (ctrl/cmd/shift/alt) or a
+non-primary mouse button is never intercepted, so "open in new tab," middle-click, and right-click
+"copy link address" all keep working natively against the real `href`. When `onBeforeJump` exists,
+the handler awaits it, then waits a double-`requestAnimationFrame` ("wait for the next paint after
+a state update" — the standard pattern for this) before measuring scroll position, since a state
+update from `onBeforeJump` (e.g. an Accordion panel opening, which mounts new DOM) isn't
+synchronously reflected in layout. This double-rAF wait is paid only by items that actually have
+`onBeforeJump` — the other 17 of 20 jump items across all six pages keep identical latency to a
+plain scroll. A new exported `scrollToJumpTarget(id, opts)` helper factors the scroll/focus logic
+out of the click handler, reused by the consuming apps' own hash-on-load effect (below).
+
+**`Accordion` gained an optional controlled `openIds`/`onOpenChange` pair**, additive alongside the
+existing uncontrolled internal `useState<Set<string>>` fallback. Confirmed via grep that
+`ForecastsPage.tsx` is `Accordion`'s only consumer in either repo (previously fully uncontrolled),
+so this addition couldn't break anything else. A controlled pair rather than a `defaultOpenIds`
+seed was the right shape specifically because a jump click needs to force-open a panel on demand
+*after* mount, not just seed initial state. Each panel's actual DOM id is already the existing
+`` `${item.id}-accordion-panel` `` convention — the 3 Forecasts jump items target that suffixed id,
+not the bare accordion item id.
+
+**Copilot's review of #31** found one real bug: `e.preventDefault()` (needed so the handler's own
+scroll/focus sequence runs instead of the browser's native jump) meant the URL hash never actually
+updated on a click — breaking "copy link address" and back-button/forward-button behavior, since
+nothing was ever pushed onto history. Fixed with a `window.history.pushState(null, '', `#${id}`)`
+call after the scroll, added by a follow-up commit, re-reviewed, confirmed clean.
+
+**A Storybook test-runner crash, root-caused and worked around.** A `ModifiedClickIsNotIntercepted`
+story — asserting a ctrl/cmd-click is *not* intercepted, i.e. that real hash-navigation is allowed
+to proceed — reproducibly crashed the Storybook/vitest browser-mode test runner's RPC connection
+(`[vitest] Browser connection was closed while running tests`). Diagnosed via careful bisection:
+confirmed the original 2-story file passed cleanly; confirmed adding a separate
+`ClickScrollsAndFocusesTarget` story alone still passed; confirmed adding the modified-click story
+on top reliably crashed the runner; confirmed removing only that one story (keeping an
+`onBeforeJump`/Accordion story instead) passed cleanly again. Concluded the root cause was
+environmental — letting a real native hash-navigation actually complete inside that specific
+test-runner setup destabilizes it — not a bug in the interception-guard logic itself, which is a
+direct, already-proven port of `SidebarNav`'s shipped pattern. Dropped that one story/test
+permanently, added an explanatory comment in `JumpLinks.stories.tsx`, and covered that specific
+behavior (modified-click passthrough) via live browser interaction instead: real ctrl/cmd-click
+opens a new tab, right-click "copy link address" yields a real anchor URL.
+
+### `climate-emissions-analysis-project` changes (PR #126)
+
+All six pages (Overview, Historical Trends, Country Profile, Forecasts, Scenario Comparison, Data
+Explorer) render a `<JumpLinks>` row directly under their `<h1>`. A new shared
+`useJumpToHashOnLoad(ready, reduceMotion)` hook, using a `useRef` guard to fire exactly once per
+page load (not on every subsequent `ready` change from e.g. a picker-triggered refetch), replays
+the jump for a bookmarked/shared `#anchor` URL once the target section actually exists — the
+browser's own native hash-scroll on initial page load fires too early for a data-loaded page's
+target to exist in the DOM yet.
+
+**Missing-target handling was mostly free.** For three pages — Historical Trends, Scenario
+Comparison, Data Explorer — the target `<h2>` headings were already unconditionally rendered (only
+the chart/table content beneath was gated behind a selection or loading state), so placing the
+anchor `id` directly on the static heading gave a jump target that always exists once the page has
+loaded at all, regardless of the current selection. No refactor needed for these three.
+
+**Overview needed an actual refactor.** Its "By Country" and "% Change" sections previously had
+their *entire* heading-and-content block inside the `selected.length === 0 ? <InlineAlert/> :
+(...)` ternary — no persistent heading to anchor. Fixed by splitting into two independently-gated
+blocks, matching the pattern `HistoricalTrendsPage.tsx` already established (heading outside the
+gate, only the `ChartCard`/chart content beneath it conditional) — confirmed by reading that
+existing pattern directly before applying it, rather than inventing a third way to solve the same
+problem. Side effect, deliberate and accepted: the "Select at least one country." warning now
+renders once per gated section (2×) instead of once.
+
+**Forecasts is the special case.** 3 of its 5 jump targets — Model Comparison, ETS Parameters,
+Feature Importance — live inside a collapsed-by-default `Accordion`. Each of those `JumpLinkItem`s'
+`onBeforeJump` opens its panel via `Accordion`'s new controlled `openIds`; the accordion-backed
+items only appear in the jump row once their underlying data has actually loaded, matching how
+`accordionItems` itself is conditionally built.
+
+**A genuine test-infrastructure bug, found and fixed along the way.** `vi.unstubAllGlobals()`,
+added to five page test files' `afterEach` blocks by copying `useCountUp.test.ts`'s established
+`matchMedia`-stubbing pattern too literally, also wiped the global `ResizeObserver` stub
+`src/test/setup.ts` establishes once per file (needed because jsdom has no native `ResizeObserver`
+and `design-system`'s `DataTable` uses one) — breaking every `DataTable`-rendering test after the
+first in each affected file. Confirmed as a real regression, not pre-existing flakiness, via `git
+stash`/`git stash pop` bisection on `ScenarioComparisonPage.test.tsx` (clean stash: 9/9 pass; with
+the changes applied: 4/10 failing with `ReferenceError: ResizeObserver is not defined`). Fixed by
+dropping the blanket unstub from all five files' `afterEach`, keeping only `vi.clearAllMocks()` —
+each file's `beforeEach` already re-stubs `matchMedia` fresh before every test, so nothing else
+needed cleaning up. Verified the fix: all five files together, 44/44 passing, zero `ResizeObserver`
+errors.
+
+**Copilot's review of #126** found one real bug, plus two minor notes. The bug:
+`useJumpToHashOnLoad(true, ...)` on `ForecastsContent` fired on the component's very first render
+— hardcoded `ready: true` — before `modelComparison`/`etsParams`/`featureImportance` had resolved,
+at which point the 3 accordion-backed targets didn't exist in the DOM at all (the panel content
+only mounts once its Accordion item is open, and the accordion item itself is only added once its
+data resolves). Since the hook is one-shot, a bookmarked
+`/forecasts#model-comparison-accordion-panel` URL would silently no-op forever. Fixed by resolving
+the URL's hash against a new `PANEL_TO_ACCORDION_ID` map at mount, opening the matching panel once
+all three accordion datasets have loaded, and gating `useJumpToHashOnLoad`'s `ready` argument on
+that panel actually being open — while `#forecast-chart`/`#forecast-summary` (always in the DOM
+from first render) keep firing immediately as before, unaffected. Added a regression test
+asserting `document.activeElement?.id === 'model-comparison-accordion-panel'` after loading with
+that hash pre-set, and verified the exact fix live pre-deploy
+(`/forecasts#model-comparison-accordion-panel` correctly opens the panel and scrolls to it). The
+two minor notes — an inert `reduceMotion` effect dependency, and a documented but genuinely correct
+`headingLevel` downgrade on the "By Country" `ChartCard` (verified live via a full DOM heading dump
+that the resulting outline has no skipped levels or duplicates) — were addressed and confirmed
+respectively in the same follow-up commit. Copilot's second review pass confirmed the fix and
+cleared the PR to merge.
+
+### Deploy
+
+Both repos fast-forwarded on the Mac Mini (`git fetch && git merge --ff-only`); `design-system` had
+to be pulled first since `climate-dashboard-react`'s build failed against its stale copy (missing
+`scrollToJumpTarget` export, `ChartCard.id`, `JumpLinks`' new `onBeforeJump`, `Accordion`'s
+`openIds`) until it was. `vitepreview` LaunchAgent rebuilt (`DEPLOY_BASE_PATH=/ghg-emissions-analysis/
+npm run build`) and restarted via `launchctl kickstart -k`; no `api/` change in this release, so
+`uvicorn` was left untouched.
+
+Verified live pre- and post-deploy (`labs.syena.io/ghg-emissions-analysis`, service worker/Cache
+Storage cleared first): all six pages' jump rows render the correct labels/hrefs; clicking scrolls
+to and focuses the right target; keyboard Tab+Enter activation works; a fresh page load with
+`#pct-change` already in the Overview URL lands on the right section once data resolves; loading
+`/forecasts#model-comparison-accordion-panel` fresh — the exact case the PR #126 review caught —
+correctly opens the Model Comparison panel and scrolls/focuses it; jump-link `href`s resolve to
+real, copyable anchor URLs.
