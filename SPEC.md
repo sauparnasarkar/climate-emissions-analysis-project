@@ -1477,6 +1477,48 @@ same pre-existing environment limitation already noted above for this release's 
 verification — but every other link in the causal chain (event fires → listener re-checks →
 `BackToTop` becomes visible once `scrollY` crosses the threshold) was directly confirmed correct.
 
+**Second post-ship bug report, with a screen recording: jump targets near the bottom of a page
+undershoot the top.** Reported directly: clicking a `JumpLinks` link on Country Profile still left
+part of the previous section visible above the target. Root-caused with exact scroll-geometry
+math against production, independent of any animation-timing ambiguity: Country Profile's
+`#key-stats` needs `958px` of scroll to reach the top, but the page's total scrollable range is
+only `732px` — a `226px` undershoot the browser silently clamps to, no matter how the scroll is
+triggered. The same shortfall (also `~226px`) reproduced identically on Data Explorer's
+`#summary-stats` and (`116px`) on Overview's `#pct-change` — every page's *last* jump target,
+confirming this isn't page-specific but a structural consequence of "not enough page left below
+the target to scroll it flush to the top."
+
+Fixed in `scrollToJumpTarget`: before scrolling, compute the shortfall (target's document-relative
+position minus the page's current max scroll position) and, if positive, temporarily append an
+`aria-hidden` spacer giving just enough extra scrollable room, removed once the scroll settles (on
+the smooth path, `scrollend` with a 1s fallback timeout; on the reduced-motion/instant path, a
+double `requestAnimationFrame`, not immediate synchronous removal — confirmed live that removing
+the spacer in the same tick races the browser's own layout update and reintroduces the exact
+undershoot the fix exists to prevent). Never adds visible empty space during a normal scroll-down;
+only for the brief duration of an anchor jump that actually needs it.
+
+Copilot's review caught one real correctness gap — the shortfall was measured via `el.offsetTop`,
+relative to the element's `offsetParent` rather than the document origin, wrong for any target
+inside a positioned ancestor (not currently true of any target in this app, but a latent bug
+waiting for one) — fixed by switching to `getBoundingClientRect().top + window.scrollY`. Its
+second suggestion (remove the spacer synchronously for the reduced-motion path rather than waiting)
+was tried and found to be a real regression, caught by the same regression test the fix itself
+added: reverting to synchronous removal made the test fail at the *original* unfixed shortfall
+value. Landed the double-rAF approach instead.
+
+Added a regression test (`ClickScrollsFullyToTopEvenNearPageBottom`) confirmed to genuinely
+discriminate, unlike the earlier scroll-event fix's test — reverting the fix and re-running was the
+same check used both times, but this time it actually failed without the fix (at the exact
+shortfall amount) and passed with it, in Storybook's own browser-mode harness, not just live.
+
+Deployed and verified: both repos fast-forwarded on the Mac Mini and `climate-dashboard-react`
+rebuilt; confirmed via the deployed script's Vite content-hash filename that the exact just-tested
+build (not a stale bundle) is what's live. Real-browser click-through verification of the visual
+scroll landing was, once again, not reliably observable through this session's own
+browser-automation tooling for the same pre-existing reason noted earlier in this section — by this
+point in the session that tool's smooth-scroll and even basic click-registration reliability had
+degraded further, unrelated to the shipped code.
+
 ---
 
 ## 6. Post-Ship Corrections to Internship Curriculum Notebooks

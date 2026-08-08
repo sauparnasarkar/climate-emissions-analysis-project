@@ -2708,3 +2708,59 @@ Full visual confirmation that the button appears after a real smooth-scroll anim
 wasn't independently re-observable through this session's own browser-automation tooling — the same
 pre-existing limitation already affecting this release's original verification — but every other
 link in the causal chain was directly confirmed correct in production.
+
+### Second post-ship bug report: jump targets near the bottom of a page undershoot the top
+
+Reported directly, with a screen recording: clicking a `JumpLinks` link on Country Profile still
+left part of the previous section visible above the target — a different symptom from the first
+bug report (that one was "the button never appears at all"; this one is "the scroll itself lands
+short").
+
+**Root cause, isolated with exact math rather than guesswork.** Measured Country Profile's
+`#key-stats` directly against production: it needs `958px` of scroll to reach the top of the
+viewport, but the page's total scrollable range (`document.documentElement.scrollHeight -
+clientHeight`) is only `732px` — a `226px` shortfall the browser silently clamps to, independent of
+whether the scroll animates smoothly, jumps instantly, or anything about *how* it's triggered. The
+identical shortfall (`~226px`) reproduced on Data Explorer's `#summary-stats`, and a smaller one
+(`116px`) on Overview's `#pct-change` — confirming this wasn't a Country-Profile-specific issue but
+a structural one: every page's *last* jump target is close enough to the document's natural end
+that there isn't `226px`(ish) of real content left below it to scroll into.
+
+**The fix.** `scrollToJumpTarget` now computes this shortfall before scrolling
+(`getBoundingClientRect().top + window.scrollY`, minus the page's current max scroll position) and,
+if positive, temporarily appends an `aria-hidden` `<div>` spacer of exactly that height, giving the
+target just enough extra room to reach the top. Removed once the scroll settles — on the default
+smooth path, on the native `scrollend` event with a 1s fallback timeout; on the reduced-motion
+path, a double `requestAnimationFrame` rather than immediate synchronous removal. That last detail
+mattered in practice: removing the spacer synchronously (in the same tick as the `scrollIntoView`
+call) was tried first, on the theory that an instant scroll's position is "already final" by then —
+but confirmed live that it isn't guaranteed to have actually applied to the DOM yet, so removing
+the extra room that early let the browser re-clamp the scroll against the now-shorter document,
+silently reintroducing the exact bug the fix exists to prevent. Caught this by the same regression
+test the fix itself added, not by inspection — reverting to synchronous removal made the test fail
+at precisely the original, unfixed shortfall value.
+
+**Copilot's review** caught one more real correctness gap: the shortfall was measured via
+`el.offsetTop`, which is relative to the element's `offsetParent`, not the document origin — only
+equivalent to `document.body` when no ancestor between the target and `<body>` is positioned. Not
+currently a live bug (grepped this app's own components; none of the current jump targets sit
+inside a positioned ancestor), but a latent one waiting for a future page to introduce it. Fixed by
+switching to `getBoundingClientRect().top + window.scrollY`, correct regardless of DOM nesting.
+
+**A regression test that actually discriminates, confirmed by the same revert-and-rerun check used
+for the first bug report's test — with a different outcome this time.** The first fix's Storybook
+test (for the missing-`scroll`-event bug) turned out unable to tell fixed from unfixed, because
+Storybook's own browser-mode harness doesn't reproduce that particular bug at all. This fix's test
+(`ClickScrollsFullyToTopEvenNearPageBottom`) does: reverting the fix and re-running showed the test
+failing at exactly `827.8px` (the shortfall in Storybook's own test viewport), and passing (under
+`10px`) with the fix restored — genuine, verified regression protection, not just documentation of
+intent.
+
+Deployed and verified: both repos fast-forwarded on the Mac Mini, `climate-dashboard-react`
+rebuilt, `vitepreview` restarted. Confirmed the exact just-tested build (not a stale bundle) is
+what's actually live by matching the deployed script's Vite content-hash filename against the
+build's own output. By this point in the session, this session's browser-automation tool's
+reliability had degraded further than earlier in the release (even basic click registration, not
+just smooth-scroll animation, became inconsistent in the same tab) — real-browser click-through
+verification of the visual scroll landing wasn't achievable through that tool this time, a
+continuation of the same pre-existing environment limitation, not a code concern.
