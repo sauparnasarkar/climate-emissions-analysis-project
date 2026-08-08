@@ -21,7 +21,10 @@ const COLUMNS: ColDef<CountryProfileTableRow>[] = [
 // suffixed with the currently-selected country.
 const JUMP_ITEMS: JumpLinkItem[] = [
   { id: 'emissions', label: 'Emissions', href: '#emissions' },
-  { id: 'per-capita', label: 'Per Capita', href: '#per-capita' },
+  // topSection (SPEC.md §5.20): stacked directly under "Emissions", close enough a neighbor
+  // that scrolling it away while both are already visible would just hide the nav for no
+  // benefit -- still scrolls normally once it's genuinely below the fold (e.g. mobile).
+  { id: 'per-capita', label: 'Per Capita', href: '#per-capita', topSection: true },
   { id: 'yoy-change', label: 'YoY Change', href: '#yoy-change' },
   { id: 'key-stats', label: 'Key Statistics', href: '#key-stats' },
 ];
