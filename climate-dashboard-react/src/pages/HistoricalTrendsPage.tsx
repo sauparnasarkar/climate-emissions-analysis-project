@@ -1,11 +1,21 @@
 import { useState } from 'react';
-import { ChartCard, SyChart, MultiSelect, Select, Button, InlineAlert, Spinner } from 'design-system';
+import { ChartCard, SyChart, MultiSelect, Select, Button, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
+import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
+import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
 
 const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value, label }));
+
+// Stable labels (SPEC.md §5.19) -- distinct from the h2s' own gas-dependent text (e.g. "CO₂
+// Emissions Over Time" vs. "Methane Emissions Over Time"), which would otherwise relabel the
+// nav itself every time the gas selector changes.
+const JUMP_ITEMS: JumpLinkItem[] = [
+  { id: 'emissions-over-time', label: 'Emissions Over Time', href: '#emissions-over-time' },
+  { id: 'ghg-by-decade', label: 'GHG Share by Decade', href: '#ghg-by-decade' },
+];
 
 // Split out so the timeseries fetch only ever starts once the expanded country list (and
 // its featured-default seed) are already known — avoiding a wasted initial fetch before
@@ -34,9 +44,16 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   const lockdownAnnotation =
     year2020Values.length > 0 ? [{ x: 2020, y: Math.max(...year2020Values), text: 'Global lockdowns' }] : undefined;
 
+  const reduceMotion = useReducedMotion();
+  // Both jump targets below are always in the DOM as soon as this component mounts (h2s are
+  // unconditional, only the chart content beneath each is gated) -- no data-loaded gate to wait
+  // on here, unlike Overview.
+  useJumpToHashOnLoad(true, reduceMotion);
+
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
+      <JumpLinks items={JUMP_ITEMS} />
 
       <div className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
         <MultiSelect
@@ -50,7 +67,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
         <Select label="Emissions metric" options={GAS_OPTIONS} value={gas} onChange={setGas} />
       </div>
 
-      <h2 className="__s9cmpx-headline6">{GAS_COLUMNS[gas]} Emissions Over Time</h2>
+      <h2 id="emissions-over-time" className="__s9cmpx-headline6">{GAS_COLUMNS[gas]} Emissions Over Time</h2>
       {selectedCountries.length === 0 ? (
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>
       ) : timeseries.loading ? (
@@ -71,7 +88,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
       )}
 
       <div style={{ marginTop: 24 }}>
-        <h2 className="__s9cmpx-headline6">GHG Share by Gas Type per Decade</h2>
+        <h2 id="ghg-by-decade" className="__s9cmpx-headline6">GHG Share by Gas Type per Decade</h2>
         {selectedCountries.length === 0 ? (
           <InlineAlert variant="warning">Select at least one country.</InlineAlert>
         ) : composition.loading ? (

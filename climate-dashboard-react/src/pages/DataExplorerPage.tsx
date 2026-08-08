@@ -1,12 +1,21 @@
 import { useMemo, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import { Button, MultiSelect, RangeSlider, DataTable, InlineAlert, Spinner } from 'design-system';
+import { Button, MultiSelect, RangeSlider, DataTable, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
+import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
+import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { ExplorerMetaResponse } from '../api/types';
 
 const DEFAULT_COLUMNS = ['country', 'year', 'co2', 'co2_per_capita', 'population', 'gdp', 'total_ghg'];
 const PAGE_SIZE = 50;
+
+// Stable labels (SPEC.md §5.19) -- this page uses no ChartCard at all, so both anchor ids land
+// directly on the two static <h2> headings in DataExplorerContent below.
+const JUMP_ITEMS: JumpLinkItem[] = [
+  { id: 'dataset-preview', label: 'Dataset Preview', href: '#dataset-preview' },
+  { id: 'summary-stats', label: 'Summary Statistics', href: '#summary-stats' },
+];
 
 function humanize(field: string): string {
   return field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -96,7 +105,7 @@ function DataExplorerContent({ meta }: { meta: ExplorerMetaResponse }) {
         />
       </div>
 
-      <h2 className="__s9cmpx-headline6">Dataset Preview</h2>
+      <h2 id="dataset-preview" className="__s9cmpx-headline6">Dataset Preview</h2>
       {columns.length === 0 ? (
         <InlineAlert variant="default">Select at least one column to preview the data.</InlineAlert>
       ) : data.loading ? (
@@ -133,7 +142,7 @@ function DataExplorerContent({ meta }: { meta: ExplorerMetaResponse }) {
         </>
       ) : null}
 
-      <h2 className="__s9cmpx-headline6" style={{ marginTop: 24 }}>Summary Statistics</h2>
+      <h2 id="summary-stats" className="__s9cmpx-headline6" style={{ marginTop: 24 }}>Summary Statistics</h2>
       {summary.loading ? (
         <Spinner />
       ) : summary.error ? (
@@ -147,10 +156,16 @@ function DataExplorerContent({ meta }: { meta: ExplorerMetaResponse }) {
 
 export default function DataExplorerPage() {
   const meta = useAsync(() => api.explorerMeta(), []);
+  const reduceMotion = useReducedMotion();
+  // Unlike the other five pages, this page's <h1> is in the outer component while
+  // DataExplorerContent (and its two jump targets) mounts separately below, once meta.data
+  // resolves -- ready reflects that, not just this outer component's own mount.
+  useJumpToHashOnLoad(Boolean(meta.data), reduceMotion);
 
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Data Explorer</h1>
+      <JumpLinks items={JUMP_ITEMS} />
       <p className="__s9cmpx-body1" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Browse the full underlying dataset behind this dashboard: every sovereign country
         (regional and income-group aggregates like &quot;World&quot; or &quot;European

@@ -1,13 +1,24 @@
 import { useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import { ChartCard, SyChart, MultiSelect, Radio, DataTable, InlineAlert, Spinner, Icon } from 'design-system';
+import { ChartCard, SyChart, MultiSelect, Radio, DataTable, InlineAlert, Spinner, Icon, JumpLinks, useReducedMotion } from 'design-system';
+import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
+import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { SCENARIO_COLORS, MAX_SELECTED_COUNTRIES } from '../constants';
 import type { ScenarioCumulativeRow } from '../api/types';
 
 const SCENARIO_PANELS = Object.keys(SCENARIO_COLORS);
+
+// Stable labels (SPEC.md §5.19). "Country Comparison" anchors the shared <h2> above the
+// per-scenario ChartCard loop below (one card per SCENARIO_PANELS entry) -- there's no single
+// stable per-card target otherwise.
+const JUMP_ITEMS: JumpLinkItem[] = [
+  { id: 'reduction-map', label: 'Reduction Map', href: '#reduction-map' },
+  { id: 'country-comparison', label: 'Country Comparison', href: '#country-comparison' },
+  { id: 'cumulative-impact', label: 'Cumulative Impact', href: '#cumulative-impact' },
+];
 
 // Split out so the cumulative/compare fetches only ever start once the expanded country
 // list (and its featured-default seed) are already known — avoiding a wasted initial fetch
@@ -62,15 +73,21 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
   );
   const yRange: [number, number] = [0, panelValues.length > 0 ? Math.max(...panelValues) : 0];
 
+  const reduceMotion = useReducedMotion();
+  // All three jump targets below are always in the DOM as soon as this component mounts (h2s
+  // are unconditional, only the chart/table content beneath each is gated).
+  useJumpToHashOnLoad(true, reduceMotion);
+
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Scenario Comparison (2025–2040)</h1>
+      <JumpLinks items={JUMP_ITEMS} />
       <p className="__s9cmpx-body1" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Compare <strong>Business as Usual (BAU)</strong>, <strong>Moderate Mitigation (−2%/yr)</strong>, and{' '}
         <strong>Aggressive Mitigation (−5%/yr)</strong> starting from 2025.
       </p>
 
-      <h2 className="__s9cmpx-headline6">Reduction Scenarios by Country</h2>
+      <h2 id="reduction-map" className="__s9cmpx-headline6">Reduction Scenarios by Country</h2>
       <p className="__s9cmpx-body2" style={{ marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Tile size is each country&apos;s cumulative BAU emissions, 2025–2040; color is whether the
         selected scenario&apos;s 2040 level is above (red) or below (green) the country&apos;s current level.
@@ -158,7 +175,7 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
       ) : null}
 
       <div style={{ marginTop: 24 }}>
-        <h2 className="__s9cmpx-headline6">Country Comparison</h2>
+        <h2 id="country-comparison" className="__s9cmpx-headline6">Country Comparison</h2>
         <div className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
           <MultiSelect
             label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
@@ -202,7 +219,7 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
       </div>
 
       <div style={{ marginTop: 24 }}>
-        <h2 className="__s9cmpx-headline6">Cumulative Emissions Impact, 2025–2040</h2>
+        <h2 id="cumulative-impact" className="__s9cmpx-headline6">Cumulative Emissions Impact, 2025–2040</h2>
         <p className="__s9cmpx-body4" style={{ marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
           Precise cumulative CO₂ totals per country and scenario — click a column header to sort.
         </p>
