@@ -2651,3 +2651,60 @@ that tool in this session (the same class of issue already documented for Releas
 modified-click Storybook test), not evidence of a problem in the shipped code; the underlying
 instant/`'auto'` scroll path, which the automation tool could observe reliably, was separately and
 repeatedly confirmed correct before relying on it.
+
+### Post-ship bug report: the button never appeared after a JumpLinks click
+
+Reported directly: on Country Profile, clicking "Emissions" or "Per Capita" (`JumpLinks`, Release
+14) scrolled the page but `BackToTop` never appeared; same on Data Explorer's "Summary Statistics"
+link. Reproduced live in a real browser session, not assumed.
+
+**Root cause, precisely isolated.** Attached a plain counting `scroll` listener to `window`, then
+called `Element.scrollIntoView()` directly (the exact mechanism `scrollToJumpTarget` uses) on an
+element far down the page. `window.scrollY` genuinely changed — confirmed past `BackToTop`'s
+visibility threshold — but the counting listener recorded **zero** `scroll` events. `BackToTop`'s
+visibility toggle is a passive `scroll` listener with nothing else driving it, so with no event to
+react to, it never re-checked `scrollY` and never became visible. This is a bug in
+`scrollToJumpTarget` itself — shared by every `JumpLinks` click on all six pages, not something
+specific to Country Profile or Data Explorer — not in `BackToTop`'s own logic. It hadn't surfaced
+during Release 15's own verification because that testing exercised `BackToTop`'s own click handler
+and its visibility threshold directly; nothing exercised the case of a *different* component's
+navigation being the thing that ought to make it visible.
+
+An initial, flawed test attempt (calling `el.scrollIntoView()` directly from a script, bypassing the
+real `scrollToJumpTarget` function entirely) gave a false negative before this was caught and
+corrected — a reminder that testing "the mechanism" isn't the same as testing "the actual code path
+a real click goes through."
+
+**The fix.** `scrollToJumpTarget` now dispatches a synthetic `scroll` event on `window` immediately
+after calling `scrollIntoView` — covering the reduced-motion/instant case, where the scroll position
+is already final by that point — and once more on the native `scrollend` event, covering the default
+smooth case once the animation has genuinely finished. `scroll` listeners re-read `window.scrollY`
+fresh every time they fire, so a synthetic event carrying no real position data is enough to make
+any of them re-check. Fixed at the shared `scrollToJumpTarget` utility rather than with
+`BackToTop`-specific code, since any other future passive scroll-position observer built on top of
+this app's design system would hit the exact same bug.
+
+**A genuine test-environment limitation, documented rather than papered over.** Storybook's own
+browser-mode test harness does *not* reproduce the missing-event behavior at all — a raw
+`scrollIntoView` call inside that environment fires real `scroll` events reliably, confirmed by
+temporarily reverting the fix and re-running the new regression test: it passed either way. This
+means the Storybook test alone cannot prove the fix works; the real proof is the direct, live
+counting-listener test described above, run in an actual browser session outside Storybook. Still
+added the regression story (`BecomesVisibleAfterAJumpLinksNavigationElsewhere`, simulating an
+external `scrollToJumpTarget` call and asserting `BackToTop` reacts) for documentation value and as
+a partial guard against a future accidental removal of the dispatch code — with this exact
+limitation spelled out in a comment directly above the story, rather than presented as a
+self-sufficient regression proof it isn't.
+
+**Deploy and post-deploy verification.** `design-system` fast-forwarded on the Mac Mini,
+`climate-dashboard-react` rebuilt (bundles `design-system`'s source, so needed rebuilding even
+though its own source hadn't changed) and `vitepreview` restarted. Verified live against
+`labs.syena.io/ghg-emissions-analysis` with service worker/Cache Storage cleared first: fetched the
+deployed JS bundle directly and confirmed it contains the `scrollend` token, proving the fix
+actually shipped rather than trusting the build log alone; attached a fresh counting `scroll`
+listener and clicked a real Country Profile `JumpLinks` link, confirming the fix's synthetic
+dispatch genuinely fires against production on a real click, not just in the earlier isolated test.
+Full visual confirmation that the button appears after a real smooth-scroll animation completes
+wasn't independently re-observable through this session's own browser-automation tooling — the same
+pre-existing limitation already affecting this release's original verification — but every other
+link in the causal chain was directly confirmed correct in production.

@@ -1435,6 +1435,48 @@ tool *can* observe reliably, was separately confirmed correct). Deploy pulled `d
 `design-system` checkout missing the new export — the same dependency-ordering lesson §5.19's deploy
 already established.
 
+**Post-ship bug report and fix (`design-system` PR, `fix/5.20.1-back-to-top-scroll-event`).**
+Reported directly: on Country Profile, clicking a `JumpLinks` link ("Emissions"/"Per Capita")
+scrolled the page but the button never appeared; same on Data Explorer's "Summary Statistics".
+Reproduced live and root-caused precisely: `Element.scrollIntoView()` — the mechanism
+`scrollToJumpTarget` uses — moved `window.scrollY` genuinely past the button's threshold, but fired
+**zero** native `scroll` events on `window`, confirmed via a counting listener attached before the
+call. `BackToTop`'s visibility toggle is a passive `scroll` listener with no other trigger, so it
+never re-checked `scrollY` and never became visible — a bug in `scrollToJumpTarget` itself (shared
+by every `JumpLinks` click across all six pages, not something specific to Country Profile or Data
+Explorer), not in `BackToTop`'s own logic, which is why it hadn't surfaced during this release's own
+verification: that testing exercised `BackToTop`'s click handler and visibility threshold in
+isolation, never a *different* component's navigation making it visible.
+
+Fixed in `scrollToJumpTarget` itself: dispatches a synthetic `scroll` event on `window` immediately
+after calling `scrollIntoView` (covers the reduced-motion/instant case, where the position is
+already final), and once more on the native `scrollend` event (covers the default smooth case, once
+the animation has genuinely settled) — `scroll` listeners re-read `window.scrollY` fresh each time
+they fire, so a synthetic event carrying no real position data is sufficient to make them re-check.
+Fixed at the shared utility rather than inside `BackToTop`, since any other future passive
+scroll-position observer would have hit the identical bug.
+
+Verified the root cause and the fix directly in a real browser (not the Storybook test harness,
+which — confirmed separately — does not reproduce the missing-event behavior at all, so a
+Storybook-only regression test could not discriminate fixed from unfixed): a counting `scroll`
+listener recorded 0 events across a genuine `scrollY` change from a raw `scrollIntoView` call;
+manually dispatching a synthetic `scroll` event immediately after made a real `BackToTop` instance
+become visible. A Storybook regression test was still added (`BecomesVisibleAfterAJumpLinksNavigationElsewhere`,
+simulating a `JumpLinks`-style external `scrollToJumpTarget` call and asserting `BackToTop` reacts)
+for documentation and as a partial guard, with this environment-specific limitation noted directly
+in the test file rather than presented as a self-sufficient regression proof.
+
+Deployed and verified live post-deploy (`labs.syena.io/ghg-emissions-analysis`, service
+worker/Cache Storage cleared first): confirmed the deployed JS bundle actually contains the fix
+(fetched and grepped for the `scrollend` token); attached a fresh counting `scroll` listener and
+clicked a real Country Profile `JumpLinks` link, confirming the fix's synthetic dispatch genuinely
+fires on a real click against production, not just in isolated testing. Full end-to-end
+confirmation that the button visually appears after a real smooth-scroll animation completes
+wasn't independently re-observable through this session's own browser-automation tooling — the
+same pre-existing environment limitation already noted above for this release's initial
+verification — but every other link in the causal chain (event fires → listener re-checks →
+`BackToTop` becomes visible once `scrollY` crosses the threshold) was directly confirmed correct.
+
 ---
 
 ## 6. Post-Ship Corrections to Internship Curriculum Notebooks
