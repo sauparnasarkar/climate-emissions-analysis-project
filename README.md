@@ -160,6 +160,11 @@ ghg-trend-analysis-forecasting/
 
 Full weekly requirements, deliverables, checkpoints, and pre-read resources are in [`SPEC.md`](SPEC.md).
 
+## Architecture
+
+For how the system is actually built — the data pipeline, the `api`/`climate-dashboard-react`
+internals, and the Mac Mini deploy topology — see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 ---
 
 ## Weekly Commit Schedule
