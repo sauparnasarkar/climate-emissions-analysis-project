@@ -1682,6 +1682,42 @@ the page pre-scrolled so "Per Capita" is off-screen, clicking it correctly targe
 position (confirmed via the same instant-scroll mechanics check used earlier in this section,
 isolating the same pre-existing `smooth`-animation observability gap rather than a code defect).
 
+**Seventh post-ship bug report, with screenshots: the fifth fix's permanent shortfall spacer
+strands `BackToTop` deep inside a large empty gap below the footer.** Reported directly: jumping
+to Overview's last section ("% Change") opened a large blank area beneath the page's real content,
+with the floating "Back to top" button rendering well below the footer, visibly detached from it.
+Root-caused directly against the fifth fix's own design: the shortfall spacer `scrollToJumpTarget`
+uses to bring a short page's last target flush to the top is deliberately never auto-removed (that
+fix's whole point — removing it re-clamps scroll back down) — confirmed live, Overview's
+`#pct-change` spacer measured `348px`, leaving the footer's `bottom` edge at `-1082px` (deep
+off-screen above) once scrolled fully into the gap it leaves. `BackToTop`'s `position: fixed`
+naturally kept rendering at its normal viewport-anchored spot inside that gap regardless — the
+gap itself was an accepted, known tradeoff of the fifth fix, but this consequence for the button
+specifically wasn't previously addressed.
+
+Fixed (`design-system` PR #40) with a new optional `BackToTop.avoidSelector` prop: once the
+matched element's (the app's real `<footer>`) top edge rises above the viewport's bottom edge, the
+button's `bottom` offset grows to keep it docked just above that edge instead of the viewport's —
+and keeps growing as the user scrolls further into the gap, so the button scrolls out of view
+entirely (rather than staying pinned in empty space) once even the footer itself has scrolled
+past. Wired in `climate-dashboard-react` (PR #130) as `<BackToTop targetId="main-content"
+avoidSelector="footer" />`, matching `Footer`'s own real `<footer>` element.
+
+**Copilot's review caught a real math error before merge.** The initial implementation's
+`dockOffset` calculation double-counted the button's own base 24px bottom margin, docking it 24px
+higher above the footer than intended — still functionally correct (never overlapping the footer),
+but with a 40px gap instead of the intended 16px. Pulled the fix (`ad1291c`) and verified
+independently (typecheck, full `BackToTop`/`JumpLinks` story suite — 17/17, full `npm run test` —
+197/197) before merging, per this session's established practice of not trusting a bot-authored fix
+on its own say-so.
+
+Deployed and verified live against the exact reported scenario: on production, jumping to
+Overview's `#pct-change` and forcing the scroll to its settled position (the same instant-scroll
+technique used to isolate this session's known `smooth`-animation observability gap) shows the
+button's bottom edge at `y=542` and the footer's top edge at `y=558` — a clean `16px` gap, matching
+`DOCK_GAP_PX` exactly, with the button visibly docked just above the footer rather than stranded
+in empty space below it.
+
 ---
 
 ## 6. Post-Ship Corrections to Internship Curriculum Notebooks
