@@ -2935,3 +2935,53 @@ through this session's own browser-automation tooling — confirmed separately, 
 `behavior: 'auto'` scrolls correctly and instantly, isolating the gap to that tool's already-known
 inability to progress `smooth` scroll animation frames (not a defect in what shipped), the same
 pre-existing limitation noted throughout this release.
+
+### Sixth post-ship refinement: items[0]-only was too strict for a genuine second neighbor
+
+Reported directly, once the fourth fix (above) had shipped and was confirmed working for "YoY
+Change" and "GHG Share by Decade": Country Profile's "Per Capita" chart sits stacked directly under
+"Emissions" -- close enough a neighbor that scrolling it to the top while both charts are already
+visible just hides the nav for no benefit, exactly the same reasoning the fourth fix's
+`items[0]`-only rule had already been built on. Restricting "skip if already visible" to strictly
+`items[0]` turned out to be one section too strict for this specific page's layout.
+
+**Why this couldn't just be solved with better geometry, again.** A purely geometric check can't
+tell "a later section that happens to fit this particular viewport" apart from "a genuine neighbor
+of the top section" -- both are just a document position measured against a viewport height, and
+the fourth fix in this same release had already demonstrated, live, exactly how that goes wrong
+(the "YoY Change" / 1920x963 viewport counterexample). Whatever rule handles "Per Capita" correctly
+by geometry alone would need to also *not* apply to "YoY Change" under the same geometric
+conditions -- and there's no fact about either target's raw document position that distinguishes
+the two on its own.
+
+The user raised the natural follow-on question directly: what about a mobile viewport, where "Per
+Capita" is genuinely below the fold because "Emissions" alone fills the whole screen? Any fix here
+has to still scroll normally in that case, not just skip unconditionally because the section
+happens to be "adjacent" in some structural sense.
+
+**The fix (`design-system` PR #39): an explicit per-item opt-in instead of another inference
+attempt.** Adds `JumpLinkItem.topSection`, set by whichever page author knows a later item is a
+close neighbor of the actual top section -- Country Profile's `JUMP_ITEMS[1]` ("Per Capita") is the
+one place across the whole app this gets set (`climate-emissions-analysis-project` PR #129); every
+other page's jump items are untouched, still defaulting to the fourth fix's `items[0]`-only
+behavior. Critically, the flag only widens *eligibility* for the existing `alreadyFullyVisible`
+runtime check -- it doesn't replace or bypass that check. This is what answers the mobile question
+for free: on a narrow/short viewport where "Per Capita" is genuinely off-screen, the same
+visibility check that already handles every other target on every other viewport correctly decides
+to scroll, with no separate mobile-specific branch needed anywhere.
+
+Two new regression stories cover both directions of this behavior, using a items array where only
+the *second* item (not the first) carries the flag, to prove the split is driven by the flag
+itself and not by list position: one confirms the marked item skips its scroll while already
+visible -- confirmed genuinely discriminating against the pre-flag code by reverting and
+re-running (fails at `470` vs. an expected `38`, passes with the fix) -- the other confirms the
+same marked item still scrolls normally once it's genuinely not visible.
+
+Deployed and verified live on production: "Per Capita", fully visible on a real 1920x963 viewport
+(rect spanning 254px to 588px, well within the 963px viewport height), no longer scrolls when
+clicked -- `scrollY` stays at `0`, confirmed by direct measurement before and after the click, with
+focus still correctly landing on the target. With the page pre-scrolled so "Per Capita" was
+genuinely off-screen, the underlying scroll-to-target mechanics were confirmed correct via the same
+instant-scroll verification technique used earlier in this release (this session's browser-
+automation tool still can't reliably progress a real `smooth`-scroll animation to completion, the
+same already-documented environment limitation, not a gap in what shipped).

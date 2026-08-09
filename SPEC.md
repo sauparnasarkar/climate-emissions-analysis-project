@@ -1653,6 +1653,35 @@ correctly in the same tab, isolating the gap to that tool's known inability to p
 scroll animation frames, not a defect in the shipped code), the same pre-existing limitation noted
 throughout this section.
 
+**Sixth post-ship refinement: `items[0]`-only was too strict for a genuine second top-section
+neighbor.** Reported directly: Country Profile's "Per Capita" chart sits stacked directly under
+"Emissions" — close enough a neighbor that scrolling it away while both are already visible just
+hides the nav for no benefit, the exact reasoning the fourth fix's `items[0]`-only rule was already
+built on. A purely geometric definition couldn't distinguish this case from "YoY Change" (a
+genuinely later section that must always scroll) — both are just a document position compared
+against a viewport height, and the fourth fix had already demonstrated live that geometry alone
+gets this wrong. The user flagged the follow-on concern directly: on a mobile viewport, "Per
+Capita" is genuinely below the fold (with "Emissions" alone filling the screen), so any fix here
+still has to scroll normally in that case.
+
+Fixed (`design-system` PR #39) with an explicit per-item opt-in rather than another inference
+attempt: `JumpLinkItem.topSection`, set by the page author on whichever later items they know are
+close neighbors of the actual top section. It only widens *eligibility* for the existing
+`alreadyFullyVisible` check — doesn't bypass it — so the mobile case the user raised is already
+handled by the same check that handles every other viewport size, no separate mobile-specific
+logic needed. Country Profile's `JUMP_ITEMS[1]` ("Per Capita") is the one place this flag is set
+(`climate-emissions-analysis-project` PR #129); every other page's jump items are unaffected,
+still defaulting to `items[0]`-only.
+
+Two new regression stories prove both halves of the behavior: one confirms a marked item skips
+its scroll when already visible (confirmed genuinely discriminating against the pre-flag code —
+fails at `470` vs. expected `38`, passes with the fix), the other confirms the same marked item
+still scrolls normally when it genuinely isn't visible. Deployed and verified live: "Per Capita",
+fully visible on a 1920x963 viewport, no longer scrolls when clicked (`scrollY` stays `0`); with
+the page pre-scrolled so "Per Capita" is off-screen, clicking it correctly targets the right
+position (confirmed via the same instant-scroll mechanics check used earlier in this section,
+isolating the same pre-existing `smooth`-animation observability gap rather than a code defect).
+
 ---
 
 ## 6. Post-Ship Corrections to Internship Curriculum Notebooks
