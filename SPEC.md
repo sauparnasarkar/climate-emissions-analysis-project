@@ -1,6 +1,6 @@
 # GHG Emissions Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · Aug 2026 · v44**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · Aug 2026 · v45**
 
 ---
 
@@ -445,6 +445,7 @@ Sections to include:
 | v42 | Aug 2026 | §5.20 fifth post-ship fix (`design-system` PR #38, **Shipped**), found by accident while live-verifying the fourth: the shortfall spacer's own timed cleanup (`scrollend`/rAF removal, from PR #34) silently re-clamped `scrollY` back down the instant it fired, reproducing the exact undershoot bug it was supposed to prevent — a structural consequence of removing a spacer that's the only thing making a position reachable, not a timing race fixable with a different delay. Fixed by never auto-removing the spacer, reclaiming it lazily at the start of the next jump instead. Two Copilot follow-up commits during review, one reverted (a persistent `scroll`-listener cleanup approach that introduced a real regression in `BackToTop`, caught by running its own story suite in isolation) and one kept (an unrelated test-flakiness fix, independently verified). Not an internship requirement change. |
 | v43 | Aug 2026 | §5.20 sixth post-ship refinement (`design-system` PR #39 + `climate-emissions-analysis-project` PR #129, **Shipped**): the fourth fix's `items[0]`-only rule was too strict once Country Profile needed a second top-section neighbor — "Per Capita", stacked directly under "Emissions" — but this couldn't be solved with better geometry again (already demonstrated wrong once this release). Added an explicit `JumpLinkItem.topSection` opt-in instead, which only widens eligibility for the existing visibility check rather than replacing it, so it still scrolls normally on a short/mobile viewport where the marked item is genuinely below the fold. Not an internship requirement change. |
 | v44 | Aug 2026 | §5.20 seventh post-ship fix (`design-system` PR #40 + `climate-emissions-analysis-project` PR #130, **Shipped**): reported with screenshots, jumping to a page's last section could leave `BackToTop` stranded deep inside the large scrollable gap the fifth fix's permanent shortfall spacer can leave below the footer. Fixed with a new `BackToTop.avoidSelector` prop (wired to `footer`): once the matched element's top edge rises above the viewport's bottom edge, the button's `bottom` offset grows to stay docked just above it, scrolling out of view entirely once even that element has scrolled past. Copilot's review caught a real math error before merge (the initial `dockOffset` calculation double-counted the button's base margin, docking it 24px higher than intended), independently verified before merging. Not an internship requirement change. |
+| v45 | Aug 2026 | §5.20 eighth post-ship fix (`design-system` PR #41, **Shipped**): the seventh fix treated a symptom without touching the gap itself — reported directly, with screenshots, jumping to a short page's last section still left a large blank area below the real content with the footer scrolled far out of view above it; the user asked directly whether scrolling could instead be controlled so the footer always stays at the bottom. Root-caused to the second post-ship fix's shortfall spacer, which exists specifically to defeat the browser's own scroll clamp. Fixed by removing the spacer mechanism entirely rather than resizing it — the browser's native clamp already produces the requested behavior once nothing artificially extends `scrollHeight` — accepting that a short page's last section may no longer land perfectly flush at the top. Also deleted a meaningful amount of complexity that existed only to manage the spacer's lifecycle. `BackToTop.avoidSelector` (v44) was kept — independently useful, not specific to the removed mechanism. Copilot's review was clean; independently re-verified before merging. Not an internship requirement change. |
 
 ---
 
@@ -1726,6 +1727,44 @@ technique used to isolate this session's known `smooth`-animation observability 
 button's bottom edge at `y=542` and the footer's top edge at `y=558` — a clean `16px` gap, matching
 `DOCK_GAP_PX` exactly, with the button visibly docked just above the footer rather than stranded
 in empty space below it.
+
+**Eighth post-ship fix, addressing the seventh fix's own root cause directly: never scroll a jump
+target past the document's natural end.** The seventh fix (`avoidSelector`) treated the symptom —
+`BackToTop` rendering inside the blank gap a short page's shortfall spacer leaves below the
+footer — without touching the gap itself. Reported directly, with screenshots, once that symptom
+was fixed: the gap was still there, and still looked wrong — jumping to a short page's last
+section (e.g. Historical Trends' "GHG Share by Decade") pulled it flush to the very top, leaving a
+large blank area below the real content with the footer scrolled far out of view above it. The
+user asked directly whether the footer could instead always stay at the bottom of the page.
+
+Fixed (`design-system` PR #41) by removing the shortfall-spacer mechanism entirely, rather than
+adjusting its size. The spacer (introduced by the second post-ship fix, above) existed specifically
+to defeat the browser's own scroll clamp — `scrollTop` is naturally bounded to
+`[0, scrollHeight - clientHeight]` — so a target could always reach exactly flush-to-top even on a
+page too short to naturally support that. Once nothing artificially extends `scrollHeight`, that
+native clamp already produces the requested behavior on its own: the page scrolls exactly as far
+as its real content allows, landing the footer at the bottom with no blank space past it. Accepted
+tradeoff, stated directly: a short page's last section may no longer land perfectly flush at the
+very top (part of the previous section can remain visible above it) — preferred over ever showing
+blank space past the page's real content. This also deleted a meaningful amount of complexity that
+existed only to manage the spacer's own lifecycle (the module-level `activeSpacer` tracking and its
+lazy-reclaim-on-next-jump logic from the fifth fix).
+
+The two spacer-specific regression tests (`ClickScrollsFullyToTopEvenNearPageBottom`,
+`ClickStaysFlushToTopAfterScrollSettles`) were replaced with one verifying the new behavior
+(`ClickNeverScrollsPastTheDocumentsNaturalEnd`) — confirmed genuinely discriminating against the
+removed spacer mechanism by reverting and re-running (a spacer is created when none is expected).
+Copilot's review was clean, independently re-verified (typecheck, full `JumpLinks`/`BackToTop`
+story suite, full `npm run test` — 196/196) before merging. `BackToTop.avoidSelector` (seventh fix)
+remains independently useful — general "dock above the footer" behavior for any deep scroll, not
+specific to the now-removed spacer — so it was kept rather than reverted alongside the mechanism
+that originally motivated it.
+
+Deployed and verified live against the exact reported scenario: on Historical Trends, forcing the
+scroll to "GHG Share by Decade"'s settled position shows `scrollY` (`294`) exactly equal to the
+document's natural max scroll, the footer's `bottom` edge (`905px`) landing right at the viewport's
+own bottom edge (`913px`, an 8px difference consistent with layout rounding) — no spacer in the
+DOM, no blank space past the footer — confirmed visually via screenshot.
 
 ---
 

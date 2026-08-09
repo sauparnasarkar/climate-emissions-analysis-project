@@ -3043,3 +3043,55 @@ instant-scroll technique used throughout this release to work around this sessio
 to reliably observe a completed `smooth`-scroll animation) shows the button's bottom edge at
 `y=542` and the footer's top edge at `y=558` -- a clean, exact `16px` gap, with the button visibly
 docked just above the footer rather than stranded in empty space well below it.
+
+### Eighth post-ship fix: stop leaving blank space past the page's real content at all
+
+The seventh fix (above) treated a symptom -- `BackToTop` rendering inside the blank gap a short
+page's shortfall spacer leaves below the footer -- without touching the gap itself. Once that
+symptom was fixed and the user could see the actual page again, the gap was still there and still
+looked wrong: reported directly, with screenshots, jumping to a short page's last section (e.g.
+Historical Trends' "GHG Share by Decade") pulled it flush to the very top, leaving a large blank
+area below the real content, with the footer scrolled far out of view above it. The user asked the
+more fundamental question directly: could the scrolling instead be controlled so the footer always
+stays at the bottom of the page?
+
+**Root cause, traced back to the second post-ship fix earlier in this release.** The shortfall
+spacer that fix introduced exists specifically to defeat the browser's own scroll clamp --
+`scrollTop` is naturally bounded to `[0, scrollHeight - clientHeight]` -- so that a target could
+always reach exactly flush-to-top even on a page too short to naturally support that. That was the
+right fix for the bug it was solving at the time (part of the previous section staying visible
+above the target), but it came with a cost that only became fully visible once `BackToTop` was
+also docking against the footer correctly: forcing the scroll further than the page's real content
+genuinely extends, at all, is what creates blank space in the first place. There was no way to keep
+"target always flush at top" and "never show blank space below real content" simultaneously on a
+page short enough that the two goals conflict -- something had to give, and the user's own priority
+was now clear.
+
+**The fix (`design-system` PR #41): delete the spacer mechanism, don't resize it.** Once nothing
+artificially extends `scrollHeight`, the browser's own native clamp already does exactly what's
+wanted -- the page scrolls exactly as far as its real content allows, landing the footer at the
+bottom with nothing past it. This is a case where the "right" fix was to remove a whole mechanism
+rather than patch it further: it also deleted a meaningful chunk of accumulated complexity that
+existed only to manage that mechanism's own lifecycle (the module-level `activeSpacer` tracking
+and its lazy-reclaim-on-next-jump logic from the fifth fix, several paragraphs of comment
+explaining exactly why removing a spacer any other way re-clamped scroll -- all of it moot once the
+spacer doesn't exist to begin with).
+
+The two regression tests written specifically to prove the spacer stayed in place
+(`ClickScrollsFullyToTopEvenNearPageBottom`, `ClickStaysFlushToTopAfterScrollSettles`) were, by
+definition, now testing behavior being deliberately removed -- replaced with one test proving the
+opposite (`ClickNeverScrollsPastTheDocumentsNaturalEnd`), confirmed genuinely discriminating by
+reverting the fix and re-running: a spacer gets created when none should exist. `BackToTop.avoid
+Selector` from the seventh fix was kept, not reverted alongside the mechanism that originally
+motivated it -- it's independently useful general "dock above the footer" behavior for any deep
+scroll, not specific to the spacer bug. Copilot's review was clean (one informational note about
+the public API's behavior change, already stated directly in the PR description), independently
+re-verified (typecheck, full `JumpLinks`/`BackToTop` story suite, full `npm run test` -- 196/196)
+before merging.
+
+Deployed and verified live against the exact reported scenario: on Historical Trends, forcing the
+scroll to "GHG Share by Decade"'s fully-settled position shows `scrollY` (`294`) exactly equal to
+the document's own natural max scroll, with the footer's `bottom` edge (`905px`) landing right at
+the viewport's own bottom edge (`913px` -- the 8px gap consistent with ordinary layout rounding,
+not a leftover spacer) -- confirmed both by direct measurement and visually, via screenshot: no
+blank space past the footer, no spacer left in the DOM.
