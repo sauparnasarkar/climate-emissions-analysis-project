@@ -175,8 +175,13 @@ function App() {
       <Footer copyright="IDEAS TIH Summer Internship 2026 · Mentor: Sauparna Sarkar" links={[]} />
       {/* Page-agnostic (SPEC.md §5.20), unlike JumpLinks -- wired once here rather than per page.
           targetId reuses the same #main-content landmark the route-change effect above already
-          focuses on in-app navigation, so a back-to-top click lands focus in the same place. */}
-      <BackToTop targetId="main-content" />
+          focuses on in-app navigation, so a back-to-top click lands focus in the same place.
+          avoidSelector="footer" keeps the button docked above Footer's own <footer> element --
+          reported directly, with screenshots: a JumpLinks target near the end of a short page can
+          leave a large scrollable gap below the footer (the shortfall spacer scrollToJumpTarget
+          uses, deliberately never auto-removed -- see its own comment), and without this the
+          button rendered stranded deep inside that gap. */}
+      <BackToTop targetId="main-content" avoidSelector="footer" />
     </div>
   );
 }
