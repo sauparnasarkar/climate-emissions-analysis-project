@@ -3095,3 +3095,55 @@ the document's own natural max scroll, with the footer's `bottom` edge (`905px`)
 the viewport's own bottom edge (`913px` -- the 8px gap consistent with ordinary layout rounding,
 not a leftover spacer) -- confirmed both by direct measurement and visually, via screenshot: no
 blank space past the footer, no spacer left in the DOM.
+
+### Ninth post-ship bug report: BackToTop never appears on a page short enough to stay under threshold
+
+A direct, immediate consequence of the eighth fix, reported the moment it could actually be
+observed: on Historical Trends, clicking "GHG Share by Decade" now correctly scrolled down at
+all -- the eighth fix's whole point -- but the "Back to top" button still never appeared. Not a
+new, unrelated bug so much as an old one finally becoming visible: Historical Trends' entire
+natural scroll range is only `~294px`, comfortably under `BackToTop`'s `400px` default
+`threshold`. The now-removed shortfall spacer used to inflate `scrollY` well past that threshold
+as an incidental side effect on every short page, which had been silently masking, this whole
+release, that the button's raw-pixel-only visibility check could never fire on a page this short
+at all -- not "rarely," not "only right at the edge," but *never*, for any scroll position,
+including the genuine bottom.
+
+**The fix (`design-system` PR #42): a second, independent visibility trigger.** Alongside the
+existing `scrollY > threshold` check, the button now also becomes visible once `scrollY` reaches
+the document's own natural maximum (`scrollHeight - clientHeight`), regardless of how few pixels
+that represents. The reasoning: a user who has genuinely scrolled to the end of a page's real
+content -- however short that page happens to be -- has a legitimate reason to want a quick way
+back to the top, and "how many raw pixels did that take" isn't really the thing that reason
+depends on.
+
+**Writing a regression test for this surfaced a second, smaller lesson about this same test file's
+own environment.** The first draft of the new story rendered a modest 150px spacer below the
+button and scrolled to the resulting "natural bottom" -- and passed identically whether the fix
+was present or not, a silent vacuous pass. A diagnostic dump (rather than an assumption) showed why
+directly: in this exact test environment, that layout produced a `scrollHeight` of `900px` against
+a `clientHeight` of `900px` -- zero actual overflow, so the test's own "skip if the environment
+doesn't reproduce a real natural bottom" safety valve was firing silently, every single run,
+rather than exercising anything. Fixed by using enough content (`1500px`) to guarantee real
+overflow regardless of this particular test's own layout quirks, combined with deliberately setting
+`threshold` to an unreachable `100000` -- which meant the *size* of the natural overflow no longer
+needed to precisely mirror a real short page's numbers, only needed to be reliably nonzero, to
+correctly isolate the new trigger from the old pixel-based one. Confirmed genuinely discriminating
+afterward by reverting the fix and re-running: the button never appears against the old code, even
+scrolled to the real, now-guaranteed-nonzero bottom.
+
+Copilot's review was clean -- confirming the `naturalMaxScroll > 0` guard's purpose (skip
+non-scrollable pages), the `-1` pixel tolerance's consistency with the same sub-pixel rounding
+tolerance the footer-docking logic (v44) already established elsewhere in this file, and that
+`scrollHeight`/`clientHeight` are read fresh inside the scroll callback rather than captured stale
+from outer scope -- independently re-verified anyway (typecheck, full `JumpLinks`/`BackToTop`
+story suite -- 17/17, full `npm run test` -- 197/197) before merging.
+
+Deployed and verified live against the exact reported scenario: on production, forcing the scroll
+to "GHG Share by Decade"'s settled position on Historical Trends now shows the button present at
+`scrollY: 184` -- well under the `400px` threshold, confirming the new "at natural bottom" trigger
+is what's actually firing, not a coincidental crossing of the old pixel check -- confirmed
+visually via screenshot, alongside the eighth fix's own footer-flush-at-bottom result in the same
+view: no blank space, footer at the true bottom, button correctly present and docked in its normal
+corner position (not needing `avoidSelector`'s docking adjustment at all here, since nothing is
+past the footer to avoid).

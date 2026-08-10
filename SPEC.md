@@ -1,6 +1,6 @@
 # GHG Emissions Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · Aug 2026 · v45**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · Aug 2026 · v46**
 
 ---
 
@@ -446,6 +446,7 @@ Sections to include:
 | v43 | Aug 2026 | §5.20 sixth post-ship refinement (`design-system` PR #39 + `climate-emissions-analysis-project` PR #129, **Shipped**): the fourth fix's `items[0]`-only rule was too strict once Country Profile needed a second top-section neighbor — "Per Capita", stacked directly under "Emissions" — but this couldn't be solved with better geometry again (already demonstrated wrong once this release). Added an explicit `JumpLinkItem.topSection` opt-in instead, which only widens eligibility for the existing visibility check rather than replacing it, so it still scrolls normally on a short/mobile viewport where the marked item is genuinely below the fold. Not an internship requirement change. |
 | v44 | Aug 2026 | §5.20 seventh post-ship fix (`design-system` PR #40 + `climate-emissions-analysis-project` PR #130, **Shipped**): reported with screenshots, jumping to a page's last section could leave `BackToTop` stranded deep inside the large scrollable gap the fifth fix's permanent shortfall spacer can leave below the footer. Fixed with a new `BackToTop.avoidSelector` prop (wired to `footer`): once the matched element's top edge rises above the viewport's bottom edge, the button's `bottom` offset grows to stay docked just above it, scrolling out of view entirely once even that element has scrolled past. Copilot's review caught a real math error before merge (the initial `dockOffset` calculation double-counted the button's base margin, docking it 24px higher than intended), independently verified before merging. Not an internship requirement change. |
 | v45 | Aug 2026 | §5.20 eighth post-ship fix (`design-system` PR #41, **Shipped**): the seventh fix treated a symptom without touching the gap itself — reported directly, with screenshots, jumping to a short page's last section still left a large blank area below the real content with the footer scrolled far out of view above it; the user asked directly whether scrolling could instead be controlled so the footer always stays at the bottom. Root-caused to the second post-ship fix's shortfall spacer, which exists specifically to defeat the browser's own scroll clamp. Fixed by removing the spacer mechanism entirely rather than resizing it — the browser's native clamp already produces the requested behavior once nothing artificially extends `scrollHeight` — accepting that a short page's last section may no longer land perfectly flush at the top. Also deleted a meaningful amount of complexity that existed only to manage the spacer's lifecycle. `BackToTop.avoidSelector` (v44) was kept — independently useful, not specific to the removed mechanism. Copilot's review was clean; independently re-verified before merging. Not an internship requirement change. |
+| v46 | Aug 2026 | §5.20 ninth post-ship fix (`design-system` PR #42, **Shipped**): a direct consequence of the eighth fix, reported the moment it could be observed — on Historical Trends, "GHG Share by Decade" now correctly scrolled down, but `BackToTop` still never appeared. Root-caused: that page's entire natural scroll range (`~294px`) sits under `BackToTop`'s `400px` default threshold — the now-removed shortfall spacer used to inflate `scrollY` well past it as a side effect on every short page, masking that the pixel-only check could never fire there at all. Fixed by adding a second, independent trigger: the button now also shows once `scrollY` reaches the document's own natural maximum, regardless of pixel count. Writing the regression test surfaced a smaller lesson about the same test file: its first draft silently produced zero real overflow in this exact test environment and passed vacuously either way — fixed with more content plus a deliberately unreachable `threshold` to reliably isolate the new trigger. Copilot's review was clean; independently re-verified before merging. Not an internship requirement change. |
 
 ---
 
@@ -1765,6 +1766,37 @@ scroll to "GHG Share by Decade"'s settled position shows `scrollY` (`294`) exact
 document's natural max scroll, the footer's `bottom` edge (`905px`) landing right at the viewport's
 own bottom edge (`913px`, an 8px difference consistent with layout rounding) — no spacer in the
 DOM, no blank space past the footer — confirmed visually via screenshot.
+
+**Ninth post-ship bug report, a direct consequence of the eighth fix: `BackToTop` never appears on
+a page short enough that its whole natural scroll range sits under the visibility threshold.**
+Reported directly: on Historical Trends, clicking "GHG Share by Decade" now correctly scrolled
+down (the eighth fix), but the button still never appeared. Root-caused directly: Historical
+Trends' entire natural scroll range is only `~294px`, under `BackToTop`'s `400px` default
+`threshold` — confirmed live, `scrollY` reached exactly `294` at the page's genuine bottom, still
+short of `400`. The eighth fix's removal of the shortfall spacer was the direct cause of this
+becoming visible: that spacer used to inflate `scrollY` well past the threshold as a side effect
+on every short page, masking that the raw-pixel-only visibility check could never fire on a page
+this short at all, regardless of scroll position.
+
+Fixed (`design-system` PR #42) by adding a second, independent trigger alongside the existing
+threshold check: once `scrollY` reaches the document's own natural maximum
+(`scrollHeight - clientHeight`), the button becomes visible regardless of how few pixels that
+represents — a user who has genuinely reached the end of a page's real content should have a way
+back to the top, however short that page happens to be. A new regression story
+(`VisibleAtNaturalBottomEvenUnderThreshold`) sets `threshold` to a deliberately unreachable value
+(`100000`) to isolate the new trigger from the existing pixel check, confirmed genuinely
+discriminating by reverting and re-running (the button never appears against the old code, even
+scrolled to the real bottom, with real overflow confirmed present via a diagnostic dump rather
+than assumed — the test's first draft used too little content and silently produced zero natural
+overflow in this exact test environment, which would have made it pass vacuously either way).
+Copilot's review was clean; independently re-verified (typecheck, full `JumpLinks`/`BackToTop`
+story suite — 17/17, full `npm run test` — 197/197) before merging.
+
+Deployed and verified live against the exact reported scenario: on production, forcing the scroll
+to "GHG Share by Decade"'s settled position on Historical Trends now shows the button present at
+`scrollY: 184` — well under the `400px` threshold, confirming the new "at natural bottom" trigger
+is what's firing, not the old pixel check — confirmed visually via screenshot alongside the eighth
+fix's own footer-flush-at-bottom result in the same view.
 
 ---
 
