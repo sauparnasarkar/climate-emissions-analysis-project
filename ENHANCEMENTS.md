@@ -3147,3 +3147,50 @@ visually via screenshot, alongside the eighth fix's own footer-flush-at-bottom r
 view: no blank space, footer at the true bottom, button correctly present and docked in its normal
 corner position (not needing `avoidSelector`'s docking adjustment at all here, since nothing is
 past the footer to avoid).
+
+## Release 16 — Dependency Maintenance from the 2026-08-11 Infra Audit
+
+A `/security-infra-audit` run against the Mac Mini deployment (published as an Artifact, later
+updated in place as findings were resolved) flagged two Medium-severity dependency findings --
+real CVEs, both confirmed to have no exploitable path in this app as actually built and used --
+alongside a host-level finding (AirPlay Receiver reachable on the LAN) that's intentionally not
+narrated here, since this project's docs track the app/curriculum itself rather than host-specific
+infrastructure checks.
+
+**Backend** (`pip-audit`): roughly 60 advisories, every one landing in `jupyterlab`,
+`jupyter-server`, `mistune`, `pillow`, `GitPython`, `pytest`, and `setuptools` -- none imported
+anywhere in `api/` or `app.py`, and no Jupyter server actually running on the host. `fastapi` and
+`uvicorn`, the packages that matter for the deployed service, came back clean. Five of the flagged
+packages aren't in `requirements.txt` at all -- they're transitive, pulled in by `nbconvert`,
+`matplotlib`, `streamlit`, and `jupyterlab`/`notebook` respectively -- and each of those real
+requirers already permits the fixed version via an open-ended constraint, so clearing each CVE
+was just a matter of adding a new explicit floor pin rather than touching anything that pulls it
+in. `jupyterlab` itself needed one extra bit of care: `notebook==7.5.6` caps it at `<4.6`, so the
+fix raises the floor to `jupyterlab>=4.5.10` (the 4.5.x line's own fix) rather than jumping to
+`4.6.2`, which would have forced bumping `notebook` too for no real reason. `pytest==8.3.4 ->
+9.0.3` is the one genuine major-version bump in the set -- checked first against pytest's own
+changelog and this repo's actual test usage (no removed APIs touched, no `pytest.ini`/
+`pyproject.toml` config section to migrate at all), then verified for real: the full `api/tests`
+suite passed 104/104, and `week1_eda.ipynb` executed end-to-end via `jupyter nbconvert --execute`
+with no errors, confirming the upgraded `jupyterlab`/`notebook`/`nbformat`/`ipykernel`/`mistune`/
+`pillow` toolchain still cooperates for real notebook execution, not just at the import level.
+
+**Frontend** (`npm audit`, `climate-dashboard-react/`): `react-router-dom` 7.18.1 carried a High
+advisory (GHSA-qwww-vcr4-c8h2, an RSC-Mode CSRF bypass), plus five transitive build-tool packages
+(`undici`, `nanoid`, `postcss`, `fast-uri`, `brace-expansion`) that don't appear in `package.json`
+at all. Confirmed directly in `src/main.tsx` that this app uses plain `<BrowserRouter>`, not React
+Router's framework/RSC mode -- the specific code path the advisory describes was never reachable
+here. `npm audit fix --dry-run` confirmed every one of the 6 advisories resolves inside the
+existing lockfile's own semver constraints (react-router-dom's fix, 7.18.2, sits inside the
+already-declared `^7.18.1`), so the real fix needed no `--force` and no `package.json` edit at
+all -- `npm audit fix` alone updated `package-lock.json` only. Verified afterward: `npm test`
+90/90, `npm run build` succeeded, `npm run lint` produced no new warnings (the two pre-existing
+ones are unrelated to this change).
+
+Both `pip-audit` and `npm audit` re-ran clean locally after the fixes, and the audit Artifact was
+updated in place to mark both findings Resolved -- the same before/after-evidence treatment
+already used earlier the same day for the AirPlay Receiver finding. Opened as
+`climate-emissions-analysis-project` PR #131; mentor review required before merge like any other
+PR in this repo (never self-merged). Deploy to the Mac Mini and a production-side re-verification
+of `pip-audit`/`npm audit` follow once merged, per this project's standard deploy-after-merge
+convention.
