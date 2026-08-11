@@ -6,14 +6,23 @@ scikit-learn==1.6.1
 statsmodels==0.14.4
 streamlit==1.59.2
 notebook==7.5.6
-jupyterlab>=4.5.9
+jupyterlab>=4.5.10
 nbformat==5.10.4
 ipykernel==6.29.5
 fastapi==0.139.2
 uvicorn[standard]==0.51.0
-pytest==8.3.4
+pytest==9.0.3
 # httpx: transitive dep of jupyterlab, kept explicit since api/tests relies on it being
 # present. httpx2: what starlette.testclient.TestClient now prefers (avoids a
 # StarletteDeprecationWarning) — not a duplicate, both are genuinely needed.
 httpx==0.28.1
 httpx2==2.7.0
+# Transitive deps pinned explicitly to clear CVEs flagged by pip-audit (2026-08-11 infra
+# audit) — each is already permitted by its actual requirer's own constraint (nbconvert,
+# matplotlib, streamlit, jupyterlab/notebook, jupyterlab respectively), just floors need
+# raising past the vulnerable versions that were otherwise resolving.
+mistune>=3.3.0
+pillow>=12.2.0
+gitpython>=3.1.56
+jupyter-server>=2.20.0
+setuptools>=83.0.0
