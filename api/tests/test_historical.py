@@ -1,4 +1,64 @@
+import json
+
 import pytest
+
+
+def test_timeseries_no_scope_matches_explicit_expanded_scope(client):
+    # Backward compatibility: every existing caller (the dashboard included -- confirmed by
+    # inspection of climate-dashboard-react/src/api/client.ts) never sends `scope`. The new
+    # parameter's default must reproduce the old unparameterized behavior exactly.
+    resp_default = client.get("/api/historical/timeseries", params={"countries": ["China"]})
+    resp_explicit = client.get(
+        "/api/historical/timeseries", params={"countries": ["China"], "scope": "expanded"}
+    )
+    assert resp_default.json() == resp_explicit.json()
+
+
+def test_timeseries_scope_sovereign_reaches_countries_outside_expanded(client):
+    # Canada (owid_raw_df fixture: iso_code=CAN, single 1995 row, co2=999.0) has a real
+    # iso_code but isn't in FEATURED_COUNTRIES and isn't opted into `expanded` by any fixture
+    # here -- unreachable under featured/expanded scope, only under sovereign.
+    resp_expanded = client.get("/api/historical/timeseries", params={"countries": ["Canada"]})
+    assert resp_expanded.json()["series"] == []
+
+    resp_sovereign = client.get(
+        "/api/historical/timeseries", params={"countries": ["Canada"], "scope": "sovereign"}
+    )
+    canada = next(s for s in resp_sovereign.json()["series"] if s["name"] == "Canada")
+    assert canada["years"] == [1995]
+    assert canada["values"] == [999.0]
+
+
+def test_timeseries_scope_featured_excludes_expanded_only_country(client, full_data):
+    # A custom expanded set (Canada opted in, unlike the shared write_selected_countries_json
+    # helper which opts in France instead -- France isn't in the owid-co2-data.csv fixture at
+    # all, so it can't discriminate featured from expanded for *this* endpoint's data pool).
+    import api.data_loaders as data_loaders
+
+    with open(full_data / "selected_countries.json", "w") as f:
+        json.dump(
+            {
+                "generated": "2026-01-01",
+                "source_year": 2023,
+                "coverage_threshold_pct": 90,
+                "mt_floor": 100,
+                "expanded": ["China", "United States", "Germany", "Canada"],
+                "expanded_count": 4,
+                "expanded_global_share_pct": 92.2,
+            },
+            f,
+        )
+    data_loaders.load_expanded_countries.cache_clear()
+
+    resp_expanded = client.get(
+        "/api/historical/timeseries", params={"countries": ["Canada"], "scope": "expanded"}
+    )
+    assert resp_expanded.json()["series"] != []
+
+    resp_featured = client.get(
+        "/api/historical/timeseries", params={"countries": ["Canada"], "scope": "featured"}
+    )
+    assert resp_featured.json()["series"] == []
 
 
 def test_timeseries_default_params(client):
@@ -61,6 +121,27 @@ def test_decade_composition_filtered_to_countries_still_sums_to_100(client):
     for i in range(len(body["decades"])):
         total = sum(by_gas[gas][i] for gas in by_gas)
         assert round(total, 6) == 100.0
+
+
+def test_decade_composition_no_scope_matches_explicit_expanded_scope(client):
+    resp_default = client.get("/api/historical/decade-composition")
+    resp_explicit = client.get("/api/historical/decade-composition", params={"scope": "expanded"})
+    assert resp_default.json() == resp_explicit.json()
+
+
+def test_decade_composition_scope_sovereign_widens_the_default_pool(client):
+    # No `countries` given -> decade-composition aggregates the *whole* selected-scope pool
+    # (unlike get_timeseries, whose no-countries default is always FEATURED_COUNTRIES[:5]
+    # regardless of scope). Canada's single 1995 row (decade 1990, co2=999.0) is invisible
+    # under expanded scope but pulled into the sovereign-scope aggregate, so the 1990-decade
+    # shares must differ between the two.
+    resp_expanded = client.get("/api/historical/decade-composition")
+    resp_sovereign = client.get("/api/historical/decade-composition", params={"scope": "sovereign"})
+    assert resp_expanded.json()["decades"] == resp_sovereign.json()["decades"] == [1990, 2000, 2010]
+
+    by_gas_expanded = {s["gas"]: s["share"][0] for s in resp_expanded.json()["series"]}
+    by_gas_sovereign = {s["gas"]: s["share"][0] for s in resp_sovereign.json()["series"]}
+    assert by_gas_expanded != by_gas_sovereign
 
 
 def test_decade_composition_filtered_to_unknown_country_is_empty(client):

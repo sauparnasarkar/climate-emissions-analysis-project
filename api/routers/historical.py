@@ -1,9 +1,10 @@
 from typing import Literal
 
+import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
 from ..constants import FEATURED_COUNTRIES, GAS_COLUMNS
-from ..data_loaders import DataNotFoundError, load_raw
+from ..data_loaders import DataNotFoundError, load_raw, load_raw_sovereign
 from ..schemas import (
     DecadeGasShare,
     HistoricalDecadeCompositionResponse,
@@ -14,15 +15,24 @@ from ..schemas import (
 router = APIRouter()
 
 GasName = Literal["co2", "methane", "nitrous_oxide"]
+Scope = Literal["featured", "expanded", "sovereign"]
+
+
+def _scoped_pool(scope: Scope) -> pd.DataFrame:
+    if scope == "sovereign":
+        return load_raw_sovereign()
+    df = load_raw()
+    return df[df["country"].isin(FEATURED_COUNTRIES)] if scope == "featured" else df
 
 
 @router.get("/historical/timeseries", response_model=HistoricalTimeseriesResponse)
 def get_timeseries(
     countries: list[str] | None = Query(default=None),
     gas: GasName = "co2",
+    scope: Scope = "expanded",
 ):
     try:
-        df_raw = load_raw()
+        df_raw = _scoped_pool(scope)
     except DataNotFoundError as e:
         raise HTTPException(status_code=503, detail=e.message)
 
@@ -43,19 +53,22 @@ def get_timeseries(
 
 
 @router.get("/historical/decade-composition", response_model=HistoricalDecadeCompositionResponse)
-def get_decade_composition(countries: list[str] | None = Query(default=None)):
+def get_decade_composition(
+    countries: list[str] | None = Query(default=None),
+    scope: Scope = "expanded",
+):
     try:
-        df_raw = load_raw()
+        df_raw = _scoped_pool(scope)
     except DataNotFoundError as e:
         raise HTTPException(status_code=503, detail=e.message)
 
     # No `countries` filter provided preserves this endpoint's original unfiltered-across-
     # all-countries behavior; callers that want a subset (e.g. the Historical Trends page's
     # own country picker) now get one, matching get_timeseries()'s pattern above.
-    df_scope = df_raw[df_raw["country"].isin(countries)] if countries else df_raw
+    df_filtered = df_raw[df_raw["country"].isin(countries)] if countries else df_raw
 
     gas_cols_list = list(GAS_COLUMNS.keys())
-    dg = df_scope.assign(decade=(df_scope["year"] // 10) * 10)
+    dg = df_filtered.assign(decade=(df_filtered["year"] // 10) * 10)
     agg = dg.groupby("decade")[gas_cols_list].sum()
     agg_pct = agg.div(agg.sum(axis=1), axis=0) * 100
 

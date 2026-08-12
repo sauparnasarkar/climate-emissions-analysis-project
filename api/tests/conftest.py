@@ -183,11 +183,14 @@ def owid_raw_headline_df() -> pd.DataFrame:
         ("Poland", "POL", 400.0, 300.0),
         ("Vietnam", "VNM", 20.0, 320.0),
     ]
+    # methane/nitrous_oxide included (flat placeholder values) only because
+    # load_raw_sovereign() now requires the columns to exist -- headline_movers itself never
+    # reads them.
     out = []
     for country, iso, co2_1990, co2_2024 in rows_2024_desc:
-        out.append((country, 1990, co2_1990, iso))
-        out.append((country, 2024, co2_2024, iso))
-    return pd.DataFrame(out, columns=["country", "year", "co2", "iso_code"])
+        out.append((country, 1990, co2_1990, 1.0, 0.1, iso))
+        out.append((country, 2024, co2_2024, 1.0, 0.1, iso))
+    return pd.DataFrame(out, columns=["country", "year", "co2", "methane", "nitrous_oxide", "iso_code"])
 
 
 def ghg_filtered_df() -> pd.DataFrame:

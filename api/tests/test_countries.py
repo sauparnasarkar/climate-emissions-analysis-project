@@ -11,6 +11,19 @@ def test_list_countries_falls_back_when_no_selection_persisted(client):
     body = resp.json()
     assert body["featured"] == FEATURED_COUNTRIES
     assert body["expanded"] == FEATURED_COUNTRIES
+    # owid_raw_df() (conftest): China, United States, Germany, Canada all carry a real
+    # iso_code; the "World" aggregate row (no iso_code) must stay excluded.
+    assert set(body["sovereign"]) == {"China", "United States", "Germany", "Canada"}
+
+
+def test_list_countries_503_when_raw_data_missing(data_dir):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    resp = TestClient(app).get("/api/countries")
+    assert resp.status_code == 503
+    assert "owid-co2-data.csv" in resp.json()["detail"]
 
 
 def test_list_countries_reflects_persisted_selection(full_data):
