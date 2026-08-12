@@ -7,6 +7,7 @@ from __future__ import annotations
 from ..client import get_client
 from ..resolution import fetch_country_lists, resolve_countries, resolve_country
 from ..server import mcp
+from ..trimming import trim
 
 
 @mcp.tool()
@@ -41,9 +42,22 @@ async def get_scenario_projection(
 @mcp.tool()
 async def get_scenario_cumulative_impact(sort_by: str = "BAU") -> dict:
     """2025-2040 cumulative emissions by scenario, ranked. `sort_by` is one of BAU,
-    Moderate, Aggressive."""
+    Moderate, Aggressive. This tool has no country-list argument, so trimming (SPEC.md
+    §3.2) always applies when there are more than 10 rows: capped to the top 10 (the
+    wrapped API already returns `rows` pre-sorted by `sort_by`'s cumulative value
+    descending, so this only slices, never re-sorts), with a scope_note explaining the
+    cap."""
     client = get_client()
-    return await client.get("/scenarios/cumulative", params={"sort_by": sort_by})
+    body = await client.get("/scenarios/cumulative", params={"sort_by": sort_by})
+    trimmed, note = trim(
+        body["rows"],
+        scope_label="the full scenario dataset",
+        sort_key_label=f"cumulative {sort_by} CO2 descending",
+    )
+    body["rows"] = trimmed
+    if note is not None:
+        body["scope_note"] = note
+    return body
 
 
 @mcp.tool()

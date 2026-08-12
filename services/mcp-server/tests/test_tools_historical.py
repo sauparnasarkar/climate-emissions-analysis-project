@@ -1,5 +1,6 @@
 import pytest
 
+from api.tests.conftest import owid_raw_headline_df
 from mcp_server.resolution import CountryResolutionError
 from mcp_server.tools.historical import get_gas_composition_by_decade, get_historical_emissions
 
@@ -28,6 +29,20 @@ async def test_get_historical_emissions_omitted_countries_resolves_full_scope_po
 async def test_get_historical_emissions_out_of_scope_explicit_country_raises(api_client):
     with pytest.raises(CountryResolutionError, match="outside 'featured' scope"):
         await get_historical_emissions(countries=["Canada"], scope="featured")
+
+
+async def test_get_historical_emissions_omitted_countries_trims_over_cap(bare_api_client, data_dir):
+    # 12 sovereign countries with real 2024 magnitude separation -- Vietnam/Poland are the
+    # two lowest and must be excluded by the top-10 cap; China is highest and must lead.
+    owid_raw_headline_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    body = await get_historical_emissions(scope="sovereign")
+    names = [s["name"] for s in body["series"]]
+    assert len(names) == 10
+    assert names[0] == "China"
+    assert "Vietnam" not in names
+    assert "Poland" not in names
+    assert "scope_note" in body
+    assert "10 of 12" in body["scope_note"]
 
 
 async def test_get_gas_composition_by_decade_omitted_countries_respects_scope(api_client):

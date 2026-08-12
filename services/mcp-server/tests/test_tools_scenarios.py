@@ -28,6 +28,12 @@ async def test_get_scenario_cumulative_impact_returns_rows(api_client):
     assert isinstance(body["rows"], list)
 
 
+async def test_get_scenario_cumulative_impact_no_scope_note_when_at_or_under_cap(api_client):
+    # Fixture data only has 3 countries -- well under the trim cap.
+    body = await get_scenario_cumulative_impact(sort_by="BAU")
+    assert "scope_note" not in body
+
+
 async def test_compare_scenarios_across_countries_resolves_each_name(api_client):
     body = await compare_scenarios_across_countries(["China", "Germany"])
     assert set(body["countries"]) == {"China", "Germany"}
