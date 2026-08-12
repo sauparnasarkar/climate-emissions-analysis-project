@@ -88,7 +88,7 @@ def load_raw_sovereign() -> pd.DataFrame:
     path = _path("owid-co2-data.csv")
     if not os.path.exists(path):
         raise DataNotFoundError("data/owid-co2-data.csv not found.")
-    cols = ["country", "year", "co2", "iso_code"]
+    cols = ["country", "year", "co2", "methane", "nitrous_oxide", "iso_code"]
     df_r = pd.read_csv(path, usecols=cols)
     return df_r[df_r["iso_code"].notna() & (df_r["year"] >= 1990)].copy()
 

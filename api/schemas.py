@@ -224,6 +224,7 @@ class ScenarioCompareResponse(BaseModel):
 class CountriesResponse(BaseModel):
     featured: list[str]
     expanded: list[str]
+    sovereign: list[str]
 
 
 class ExplorerMetaResponse(BaseModel):
