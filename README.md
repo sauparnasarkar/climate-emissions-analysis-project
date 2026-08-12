@@ -1,6 +1,7 @@
 # GHG Emissions Trend Analysis and Forecasting
 
-**IDEAS TIH Summer Internship 2026 | Mentor: Sauparna Sarkar**
+**Started as a Reference Implementation for IDEAS TIH Summer Internship 2026 (Mentor: Sauparna Sarkar)**
+**Expanded to an end-to-end Analytic & Visualization Engine and an AI Analytic Engine**
 
 ---
 
