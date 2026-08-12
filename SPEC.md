@@ -1,6 +1,6 @@
 # GHG Emissions Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · Aug 2026 · v46**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · Aug 2026 · v47**
 
 ---
 
@@ -447,6 +447,7 @@ Sections to include:
 | v44 | Aug 2026 | §5.20 seventh post-ship fix (`design-system` PR #40 + `climate-emissions-analysis-project` PR #130, **Shipped**): reported with screenshots, jumping to a page's last section could leave `BackToTop` stranded deep inside the large scrollable gap the fifth fix's permanent shortfall spacer can leave below the footer. Fixed with a new `BackToTop.avoidSelector` prop (wired to `footer`): once the matched element's top edge rises above the viewport's bottom edge, the button's `bottom` offset grows to stay docked just above it, scrolling out of view entirely once even that element has scrolled past. Copilot's review caught a real math error before merge (the initial `dockOffset` calculation double-counted the button's base margin, docking it 24px higher than intended), independently verified before merging. Not an internship requirement change. |
 | v45 | Aug 2026 | §5.20 eighth post-ship fix (`design-system` PR #41, **Shipped**): the seventh fix treated a symptom without touching the gap itself — reported directly, with screenshots, jumping to a short page's last section still left a large blank area below the real content with the footer scrolled far out of view above it; the user asked directly whether scrolling could instead be controlled so the footer always stays at the bottom. Root-caused to the second post-ship fix's shortfall spacer, which exists specifically to defeat the browser's own scroll clamp. Fixed by removing the spacer mechanism entirely rather than resizing it — the browser's native clamp already produces the requested behavior once nothing artificially extends `scrollHeight` — accepting that a short page's last section may no longer land perfectly flush at the top. Also deleted a meaningful amount of complexity that existed only to manage the spacer's lifecycle. `BackToTop.avoidSelector` (v44) was kept — independently useful, not specific to the removed mechanism. Copilot's review was clean; independently re-verified before merging. Not an internship requirement change. |
 | v46 | Aug 2026 | §5.20 ninth post-ship fix (`design-system` PR #42, **Shipped**): a direct consequence of the eighth fix, reported the moment it could be observed — on Historical Trends, "GHG Share by Decade" now correctly scrolled down, but `BackToTop` still never appeared. Root-caused: that page's entire natural scroll range (`~294px`) sits under `BackToTop`'s `400px` default threshold — the now-removed shortfall spacer used to inflate `scrollY` well past it as a side effect on every short page, masking that the pixel-only check could never fire there at all. Fixed by adding a second, independent trigger: the button now also shows once `scrollY` reaches the document's own natural maximum, regardless of pixel count. Writing the regression test surfaced a smaller lesson about the same test file: its first draft silently produced zero real overflow in this exact test environment and passed vacuously either way — fixed with more content plus a deliberately unreachable `threshold` to reliably isolate the new trigger. Copilot's review was clean; independently re-verified before merging. Not an internship requirement change. |
+| v47 | Aug 2026 | §5.21 (`climate-emissions-analysis-project` PR #131, **Shipped**): cleared the 2 Medium dependency findings from a `/security-infra-audit` run the same day — backend transitive-dependency CVEs (`mistune`, `pillow`, `gitpython`, `jupyter-server`, `setuptools`) pinned past their fixed versions, `jupyterlab` floor raised to 4.5.10 (staying under `notebook`'s `<4.6` cap), `pytest` bumped 8.3.4 → 9.0.3; frontend `react-router-dom` and 5 transitive build-tool packages resolved via lockfile-only `npm audit fix`. Verified: `pip-audit`/`npm audit` clean, full `api/tests` (104/104) and `npm test` (90/90) pass, Week 1 notebook executes end-to-end. Not an internship requirement change. |
 
 ---
 
@@ -1797,6 +1798,45 @@ to "GHG Share by Decade"'s settled position on Historical Trends now shows the b
 `scrollY: 184` — well under the `400px` threshold, confirming the new "at natural bottom" trigger
 is what's firing, not the old pixel check — confirmed visually via screenshot alongside the eighth
 fix's own footer-flush-at-bottom result in the same view.
+
+### 5.21 Dependency Maintenance from the 2026-08-11 Infra Audit (Shipped, `climate-emissions-analysis-project` PR #131)
+
+A `/security-infra-audit` run against the Mac Mini deployment (published as an
+[Artifact](https://claude.ai/code/artifact/da0a1846-4422-4c32-910f-05613ba5137d), later updated
+in place as findings were resolved) flagged two Medium-severity dependency findings — real CVEs,
+both confirmed to have no exploitable path in this app as actually built and used:
+
+- **Backend** (`pip-audit`): ~60 advisories, all landing in `jupyterlab`, `jupyter-server`,
+  `mistune`, `pillow`, `GitPython`, `pytest`, and `setuptools` — none imported by `api/` or
+  `app.py`, and no Jupyter server running on the host. `fastapi`/`uvicorn`, the actual production
+  dependencies, were clean.
+- **Frontend** (`npm audit`, `climate-dashboard-react/`): `react-router-dom` 7.18.1
+  (GHSA-qwww-vcr4-c8h2, an RSC-Mode CSRF bypass — this app uses plain `<BrowserRouter>`, not
+  React Router's framework/RSC mode, so the vulnerable path was unreachable), plus 5 transitive
+  build-tool packages not in `package.json` at all.
+
+Both were marked routine maintenance rather than urgent, and fixed the same day. Five of the
+flagged backend packages are transitive (not in `requirements.txt`); each of their real requirers
+(`nbconvert`, `matplotlib`, `streamlit`, `jupyterlab`/`notebook`, `jupyterlab` respectively)
+already permits the fixed version via an open-ended constraint, so each just needed a new explicit
+pin. `jupyterlab` itself needed care: `notebook==7.5.6` caps `jupyterlab<4.6`, so the fix bumps the
+floor to `jupyterlab>=4.5.10` (the 4.5.x fix) rather than `4.6.2`, which would have forced bumping
+`notebook` too. `pytest==8.3.4 -> 9.0.3` is a major-version bump — checked against pytest's own
+changelog and this repo's actual usage first (no removed APIs touched, no `pytest.ini`/
+`pyproject.toml` config to migrate), then verified directly: full `api/tests` suite (104/104) and
+a Week 1 notebook end-to-end execution both pass clean against the upgraded toolchain.
+
+On the frontend, `npm audit fix` (no `--force`) resolved all 6 flagged packages via lockfile-only
+changes — `react-router-dom`'s fix (7.18.2) lands inside the existing `^7.18.1` range, so
+`package.json` itself didn't need touching. `npm test` (90/90), `npm run build`, and `npm run
+lint` all verified clean afterward.
+
+`pip-audit` and `npm audit` both re-ran clean after the fixes. The audit Artifact itself (linked
+above) was updated in place to mark both findings Resolved, with before/after evidence — the same
+treatment already used earlier the same day for an unrelated host-level finding (AirPlay Receiver)
+from the same audit run. That host-level finding and the rest of the audit's non-dependency areas
+are intentionally not narrated here — this project's docs track the app/curriculum itself, not
+host-specific infrastructure checks.
 
 ---
 
