@@ -13,7 +13,8 @@ async def test_get_top_emitters_ranks_descending_and_excludes_none(bare_api_clie
     assert "Monaco" not in countries
     # China's synthetic series grows well above the US's declining one by 2000.
     assert countries[0] == "China"
-    assert countries == sorted(countries, key=lambda c: -[row["co2"] for row in body["emitters"] if row["country"] == c][0])
+    co2_values = [row["co2"] for row in body["emitters"]]
+    assert co2_values == sorted(co2_values, reverse=True)
 
 
 async def test_get_top_emitters_respects_n(bare_api_client, data_dir):
