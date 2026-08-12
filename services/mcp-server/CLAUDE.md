@@ -50,6 +50,14 @@ Full design (architecture decisions, cross-cutting conventions, tool catalog, op
   simply missing, rather than crashing loudly. Acceptable for V1's stateless, locally-run
   design (a missing tool shows up immediately in manual testing) — revisit if this server ever
   runs unattended in a context where nobody would notice a quietly-shrunk tool list.
+- **Always run this server as `python -m mcp_server`, never `python -m mcp_server.server`.**
+  The latter loads `server.py` a second time under the name `mcp_server.server` (separate
+  from its own `__main__` instance) the moment `tools/*.py`'s `from ..server import mcp`
+  resolves — two different `MCPServer` objects end up existing, and the one `main()` actually
+  runs is not the one the tools registered onto. Confirmed by direct execution during Step 4,
+  not a hypothetical; see the note at the bottom of `server.py`, `__main__.py`, and
+  `tests/test_entry_point.py` (a subprocess-launch regression test — no in-process import test
+  can catch this class of bug).
 
 ## When Helping With This Sub-Project
 
