@@ -7,15 +7,40 @@ versioned sub-project — see the root `CLAUDE.md`'s "What This Repo Is" entry f
 
 ---
 
-## Release 1 — Stage 1 Kickoff: Spec Lands In-Repo, Implementation Begins
+## Release 1 — Stage 1 Kickoff: Spec Lands In-Repo, Implementation Complete
 
-**Status: In progress.**
+**Status: Shipped.** All four steps merged to `main` (PRs #135–#138).
 
 **Goal:** Bring the previously-external MCP server design doc into the repo as
 `services/mcp-server/SPEC.md`, correcting stale references discovered in the process, then
 implement the server in sequential feature-branch steps (scaffold + cross-cutting pieces →
 direct-wrap tools → trimming + composed tools → transport wiring and local verification) per
 `SPEC.md` §7's staged verification plan.
+
+**Step 4 — transport wiring and local verification.** Wired `MCPServer.run()` for both
+transports (Streamable HTTP default per `SPEC.md` §2, host hardcoded to `127.0.0.1` — never
+configurable, since `api/` has no auth yet and this server is an unauthenticated pass-through
+to it; stdio as the local-dev fallback), selectable via `MCP_TRANSPORT`.
+
+Found and fixed a real bug only reproducible by actually running the server as a subprocess,
+the way an MCP client does — no in-process import test surfaced it: running
+`python -m mcp_server.server` directly loads that file a second time under the name
+`mcp_server.server`, separate from its own `__main__` instance, the moment `tools/*.py`'s
+`from ..server import mcp` resolves. Two different `MCPServer` objects exist as a result, and
+the one `main()` runs (`__main__`'s) is not the one the tools registered onto — silently down
+to a single working tool (`list_countries`, the only one defined above the `tools/*` import
+line). Fixed with a proper `mcp_server/__main__.py` entry point (`python -m mcp_server`,
+never `.server`) and a permanent regression test (`tests/test_entry_point.py`) that launches
+the real subprocess and asserts full tool registration.
+
+Verified end-to-end against a real running `api/` and real `data/` CSVs (not just the
+fixture-based suite) over both transports: all 12 tools list and execute correctly; the
+resolution guard produces a real, useful fuzzy suggestion (`"Atlantis"` → `"did you mean:
+Albania?"`); and trimming/`scope_note` produce correct real counts —
+`get_historical_emissions(scope="sovereign")` reports "10 of 215," not 218, because 215 is
+the count of sovereign countries with actual CO₂ data once the wrapped API's own `dropna`
+runs, which is the number an agent doing "top 10 of X" reasoning actually needs, not the raw
+sovereign-list length. Confirmed this is correct behavior, not a bug, before writing it down.
 
 **Corrections made while bringing the spec in-repo** (the original external draft predates the
 root API work it depends on, and undersold what had already shipped by the time it landed here):
