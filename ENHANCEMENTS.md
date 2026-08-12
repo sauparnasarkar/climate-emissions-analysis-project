@@ -3197,11 +3197,13 @@ was confirmed responding correctly through the tunnel afterward.
 
 ## Release 17 — Sovereign-Scope Gas Coverage & Historical `scope` Parameter
 
-Prerequisite `api/`-only work for a planned MCP server sub-project: a design doc (kept outside
-this repo, not yet started) wraps this project's REST API as a set of hand-curated MCP tools for
-a future conversational agent. Defining that tool set surfaced two real gaps in this API's
-historical-data coverage, worth fixing regardless of whether the agent project ever ships, since
-both changes are ordinary `api/` improvements on their own.
+Prerequisite `api/`-only work for the MCP server sub-project now underway at
+`services/mcp-server/` (design doc brought into the repo and implementation started after this
+release shipped — see `services/mcp-server/SPEC.md` and its own `ENHANCEMENTS.md`), which wraps
+this project's REST API as a set of hand-curated MCP tools for a future conversational agent.
+Defining that tool set surfaced two real gaps in this API's historical-data coverage, worth
+fixing regardless of whether the agent project ever ships, since both changes are ordinary
+`api/` improvements on their own.
 
 **The gap.** `load_raw_sovereign()` -- the loader backing `/overview`'s "All Countries" tier --
 carried only `co2`. `load_raw()` (the ~40-country "expanded" pool) already carried `methane` and

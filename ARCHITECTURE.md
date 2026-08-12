@@ -25,6 +25,11 @@ This repo contains two genuinely separate things sharing the same `data/` pipeli
 
 Both read from the same `data/` CSVs; neither depends on the other at runtime.
 
+A third strand, `services/mcp-server/` (§8), is joining the second group — it's a client of
+`api/` (over HTTP, not the shared `data/` pipeline directly), so it doesn't fit this section's
+"reads from `data/`" framing, but the same "mentor's post-internship expansion, not internship
+scope" boundary applies to it.
+
 ## 2. Data pipeline
 
 ```
@@ -171,7 +176,27 @@ gui/$(id -u)/com.ghgemissions.vitepreview`. A Vite content-hash filename
 (`assets/index-<hash>.js`) is the reliable way to confirm a fresh build — not a stale
 bundle — is actually what's live.
 
-## 7. See also
+## 7. MCP server (`services/mcp-server/`)
+
+Wraps `api/` as hand-curated MCP tools — Stage 1 of a separate conversational-agent project
+(not the internship, not the `api/`+`climate-dashboard-react/` dashboard stack in §§4–6). Full
+design lives in `services/mcp-server/SPEC.md`; this section covers only where it sits relative
+to the rest of the system.
+
+**Data flow**: HTTP client of `api/`, same interface any consumer uses (no shared-library
+import, no privileged access path) — `API_BASE_URL` env var, must include the `/api` prefix.
+Independently versioned/deployable from `api/` (own `pyproject.toml`), though in practice both
+still ship from the same repo and the same Mac Mini would host both if this were deployed.
+
+**Not yet in the deploy topology (§6)**: as of this writing, implementation is in progress per
+`SPEC.md` §7's staged plan (build → connect to Claude Desktop/Claude Code locally → iterate on
+tool reliability), and it hasn't reached a Mac Mini deploy — no `launchd` agent for it exists in
+§6's table yet. V1 also deliberately ships without auth (calls `api/` unauthenticated over
+localhost) and without a Dockerfile or CI job — both are documented gaps in
+`services/mcp-server/SPEC.md` §2.1, not oversights, and both are prerequisites before this
+section would need a real deploy-topology entry.
+
+## 8. See also
 
 - **`SPEC.md`** — curriculum requirements (§§1–2), the mentor's addendum with full
   narrative rationale for every architectural decision (§5), curriculum corrections (§6),
@@ -183,3 +208,7 @@ bundle — is actually what's live.
   decisions (model choices, train/test split, scope boundaries) this document doesn't
   cover.
 - **`design-system/DESIGN.md`** — the design system itself, independent of any one consumer.
+- **`services/mcp-server/SPEC.md`**, **`services/mcp-server/CLAUDE.md`**,
+  **`services/mcp-server/ENHANCEMENTS.md`** — the MCP server sub-project's own design,
+  agent-facing instructions, and release history, kept separate from the above rather than
+  folded in (§8).
