@@ -22,8 +22,13 @@ async def get_scenario_projection(
     `view='single'`. For `view='single'`, `country` is resolved against the expanded
     (~40-country) scope.
     """
+    if view == "single" and country is None:
+        # The wrapped API rejects this with a 400 too, but its detail message doesn't
+        # survive httpx's raise_for_status() -> str(exc) path, so the agent would otherwise
+        # see a generic "400 Bad Request" with no indication of what to fix.
+        raise ValueError("country is required when view='single'")
     resolved_country = country
-    if view == "single" and country is not None:
+    if view == "single":
         lists = await fetch_country_lists()
         resolved_country = resolve_country(country, lists, scope="expanded")
     client = get_client()

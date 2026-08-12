@@ -18,6 +18,11 @@ async def test_get_scenario_projection_global_view_ignores_country(api_client):
     assert body["scenarios"]
 
 
+async def test_get_scenario_projection_single_view_without_country_raises_upfront(api_client):
+    with pytest.raises(ValueError, match="country is required"):
+        await get_scenario_projection(view="single", country=None)
+
+
 async def test_get_scenario_cumulative_impact_returns_rows(api_client):
     body = await get_scenario_cumulative_impact(sort_by="BAU")
     assert isinstance(body["rows"], list)

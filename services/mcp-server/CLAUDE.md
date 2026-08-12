@@ -44,6 +44,12 @@ Full design (architecture decisions, cross-cutting conventions, tool catalog, op
   No Dockerfile, no CI job yet — deferred, not omitted (`SPEC.md` §2.1).
 - **Scope:** classical/no scope creep beyond `SPEC.md`'s tool catalog — same "don't add
   hypothetical future requirements" convention as the rest of this repo.
+- **Operational caveat: a broken `tools/*` module fails silently at startup.** `server.py`
+  imports `tools/*` for their `@mcp.tool()` registration side effects; if one of those modules
+  raises on import (e.g. a syntax error), `MCPServer` starts anyway with that module's tools
+  simply missing, rather than crashing loudly. Acceptable for V1's stateless, locally-run
+  design (a missing tool shows up immediately in manual testing) — revisit if this server ever
+  runs unattended in a context where nobody would notice a quietly-shrunk tool list.
 
 ## When Helping With This Sub-Project
 

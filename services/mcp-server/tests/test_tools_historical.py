@@ -37,5 +37,9 @@ async def test_get_gas_composition_by_decade_omitted_countries_respects_scope(ap
 
 
 async def test_get_gas_composition_by_decade_explicit_countries_resolved(api_client):
-    body = await get_gas_composition_by_decade(countries=["Chinaa"], scope="sovereign")
-    assert body["decades"]
+    # DecadeGasShare carries no country field (it's an aggregate across the given
+    # countries, not a per-country breakdown), so resolution is proven by equivalence with
+    # the exact-name call rather than by inspecting a name in the response.
+    typo_body = await get_gas_composition_by_decade(countries=["Chinaa"], scope="sovereign")
+    exact_body = await get_gas_composition_by_decade(countries=["China"], scope="sovereign")
+    assert typo_body == exact_body
