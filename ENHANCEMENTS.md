@@ -3189,8 +3189,85 @@ ones are unrelated to this change).
 
 Both `pip-audit` and `npm audit` re-ran clean locally after the fixes, and the audit Artifact was
 updated in place to mark both findings Resolved -- the same before/after-evidence treatment
-already used earlier the same day for the AirPlay Receiver finding. Opened as
-`climate-emissions-analysis-project` PR #131; mentor review required before merge like any other
-PR in this repo (never self-merged). Deploy to the Mac Mini and a production-side re-verification
-of `pip-audit`/`npm audit` follow once merged, per this project's standard deploy-after-merge
-convention.
+already used earlier the same day for the AirPlay Receiver finding. Shipped as
+`climate-emissions-analysis-project` PR #131, mentor-reviewed and merged (never self-merged), then
+deployed to the Mac Mini per this project's standard deploy-after-merge convention --
+`pip-audit`/`npm audit` re-ran clean there too, not just in the local checkout, and the live site
+was confirmed responding correctly through the tunnel afterward.
+
+## Release 17 — Sovereign-Scope Gas Coverage & Historical `scope` Parameter
+
+Prerequisite `api/`-only work for a planned MCP server sub-project: a design doc (kept outside
+this repo, not yet started) wraps this project's REST API as a set of hand-curated MCP tools for
+a future conversational agent. Defining that tool set surfaced two real gaps in this API's
+historical-data coverage, worth fixing regardless of whether the agent project ever ships, since
+both changes are ordinary `api/` improvements on their own.
+
+**The gap.** `load_raw_sovereign()` -- the loader backing `/overview`'s "All Countries" tier --
+carried only `co2`. `load_raw()` (the ~40-country "expanded" pool) already carried `methane` and
+`nitrous_oxide` too, an inconsistency nobody had needed to close until an agent tool wanted
+"decade methane composition for every sovereign country" and hit a wall. Separately, neither
+`/historical/timeseries` nor `/historical/decade-composition` had any concept of scope at all --
+both silently resolved against the expanded ~40 only, regardless of what a caller might actually
+want.
+
+**Fix 1: three-gas sovereign loader.** `load_raw_sovereign()`'s `usecols` extended to
+`["country", "year", "co2", "methane", "nitrous_oxide", "iso_code"]` -- same `iso_code.notna()`
+filter, same `year >= 1990` range, additive columns only. Before touching it, every consumer was
+traced directly rather than assumed safe: `/overview` is the loader's sole caller, and every
+touchpoint there (`_tier_metrics`'s `.sum()`/`.groupby(...)["co2"]`, the world-map and
+headline-movers blocks) explicitly selects the `co2` column only -- the two new columns are
+genuinely inert for it. `/overview/world-map-series` was checked separately and confirmed to use
+a fully different loader (`load_world_map_series()`, reads `owid-co2-data.csv` directly with its
+own narrower `usecols`), untouched by this change regardless.
+
+**Fix 2: `scope` on both historical endpoints, not just one.** A new
+`scope: Literal["featured", "expanded", "sovereign"] = "expanded"` parameter, added via a small
+shared `_scoped_pool()` helper in `historical.py` rather than duplicating the same three-way
+branch in both route handlers. `featured`/`expanded` still read `load_raw()` exactly as before
+(`featured` filtered further to `FEATURED_COUNTRIES`); `sovereign` reads the now-three-gas
+`load_raw_sovereign()`. The original design for this change only proposed adding `scope` to
+`/historical/timeseries` -- verifying it against the actual code before implementing (rather than
+just inserting what was proposed) surfaced that `/historical/decade-composition` shares the
+identical expanded-only limitation, and already aggregates all three gases, so it would have been
+left as a near-identical gap for a second follow-up change with no stated reason to exclude it.
+Extended to both endpoints in this same change instead.
+
+`"expanded"` as the default matters for backward compatibility specifically: it's the pool both
+endpoints already implicitly served before `scope` existed. `climate-dashboard-react/src/api/
+client.ts` was checked directly (not assumed) to confirm neither endpoint's client function even
+accepts a `scope` argument today, let alone sends one -- so every existing dashboard call resolves
+identically to before. The two endpoints' no-`countries` fallbacks diverge in a way worth being
+explicit about: `get_timeseries`'s fallback (`FEATURED_COUNTRIES[:5]`) stays scope-independent,
+since those five countries exist in all three pools; `get_decade_composition`'s fallback (already
+"the whole pool" before this change) now means "the whole *selected-scope* pool" -- a direct
+generalization of its prior behavior, not a new rule.
+
+**`/countries` gains a `sovereign` field.** Alongside the existing `featured`/`expanded` lists,
+`/countries` now returns the full ~218-country sovereign name list. This wasn't part of either
+change above, but both the MCP design doc and this change's own planning flagged the same gap
+independently: a future agent-facing country-resolution guard needs a real canonical name list to
+validate a `scope=sovereign` query against, and `/countries` previously exposed only the ~40
+expanded names -- a sovereign-scope query couldn't even be spelling-checked. Small and cheap to
+add now (`load_raw_sovereign()["country"].unique()`) rather than deferring it to a third near-term
+follow-up touching the same files. One real behavior change worth flagging: `/countries` can now
+503 on a missing raw CSV, which it structurally couldn't before this field existed (the
+`featured`/`expanded` fields never depended on that file).
+
+**Testing.** New `load_raw_sovereign()` unit test (methane/N₂O values spot-checked against the
+fixture, not assumed correct); `scope` tests for all three values on both historical endpoints,
+each paired with an explicit "no `scope` sent -> byte-identical response to before" case; a
+`/countries` test for the new `sovereign` field and its new 503 path. Every new/changed test was
+independently confirmed to actually discriminate old from new behavior -- reverting the source
+changes (`git stash`) and re-running showed 4 tests fail with exactly the expected error shapes
+(a `KeyError: 'methane'` for the loader test; empty-series/mismatched-response assertions for the
+scope tests), not just re-running green against the new code and trusting that. 112/112 tests pass
+overall (8 new/changed). Live-smoke-tested afterward against real local data, not just fixtures:
+`scope=sovereign&countries=Bhutan&gas=methane` returns real methane figures for a country entirely
+outside the ~40-country expanded pool; a no-`scope` call for China returns the same 35 data points
+as before the change.
+
+Shipped as `climate-emissions-analysis-project` PR #133, mentor-reviewed and merged. Per updated
+guidance from the repo owner (2026-08-12), this documentation itself was committed straight to
+`main` rather than going through its own PR -- doc-only updates no longer need the branch+PR+review
+cycle that code changes still do.
