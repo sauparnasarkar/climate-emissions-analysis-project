@@ -31,6 +31,11 @@ import mcp_server.client as mcp_client  # noqa: E402
 from mcp_server.client import ApiClient  # noqa: E402
 
 
+def _wire_client() -> ApiClient:
+    transport = httpx.ASGITransport(app=api_app)
+    return ApiClient(base_url="http://testserver/api", transport=transport)
+
+
 @pytest.fixture
 async def api_client(full_data) -> ApiClient:
     """An ApiClient wired directly into the api/ FastAPI app in-process (ASGI transport, no
@@ -38,8 +43,19 @@ async def api_client(full_data) -> ApiClient:
     functions under test (which call client.get_client() internally) see the same fixture
     data as a direct ApiClient.get() call in the same test.
     """
-    transport = httpx.ASGITransport(app=api_app)
-    client = ApiClient(base_url="http://testserver/api", transport=transport)
+    client = _wire_client()
+    mcp_client.set_client(client)
+    yield client
+    mcp_client.set_client(None)
+    await client.aclose()
+
+
+@pytest.fixture
+async def bare_api_client(data_dir) -> ApiClient:
+    """Like `api_client`, but backed only by `data_dir` with no CSVs pre-written -- for
+    tests that need a specific fixture shape (e.g. world-map-series' full 1990-2024 range)
+    instead of the standard `full_data` set."""
+    client = _wire_client()
     mcp_client.set_client(client)
     yield client
     mcp_client.set_client(None)

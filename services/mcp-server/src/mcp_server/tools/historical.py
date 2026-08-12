@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from ..client import get_client
+from ..methodology import SCOPE_LABELS
 from ..resolution import fetch_country_lists, resolve_countries
 from ..server import mcp
+from ..trimming import trim
 
 
 @mcp.tool()
@@ -22,17 +24,34 @@ async def get_historical_emissions(
     silently return the wrong data for a non-featured scope. When `countries` is given
     explicitly, each name is still resolved against `scope` so a real-but-out-of-scope
     country raises a clear error instead of silently vanishing from the response.
+
+    When `countries` is omitted and the resolved scope pool has more than 10 countries, the
+    response is capped at the 10 with the highest latest-year value and carries a
+    `scope_note` explaining the cap (SPEC.md §3.2). An explicit `countries` list is always
+    returned in full, uncapped.
     """
     lists = await fetch_country_lists()
-    if countries is None:
+    omitted = countries is None
+    if omitted:
         resolved = lists.pool(scope)
     else:
         resolved = resolve_countries(countries, lists, scope=scope)
     client = get_client()
-    return await client.get(
+    body = await client.get(
         "/historical/timeseries",
         params={"countries": resolved, "gas": gas, "scope": scope},
     )
+    if omitted:
+        trimmed, note = trim(
+            body["series"],
+            scope_label=SCOPE_LABELS[scope],
+            sort_key_label="latest-year value descending",
+            sort_key=lambda series: series["values"][-1] if series["values"] else float("-inf"),
+        )
+        body["series"] = trimmed
+        if note is not None:
+            body["scope_note"] = note
+    return body
 
 
 @mcp.tool()

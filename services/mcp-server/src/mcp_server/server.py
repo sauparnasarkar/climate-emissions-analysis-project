@@ -27,7 +27,7 @@ async def list_countries() -> dict:
 
 # Import tool modules for their @mcp.tool() registration side effects -- must come after
 # `mcp` is defined above, since each tools/*.py module does `from ..server import mcp`.
-from .tools import countries, forecasts, historical, scenarios  # noqa: E402, F401
+from .tools import composed, countries, forecasts, historical, scenarios  # noqa: E402, F401
 
 if __name__ == "__main__":
     mcp.run()

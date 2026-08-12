@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from ..client import get_client
+from ..methodology import SCOPE_LABELS
 from ..resolution import fetch_country_lists, resolve_country
 from ..server import mcp
+from ..trimming import trim
 
 
 @mcp.tool()
@@ -22,9 +24,22 @@ async def get_forecast(country: str) -> dict:
 @mcp.tool()
 async def get_forecast_summary(scope: str = "featured") -> dict:
     """2030/2035/2040 forecast snapshot table. `scope` is 'featured' (10, default) or
-    'expanded' (~40)."""
+    'expanded' (~40). This tool has no country-list argument, so trimming (SPEC.md §3.2)
+    always applies when there are more than 10 rows: capped to the 10 countries with the
+    highest actual_2020 value, with a scope_note explaining the cap. At `scope='featured'`
+    there are exactly 10 rows already, so no trimming occurs there in practice."""
     client = get_client()
-    return await client.get("/forecasts/summary", params={"scope": scope})
+    body = await client.get("/forecasts/summary", params={"scope": scope})
+    trimmed, note = trim(
+        body["rows"],
+        scope_label=SCOPE_LABELS[scope],
+        sort_key_label="actual_2020 descending",
+        sort_key=lambda row: row["actual_2020"] if row["actual_2020"] is not None else float("-inf"),
+    )
+    body["rows"] = trimmed
+    if note is not None:
+        body["scope_note"] = note
+    return body
 
 
 @mcp.tool()

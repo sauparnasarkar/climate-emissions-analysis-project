@@ -20,6 +20,12 @@ async def test_get_forecast_summary_returns_rows(api_client):
     assert isinstance(body["rows"], list)
 
 
+async def test_get_forecast_summary_no_scope_note_when_at_or_under_cap(api_client):
+    # Fixture data only has 3 countries with forecasts -- well under the trim cap.
+    body = await get_forecast_summary(scope="featured")
+    assert "scope_note" not in body
+
+
 async def test_get_model_comparison_returns_columns_and_rows(api_client):
     body = await get_model_comparison()
     assert "columns" in body
