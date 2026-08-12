@@ -1,0 +1,57 @@
+"""SPEC.md §5 direct wraps: get_historical_emissions, get_gas_composition_by_decade."""
+
+from __future__ import annotations
+
+from ..client import get_client
+from ..resolution import fetch_country_lists, resolve_countries
+from ..server import mcp
+
+
+@mcp.tool()
+async def get_historical_emissions(
+    countries: list[str] | None = None,
+    gas: str = "co2",
+    scope: str = "expanded",
+) -> dict:
+    """Historical yearly emissions time series for one or more countries. `gas` is one of
+    co2, methane, nitrous_oxide. `scope` (featured/expanded/sovereign) picks the country
+    pool -- pass it explicitly rather than relying on any default. When `countries` is
+    omitted, this resolves and passes the entire `scope` pool explicitly, since the
+    wrapped API's own no-countries default silently ignores `scope` and always returns the
+    same 5 featured countries regardless (SPEC.md §4) -- relying on that default here would
+    silently return the wrong data for a non-featured scope. When `countries` is given
+    explicitly, each name is still resolved against `scope` so a real-but-out-of-scope
+    country raises a clear error instead of silently vanishing from the response.
+    """
+    lists = await fetch_country_lists()
+    if countries is None:
+        resolved = lists.pool(scope)
+    else:
+        resolved = resolve_countries(countries, lists, scope=scope)
+    client = get_client()
+    return await client.get(
+        "/historical/timeseries",
+        params={"countries": resolved, "gas": gas, "scope": scope},
+    )
+
+
+@mcp.tool()
+async def get_gas_composition_by_decade(
+    countries: list[str] | None = None,
+    scope: str = "expanded",
+) -> dict:
+    """Decade-by-decade share of CO2/methane/nitrous oxide for one or more countries, or
+    (when `countries` is omitted) aggregated across the entire `scope` pool -- unlike
+    get_historical_emissions, this endpoint's own no-countries default already respects
+    `scope` correctly, so no extra resolution is needed for the omitted case (SPEC.md §4).
+    When `countries` is given explicitly, each name is still resolved against `scope`.
+    """
+    client = get_client()
+    if countries is None:
+        return await client.get("/historical/decade-composition", params={"scope": scope})
+    lists = await fetch_country_lists()
+    resolved = resolve_countries(countries, lists, scope=scope)
+    return await client.get(
+        "/historical/decade-composition",
+        params={"countries": resolved, "scope": scope},
+    )
