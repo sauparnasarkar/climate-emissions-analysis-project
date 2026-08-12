@@ -10,6 +10,7 @@ launched the way an MCP client actually launches this server, which is what this
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -48,3 +49,17 @@ async def test_entry_point_registers_every_tool():
             tools = await session.list_tools()
             names = {t.name for t in tools.tools}
     assert names == EXPECTED_TOOLS
+
+
+def test_legacy_module_entry_point_fails_loudly():
+    proc = subprocess.run(
+        [sys.executable, "-m", "mcp_server.server"],
+        cwd=Path(__file__).resolve().parents[1],
+        env={"PYTHONPATH": SRC_DIR},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode != 0
+    assert "Use `python -m mcp_server`, not `python -m mcp_server.server`." in proc.stderr

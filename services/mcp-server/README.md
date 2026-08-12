@@ -35,8 +35,8 @@ using the repo's root `.venv`, not this sub-project's — that's where `api/`'s 
 Point this server at it via `API_BASE_URL` (defaults to `http://127.0.0.1:8081/api`).
 
 **Always run the module as a package (`python -m mcp_server`), never as
-`python -m mcp_server.server` directly** — the latter silently misbehaves (or, as of this
-version, fails outright) due to how `tools/*.py`'s relative imports interact with `-m`
+`python -m mcp_server.server` directly** — the latter now fails outright, because allowing it
+to run would silently misbehave due to how `tools/*.py`'s relative imports interact with `-m`
 loading a file as `__main__`; see the note at the bottom of `server.py` for the full
 explanation, and `tests/test_entry_point.py` for the regression test that catches it.
 

@@ -48,13 +48,13 @@ def main() -> None:
         raise ValueError(f"Unknown MCP_TRANSPORT '{transport}' -- use 'streamable-http' or 'stdio'")
 
 
-# No `if __name__ == "__main__":` block here on purpose -- running this file directly via
-# `python -m mcp_server.server` loads it a second time under the name "__main__", separate
-# from the "mcp_server.server" module tools/*.py's `from ..server import mcp` resolves to.
-# That gives you two different MCPServer instances: one (as "__main__") with only the
-# list_countries tool defined above the `from .tools import ...` line, and a second (as
-# "mcp_server.server") holding all 12 tools, registered when that import statement forces a
-# second, correctly-named execution of this same file. `main()` on the first instance would
-# then run a nearly-empty server with no error or warning. Confirmed by direct execution,
-# not a hypothetical -- see services/mcp-server/__main__.py for the actual entry point,
+# `python -m mcp_server.server` must fail loudly rather than silently no-op: running this file
+# directly via `-m` loads it a second time under the name "__main__", separate from the
+# "mcp_server.server" module tools/*.py's `from ..server import mcp` resolves to. That gives
+# you two different MCPServer instances: one (as "__main__") with only the list_countries tool
+# defined above the `from .tools import ...` line, and a second (as "mcp_server.server")
+# holding all 12 tools, registered when that import statement forces a second, correctly-named
+# execution of this same file. See services/mcp-server/__main__.py for the actual entry point,
 # which only ever imports this module by its real package name.
+if __name__ == "__main__":
+    raise SystemExit("Use `python -m mcp_server`, not `python -m mcp_server.server`.")
