@@ -40,7 +40,13 @@ class ApiClient:
         filtered = {k: v for k, v in (params or {}).items() if v is not None}
         response = await self._client.get(path, params=filtered)
         response.raise_for_status()
-        return response.json()
+        try:
+            return response.json()
+        except ValueError as exc:
+            # Every endpoint this server wraps (SPEC.md §5) returns a JSON object -- a
+            # non-JSON response (e.g. /explorer/download's CSV stream, deliberately out of
+            # scope per SPEC.md's tool catalog) means a tool was pointed at the wrong path.
+            raise ValueError(f"Expected JSON from {path}, got non-JSON response") from exc
 
     async def aclose(self) -> None:
         await self._client.aclose()

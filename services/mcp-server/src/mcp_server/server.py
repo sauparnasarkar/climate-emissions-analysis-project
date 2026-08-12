@@ -1,4 +1,4 @@
-"""FastMCP app instantiation and tool registration point.
+"""MCPServer app instantiation and tool registration point.
 
 Transport configuration (Streamable HTTP + stdio fallback, SPEC.md §2/§7) is Step 4 work --
 this module only wires up the server object and its tools so it can be imported and tested

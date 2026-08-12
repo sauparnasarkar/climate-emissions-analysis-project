@@ -32,7 +32,7 @@ from mcp_server.client import ApiClient  # noqa: E402
 
 
 @pytest.fixture
-def api_client(full_data) -> ApiClient:
+async def api_client(full_data) -> ApiClient:
     """An ApiClient wired directly into the api/ FastAPI app in-process (ASGI transport, no
     real server on a real port), and also installed as the module-level singleton so tool
     functions under test (which call client.get_client() internally) see the same fixture
@@ -43,3 +43,4 @@ def api_client(full_data) -> ApiClient:
     mcp_client.set_client(client)
     yield client
     mcp_client.set_client(None)
+    await client.aclose()
