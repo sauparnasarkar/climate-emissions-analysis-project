@@ -2,7 +2,7 @@
 
 **Started as a Reference Implementation for IDEAS TIH Summer Internship 2026 (Mentor: Sauparna Sarkar)**
 
-**Expanded to an end-to-end Analytic & Visualization Engine and an AI Analytic Engine**
+**Expanded to an end-to-end Analytic Pipeline, Visualization Dashboard and an AI Analytic Engine**
 
 ---
 
