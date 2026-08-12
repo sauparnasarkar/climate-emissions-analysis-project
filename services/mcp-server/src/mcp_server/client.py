@@ -32,7 +32,7 @@ class ApiClient:
             transport=transport,
         )
 
-    async def get(self, path: str, params: dict | None = None) -> dict:
+    async def get(self, path: str, params: dict | None = None) -> dict | list:
         # httpx repeats a query key per list item for list-valued params, matching how
         # FastAPI's Query(default=None) list params expect to be sent -- no special-casing
         # needed here for e.g. `countries`. None values are dropped rather than sent as the
