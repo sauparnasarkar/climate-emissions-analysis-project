@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 from rapidfuzz import fuzz, process
 
+from .client import get_client
+
 # Score (0-100) above which a fuzzy match is confident enough to auto-resolve without asking.
 # Below this, the same best match is surfaced only as a suggestion inside the error message.
 AUTO_RESOLVE_THRESHOLD = 90
@@ -38,6 +40,28 @@ class CountryLists:
             return {"featured": self.featured, "expanded": self.expanded, "sovereign": self.sovereign}[scope]
         except KeyError:
             raise ValueError(f"Unknown scope '{scope}'") from None
+
+
+def resolve_countries(names: list[str], lists: CountryLists, scope: str | None = None) -> list[str]:
+    """resolve_country applied to each item of an explicit countries list. The wrapped API
+    silently drops any country outside its scoped pool (e.g. a real, out-of-scope country
+    filtered out before it ever reaches the response) -- resolving with `scope` set catches
+    that case as an explicit case-4 error instead of a silently empty result for that
+    country (SPEC.md §3.1, §3.2's "explicit list is never silently trimmed" rule)."""
+    return [resolve_country(name, lists, scope=scope) for name in names]
+
+
+async def fetch_country_lists() -> CountryLists:
+    """Fetch the current country lists (list_countries' own data source) for tools that
+    need to resolve a country argument. No caching -- one HTTP round trip per call, matching
+    this server's stateless V1 design (SPEC.md §6.2)."""
+    client = get_client()
+    data = await client.get("/countries")
+    return CountryLists(
+        featured=data["featured"],
+        expanded=data["expanded"],
+        sovereign=data["sovereign"],
+    )
 
 
 def resolve_country(name: str, lists: CountryLists, scope: str | None = None) -> str:

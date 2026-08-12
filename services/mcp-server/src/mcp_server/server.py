@@ -10,7 +10,6 @@ from __future__ import annotations
 from mcp.server.mcpserver import MCPServer
 
 from .client import get_client
-from .resolution import CountryLists
 
 mcp = MCPServer("climate-emissions")
 
@@ -26,16 +25,9 @@ async def list_countries() -> dict:
     return await client.get("/countries")
 
 
-async def get_country_lists() -> CountryLists:
-    """Fetch the current country lists, wrapped for the resolution guard (resolution.py)."""
-    client = get_client()
-    data = await client.get("/countries")
-    return CountryLists(
-        featured=data["featured"],
-        expanded=data["expanded"],
-        sovereign=data["sovereign"],
-    )
-
+# Import tool modules for their @mcp.tool() registration side effects -- must come after
+# `mcp` is defined above, since each tools/*.py module does `from ..server import mcp`.
+from .tools import countries, forecasts, historical, scenarios  # noqa: E402, F401
 
 if __name__ == "__main__":
     mcp.run()
