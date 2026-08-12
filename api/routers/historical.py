@@ -39,7 +39,7 @@ def get_timeseries(
     # No expanded-country validation here (unlike country_profile.py) -- this endpoint
     # already accepts an arbitrary explicit `countries` list and silently omits any that
     # don't match, a pre-existing lenient convention this Release doesn't change.
-    selected = countries if countries else FEATURED_COUNTRIES[:5]
+    selected = countries if countries else FEATURED_COUNTRIES
     df_plot = df_raw[df_raw["country"].isin(selected)].dropna(subset=[gas])
 
     series = []

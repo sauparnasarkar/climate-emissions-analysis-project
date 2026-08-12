@@ -67,14 +67,28 @@ def test_timeseries_default_params(client):
     body = resp.json()
     assert body["gas"] == "co2"
     assert body["gas_label"] == "CO₂"
-    # Default selects COUNTRIES[:5] (China, United States, India, Russia, Japan); only the
-    # first two are present in the fixture, so only they should appear — no empty series for
-    # countries missing from the raw data.
+    # Default selects the full FEATURED_COUNTRIES (10 countries); only China, United States,
+    # and Germany are present in the fixture, so only they should appear — no empty series
+    # for countries missing from the raw data.
     names = {s["name"] for s in body["series"]}
-    assert names == {"China", "United States"}
+    assert names == {"China", "United States", "Germany"}
     for s in body["series"]:
         # owid_raw_df() (conftest) gives every fixture country 5 years: 1990/1995/2000/2005/2010.
         assert len(s["years"]) == len(s["values"]) == 5
+
+
+def test_timeseries_default_countries_ignores_scope(client):
+    # No `countries` given -> the default is always the full FEATURED_COUNTRIES list
+    # regardless of `scope`. Canada (owid_raw_df fixture: iso_code=CAN, reachable via
+    # sovereign scope per test_timeseries_scope_sovereign_reaches_countries_outside_expanded
+    # above) isn't in FEATURED_COUNTRIES, so even scope="sovereign" can't surface it without
+    # an explicit `countries` list -- `scope` has no observable effect on this endpoint's
+    # default path, unlike get_decade_composition's (see that endpoint's sovereign-scope test).
+    resp_expanded = client.get("/api/historical/timeseries")
+    resp_sovereign = client.get("/api/historical/timeseries", params={"scope": "sovereign"})
+    assert resp_expanded.json() == resp_sovereign.json()
+    names = {s["name"] for s in resp_sovereign.json()["series"]}
+    assert "Canada" not in names
 
 
 def test_timeseries_explicit_countries_and_gas(client):
