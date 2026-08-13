@@ -3291,10 +3291,10 @@ calling this endpoint, never omitting `countries` to lean on the API's own defau
 recorded so a future change to this endpoint's default doesn't have to re-discover it. 113/113
 tests pass.
 
-## Release 18 — Per-Capita / YoY Growth / Per-GDP Fields on `GET /historical/timeseries` (Planned)
+## Release 18 — Per-Capita / YoY Growth / Per-GDP Fields on `GET /historical/timeseries`
 
-**Status: Planned.** Written up before implementation starts, per the project's docs-first
-convention — will be revised to mark shipped once merged and deployed.
+**Status: Shipped.** Written up before implementation started, per the project's docs-first
+convention; revised below to mark shipped now that it's merged and deployed.
 
 **The gap.** MCP server testing surfaced that multi-country historical comparisons need richer
 data than raw gas values — the agent kept falling back to N calls to the single-country
@@ -3333,7 +3333,22 @@ per row — not `per_capita`/`co2_growth_prct`/`co2_per_gdp`, which can be indep
 their own `pd.isna()`-based None-conversion, reusing the idiom already established in
 `data_loaders.py`'s `load_world_map_series`.
 
-**Testing (planned).** A CO2-gas test asserting all three new fields populated, including the
-deliberate first-year `co2_growth_prct` null converting to `None`; a non-CO2-gas test asserting
+**Testing.** A CO2-gas test asserting all three new fields populated, including the deliberate
+first-year `co2_growth_prct` null converting to `None`; a non-CO2-gas (methane) test asserting
 `yoy_pct_change`/`per_gdp` are `None`-filled while `per_capita` still varies with real per-gas
-values.
+values. Both new tests were independently confirmed to actually discriminate old from new
+behavior, not just pass green against the new code: reverting the router change (`git stash`) and
+re-running reproduces a `pydantic.ValidationError` (`TimeseriesSeries` missing the new required
+fields), the expected failure shape for a schema addition, not a vaguer or unrelated error.
+115/115 tests pass overall (2 new).
+
+**Verification.** Live-smoke-tested against real local data before opening the PR, then again
+through the public tunnel after deploying to the Mac Mini: China's `co2` values (`per_capita`,
+`yoy_pct_change`, `per_gdp`) spot-checked directly against a pandas read of the raw
+`owid-co2-data.csv` and matched exactly (1990: `2.153`/`0.869`/`0.734`); `methane` confirmed
+`yoy_pct_change`/`per_gdp` all-`None` with `per_capita` still carrying real per-year values. The
+post-deploy tunnel response was byte-identical to the local pre-merge check.
+
+Shipped as `climate-emissions-analysis-project` PR #139, mentor-reviewed and merged. This
+documentation, per the established convention, was committed straight to `main` rather than
+through its own PR.
