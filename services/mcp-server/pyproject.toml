@@ -10,9 +10,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# fastapi/pandas/numpy/httpx2 are not this server's own runtime deps (src/ never imports api/
+# or fastapi -- confirmed by grep) -- they're here only because tests/conftest.py mounts the
+# real api/ FastAPI app in-process for fixtures (SPEC.md/CLAUDE.md's stated convention of
+# reusing api/tests/conftest.py's fixture pattern directly), which pulls in api/main.py's own
+# import graph. Versions floor-match root requirements.txt's exact pins (fastapi/pandas/numpy)
+# so this venv exercises the same api/ behavior the real deploy runs, not a drifted one.
 dev = [
     "pytest>=9.0.3",
     "pytest-asyncio>=0.24.0",
+    "fastapi>=0.139.2",
+    "pandas>=2.3.0",
+    "numpy>=2.2.6",
+    "httpx2>=2.7.0",
 ]
 
 [build-system]
