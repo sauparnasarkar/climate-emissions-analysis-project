@@ -451,7 +451,7 @@ Sections to include:
 | v48 | Aug 2026 | §5.22 (`climate-emissions-analysis-project` PR #133, **Shipped**): prerequisite `api/` work for a planned MCP server sub-project — `load_raw_sovereign()` extended to carry methane/nitrous_oxide (was `co2`-only), a new `scope` (`featured`\|`expanded`\|`sovereign`) parameter added to **both** `/historical/timeseries` and `/historical/decade-composition` (widened from the original proposal, which only covered `timeseries`, after verification found `decade-composition` shared the identical gap), and a new `sovereign` field on `/countries`. Fully backward-compatible — the dashboard never sends `scope`, confirmed by inspection. Verified: 112/112 tests pass (8 new/changed, each confirmed to fail against pre-change code), live-smoke-tested against real data. Not an internship requirement change. |
 | v49 | Aug 2026 | §5.22 follow-up (`climate-emissions-analysis-project` PR #134, **Shipped**): `get_timeseries`'s no-`countries` default widened from `FEATURED_COUNTRIES[:5]` to the full 10-country `FEATURED_COUNTRIES`, matching the React frontend's picker default (zero frontend impact — it always sends `countries` explicitly). Adds a pinning test for a separate, pre-existing fact surfaced during review: `scope` has no observable effect on this endpoint's no-`countries` default at any list size, unlike `get_decade_composition`'s scope-aware whole-pool default — confirmed via `mcp-server-spec.md` §3.2 that the MCP tool layer never relies on this combination, so this needed a test, not a behavior change. 113/113 tests pass. Not an internship requirement change. |
 | v50 | Aug 2026 | §5.23 (`climate-emissions-analysis-project` PR #139, **Shipped**): three new fields on `GET /historical/timeseries` — `per_capita` (all three gases), `yoy_pct_change`/`per_gdp` (CO2-only, `None`-filled otherwise) — straight passthroughs of existing `data/owid-co2-data.csv` columns, closing a real multi-country data gap surfaced by MCP server testing. Explicitly distinct from `ghg_features.csv`'s `ghg_intensity`/`co2_yoy_pct_change` (numerically confirmed different metrics, similar names). Verified: 115/115 tests pass (2 new, confirmed to fail against pre-change code), live-smoke-tested against real data pre- and post-deploy. Not an internship requirement change. |
-| v51 | Aug 2026 | Added §5.24 (Design, not yet implemented): `api/main.py`'s `CORSMiddleware.allow_origins` to gain the production origin (`https://labs.syena.io`) explicitly — the one `api/`-side prerequisite for the AuthZ architecture designed in `services/mcp-server/SPEC.md` §8 (a separate sub-project's spec, cross-referenced rather than duplicated here). `/api/*` itself stays unauthenticated by design; see that document for the full four-trust-boundary rationale and the Cloudflare Access design for the MCP server's own external clients. Not an internship requirement change. |
+| v51 | Aug 2026 | §5.24 (`climate-emissions-analysis-project` PR #140, **Shipped**): `api/main.py`'s `CORSMiddleware.allow_origins` gained the production origin (`https://labs.syena.io`) explicitly — the one `api/`-side prerequisite for the AuthZ architecture designed in `services/mcp-server/SPEC.md` §8 (a separate sub-project's spec, cross-referenced rather than duplicated here). `/api/*` itself stays unauthenticated by design; see that document for the full four-trust-boundary rationale and the Cloudflare Access design for the MCP server's own external clients, still pending the Cloudflare/Mac Mini deploy steps as of this writing. Verified: two new tests, 117/117 `api/tests` pass. Not an internship requirement change. |
 
 ---
 
@@ -1892,35 +1892,22 @@ MCP-layer tool-calling bug — worth fixing regardless of whether the agent proj
 
 ---
 
-### 5.24 Dashboard/API CORS Origin — AuthZ Prerequisite (Design — pending implementation)
+### 5.24 Dashboard/API CORS Origin — AuthZ Prerequisite (Shipped, `climate-emissions-analysis-project` PR #140)
 
-Status: Design, not yet implemented. The one `api/`-side change required by the AuthZ
-architecture designed for `services/mcp-server/` (a separate sub-project, confirmed 2026-08-13)
-— cross-referenced here rather than duplicated, since the full design (the four-trust-boundary
-analysis, the decision to leave `/api/*` itself unauthenticated, the Cloudflare Access design
-gating the MCP server's own external clients) lives in `services/mcp-server/SPEC.md` §8, not
-here. This subsection exists only so the one `api/`-side line item that design calls for is
-tracked in the document that actually owns `api/main.py`.
+**Status: Shipped.** The one `api/`-side change required by the AuthZ architecture designed for
+`services/mcp-server/` (a separate sub-project, confirmed 2026-08-13) — cross-referenced here
+rather than duplicated, since the full design (the four-trust-boundary analysis, the decision
+to leave `/api/*` itself unauthenticated, the Cloudflare Access design gating the MCP server's
+own external clients) lives in `services/mcp-server/SPEC.md` §8, not here. This subsection
+exists only so the one `api/`-side line item that design calls for is tracked in the document
+that actually owns `api/main.py`.
 
-The change: `api/main.py`'s `CORSMiddleware.allow_origins` currently lists only the local dev
-origin (`http://localhost:5173`). Production traffic works today only because the dashboard and
-API are served same-origin behind the Cloudflare Tunnel (`labs.syena.io`) — a same-origin
-browser request never triggers a CORS check at all, dev-only or not. `allow_origins` should gain
-`https://labs.syena.io` explicitly, so the intent ("only our own dashboard's origin may read
-`/api/*` via a cross-origin browser request") is expressed in code rather than being an accident
-of same-origin deployment. The latter is fragile against, e.g., a future subdomain or a staging
-environment on a different origin trying to read the same API — either would currently be
-silently permitted by the absence of an explicit prod entry, not silently blocked.
-
-Explicitly not part of this change: `/api/*` stays otherwise fully unauthenticated — see
-`services/mcp-server/SPEC.md` §8.1/§8.2 for why (a browser can't hold a secret, so
-application-layer auth isn't the right tool for the browser-facing leg; the existing Cloudflare
-rate-limit and response-header rules already cover the realistic abuse surface). The actual new
-auth surface in that design is the MCP server's external clients (§8.3–§8.4 of that document),
-not this API. Restricting `/api/*` reads more substantially — should that ever be wanted — is
-tracked as that same document's §8.5 ("Phase 2"), confirmed in scope but not designed yet.
-
-Not an internship requirement change.
+| Aspect | Detail |
+|---|---|
+| Change | `api/main.py`'s `CORSMiddleware.allow_origins` gained `https://labs.syena.io` alongside the existing local dev origin (`http://localhost:5173`). Production traffic worked today without it only because the dashboard and API are served same-origin behind the Cloudflare Tunnel (`labs.syena.io`) — a same-origin browser request never triggers a CORS check at all. The change makes the intended origin allow-list explicit in code rather than an accident of same-origin deployment, so a future subdomain or staging environment on a different origin has to be added deliberately rather than the decision going unrecorded either way. |
+| Testing | Two new `api/tests/test_main.py` cases: the production origin gets `access-control-allow-origin` echoed back; an unlisted origin (`https://evil.example.com`) gets no such header. 117/117 `api/tests` pass. |
+| Explicitly not part of this change | `/api/*` stays otherwise fully unauthenticated — see `services/mcp-server/SPEC.md` §8.1/§8.2 for why (a browser can't hold a secret, so application-layer auth isn't the right tool for the browser-facing leg; the existing Cloudflare rate-limit and response-header rules already cover the realistic abuse surface). The actual new auth surface in that design is the MCP server's external clients, gated by Cloudflare Access (§8.3–§8.4 of that document, itself still pending the Cloudflare dashboard + Mac Mini `launchd` steps as of this writing — operational, not code). Restricting `/api/*` reads more substantially — should that ever be wanted — is tracked as that same document's §8.5 ("Phase 2"), confirmed in scope but not designed yet. |
+| Not a curriculum scope change | Internship Weeks 1–5 and §§1–4 are unaffected; this is `api/`-only, same category as the rest of §5. |
 
 ---
 
