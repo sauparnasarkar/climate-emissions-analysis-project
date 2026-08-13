@@ -25,6 +25,20 @@ def test_cors_headers_present(client):
     assert resp.headers.get("access-control-allow-origin") == "http://localhost:5173"
 
 
+def test_cors_headers_present_for_production_origin(client):
+    # https://labs.syena.io is the deliberate prod entry per services/mcp-server/SPEC.md §8.2
+    # -- listed explicitly even though same-origin dashboard traffic never needs it, so a
+    # cross-origin request from the real production origin is allowed on record, not by
+    # accident of same-origin deployment.
+    resp = client.get("/api/health", headers={"Origin": "https://labs.syena.io"})
+    assert resp.headers.get("access-control-allow-origin") == "https://labs.syena.io"
+
+
+def test_cors_headers_absent_for_unlisted_origin(client):
+    resp = client.get("/api/health", headers={"Origin": "https://evil.example.com"})
+    assert "access-control-allow-origin" not in resp.headers
+
+
 @pytest.fixture
 def reloaded_main(monkeypatch):
     """Reloads api.main with DEPLOY_BASE_PATH set to a given value (or unset for None), since

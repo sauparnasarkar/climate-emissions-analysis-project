@@ -188,13 +188,16 @@ import, no privileged access path) — `API_BASE_URL` env var, must include the 
 Independently versioned/deployable from `api/` (own `pyproject.toml`), though in practice both
 still ship from the same repo and the same Mac Mini would host both if this were deployed.
 
-**Not yet in the deploy topology (§6)**: as of this writing, implementation is in progress per
-`SPEC.md` §7's staged plan (build → connect to Claude Desktop/Claude Code locally → iterate on
-tool reliability), and it hasn't reached a Mac Mini deploy — no `launchd` agent for it exists in
-§6's table yet. V1 also deliberately ships without auth (calls `api/` unauthenticated over
-localhost) and without a Dockerfile or CI job — both are documented gaps in
-`services/mcp-server/SPEC.md` §2.1, not oversights, and both are prerequisites before this
-section would need a real deploy-topology entry.
+**Not yet in the deploy topology (§6)**: as of this writing, it hasn't reached a Mac Mini
+deploy — no `launchd` agent for it exists in §6's table yet. The auth blocker that gated a
+public deploy is now resolved by design (`services/mcp-server/SPEC.md` §8, settled 2026-08-13):
+this server's own public endpoint is gated by Cloudflare Access at the edge, not an app-layer
+token, and the code-side piece (`DEPLOY_BASE_PATH`-driven path prefixing + DNS-rebinding
+protection) is implemented. What remains before this section gets a real deploy-topology entry
+is operational, not architectural: the Cloudflare dashboard work (new published route, Access
+application, Service Tokens per client) and the actual Mac Mini `launchd` agent —
+`services/mcp-server/SPEC.md` §8.4 tracks the checklist. A Dockerfile and CI job remain
+deliberately deferred (`SPEC.md` §2.1), unrelated to the auth resolution.
 
 ## 8. See also
 
