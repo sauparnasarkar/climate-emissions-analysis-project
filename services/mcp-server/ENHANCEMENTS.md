@@ -299,11 +299,28 @@ set to `/ghg-emissions-analysis/`, a request with `Host: labs.syena.io` succeeds
 `Host` gets a `421`, and the old unprefixed `/mcp` path 404s. Full `pytest
 services/mcp-server/tests` green throughout (53 passed).
 
+**Copilot review caught a real bug before merge.** `_streamable_http_settings()` keyed the
+`transport_security` toggle off the *normalized* deploy prefix rather than the raw
+`DEPLOY_BASE_PATH` value — `DEPLOY_BASE_PATH="/"` is a legitimate "deployed at root" value
+(mirrors `api/main.py`'s own established handling of that exact input) that normalizes to an
+empty, falsy prefix, so that real deploy configuration would have silently disabled
+DNS-rebinding protection with no error. Reproduced directly before fixing, then keyed the
+toggle off `bool(deploy_base_path)` instead, with a regression test added. Full test suite
+green throughout (54 passed after the fix).
+
+**`api/main.py`'s CORS `allow_origins` also gained `https://labs.syena.io`** in this release —
+on direct instruction, the one explicit exception to `CLAUDE.md`'s "no changes to `api/`"
+convention for this specific, already-designed change (`SPEC.md` §8.2). Same-origin dashboard
+traffic behind the Tunnel never triggered a CORS check either way, so this doesn't change what
+already worked in production — it makes the intended origin allow-list explicit in code rather
+than an accident of same-origin deployment, so a future subdomain or staging origin has to be
+added deliberately. Two new `api/tests/test_main.py` cases cover it (production origin gets the
+header, an unlisted origin doesn't); full `pytest api/tests` green (117 passed).
+
 **Deliberately not done in this release** (`SPEC.md` §8.4's remaining checklist, handed off as
 instructions rather than executed — no Mac Mini SSH or Cloudflare dashboard access from this
 session): the actual Cloudflare published route, Access application, and per-client Service
 Tokens; the Mac Mini `launchd` agent; client-side `CF-Access-Client-Id`/
-`CF-Access-Client-Secret` header config for Desktop and the not-yet-built LangGraph agent; and
-`api/main.py`'s CORS origin addition, owned by the separate `api/`/dashboard track per this
-session's explicit scope boundary. `SPEC.md` §8.5 (restricting `/api/*`, OAuth 2.1 for B4) is
-Phase 2, scope-confirmed but not designed.
+`CF-Access-Client-Secret` header config for Desktop and the not-yet-built LangGraph agent.
+`SPEC.md` §8.5 (restricting `/api/*`, OAuth 2.1 for B4) is Phase 2, scope-confirmed but not
+designed.

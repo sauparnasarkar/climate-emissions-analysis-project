@@ -70,7 +70,15 @@ app.add_middleware(StripDeployPrefixMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    # Production traffic works today without "https://labs.syena.io" listed here too --
+    # dashboard and API are served same-origin behind the Cloudflare Tunnel, and a same-origin
+    # browser request never triggers a CORS check at all. Listed explicitly anyway (see
+    # services/mcp-server/SPEC.md §8.2) so the intent ("only our own dashboard's origin may
+    # read /api/* via a cross-origin request") is expressed in code rather than being an
+    # accident of same-origin deployment -- e.g. a future subdomain or staging environment on a
+    # different origin should have to be added here deliberately, not inherit access simply
+    # because nothing else was ever listed.
+    allow_origins=["http://localhost:5173", "https://labs.syena.io"],
     allow_methods=["GET"],
     allow_headers=["*"],
 )

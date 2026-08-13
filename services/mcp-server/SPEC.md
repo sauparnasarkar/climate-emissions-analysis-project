@@ -340,9 +340,16 @@ underneath) rather than a stopgap for missing auth.
   headers; the LangGraph agent's HTTP client needs the same two headers set on its calls to this
   server). **Not executed here** — Desktop's config lives outside this repo, and the LangGraph
   agent doesn't exist yet (Stage 2).
-- [ ] `api/main.py` — CORS `allow_origins` gains the production origin. Cross-referenced here
-  (§4-style) but owned by root `SPEC.md`'s own addendum, not this file. **Not touched by this
-  sub-project**, per `CLAUDE.md`'s "no changes to `api/`" convention.
+- [x] `api/main.py` — CORS `allow_origins` gains `https://labs.syena.io` alongside the existing
+  dev origin (`http://localhost:5173`). Cross-referenced here (§4-style) but this is the one
+  explicit, narrow exception to `CLAUDE.md`'s "no changes to `api/`" convention for this Phase
+  1 work, made on direct instruction rather than folded in unprompted. Same-origin dashboard
+  traffic behind the Tunnel never triggered a CORS check either way — this makes the intended
+  origin allow-list explicit in code rather than an accident of same-origin deployment, so a
+  future subdomain/staging origin has to be added deliberately rather than silently inheriting
+  or lacking access with no record of the decision either way. Verified via two new
+  `api/tests/test_main.py` cases (production origin gets the header, an unlisted origin
+  doesn't); full `pytest api/tests` green (117 passed).
 - No change required to `services/mcp-server/src/mcp_server/client.py` (B3, §8.2) or to `api/`
   auth (none exists today, none added in this phase — see §8.5).
 
