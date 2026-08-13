@@ -82,3 +82,99 @@ confirmed with the mentor before implementation started):
 - **Location:** `services/mcp-server/`, without relocating `api/` to `services/api/` — that
   relocation is a separate, higher-blast-radius refactor (touches
   `climate-dashboard-react/vite.config.ts` and the Mac Mini deploy paths) not undertaken here.
+
+---
+
+## Release 2 — SPEC.md §7 Iteration: Multi-Country Comparison Consistency
+
+**Status: Shipped**, straight to `main` (no PR — small, low-risk, iteration-driven changes,
+by direct instruction rather than the usual feature-branch-per-section flow).
+
+**Goal:** `SPEC.md` §7's open-ended manual-verification phase — connect to Claude Desktop,
+exercise the tools for real, and fix whatever tool-calling reliability problems that surfaces.
+This release is the first real finding from that phase, start to finish: symptom → two failed
+narrow fixes → correct root cause → an `api/`-side dependency → a real fix → confirmed via a
+second live Desktop conversation.
+
+**The symptom.** Manually testing two similarly-shaped questions ("China's top emissions
+trends vs. the sovereign top 10" and "how has India's emissions grown compared to other
+countries") produced inconsistent country-set sizes: 10 countries via `get_top_emitters` for
+the first, an ad hoc 6-country list via an *explicit* `get_historical_emissions(countries=...)`
+call for the second. Not an `get_historical_emissions` bug — `SPEC.md` §3.2 says an explicit
+list is always honored in full — but the model was inventing that list from its own general
+knowledge rather than using the tool's scope-based path, so the same question could produce a
+different comparison set each time it's asked.
+
+**Attempt 1 (didn't work): docstring nudge on `get_historical_emissions`.** Added explicit
+guidance to omit `countries` and pick `scope` instead for open-ended requests. Re-tested: the
+model stopped calling `get_historical_emissions` with an explicit list, but routed around the
+tool entirely — called `get_country_profile` once for India, once for the US, reusing China's
+profile from earlier in the conversation, confirmed directly via Claude Desktop's tool-call
+trace (not just inferred from the `api/` access log).
+
+**Attempt 2 (also didn't work): cross-reference docstring on `get_country_profile` + a
+server-level `instructions` string.** Told the model explicitly not to call the single-country
+tool repeatedly, and to prefer `get_historical_emissions` for comparisons — confirmed via a
+direct client check that `instructions` is genuinely transmitted in the MCP `initialize`
+handshake, not just stored inertly. Re-tested with the same exact question: identical
+behavior, `get_country_profile` × 2 again.
+
+**Root cause, found by reading the model's actual answers, not just its tool calls.** Both
+attempts' answers included per-capita CO₂, YoY % growth, and GHG intensity for every
+country — fields that only exist on `get_country_profile`'s response.
+`get_historical_emissions` only returned raw yearly gas values. The model wasn't ignoring
+either nudge; it was correctly recognizing that the tool I was steering it toward couldn't
+supply the data it needed, and using the one that could. No docstring wording fixes a
+structural data gap.
+
+**Verified what's actually available before proposing a fix.** `co2_per_capita`,
+`methane_per_capita`, `nitrous_oxide_per_capita`, `co2_growth_prct`, and `co2_per_gdp` are all
+precomputed columns already in `owid-co2-data.csv` — no new derivation needed, and available
+at every scope since it's the same raw file regardless of `scope`. Growth-% and per-GDP have
+no OWID equivalent for methane/nitrous_oxide — confirmed by checking the actual column list,
+not assumed. `co2_per_gdp` is explicitly **not** the same metric as `get_country_profile`'s
+`ghg_intensity` (`total_ghg / gdp`, all three gases as CO₂-equivalent, computed only for the
+expanded ~40 via Week 2's own pipeline) — confirmed by comparing both for China/2020
+(`ghg_intensity=0.5186` vs `co2_per_gdp=0.451`, close but genuinely different numbers) rather
+than assuming OWID's field was a drop-in substitute.
+
+**The `api/` change** (PR #139, shipped independently by the session working on `api/`, per
+this sub-project's own no-`api/`-changes convention): `GET /historical/timeseries` gained
+`per_capita` (gas-aware), and CO2-only `yoy_pct_change`/`per_gdp` (`None` for
+methane/nitrous_oxide) on every `TimeseriesSeries`. Root `SPEC.md` §5.23 / Release 18.
+
+**The `services/mcp-server` change.** `get_historical_emissions` already passed the full API
+response through unmodified, so the new fields required zero data-plumbing changes — only
+docstring updates, since the fix was telling the model the gap it had correctly identified was
+now closed: `get_historical_emissions` documents the new fields and the CO2-only-vs-`None`
+split; `get_country_profile`'s docstring narrows to its one remaining unique value
+(multi-gas `ghg_intensity`); the server-level `instructions` mentions the multi-country tools
+now carry comparative context, not just raw totals. Also documented that `per_gdp` (and, in
+the latest year or two, `yoy_pct_change`) can legitimately be `None` even for CO2, because
+OWID's GDP figures lag its emissions figures by a year or two — confirmed directly against the
+raw CSV (China's `co2_per_gdp` is populated through 2022, `NaN` for 2023–2024) rather than
+assumed to be a bug.
+
+**Confirmed fixed, not just shipped**, via a second live Desktop conversation on the same two
+questions: the China query made a single `get_historical_emissions(scope="sovereign")` call
+(no explicit `countries` — the full 218-country sovereign pool resolved and passed internally,
+trimmed to the top 10 client-side, per the existing `SPEC.md` §3.2/§4 design) and produced a
+table with CO₂, per-capita, and YoY% for all 10. The India follow-up made **no new tool
+call** — it correctly reused the same response already in context (which already contained
+India's full 1990–2024 series, being #3 in that sovereign top 10) rather than either
+re-fetching or falling back to `get_country_profile`. A follow-up indexed-growth chart
+(1990=100, India and China highlighted against the other 8) confirmed the same reused dataset
+backed the visualization too. One well-formed tool call, reused correctly across a multi-turn
+conversation, comparative fields actually present in the narrative — the combination the two
+failed attempts above were aiming for.
+
+**Noted but not acted on:** the sovereign-scope path sends all 218 countries' full 35-year
+series over the wire to display 10 — correct (it's what avoids the API's own scope-blindness
+bug, `SPEC.md` §4) but not free. A cheaper ranking pass before fetching full series only for
+the winners (mirroring how `get_top_emitters` already uses the lighter
+`/overview/world-map-series` for ranking) would be a legitimate future optimization, not
+undertaken here since nothing observed made it a real cost yet.
+
+**Also fixed in this window, unrelated:** Ctrl+C on a running server printed a raw
+`KeyboardInterrupt` traceback even after a clean shutdown — cosmetic, but alarming for anyone
+else testing this locally. Caught at the `__main__.py` entry point for a quiet exit.
