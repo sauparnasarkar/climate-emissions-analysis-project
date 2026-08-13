@@ -24,7 +24,8 @@ see list_countries). For any request comparing multiple countries -- growth, tre
 rankings, forecasts -- prefer the one tool built for that (get_historical_emissions,
 get_gas_composition_by_decade, get_top_emitters, get_forecast_comparison,
 get_scenario_cumulative_impact, compare_scenarios_across_countries) over calling a
-single-country tool (get_country_profile, get_forecast) once per country. The
+single-country tool (get_country_profile, get_forecast, get_scenario_projection) once per
+country. The
 multi-country tools return a real, data-ranked, reproducible set when you don't name
 specific countries, in one call instead of one round trip per country; picking countries
 yourself and looping a single-country tool does neither. This includes comparisons that

@@ -22,6 +22,11 @@ async def get_scenario_projection(
     the historical tools -- and only has an effect when `view='global'`; it's ignored for
     `view='single'`. For `view='single'`, `country` is resolved against the expanded
     (~40-country) scope.
+
+    Do NOT call this once per country to build a multi-country comparison -- use
+    compare_scenarios_across_countries instead, which fetches every country's BAU/Moderate/
+    Aggressive trajectories concurrently in one call rather than costing one MCP round trip
+    per country.
     """
     if view == "single" and country is None:
         # The wrapped API rejects this with a 400 too, but its detail message doesn't
