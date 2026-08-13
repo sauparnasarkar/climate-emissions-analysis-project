@@ -120,21 +120,41 @@ ISO_CODES = {"China": "CHN", "United States": "USA", "Germany": "DEU", "Canada":
 
 def owid_raw_df() -> pd.DataFrame:
     years = [1990, 1995, 2000, 2005, 2010]
+    # Explicit per-year literals (not a runtime-computed i*increment) for the 5 new columns
+    # below, so equality assertions in tests aren't exposed to float-repr drift between a
+    # computed value and a hardcoded expected literal. co2_growth_prct is deliberately None
+    # on each country's first data year (1990) -- mirrors OWID's real behavior (no prior-year
+    # baseline to compute growth from) and gives test_historical.py a real null to assert the
+    # pd.isna() -> None conversion against, not just field presence.
+    co2_per_capita_vals = [7.0, 7.5, 8.0, 8.5, 9.0]
+    methane_per_capita_vals = [0.20, 0.21, 0.22, 0.23, 0.24]
+    nitrous_oxide_per_capita_vals = [0.05, 0.051, 0.052, 0.053, 0.054]
+    co2_growth_prct_vals = [None, 2.1, 2.2, 2.3, 2.4]
+    co2_per_gdp_vals = [0.40, 0.42, 0.44, 0.46, 0.48]
     rows = []
     for country in FIXTURE_COUNTRIES:
         for i, year in enumerate(years):
-            rows.append((country, year, 100.0 + i, 20.0, 5.0, ISO_CODES[country]))
+            rows.append((
+                country, year, 100.0 + i, 20.0, 5.0, ISO_CODES[country],
+                co2_per_capita_vals[i], methane_per_capita_vals[i], nitrous_oxide_per_capita_vals[i],
+                co2_growth_prct_vals[i], co2_per_gdp_vals[i],
+            ))
     # Pre-1990 row (must be excluded by load_raw's year >= 1990 filter) and a non-focus
     # country row (must be excluded by the COUNTRIES filter) — both for "China" so the
-    # exclusion is unambiguous.
-    rows.append(("China", 1985, 999.0, 999.0, 999.0, "CHN"))
-    rows.append(("Canada", 1995, 999.0, 999.0, 999.0, ISO_CODES["Canada"]))
+    # exclusion is unambiguous. The 5 new columns get the same 999.0 sentinel as the existing
+    # ones -- these rows are filtered out before any column is ever read.
+    rows.append(("China", 1985, 999.0, 999.0, 999.0, "CHN", 999.0, 999.0, 999.0, 999.0, 999.0))
+    rows.append(("Canada", 1995, 999.0, 999.0, 999.0, ISO_CODES["Canada"], 999.0, 999.0, 999.0, 999.0, 999.0))
     # OWID aggregate row at the fixture's latest year (2010) — must be excluded by
     # load_raw_sovereign()'s iso_code.notna() filter (SPEC.md §6.1), proving the "All
     # Countries" tier doesn't double-count the aggregate alongside the sovereign rows
     # it's a sum of. Real OWID aggregate rows have no iso_code either.
-    rows.append(("World", 2010, 9999.0, 9999.0, 9999.0, None))
-    return pd.DataFrame(rows, columns=["country", "year", "co2", "methane", "nitrous_oxide", "iso_code"])
+    rows.append(("World", 2010, 9999.0, 9999.0, 9999.0, None, 9999.0, 9999.0, 9999.0, 9999.0, 9999.0))
+    return pd.DataFrame(rows, columns=[
+        "country", "year", "co2", "methane", "nitrous_oxide", "iso_code",
+        "co2_per_capita", "methane_per_capita", "nitrous_oxide_per_capita",
+        "co2_growth_prct", "co2_per_gdp",
+    ])
 
 
 def owid_raw_world_map_series_df() -> pd.DataFrame:
@@ -183,14 +203,18 @@ def owid_raw_headline_df() -> pd.DataFrame:
         ("Poland", "POL", 400.0, 300.0),
         ("Vietnam", "VNM", 20.0, 320.0),
     ]
-    # methane/nitrous_oxide included (flat placeholder values) only because
-    # load_raw_sovereign() now requires the columns to exist -- headline_movers itself never
-    # reads them.
+    # methane/nitrous_oxide/per_capita/growth/per_gdp included (flat placeholder values) only
+    # because load_raw_sovereign() now requires the columns to exist -- headline_movers itself
+    # never reads any of them.
     out = []
     for country, iso, co2_1990, co2_2024 in rows_2024_desc:
-        out.append((country, 1990, co2_1990, 1.0, 0.1, iso))
-        out.append((country, 2024, co2_2024, 1.0, 0.1, iso))
-    return pd.DataFrame(out, columns=["country", "year", "co2", "methane", "nitrous_oxide", "iso_code"])
+        out.append((country, 1990, co2_1990, 1.0, 0.1, iso, 1.0, 0.1, 0.01, 1.0, 0.3))
+        out.append((country, 2024, co2_2024, 1.0, 0.1, iso, 1.0, 0.1, 0.01, 1.0, 0.3))
+    return pd.DataFrame(out, columns=[
+        "country", "year", "co2", "methane", "nitrous_oxide", "iso_code",
+        "co2_per_capita", "methane_per_capita", "nitrous_oxide_per_capita",
+        "co2_growth_prct", "co2_per_gdp",
+    ])
 
 
 def ghg_filtered_df() -> pd.DataFrame:
