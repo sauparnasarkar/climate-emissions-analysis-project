@@ -21,16 +21,18 @@ DEFAULT_STREAMABLE_HTTP_PORT = 8765
 SERVER_INSTRUCTIONS = """\
 Climate emissions data for a curated set of countries (featured/expanded/sovereign tiers --
 see list_countries). For any request comparing multiple countries -- growth, trends,
-rankings -- prefer the one tool built for that (get_historical_emissions,
-get_gas_composition_by_decade, get_top_emitters, get_scenario_cumulative_impact,
-compare_scenarios_across_countries) over calling a single-country tool
-(get_country_profile, get_forecast) once per country. The multi-country tools return a
-real, data-ranked, reproducible set when you don't name specific countries; picking
-countries yourself and looping a single-country tool does not. This includes comparisons
-that want per-capita or growth-rate context, not just raw totals --
-get_historical_emissions carries per-capita (every gas) and, for CO2, year-over-year %
-growth and carbon intensity alongside the raw series, so it does not need to be
-supplemented with per-country lookups for that.\
+rankings, forecasts -- prefer the one tool built for that (get_historical_emissions,
+get_gas_composition_by_decade, get_top_emitters, get_forecast_comparison,
+get_scenario_cumulative_impact, compare_scenarios_across_countries) over calling a
+single-country tool (get_country_profile, get_forecast) once per country. The
+multi-country tools return a real, data-ranked, reproducible set when you don't name
+specific countries, in one call instead of one round trip per country; picking countries
+yourself and looping a single-country tool does neither. This includes comparisons that
+want per-capita/growth-rate context or full forecast series/confidence intervals, not just
+raw totals or 2030/2035/2040 snapshots -- get_historical_emissions carries per-capita
+(every gas) and, for CO2, year-over-year % growth and carbon intensity alongside the raw
+series, and get_forecast_comparison carries the same full historical/holdout/forecast/CI
+detail as get_forecast, just for many countries in one call.\
 """
 
 mcp = MCPServer("climate-emissions", instructions=SERVER_INSTRUCTIONS)

@@ -26,6 +26,7 @@ EXPECTED_TOOLS = {
     "get_gas_composition_by_decade",
     "get_forecast",
     "get_forecast_summary",
+    "get_forecast_comparison",
     "get_model_comparison",
     "get_scenario_projection",
     "get_scenario_cumulative_impact",

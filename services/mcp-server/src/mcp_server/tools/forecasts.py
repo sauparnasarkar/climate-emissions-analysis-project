@@ -14,7 +14,11 @@ async def get_forecast(country: str) -> dict:
     """The ETS(A,Ad,N)-based production emissions forecast for a single country, with
     historical/holdout series and a confidence interval -- always the production model,
     never model-selectable. `country` is resolved against the expanded (~40-country) scope;
-    a real country outside that scope raises a clear error rather than a bare 404."""
+    a real country outside that scope raises a clear error rather than a bare 404.
+
+    Do NOT call this once per country to build a multi-country comparison -- use
+    get_forecast_comparison instead, which fetches every country's forecast concurrently in
+    one call rather than costing one MCP round trip per country."""
     lists = await fetch_country_lists()
     resolved = resolve_country(country, lists, scope="expanded")
     client = get_client()
