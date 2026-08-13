@@ -70,7 +70,11 @@ def load_raw() -> pd.DataFrame:
     path = _path("owid-co2-data.csv")
     if not os.path.exists(path):
         raise DataNotFoundError("data/owid-co2-data.csv not found.")
-    cols = ["country", "year", "co2", "methane", "nitrous_oxide"]
+    cols = [
+        "country", "year", "co2", "methane", "nitrous_oxide",
+        "co2_per_capita", "methane_per_capita", "nitrous_oxide_per_capita",
+        "co2_growth_prct", "co2_per_gdp",
+    ]
     df_r = pd.read_csv(path, usecols=cols)
     return df_r[(df_r["country"].isin(load_expanded_countries())) & (df_r["year"] >= 1990)].copy()
 
@@ -88,7 +92,11 @@ def load_raw_sovereign() -> pd.DataFrame:
     path = _path("owid-co2-data.csv")
     if not os.path.exists(path):
         raise DataNotFoundError("data/owid-co2-data.csv not found.")
-    cols = ["country", "year", "co2", "methane", "nitrous_oxide", "iso_code"]
+    cols = [
+        "country", "year", "co2", "methane", "nitrous_oxide", "iso_code",
+        "co2_per_capita", "methane_per_capita", "nitrous_oxide_per_capita",
+        "co2_growth_prct", "co2_per_gdp",
+    ]
     df_r = pd.read_csv(path, usecols=cols)
     return df_r[df_r["iso_code"].notna() & (df_r["year"] >= 1990)].copy()
 

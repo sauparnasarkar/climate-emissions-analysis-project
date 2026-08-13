@@ -95,6 +95,9 @@ class TimeseriesSeries(BaseModel):
     name: str
     years: list[int]
     values: list[Optional[float]]
+    per_capita: list[Optional[float]]
+    yoy_pct_change: list[Optional[float]]
+    per_gdp: list[Optional[float]]
 
 
 class HistoricalTimeseriesResponse(BaseModel):

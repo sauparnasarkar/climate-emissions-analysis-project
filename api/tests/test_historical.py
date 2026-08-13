@@ -74,7 +74,36 @@ def test_timeseries_default_params(client):
     assert names == {"China", "United States", "Germany"}
     for s in body["series"]:
         # owid_raw_df() (conftest) gives every fixture country 5 years: 1990/1995/2000/2005/2010.
-        assert len(s["years"]) == len(s["values"]) == 5
+        assert len(s["years"]) == len(s["values"]) == len(s["per_capita"]) == 5
+        assert len(s["yoy_pct_change"]) == len(s["per_gdp"]) == 5
+
+
+def test_timeseries_co2_new_fields_populated_with_deliberate_null(client):
+    resp = client.get("/api/historical/timeseries", params={"countries": ["China"], "gas": "co2"})
+    china = next(s for s in resp.json()["series"] if s["name"] == "China")
+
+    assert china["years"] == [1990, 1995, 2000, 2005, 2010]
+    assert china["per_capita"] == pytest.approx([7.0, 7.5, 8.0, 8.5, 9.0])
+    # co2_growth_prct is null on a country's first data year (owid_raw_df fixture, mirrors
+    # real OWID behavior -- no prior-year baseline) -- proves the pd.isna() -> None conversion
+    # path, not just that the field is present.
+    assert china["yoy_pct_change"][0] is None
+    assert china["yoy_pct_change"][1:] == pytest.approx([2.1, 2.2, 2.3, 2.4])
+    assert china["per_gdp"] == pytest.approx([0.40, 0.42, 0.44, 0.46, 0.48])
+
+
+def test_timeseries_non_co2_gas_nulls_growth_and_per_gdp_but_keeps_per_capita(client):
+    resp = client.get("/api/historical/timeseries", params={"countries": ["China"], "gas": "methane"})
+    china = next(s for s in resp.json()["series"] if s["name"] == "China")
+
+    # co2_growth_prct/co2_per_gdp have no methane equivalent in OWID -- None-filled to the
+    # same length as years, not omitted or an empty list.
+    assert china["yoy_pct_change"] == [None, None, None, None, None]
+    assert china["per_gdp"] == [None, None, None, None, None]
+    # per_capita IS populated for every gas (methane_per_capita is a real OWID column) --
+    # varying per-year values prove the {gas}_per_capita column lookup, not a flat
+    # placeholder that could pass by accident.
+    assert china["per_capita"] == pytest.approx([0.20, 0.21, 0.22, 0.23, 0.24])
 
 
 def test_timeseries_default_countries_ignores_scope(client):
