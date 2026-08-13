@@ -31,6 +31,25 @@ async def test_get_historical_emissions_out_of_scope_explicit_country_raises(api
         await get_historical_emissions(countries=["Canada"], scope="featured")
 
 
+async def test_get_historical_emissions_includes_per_capita_and_co2_only_fields(api_client):
+    # Values match owid_raw_df()'s fixture literals exactly (api/tests/conftest.py).
+    body = await get_historical_emissions(countries=["China"], gas="co2")
+    series = body["series"][0]
+    assert series["per_capita"] == [7.0, 7.5, 8.0, 8.5, 9.0]
+    assert series["yoy_pct_change"] == [None, 2.1, 2.2, 2.3, 2.4]
+    assert series["per_gdp"] == [0.40, 0.42, 0.44, 0.46, 0.48]
+
+
+async def test_get_historical_emissions_non_co2_gas_has_per_capita_but_not_growth_or_gdp(api_client):
+    # OWID doesn't compute year-over-year growth or per-GDP for methane -- must be None,
+    # not a fabricated or silently-CO2 value.
+    body = await get_historical_emissions(countries=["China"], gas="methane")
+    series = body["series"][0]
+    assert series["per_capita"] == [0.20, 0.21, 0.22, 0.23, 0.24]
+    assert series["yoy_pct_change"] == [None, None, None, None, None]
+    assert series["per_gdp"] == [None, None, None, None, None]
+
+
 async def test_get_historical_emissions_omitted_countries_trims_over_cap(bare_api_client, data_dir):
     # 12 sovereign countries with real 2024 magnitude separation -- Vietnam/Poland are the
     # two lowest and must be excluded by the top-10 cap; China is highest and must lead.

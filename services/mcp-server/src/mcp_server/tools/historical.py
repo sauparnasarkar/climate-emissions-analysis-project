@@ -37,6 +37,18 @@ async def get_historical_emissions(
     first, with a scope_note saying how it was chosen), not an arbitrary hand-picked one.
     Inventing a country list yourself produces a different, non-reproducible comparison
     each time this tool is called for a similar question.
+
+    Each series also carries `per_capita` (for whichever `gas` was requested), plus, for
+    `gas="co2"` only, `yoy_pct_change` and `per_gdp` (carbon intensity) -- OWID doesn't
+    compute year-over-year growth or per-GDP figures for methane/nitrous_oxide, so both are
+    `None` for those gases rather than a fabricated value. `per_gdp` (and, in the most
+    recent year or two, `yoy_pct_change`) can also be `None` for gas="co2" simply because
+    OWID's GDP figures lag its emissions figures by a year or two -- that's missing source
+    data, not a tool error; don't describe it as broken. This tool is the right one for a
+    MULTI-country comparison even when you want per-capita/growth/intensity context, not
+    just raw totals -- do not call get_country_profile once per country instead; that
+    produces the same non-reproducible, arbitrary country selection problem described above,
+    just with an extra tool.
     """
     lists = await fetch_country_lists()
     omitted = countries is None

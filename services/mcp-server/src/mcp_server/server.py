@@ -26,7 +26,11 @@ get_gas_composition_by_decade, get_top_emitters, get_scenario_cumulative_impact,
 compare_scenarios_across_countries) over calling a single-country tool
 (get_country_profile, get_forecast) once per country. The multi-country tools return a
 real, data-ranked, reproducible set when you don't name specific countries; picking
-countries yourself and looping a single-country tool does not.\
+countries yourself and looping a single-country tool does not. This includes comparisons
+that want per-capita or growth-rate context, not just raw totals --
+get_historical_emissions carries per-capita (every gas) and, for CO2, year-over-year %
+growth and carbon intensity alongside the raw series, so it does not need to be
+supplemented with per-country lookups for that.\
 """
 
 mcp = MCPServer("climate-emissions", instructions=SERVER_INSTRUCTIONS)
