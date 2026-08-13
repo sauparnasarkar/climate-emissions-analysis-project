@@ -334,8 +334,19 @@ run the suite; this only worked locally by accident (those packages already pres
 earlier ad hoc installs) until a genuinely fresh Mac Mini venv surfaced it. Not a production
 dependency change — `src/` never imports `api/` or `fastapi`.
 
-**Still outstanding**: client-side `CF-Access-Client-Id`/`CF-Access-Client-Secret` header
-config for Claude Desktop's remote-MCP connector and the not-yet-built LangGraph agent (Stage
-2) — tokens exist and are ready to use, just not wired into any client yet. `SPEC.md` §8.5
-(restricting `/api/*`, OAuth 2.1 for B4) is Phase 2, scope-confirmed but not
-designed.
+**Claude Desktop's client-side wiring done too, via a real workaround.** Desktop's GUI "Add
+custom connector" flow turned out to be OAuth-only — its Advanced Settings fields are OAuth
+Client ID/Secret for a server implementing `/authorize`/`/token` itself, which this server
+deliberately doesn't have (§8.2's whole point is Cloudflare Access instead). Clicking Connect
+opened a browser to a nonexistent `/authorize` URL, which downloaded as a zero-byte file rather
+than completing — a real gap in the original plan, not a config mistake. Fixed by bypassing the
+GUI entirely: a `claude_desktop_config.json` `mcpServers` entry using the community
+[`mcp-remote`](https://github.com/geelen/mcp-remote) package as a local stdio↔HTTP bridge,
+injecting `CF-Access-Client-Id`/`CF-Access-Client-Secret` via `--header` flags sourced from an
+`env` block. Confirmed working end-to-end: connector loaded, all 13 tools listed. Uses the
+`ghg-emissions-mcp-claude-desktop` token specifically.
+
+**Still outstanding**: the not-yet-built LangGraph agent (Stage 2) needs the same two headers
+wired into its own HTTP client once it exists — no OAuth-mismatch to work around there, since
+it never goes through Desktop's GUI mechanism. `SPEC.md` §8.5 (restricting `/api/*`, OAuth 2.1
+for B4) is Phase 2, scope-confirmed but not designed.

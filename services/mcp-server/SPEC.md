@@ -342,11 +342,26 @@ underneath) rather than a stopgap for missing auth.
   request ever reaches the Mac Mini. (The accept path — a real, valid Service Token succeeding —
   wasn't verified from this session, since token secrets are shown once in the dashboard and
   weren't shared here; worth confirming once a real client is configured, §8.4's next bullet.)
-- [ ] **Client-side** — each consumer adds `CF-Access-Client-Id`/`CF-Access-Client-Secret`
-  headers to its MCP connection config (Claude Desktop's remote-MCP config supports custom
-  headers; the LangGraph agent's HTTP client needs the same two headers set on its calls to this
-  server). **Not executed here** — Desktop's config lives outside this repo, and the LangGraph
-  agent doesn't exist yet (Stage 2). Tokens exist and are ready to use (see the bullet above).
+- [x] **Client-side, Claude Desktop.** Correcting an assumption this checklist made before it
+  was actually tried: Claude Desktop's GUI "Add custom connector" flow does **not** support
+  arbitrary static headers — its "Advanced settings" fields are OAuth Client ID/Secret for a
+  server that implements OAuth 2.1 itself (`/authorize`, `/token`). This server deliberately
+  doesn't (§8.2's whole point is Cloudflare Access instead of app-layer auth), so that flow
+  fails: Desktop opens a browser to an `/authorize` URL that doesn't exist, which downloads as
+  a zero-byte file rather than completing. **Working alternative**: bypass the GUI entirely and
+  add a `claude_desktop_config.json` `mcpServers` entry using
+  [`mcp-remote`](https://github.com/geelen/mcp-remote) (`npx mcp-remote <url> --header
+  "CF-Access-Client-Id:${CF_CLIENT_ID}" --header "CF-Access-Client-Secret:${CF_CLIENT_SECRET}"`,
+  values sourced from an `env` block — not inlined with a space after the colon, which a known
+  Desktop bug mangles) as a local stdio↔HTTP bridge that injects the two Access headers itself.
+  Confirmed working end-to-end: connector loaded, all 13 tools listed correctly. Uses the
+  `ghg-emissions-mcp-claude-desktop` Service Token specifically (not the app-agent/tester ones),
+  keeping per-client attribution/revocation meaningful.
+- [ ] **Client-side, LangGraph agent (Stage 2).** Doesn't exist yet. When built, its HTTP client
+  needs the same two headers (`CF-Access-Client-Id`/`CF-Access-Client-Secret`) set directly on
+  its calls to this server — no OAuth-flow mismatch to work around there, since it isn't going
+  through Desktop's GUI connector mechanism at all. Uses the `ghg-emissions-mcp-app-agent`
+  Service Token.
 - [x] `api/main.py` — CORS `allow_origins` gains `https://labs.syena.io` alongside the existing
   dev origin (`http://localhost:5173`). Cross-referenced here (§4-style) but this is the one
   explicit, narrow exception to `CLAUDE.md`'s "no changes to `api/`" convention for this Phase
