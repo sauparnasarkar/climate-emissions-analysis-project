@@ -18,7 +18,18 @@ from .client import get_client
 
 DEFAULT_STREAMABLE_HTTP_PORT = 8765
 
-mcp = MCPServer("climate-emissions")
+SERVER_INSTRUCTIONS = """\
+Climate emissions data for a curated set of countries (featured/expanded/sovereign tiers --
+see list_countries). For any request comparing multiple countries -- growth, trends,
+rankings -- prefer the one tool built for that (get_historical_emissions,
+get_gas_composition_by_decade, get_top_emitters, get_scenario_cumulative_impact,
+compare_scenarios_across_countries) over calling a single-country tool
+(get_country_profile, get_forecast) once per country. The multi-country tools return a
+real, data-ranked, reproducible set when you don't name specific countries; picking
+countries yourself and looping a single-country tool does not.\
+"""
+
+mcp = MCPServer("climate-emissions", instructions=SERVER_INSTRUCTIONS)
 
 
 @mcp.tool()
