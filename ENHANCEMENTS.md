@@ -3273,3 +3273,20 @@ Shipped as `climate-emissions-analysis-project` PR #133, mentor-reviewed and mer
 guidance from the repo owner (2026-08-12), this documentation itself was committed straight to
 `main` rather than going through its own PR -- doc-only updates no longer need the branch+PR+review
 cycle that code changes still do.
+
+**Follow-up (PR #134, Shipped): `get_timeseries`'s no-`countries` default widened to the full
+`FEATURED_COUNTRIES`.** Found while reviewing this release for the MCP server sub-project: the
+React frontend's country picker already seeds itself with all 10 `FEATURED_COUNTRIES` (a prior
+fix to a 5-vs-10 inconsistency) and always sends `countries` explicitly, so the backend default —
+still a `FEATURED_COUNTRIES[:5]` slice, five countries, dating from before the featured list grew
+to 10 — was a straggler nobody was actually exercising except a bare unparameterized `GET`. Fixed
+to `FEATURED_COUNTRIES` (all 10), matching the frontend. Also adds a pinning test,
+`test_timeseries_default_countries_ignores_scope`, documenting a separate, pre-existing (not new)
+behavior surfaced during the same review: `scope` has no observable effect on this endpoint's
+no-`countries` default path, at either list size — the fallback is a fixed name list, not a
+scope-aware pool, unlike `get_decade_composition`'s no-`countries` default (which does aggregate
+the whole selected-scope pool). Confirmed via `mcp-server-spec.md` §3.2 that no real caller hits
+this combination: the MCP tool layer always resolves and ranks its own country list before
+calling this endpoint, never omitting `countries` to lean on the API's own default. Not a bug —
+recorded so a future change to this endpoint's default doesn't have to re-discover it. 113/113
+tests pass.
