@@ -48,15 +48,23 @@ def _streamable_http_settings(deploy_base_path: str | None) -> tuple[str, Transp
     /ghg-emissions-analysis/mcp), and transport_security locked to the one hostname/origin the
     Tunnel actually forwards (SPEC.md §8.3) -- left unset here, every request would 401 with no
     obvious cause once real traffic arrives carrying Host: labs.syena.io.
+
+    The security toggle is keyed off deploy_base_path itself, not the normalized prefix --
+    DEPLOY_BASE_PATH="/" is a legitimate "deployed at root, no prefix" value (the same case
+    api/main.py's own _normalize_deploy_prefix("/") == "" already treats as deliberate, not
+    unset), and normalizes to an empty, falsy prefix. Keying off the prefix instead would
+    silently drop DNS-rebinding protection for that real deploy configuration -- path-prefixing
+    and security-hardening must not be coupled through the same falsy-empty-string check.
     """
     prefix = _normalize_deploy_prefix(deploy_base_path)
     path = f"{prefix}/mcp"
+    is_deployed = bool(deploy_base_path)
     security = (
         TransportSecuritySettings(
             allowed_hosts=["labs.syena.io"],
             allowed_origins=["https://labs.syena.io"],
         )
-        if prefix
+        if is_deployed
         else None
     )
     return path, security

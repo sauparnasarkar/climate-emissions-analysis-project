@@ -40,3 +40,15 @@ def test_streamable_http_settings_set_locks_to_the_tunnel_hostname():
     assert security is not None
     assert security.allowed_hosts == ["labs.syena.io"]
     assert security.allowed_origins == ["https://labs.syena.io"]
+
+
+def test_streamable_http_settings_deployed_at_root_still_enables_security():
+    # DEPLOY_BASE_PATH="/" is a legitimate "deployed at root" value -- it normalizes to an
+    # empty, falsy prefix (matching api/main.py's own _normalize_deploy_prefix("/") == ""),
+    # but that must not be mistaken for "not deployed." Keying the security toggle off the
+    # normalized prefix instead of the raw env var would silently drop DNS-rebinding
+    # protection for this real deploy configuration -- caught in PR #140 review.
+    path, security = _streamable_http_settings("/")
+    assert path == "/mcp"
+    assert security is not None
+    assert security.allowed_hosts == ["labs.syena.io"]
