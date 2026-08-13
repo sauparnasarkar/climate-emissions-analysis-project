@@ -213,10 +213,46 @@ produced exactly the intended fix: one `GET /api/countries` resolution call foll
 `GET /api/scenarios/compare?countries=...` call for all 10 countries, no
 `/api/scenarios/timeseries?view=single` calls at all.
 
-**Noted but not acted on:** "projection" (unqualified) is genuinely ambiguous between the
-forecast family (`get_forecast`/`get_forecast_comparison`/`get_forecast_summary`) and the
-scenario family (`get_scenario_projection`/`compare_scenarios_across_countries`/
+**Noted but not acted on in this release:** "projection" (unqualified) is genuinely ambiguous
+between the forecast family (`get_forecast`/`get_forecast_comparison`/`get_forecast_summary`)
+and the scenario family (`get_scenario_projection`/`compare_scenarios_across_countries`/
 `get_scenario_cumulative_impact`) — the same worded question routed to different tool families
-across different test runs in this session. Proposed resolution (not yet designed or
-implemented): unqualified "projection" should route to forecast tools; "scenario" should route
-to scenario tools. Tracked separately.
+across different test runs in this session. See Release 4 below.
+
+## Release 4 — "Projection" Wording Disambiguation
+
+**Status: Shipped**, straight to `main` (no PR — same small-fix convention as Releases 2-3).
+
+**Goal:** resolve the ambiguity Release 3 flagged but didn't fix: "projection" (unqualified)
+maps to two different tool families in this catalog — the ETS statistical forecast and the
+BAU/Moderate/Aggressive policy-scenario projection — and nothing in the tool descriptions or
+`SERVER_INSTRUCTIONS` told the model which one a bare "show the projection" question should
+hit. This is tool-selection guidance, not composition (Release 2) or looping (Release 3) — a
+genuinely different kind of fix.
+
+**The rule:** a plain forecast/projection question with no scenario language (e.g. "what will
+X's emissions be by 2040") means the single statistical extrapolation — the `get_forecast`
+family. A question that explicitly invokes scenarios, policy pathways, or BAU/Moderate/
+Aggressive (or synonyms like "business as usual," "if climate policy tightens") means comparing
+multiple possible futures — the `get_scenario_projection` family. This boundary was chosen
+because it matched all observed live evidence: the original ambiguous wording ("Show the
+projection upto 2040 for the top 10 emitters") had, across different test runs, both looped
+through `get_scenario_projection` (Release 3's symptom) and correctly hit
+`get_forecast_summary` — while an explicitly scenario-worded question ("Compare BAU/Moderate/
+Aggressive scenario trajectories...") consistently hit `compare_scenarios_across_countries`.
+
+**The fix.** Reciprocal docstring nudges on both families' entry-point tools
+(`get_forecast`, `get_scenario_projection`), each stating the rule and naming the other
+family's tools as the alternative, plus one added sentence in `SERVER_INSTRUCTIONS` restating
+the same boundary at the connection level — mirroring the two-tier (docstring +
+`server`-level) approach `get_forecast`'s looping fix already used. Verified via a direct MCP
+stdio client test (`initialize()`'s `result.instructions` and both tools' `list_tools()`
+descriptions all confirmed to carry the new wording) and the full `pytest
+services/mcp-server/tests` suite (50 passed, docstring-only change).
+
+**Confirmed fixed via live re-test** in Claude Desktop: re-running the exact original ambiguous
+wording ("Show the emissions projection upto 2040 for the top 10 emitters") produced a clean
+`get_top_emitters` → `get_forecast_comparison` tool trace — the forecast family, no looping,
+correctly identified as "the ETS-based statistical forecast (not a policy scenario)" in the
+model's own answer — and the model proactively offered the BAU/Moderate/Aggressive scenario
+alternative rather than guessing which the user meant.
