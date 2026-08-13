@@ -450,6 +450,7 @@ Sections to include:
 | v47 | Aug 2026 | §5.21 (`climate-emissions-analysis-project` PR #131, **Shipped**): cleared the 2 Medium dependency findings from a `/security-infra-audit` run the same day — backend transitive-dependency CVEs (`mistune`, `pillow`, `gitpython`, `jupyter-server`, `setuptools`) pinned past their fixed versions, `jupyterlab` floor raised to 4.5.10 (staying under `notebook`'s `<4.6` cap), `pytest` bumped 8.3.4 → 9.0.3; frontend `react-router-dom` and 5 transitive build-tool packages resolved via lockfile-only `npm audit fix`. Verified: `pip-audit`/`npm audit` clean, full `api/tests` (104/104) and `npm test` (90/90) pass, Week 1 notebook executes end-to-end. Not an internship requirement change. |
 | v48 | Aug 2026 | §5.22 (`climate-emissions-analysis-project` PR #133, **Shipped**): prerequisite `api/` work for a planned MCP server sub-project — `load_raw_sovereign()` extended to carry methane/nitrous_oxide (was `co2`-only), a new `scope` (`featured`\|`expanded`\|`sovereign`) parameter added to **both** `/historical/timeseries` and `/historical/decade-composition` (widened from the original proposal, which only covered `timeseries`, after verification found `decade-composition` shared the identical gap), and a new `sovereign` field on `/countries`. Fully backward-compatible — the dashboard never sends `scope`, confirmed by inspection. Verified: 112/112 tests pass (8 new/changed, each confirmed to fail against pre-change code), live-smoke-tested against real data. Not an internship requirement change. |
 | v49 | Aug 2026 | §5.22 follow-up (`climate-emissions-analysis-project` PR #134, **Shipped**): `get_timeseries`'s no-`countries` default widened from `FEATURED_COUNTRIES[:5]` to the full 10-country `FEATURED_COUNTRIES`, matching the React frontend's picker default (zero frontend impact — it always sends `countries` explicitly). Adds a pinning test for a separate, pre-existing fact surfaced during review: `scope` has no observable effect on this endpoint's no-`countries` default at any list size, unlike `get_decade_composition`'s scope-aware whole-pool default — confirmed via `mcp-server-spec.md` §3.2 that the MCP tool layer never relies on this combination, so this needed a test, not a behavior change. 113/113 tests pass. Not an internship requirement change. |
+| v50 | Aug 2026 | Added §5.23 (Release 18, **Planned**): three new fields on `GET /historical/timeseries` — `per_capita` (all three gases), `yoy_pct_change`/`per_gdp` (CO2-only, `None`-filled otherwise) — straight passthroughs of existing `data/owid-co2-data.csv` columns, closing a real multi-country data gap surfaced by MCP server testing. Explicitly distinct from `ghg_features.csv`'s `ghg_intensity`/`co2_yoy_pct_change` (numerically confirmed different metrics, similar names). Not an internship requirement change. |
 
 ---
 
@@ -1862,6 +1863,28 @@ whether the agent project ships.
 | Response schema | `HistoricalTimeseriesResponse`/`HistoricalDecadeCompositionResponse` unchanged — no new fields. Any scope/trimming annotation for agent consumption is an MCP-layer concern, not part of this API's response shape. |
 | Testing | New: `load_raw_sovereign()` unit test (methane/N₂O spot-checked against the fixture); `scope` tests for all three values on both historical endpoints, each with an explicit "no `scope` sent → byte-identical to before" case; `/countries` test confirming the new `sovereign` field and its 503 path. 112/112 total pass, including 8 new/changed — each independently confirmed to fail against the pre-change code (`git stash` + re-run) before being trusted. |
 | Verification | Smoke-tested live against real local data post-implementation: `scope=sovereign` reaches Bhutan (outside the ~40 expanded countries, present in the real dataset) with real methane figures; no-`scope` calls confirmed byte-identical to pre-change responses. |
+| Not a curriculum scope change | Internship Weeks 1–5 and §§1–4 are unaffected; this is `api/`-only, same category as the rest of §5. |
+
+---
+
+### 5.23 Per-Capita / YoY Growth / Per-GDP Fields on `GET /historical/timeseries` (Planned, Release 18)
+
+**Status: Planned.** Another mentor addition outside the internship curriculum, same category as
+§5.21/§5.22 — not a curriculum scope change. Triggered by MCP server testing
+(`services/mcp-server/`, a separate sub-project): multi-country historical comparisons need
+per-capita/growth/intensity data, but `/historical/timeseries` only returns raw gas values, so the
+agent fell back to N calls to the single-country `/country_profile` endpoint instead of one call
+to the multi-country endpoint. This is a real gap in `/historical/timeseries` itself, not an
+MCP-layer tool-calling bug — worth fixing regardless of whether the agent project ships.
+
+| Aspect | Detail |
+|---|---|
+| Fields added | `per_capita`, `yoy_pct_change`, `per_gdp` on each `TimeseriesSeries`. All sourced verbatim from columns already present in `data/owid-co2-data.csv` — `{gas}_per_capita`, `co2_growth_prct`, `co2_per_gdp` — no new derivation. |
+| Gas coverage | `per_capita` is populated for all three gases (`co2_per_capita`/`methane_per_capita`/`nitrous_oxide_per_capita` all exist in OWID). `yoy_pct_change`/`per_gdp` have no methane/nitrous_oxide equivalent in OWID — `None`-filled (same length as `years`) whenever `gas != "co2"`. |
+| Distinct from `ghg_intensity`/`co2_yoy_pct_change` | `co2_per_gdp` (this change, CO2-only, straight OWID passthrough) is numerically different from `ghg_features.csv`'s `ghg_intensity` (`total_ghg/gdp` across all three gases, `country_profile.py`) — confirmed distinct (China/2020: 0.451 vs 0.5186). Field stays named `per_gdp`, never `ghg_intensity`. Likewise `yoy_pct_change` (straight `co2_growth_prct` passthrough) differs from `country_profile.py`'s independently-computed `co2_yoy_pct_change` (`pct_change()` on `ghg_features.csv`'s `co2`). Two real, differently-sourced numbers with similar names — not consolidated into one. |
+| Scope | `/historical/timeseries` only. `/historical/decade-composition` returns a cross-country aggregate with no per-country series — nothing here applies to it. |
+| Loader changes | `load_raw()`/`load_raw_sovereign()` `usecols` extended with the 5 new columns. Traced before implementing: `load_raw()` is used only by `historical.py`; `load_raw_sovereign()`'s other callers (`countries.py`, `overview.py`) read unrelated columns only — inert everywhere except `historical.py`. |
+| Response schema | `TimeseriesSeries` gains three required fields (`per_capita`, `yoy_pct_change`, `per_gdp`) — required rather than defaulted, since the schema has exactly one construction site. `HistoricalDecadeCompositionResponse` unchanged. |
 | Not a curriculum scope change | Internship Weeks 1–5 and §§1–4 are unaffected; this is `api/`-only, same category as the rest of §5. |
 
 ---

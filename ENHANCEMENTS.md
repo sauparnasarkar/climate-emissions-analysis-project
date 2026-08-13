@@ -3290,3 +3290,50 @@ this combination: the MCP tool layer always resolves and ranks its own country l
 calling this endpoint, never omitting `countries` to lean on the API's own default. Not a bug —
 recorded so a future change to this endpoint's default doesn't have to re-discover it. 113/113
 tests pass.
+
+## Release 18 — Per-Capita / YoY Growth / Per-GDP Fields on `GET /historical/timeseries` (Planned)
+
+**Status: Planned.** Written up before implementation starts, per the project's docs-first
+convention — will be revised to mark shipped once merged and deployed.
+
+**The gap.** MCP server testing surfaced that multi-country historical comparisons need richer
+data than raw gas values — the agent kept falling back to N calls to the single-country
+`/country_profile` endpoint (which has per-capita/YoY/intensity) instead of one call to the
+multi-country `/historical/timeseries` endpoint (which doesn't). Root-caused to a real data gap
+in `/historical/timeseries` itself, not an MCP-layer tool-calling bug.
+
+**The fix.** Three new fields on each `TimeseriesSeries` — `per_capita`, `yoy_pct_change`,
+`per_gdp` — sourced verbatim from columns already present in `data/owid-co2-data.csv`:
+`{gas}_per_capita`, `co2_growth_prct`, `co2_per_gdp`. No new derivation, no risk of drifting from
+the notebooks. `per_capita` is populated for all three gases; `yoy_pct_change`/`per_gdp` have no
+OWID methane/nitrous_oxide equivalent, so they're `None`-filled (same length as `years`) whenever
+`gas != "co2"`.
+
+**Explicitly distinct from two similarly-named existing fields.** `co2_per_gdp` (CO2-only carbon
+intensity, straight OWID passthrough) is a different metric from `ghg_features.csv`'s
+`ghg_intensity` (`total_ghg/gdp` across all three gases, computed in `week2_features.ipynb`,
+consumed by `country_profile.py`) — confirmed numerically different (China/2020: 0.451 vs
+0.5186). Likewise the new `yoy_pct_change` (straight `co2_growth_prct` passthrough) differs from
+`country_profile.py`'s independently-computed `co2_yoy_pct_change` (`pct_change()` on
+`ghg_features.csv`'s `co2`, different formula/semantics). Both new fields keep their own names
+(`per_gdp`, `yoy_pct_change`) rather than reusing the existing ones, to avoid conflating two real,
+differently-sourced numbers.
+
+**Scope.** `/historical/timeseries` only — `/historical/decade-composition` returns a
+cross-country aggregate with no per-country rows, so none of this applies there.
+
+**Loader changes.** `load_raw()`/`load_raw_sovereign()`'s `usecols` extended with the 5 new
+columns. Traced before implementing: `load_raw()` is used only by `historical.py`;
+`load_raw_sovereign()`'s other callers (`countries.py`, `overview.py`) read unrelated columns
+only — the new columns are inert everywhere except `historical.py`.
+
+**NaN handling.** `dropna(subset=[gas])` only guarantees the *requested gas* column is non-null
+per row — not `per_capita`/`co2_growth_prct`/`co2_per_gdp`, which can be independently missing
+(e.g. `co2_growth_prct` is naturally null on a country's first data year). The new fields get
+their own `pd.isna()`-based None-conversion, reusing the idiom already established in
+`data_loaders.py`'s `load_world_map_series`.
+
+**Testing (planned).** A CO2-gas test asserting all three new fields populated, including the
+deliberate first-year `co2_growth_prct` null converting to `None`; a non-CO2-gas test asserting
+`yoy_pct_change`/`per_gdp` are `None`-filled while `per_capita` still varies with real per-gas
+values.
