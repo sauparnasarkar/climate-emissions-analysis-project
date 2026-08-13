@@ -58,7 +58,7 @@ Contains:
 
 ## Reference Documents
 
-- **Project specification (v50, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements (§§1–2); §5 separately documents the mentor's post-internship `api/`/`climate-dashboard-react/` reference architecture, explicitly out of internship scope; §6 documents post-ship corrections to the curriculum notebooks themselves (not new scope)
+- **Project specification (v51, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements (§§1–2); §5 separately documents the mentor's post-internship `api/`/`climate-dashboard-react/` reference architecture, explicitly out of internship scope; §6 documents post-ship corrections to the curriculum notebooks themselves (not new scope)
 - **MCP server specification:** [`services/mcp-server/SPEC.md`](services/mcp-server/SPEC.md) — architecture decisions, cross-cutting tool conventions, and the tool catalog for the MCP server sub-project; kept separate from the root `SPEC.md` since it's a distinct sub-project, not a dashboard addendum. Companion [`services/mcp-server/CLAUDE.md`](services/mcp-server/CLAUDE.md) and its own `ENHANCEMENTS.md` cover that sub-project's day-to-day guidance and release history
 - **Technical architecture:** [`ARCHITECTURE.md`](ARCHITECTURE.md) — a current-state description of how the system is actually built (data pipeline, `api`/`climate-dashboard-react`/`services/mcp-server` internals, deploy topology on the Mac Mini, design-system integration). Unlike `SPEC.md`/`ENHANCEMENTS.md`, this doesn't narrate history — update it only on architecturally-significant changes (new service, new data flow, new pattern), not per bug fix
 - Project brief v1: Google Doc ID `1fcVx1dBr3mNZkNVgX42iCfsmiYrVtdFw`

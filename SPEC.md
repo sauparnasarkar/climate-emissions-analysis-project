@@ -451,6 +451,7 @@ Sections to include:
 | v48 | Aug 2026 | §5.22 (`climate-emissions-analysis-project` PR #133, **Shipped**): prerequisite `api/` work for a planned MCP server sub-project — `load_raw_sovereign()` extended to carry methane/nitrous_oxide (was `co2`-only), a new `scope` (`featured`\|`expanded`\|`sovereign`) parameter added to **both** `/historical/timeseries` and `/historical/decade-composition` (widened from the original proposal, which only covered `timeseries`, after verification found `decade-composition` shared the identical gap), and a new `sovereign` field on `/countries`. Fully backward-compatible — the dashboard never sends `scope`, confirmed by inspection. Verified: 112/112 tests pass (8 new/changed, each confirmed to fail against pre-change code), live-smoke-tested against real data. Not an internship requirement change. |
 | v49 | Aug 2026 | §5.22 follow-up (`climate-emissions-analysis-project` PR #134, **Shipped**): `get_timeseries`'s no-`countries` default widened from `FEATURED_COUNTRIES[:5]` to the full 10-country `FEATURED_COUNTRIES`, matching the React frontend's picker default (zero frontend impact — it always sends `countries` explicitly). Adds a pinning test for a separate, pre-existing fact surfaced during review: `scope` has no observable effect on this endpoint's no-`countries` default at any list size, unlike `get_decade_composition`'s scope-aware whole-pool default — confirmed via `mcp-server-spec.md` §3.2 that the MCP tool layer never relies on this combination, so this needed a test, not a behavior change. 113/113 tests pass. Not an internship requirement change. |
 | v50 | Aug 2026 | §5.23 (`climate-emissions-analysis-project` PR #139, **Shipped**): three new fields on `GET /historical/timeseries` — `per_capita` (all three gases), `yoy_pct_change`/`per_gdp` (CO2-only, `None`-filled otherwise) — straight passthroughs of existing `data/owid-co2-data.csv` columns, closing a real multi-country data gap surfaced by MCP server testing. Explicitly distinct from `ghg_features.csv`'s `ghg_intensity`/`co2_yoy_pct_change` (numerically confirmed different metrics, similar names). Verified: 115/115 tests pass (2 new, confirmed to fail against pre-change code), live-smoke-tested against real data pre- and post-deploy. Not an internship requirement change. |
+| v51 | Aug 2026 | Added §5.24 (Design, not yet implemented): `api/main.py`'s `CORSMiddleware.allow_origins` to gain the production origin (`https://labs.syena.io`) explicitly — the one `api/`-side prerequisite for the AuthZ architecture designed in `services/mcp-server/SPEC.md` §8 (a separate sub-project's spec, cross-referenced rather than duplicated here). `/api/*` itself stays unauthenticated by design; see that document for the full four-trust-boundary rationale and the Cloudflare Access design for the MCP server's own external clients. Not an internship requirement change. |
 
 ---
 
@@ -1888,6 +1889,38 @@ MCP-layer tool-calling bug — worth fixing regardless of whether the agent proj
 | Testing | New: a CO2-gas test asserting all three fields populated with real fixture values, including a deliberate first-year `co2_growth_prct` null converting to `None` (proves the `pd.isna()` → `None` path, not just field presence); a non-CO2-gas (methane) test asserting `yoy_pct_change`/`per_gdp` are `None`-filled while `per_capita` still varies with real per-gas values. Both confirmed to genuinely discriminate — reverting the router change (`git stash`) reproduces a `pydantic.ValidationError` (missing required fields), not just a clean assertion failure. 115/115 tests pass overall (2 new). |
 | Verification | Live-verified against real local data, both pre- and post-deploy: `co2` values for China spot-checked directly against a pandas read of `data/owid-co2-data.csv` (1990: `per_capita=2.153`, `yoy_pct_change=0.869`, `per_gdp=0.734` — exact match); `methane` case confirmed `yoy_pct_change`/`per_gdp` all-`None` while `per_capita` carried real varying values. Deployed to the Mac Mini and re-verified through the public tunnel, byte-identical to the local check. |
 | Not a curriculum scope change | Internship Weeks 1–5 and §§1–4 are unaffected; this is `api/`-only, same category as the rest of §5. |
+
+---
+
+### 5.24 Dashboard/API CORS Origin — AuthZ Prerequisite (Design — pending implementation)
+
+Status: Design, not yet implemented. The one `api/`-side change required by the AuthZ
+architecture designed for `services/mcp-server/` (a separate sub-project, confirmed 2026-08-13)
+— cross-referenced here rather than duplicated, since the full design (the four-trust-boundary
+analysis, the decision to leave `/api/*` itself unauthenticated, the Cloudflare Access design
+gating the MCP server's own external clients) lives in `services/mcp-server/SPEC.md` §8, not
+here. This subsection exists only so the one `api/`-side line item that design calls for is
+tracked in the document that actually owns `api/main.py`.
+
+The change: `api/main.py`'s `CORSMiddleware.allow_origins` currently lists only the local dev
+origin (`http://localhost:5173`). Production traffic works today only because the dashboard and
+API are served same-origin behind the Cloudflare Tunnel (`labs.syena.io`) — a same-origin
+browser request never triggers a CORS check at all, dev-only or not. `allow_origins` should gain
+`https://labs.syena.io` explicitly, so the intent ("only our own dashboard's origin may read
+`/api/*` via a cross-origin browser request") is expressed in code rather than being an accident
+of same-origin deployment. The latter is fragile against, e.g., a future subdomain or a staging
+environment on a different origin trying to read the same API — either would currently be
+silently permitted by the absence of an explicit prod entry, not silently blocked.
+
+Explicitly not part of this change: `/api/*` stays otherwise fully unauthenticated — see
+`services/mcp-server/SPEC.md` §8.1/§8.2 for why (a browser can't hold a secret, so
+application-layer auth isn't the right tool for the browser-facing leg; the existing Cloudflare
+rate-limit and response-header rules already cover the realistic abuse surface). The actual new
+auth surface in that design is the MCP server's external clients (§8.3–§8.4 of that document),
+not this API. Restricting `/api/*` reads more substantially — should that ever be wanted — is
+tracked as that same document's §8.5 ("Phase 2"), confirmed in scope but not designed yet.
+
+Not an internship requirement change.
 
 ---
 
