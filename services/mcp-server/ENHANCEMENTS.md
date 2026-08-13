@@ -317,10 +317,25 @@ than an accident of same-origin deployment, so a future subdomain or staging ori
 added deliberately. Two new `api/tests/test_main.py` cases cover it (production origin gets the
 header, an unlisted origin doesn't); full `pytest api/tests` green (117 passed).
 
-**Deliberately not done in this release** (`SPEC.md` §8.4's remaining checklist, handed off as
-instructions rather than executed — no Mac Mini SSH or Cloudflare dashboard access from this
-session): the actual Cloudflare published route, Access application, and per-client Service
-Tokens; the Mac Mini `launchd` agent; client-side `CF-Access-Client-Id`/
-`CF-Access-Client-Secret` header config for Desktop and the not-yet-built LangGraph agent.
-`SPEC.md` §8.5 (restricting `/api/*`, OAuth 2.1 for B4) is Phase 2, scope-confirmed but not
+**Deployed to the Mac Mini and gated live at Cloudflare's edge**, completing this release. The
+`com.ghgemissions.mcpserver` `launchd` agent runs `python -m mcp_server` on `127.0.0.1:8765`
+(mirrors the existing `uvicorn` agent's shape) — verified end-to-end against the real running
+process (correct `Host`/path succeeds, wrong `Host` gets `421`, old unprefixed path 404s, and a
+real `list_countries` tool call round-tripped through to the live `api/` service). The
+Cloudflare-side pieces (published application route above the dashboard's catch-all, an Access
+application on `labs.syena.io/ghg-emissions-analysis/mcp`, a policy with action **Service
+Auth** — not login-based — and three named, individually revocable Service Tokens) were then
+set up directly in the dashboard and confirmed from outside the Mac Mini: the public endpoint
+returns `403` with no credentials or a wrong Service Token, proving Access enforces at the edge
+before a request ever reaches this machine. `pyproject.toml`'s `dev` extras were also fixed in
+this release — `tests/conftest.py` mounts the real `api/` app for fixtures, but `fastapi`/
+`pandas`/`numpy`/`httpx2` weren't declared, so `pip install -e ".[dev]"` alone couldn't actually
+run the suite; this only worked locally by accident (those packages already present from
+earlier ad hoc installs) until a genuinely fresh Mac Mini venv surfaced it. Not a production
+dependency change — `src/` never imports `api/` or `fastapi`.
+
+**Still outstanding**: client-side `CF-Access-Client-Id`/`CF-Access-Client-Secret` header
+config for Claude Desktop's remote-MCP connector and the not-yet-built LangGraph agent (Stage
+2) — tokens exist and are ready to use, just not wired into any client yet. `SPEC.md` §8.5
+(restricting `/api/*`, OAuth 2.1 for B4) is Phase 2, scope-confirmed but not
 designed.

@@ -164,7 +164,7 @@ hosting. Five `launchd` agents (`~/Library/LaunchAgents/com.ghgemissions.*.plist
 | `cloudflared` | `cloudflared tunnel run` | — | Publishes `labs.syena.io` → this machine; forwards full prefixed paths with no stripping (`KeepAlive`) |
 | `uvicorn` | `api.main:app` | `127.0.0.1:8081` | `DEPLOY_BASE_PATH=/ghg-emissions-analysis/` |
 | `vitepreview` | `vite preview` (built `climate-dashboard-react/dist`) | `127.0.0.1:4173` | Same `DEPLOY_BASE_PATH`; must be rebuilt (not just restarted) after any change, since the prefix is baked in at build time |
-| `mcpserver` | `python -m mcp_server` (Streamable HTTP) | `127.0.0.1:8765` | `DEPLOY_BASE_PATH=/ghg-emissions-analysis/`, `MCP_TRANSPORT=streamable-http`, `API_BASE_URL=http://127.0.0.1:8081/api` — running and verified locally on this machine, but **not yet reachable via the Tunnel**: no `cloudflared` route to this port exists yet, pending the Cloudflare Access setup in §7 |
+| `mcpserver` | `python -m mcp_server` (Streamable HTTP) | `127.0.0.1:8765` | `DEPLOY_BASE_PATH=/ghg-emissions-analysis/`, `MCP_TRANSPORT=streamable-http`, `API_BASE_URL=http://127.0.0.1:8081/api` — publicly reachable at `labs.syena.io/ghg-emissions-analysis/mcp`, gated by a Cloudflare Access application (Service Auth policy, named per-client Service Tokens, §7) rather than app-layer code |
 | `datarefresh` | `ghg-data-refresh.sh` | — | Weekly, §2 above |
 
 **Deploy sequencing**: `design-system` must be pulled (`git merge --ff-only`) *before*
@@ -189,16 +189,16 @@ import, no privileged access path) — `API_BASE_URL` env var, must include the 
 Independently versioned/deployable from `api/` (own `pyproject.toml`), though in practice both
 still ship from the same repo and the same Mac Mini would host both if this were deployed.
 
-**Deployed on the Mac Mini, not yet publicly reachable.** The `mcpserver` `launchd` agent (§6)
-is running and verified end-to-end locally (`SPEC.md` §8, settled 2026-08-13; auth design:
-Cloudflare Access at the edge gates external clients, not an app-layer token; code-side piece
-is `DEPLOY_BASE_PATH`-driven path prefixing + conditional DNS-rebinding protection). What's
-still missing is entirely on the Cloudflare side, not this machine: the published application
-route (`labs.syena.io` → `127.0.0.1:8765`, must sit above the dashboard's unanchored catch-all
-route or MCP requests get silently swallowed and served `index.html`), the Access application
-with a Service Auth policy, and per-client Service Tokens — `services/mcp-server/SPEC.md` §8.4
-tracks the checklist. A Dockerfile and CI job remain deliberately deferred (`SPEC.md` §2.1),
-unrelated to the auth resolution.
+**Deployed and publicly live**, gated at the edge. The `mcpserver` `launchd` agent (§6) is
+running on the Mac Mini; `labs.syena.io/ghg-emissions-analysis/mcp` is a published Cloudflare
+Access application with a Service Auth policy (not login-based) and named, individually
+revocable Service Tokens per client — `SPEC.md` §8, settled and shipped 2026-08-13. Verified
+from outside the Mac Mini: the public endpoint returns `403` with no credentials or a wrong
+Service Token, confirming Access enforces before a request ever reaches this machine. Client
+consumers (Claude Desktop's remote-MCP config, and eventually the Stage 2 LangGraph agent) still
+need `CF-Access-Client-Id`/`CF-Access-Client-Secret` headers wired in on their side —
+`services/mcp-server/SPEC.md` §8.4 tracks that last bullet. A Dockerfile and CI job remain
+deliberately deferred (`SPEC.md` §2.1), unrelated to the auth resolution.
 
 ## 8. See also
 

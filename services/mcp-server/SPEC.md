@@ -330,16 +330,23 @@ underneath) rather than a stopgap for missing auth.
   itself. Verified via `pytest services/mcp-server/tests` and direct local smoke tests against a
   real subprocess (unset: `/mcp` unchanged; set: `/ghg-emissions-analysis/mcp` responds, correct
   `Host: labs.syena.io` succeeds, mismatched `Host` gets a `421`, old unprefixed `/mcp` 404s).
-- [ ] **Cloudflare dashboard** — add the new published application route (§8.3 table, correctly
-  ordered above row 3); add an Access application scoped to that path with a Service Auth
-  policy; issue one named Service Token per launch client (this project's agent, Claude
-  Desktop/Code, each named tester), individually revocable. **Not executed from this session —
-  no Cloudflare dashboard/Mac Mini access available here; handed off as instructions.**
+- [x] **Cloudflare dashboard** — published application route added (correctly ordered above the
+  dashboard's catch-all row); Access application `ghg-emissions-mcp-server` created, scoped to
+  `labs.syena.io` path `/ghg-emissions-analysis/mcp`; policy `ghg-emissions-mcp-auth` created
+  with action **Service Auth** (not a login/identity-provider policy); three named, individually
+  revocable Service Tokens issued (`ghg-emissions-mcp-app-agent`, `ghg-emissions-mcp-claude-desktop`,
+  `ghg-emissions-mcp-internal-tester`), each added to the policy's Include rule by name.
+  **Verified live from outside the Mac Mini**: `https://labs.syena.io/ghg-emissions-analysis/mcp`
+  with no credentials and with a wrong/bogus `CF-Access-Client-Id`/`CF-Access-Client-Secret` pair
+  both return `403` — Access is genuinely gating the endpoint at Cloudflare's edge, before a
+  request ever reaches the Mac Mini. (The accept path — a real, valid Service Token succeeding —
+  wasn't verified from this session, since token secrets are shown once in the dashboard and
+  weren't shared here; worth confirming once a real client is configured, §8.4's next bullet.)
 - [ ] **Client-side** — each consumer adds `CF-Access-Client-Id`/`CF-Access-Client-Secret`
   headers to its MCP connection config (Claude Desktop's remote-MCP config supports custom
   headers; the LangGraph agent's HTTP client needs the same two headers set on its calls to this
   server). **Not executed here** — Desktop's config lives outside this repo, and the LangGraph
-  agent doesn't exist yet (Stage 2).
+  agent doesn't exist yet (Stage 2). Tokens exist and are ready to use (see the bullet above).
 - [x] `api/main.py` — CORS `allow_origins` gains `https://labs.syena.io` alongside the existing
   dev origin (`http://localhost:5173`). Cross-referenced here (§4-style) but this is the one
   explicit, narrow exception to `CLAUDE.md`'s "no changes to `api/`" convention for this Phase
