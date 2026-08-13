@@ -178,3 +178,45 @@ undertaken here since nothing observed made it a real cost yet.
 **Also fixed in this window, unrelated:** Ctrl+C on a running server printed a raw
 `KeyboardInterrupt` traceback even after a clean shutdown — cosmetic, but alarming for anyone
 else testing this locally. Caught at the `__main__.py` entry point for a quiet exit.
+
+## Release 3 — `get_scenario_projection` Loop Fix
+
+**Status: Shipped**, straight to `main` (no PR — same small-fix convention as Release 2).
+
+**Goal:** the same `SPEC.md` §7 iteration pass as Release 2 surfaced a second, structurally
+identical single-country-loop problem, this time in the scenario tool family rather than the
+historical/forecast one.
+
+**The symptom.** "Show the projection upto 2040 for the top 10 emitters" (tested in Claude
+Code) triggered 10 sequential `get_scenario_projection(view="single", country=X,
+scope="featured")` calls — confirmed via the `api/` access log (10× `GET
+/api/scenarios/timeseries?view=single`) — instead of the one `compare_scenarios_across_countries`
+call that already exists and already takes a multi-country list.
+
+**The fix.** No new tool needed — mirrored the already-proven `get_forecast` fix directly:
+added a "do not call this once per country" nudge to `get_scenario_projection`'s docstring
+pointing at `compare_scenarios_across_countries`, and added `get_scenario_projection` to
+`SERVER_INSTRUCTIONS`'s single-country tool list alongside `get_country_profile`/`get_forecast`.
+Verified via a direct MCP stdio client test (both `initialize()`'s `result.instructions` and
+`get_scenario_projection`'s `list_tools()` description confirmed to carry the new text) before
+any live re-test, plus the full `pytest services/mcp-server/tests` suite (50 passed,
+docstring-only change, no behavior change).
+
+**Confirmed fixed via live re-test**, in two parts. First, re-running the exact original
+question ("Show the projection upto 2040 for the top 10 emitters") produced a single
+`get_forecast_summary(scope="expanded")` call — no looping in either tool family — but also
+didn't exercise the scenario path at all, since unqualified "projection" routed to the forecast
+family this time rather than scenarios. That inconsistency is itself the still-open
+disambiguation problem noted below, not a regression. Prompting with explicit scenario intent
+("Compare BAU/Moderate/Aggressive scenario trajectories for the top 10 emitters through 2040")
+produced exactly the intended fix: one `GET /api/countries` resolution call followed by one
+`GET /api/scenarios/compare?countries=...` call for all 10 countries, no
+`/api/scenarios/timeseries?view=single` calls at all.
+
+**Noted but not acted on:** "projection" (unqualified) is genuinely ambiguous between the
+forecast family (`get_forecast`/`get_forecast_comparison`/`get_forecast_summary`) and the
+scenario family (`get_scenario_projection`/`compare_scenarios_across_countries`/
+`get_scenario_cumulative_impact`) — the same worded question routed to different tool families
+across different test runs in this session. Proposed resolution (not yet designed or
+implemented): unqualified "projection" should route to forecast tools; "scenario" should route
+to scenario tools. Tracked separately.
