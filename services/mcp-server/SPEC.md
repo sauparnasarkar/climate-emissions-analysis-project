@@ -29,7 +29,7 @@ hand-curated MCP tools, so that:
 | Data access path | **Option A** — HTTP client of the existing REST API, same interface any consumer uses | No privileged access path for the agent; clean process boundary; negligible latency cost for this use case. Rejected: importing API business logic as a shared library (Option B) — faster, but couples the two services' dependency graphs and undercuts "independently deployable." |
 | Tool curation | Hand-curated wrappers, not auto-converted from OpenAPI | This API is unusually well-suited to near-1:1 wrapping (each endpoint already answers one analytical question, not generic CRUD), but forecast/scenario endpoints still benefit from composed, task-shaped tools (e.g. `get_top_emitters`) that a raw conversion wouldn't produce. |
 | Transport | Streamable HTTP (MCP's current recommended remote transport) | Works identically whether Claude Desktop/Code is testing locally or the LangGraph agent calls it in production; stdio available as a local-dev fallback only. |
-| Auth | Service-account token presented to the API | The API-mount approaches (`fastapi-mcp`, `FastMCP.from_fastapi`) would give free `Depends()` reuse, but were rejected in favor of a standalone service — auth has to be handled explicitly here rather than inherited. **`api/` has zero auth today (no middleware, no `Depends()` checks) — see §2.1: V1 deliberately does not implement this row.** |
+| Auth | Service-account token presented to the API | The API-mount approaches (`fastapi-mcp`, `FastMCP.from_fastapi`) would give free `Depends()` reuse, but were rejected in favor of a standalone service — auth has to be handled explicitly here rather than inherited. **`api/` has zero auth today (no middleware, no `Depends()` checks) — see §2.1: V1 deliberately does not implement this row.** **Superseded by §8's settled design: the actual new surface (external MCP clients reaching this server) is gated by Cloudflare Access at the edge, not an app-layer service-account token — see §8.2 for why this row's original shape turned out to be the wrong mechanism for that boundary specifically.** |
 
 ### 2.1 V1 scope deviations from this table
 
@@ -40,7 +40,12 @@ deliberate, not oversights:
   unauthenticated over localhost — it does not add token-presenting code on the MCP side, since
   nothing on the API side would validate such a token (that would be dead code). Real
   service-account auth, on both sides, is a **hard prerequisite before any non-local deploy** of
-  this server.
+  this server. **Settled by §8 (2026-08-13):** this call (this server → `api/`, boundary B3 in
+  §8.1) stays exactly as described above — still unauthenticated, still localhost-only, and
+  correctly so, since it's already network-isolated and adding a token here now would be dead
+  code until `api/` itself has something to check it against. What actually needed resolving
+  before a non-local deploy was the *other* direction — external clients reaching *this*
+  server — which §8 gates via Cloudflare Access instead of an app-layer token. See §8 in full.
 - **Deployability:** V1 adds `services/mcp-server/pyproject.toml` only, to isolate this
   sub-project's dependencies (an MCP SDK, `rapidfuzz`) from the shared root `requirements.txt`
   that the notebooks/jupyter also depend on. A Dockerfile and CI job are deferred — §7 scopes
@@ -199,3 +204,158 @@ since it already does what §3.2 wants.
 Per the broader project's Stage 1: build this server, connect it to Claude Desktop/Claude
 Code over Streamable HTTP, and iterate on tool descriptions/argument schemas until
 tool-calling is reliable — before any LangGraph agent or generative-UI work begins.
+
+## 8. AuthZ architecture (Design — confirmed 2026-08-13, Phase 1 implemented)
+
+Addendum to §2's Auth row and §2.1's V1 deviation note — this section is the settled design
+those two deferred, now that this server is about to leave localhost-only per §7's staged plan.
+Written against the actual deploy topology (Cloudflare Tunnel `ghg-emissions-analysis`, its
+published application routes on `labs.syena.io`, free-tier Zero Trust) rather than a generic
+pattern — every claim below was checked against the live Cloudflare config or the installed
+SDK, not assumed (§8.3).
+
+### 8.1 Four trust boundaries, not one
+
+"Comprehensive AuthZ" for this project isn't a single mechanism — the browser-facing and
+service-to-service legs have genuinely different constraints, and conflating them was the main
+risk in the original ask:
+
+| Boundary | Parties | Can hold a secret? |
+|---|---|---|
+| B1 — Browser ↔ dashboard | Anonymous public visitor ↔ static SPA | No — public by design |
+| B2 — Browser ↔ `api/` | Anonymous public visitor ↔ FastAPI | No — anything a browser sends is visible via DevTools/view-source; no mechanism can hide a secret from the party presenting it |
+| B3 — This server ↔ `api/` | This server ↔ `api/`, same Mac Mini | Yes — both sides are ours |
+| B4 — External MCP clients ↔ this server | This project's LangGraph agent, Claude Desktop/Code, named testers ↔ this server, now internet-reachable | Yes — the client list is small and known |
+
+A single bearer-token gate on `/api/*` would authenticate B3 correctly but breaks B2 (the
+dashboard has no way to hold the secret) — the two must not share one gate. This is why §8.2
+leaves `/api/*` open and puts the actual new auth surface on B4.
+
+### 8.2 Decisions
+
+| Boundary | Decision | Rationale | Rejected / deferred |
+|---|---|---|---|
+| B1/B2 | Stay unauthenticated. `CORS allow_origins` gains the production origin (`https://labs.syena.io`) alongside the existing dev origin. This is an `api/main.py` change, owned by root `SPEC.md`'s own addendum, not this file — listed here only as the §4-style cross-reference this doc already uses for API-side dependencies. | Data is meant to be public; a browser-visible token protects nothing and adds maintenance for no real gain. The existing Cloudflare rate-limit rule (50 req/10s per IP on `/ghg-emissions-analysis`) and response-header rules (CSP, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`) already cover the realistic abuse surface for public read data. | A same-origin session cookie or edge-issued token — adds complexity without stopping a determined actor, since the browser must always be able to read what it renders. |
+| B3 | No change. `uvicorn` stays bound to `127.0.0.1:8081`, reachable only via the Tunnel — this server's calls to `api/` are already network-isolated, not merely unauthenticated. | Network topology already does the job an app-layer token would do here. Revisit only when Phase 2 (§8.5) restricts `/api/*` itself. | A service-account bearer token on this leg now — the eventual target shape per §2, but dead code while `api/` has no auth to check it against (same reasoning §2.1 already gave for V1; still true). |
+| B4 | Cloudflare Access, Service Auth policy, scoped to a new published application route — no application-layer auth code added to this server. | Matches the actual client list at launch (§8's header date): this project's agent, Claude Desktop/Code, and a handful of named testers — a small, fully known set is exactly what Access Service Tokens are for. Free-tier Zero Trust (confirmed: up to 50 seats, Service Tokens included) covers this with room to spare. Enforcement happens at Cloudflare's edge, before a request reaches the Mac Mini at all — less code to write and maintain than hand-rolled bearer-token middleware, and per-client revocation/rotation becomes a dashboard action instead of a deploy. | Hand-rolled bearer-token ASGI middleware — viable, more code, no material security difference for this client list. OAuth 2.1 — the correct mechanism once clients aren't ones being personally handed out; deferred to §8.5. |
+
+### 8.3 Deploy topology — path on the existing hostname, not a new subdomain
+
+Reuses `labs.syena.io` rather than provisioning a new hostname, extending the existing
+published-application-routes table (screenshot-confirmed 2026-08-13):
+
+| # | Hostname | Path | Service | Status |
+|---|---|---|---|---|
+| 1 | `labs.syena.io` | `^/ghg-emissions-analysis/api` | `http://localhost:8081` | existing |
+| 2 (new) | `labs.syena.io` | `^/ghg-emissions-analysis/mcp` | `http://localhost:8765` | to add — must sit above row 3, see below |
+| 3 | `labs.syena.io` | `/ghg-emissions-analysis` | `http://localhost:4173` | existing, unanchored |
+
+Ordering is load-bearing, not cosmetic. Row 3's pattern is an unanchored prefix match on
+`/ghg-emissions-analysis` — the same reason row 1 needed anchoring above it when it was added.
+Placing the new `/mcp` route below row 3 would have every MCP request silently swallowed by the
+dashboard's catch-all and served `index.html` (HTTP 200) instead of a Streamable HTTP response
+— no error, just a confusing client-side failure.
+
+Access application: attached to `labs.syena.io` with Application path `/ghg-emissions-analysis/mcp`,
+so the Service Auth policy (§8.2) only gates this one path; rows 1 and 3 are untouched by it.
+
+**Server-side path handling — confirmed against the installed SDK** (`mcp>=2.0.0`,
+`mcp.server.mcpserver.MCPServer.run_streamable_http_async`), not assumed:
+
+```python
+async def run_streamable_http_async(
+    self, *, host: str = "127.0.0.1", port: int = 8000,
+    streamable_http_path: str = "/mcp", ...,
+    transport_security: TransportSecuritySettings | None = None,
+) -> None:
+```
+
+`streamable_http_path` is a first-class kwarg, and `MCPServer.run(transport="streamable-http",
+**kwargs)` forwards straight into it — this server does not need a
+`StripDeployPrefixMiddleware`-style workaround the way `api/main.py` did. `server.py` reads the
+same `DEPLOY_BASE_PATH` env var `api/main.py` and `vite.config.ts` already share
+(`ARCHITECTURE.md` §5/§6) and derives `streamable_http_path` from it — **through the same
+`_normalize_deploy_prefix` normalization `api/main.py` already applies**, not naive string
+concatenation: `DEPLOY_BASE_PATH`'s documented production value carries a trailing slash
+(`/ghg-emissions-analysis/`), so `f"{prefix}/mcp"` without first stripping it would produce
+`/ghg-emissions-analysis//mcp`. `server.py` carries its own hand-mirrored copy of this
+normalization (not a shared import — the two services don't share a dependency graph), the same
+pattern already established between `api/data_loaders.py` and `app.py`.
+
+**DNS-rebinding protection will silently reject the deploy if left at defaults.**
+`TransportSecuritySettings` (also confirmed against the installed SDK) defaults to:
+
+```python
+enable_dns_rebinding_protection: bool = True
+allowed_hosts: list[str] = []
+allowed_origins: list[str] = []
+```
+
+Once traffic arrives via the Tunnel it carries `Host: labs.syena.io` — with the empty
+allow-lists above, every request would be rejected. Must be passed explicitly:
+
+```python
+transport_security=TransportSecuritySettings(
+    allowed_hosts=["labs.syena.io"],
+    allowed_origins=["https://labs.syena.io"],
+)
+```
+
+Left unset, this would present as "Tunnel healthy, Access passing tokens through, every MCP
+call still fails" with no obvious cause — worth catching in design rather than after deploying.
+
+**This must not apply unconditionally**, or every local/test connection to this server breaks —
+they connect via `127.0.0.1:<port>`, not `labs.syena.io`, and `TransportSecurityMiddleware`
+only disables DNS-rebinding protection entirely when its settings argument is `None`; an
+*empty* `TransportSecuritySettings` (rather than `None`) would still reject every local
+request, since its own `allowed_hosts`/`allowed_origins` default to `[]`. `server.py` reuses
+`DEPLOY_BASE_PATH`'s presence — already this codebase's existing signal for "deployed behind
+the Tunnel" — as the switch: `transport_security` is built only when that env var is set, and
+passed as `None` (not an empty settings object) otherwise, preserving today's permissive
+local/stdio behavior exactly.
+
+**Host binding stays as-is.** `server.py`'s comment previously tied `host="127.0.0.1"` to "not
+reachable externally," written when no Access layer existed. Once the Access-gated Tunnel route
+exists, those two facts are separable — the binding itself does not need to change, and now
+reads as a deliberate defense-in-depth choice (Access at the edge, network isolation
+underneath) rather than a stopgap for missing auth.
+
+### 8.4 Required changes
+
+- [x] `services/mcp-server/src/mcp_server/server.py` — reads `DEPLOY_BASE_PATH` (via a local
+  `_normalize_deploy_prefix`, mirroring `api/main.py`'s exactly); derives `streamable_http_path`
+  and a conditional `transport_security` (both `None` when unset, locked to `labs.syena.io`
+  when set) via `_streamable_http_settings()`; passes both into the existing `mcp.run(...)` call
+  in `main()`; host-binding comment updated to reflect the reasoning above, not the binding
+  itself. Verified via `pytest services/mcp-server/tests` and direct local smoke tests against a
+  real subprocess (unset: `/mcp` unchanged; set: `/ghg-emissions-analysis/mcp` responds, correct
+  `Host: labs.syena.io` succeeds, mismatched `Host` gets a `421`, old unprefixed `/mcp` 404s).
+- [ ] **Cloudflare dashboard** — add the new published application route (§8.3 table, correctly
+  ordered above row 3); add an Access application scoped to that path with a Service Auth
+  policy; issue one named Service Token per launch client (this project's agent, Claude
+  Desktop/Code, each named tester), individually revocable. **Not executed from this session —
+  no Cloudflare dashboard/Mac Mini access available here; handed off as instructions.**
+- [ ] **Client-side** — each consumer adds `CF-Access-Client-Id`/`CF-Access-Client-Secret`
+  headers to its MCP connection config (Claude Desktop's remote-MCP config supports custom
+  headers; the LangGraph agent's HTTP client needs the same two headers set on its calls to this
+  server). **Not executed here** — Desktop's config lives outside this repo, and the LangGraph
+  agent doesn't exist yet (Stage 2).
+- [ ] `api/main.py` — CORS `allow_origins` gains the production origin. Cross-referenced here
+  (§4-style) but owned by root `SPEC.md`'s own addendum, not this file. **Not touched by this
+  sub-project**, per `CLAUDE.md`'s "no changes to `api/`" convention.
+- No change required to `services/mcp-server/src/mcp_server/client.py` (B3, §8.2) or to `api/`
+  auth (none exists today, none added in this phase — see §8.5).
+
+### 8.5 Phase 2 — deferred, scope confirmed but not designed
+
+Two items intentionally bundled for a later pass, per the 2026-08-13 discussion this addendum
+comes from:
+
+- Restricting `/api/*` from fully public reads — shape not yet decided (gate behind Access too?
+  split public-read vs restricted-read endpoints? give the B3 service-account token from §2's
+  original target shape real work to do instead of being redundant with network isolation?).
+- OAuth 2.1 for B4, if/when this server's MCP client list stops being ones handed out
+  individually — Service Tokens (§8.2) are the right fit for a small known set, not for
+  arbitrary or self-registering third-party clients.
+
+Both are explicitly out of scope for the Phase 1 work in §8.4.

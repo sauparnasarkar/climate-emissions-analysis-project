@@ -256,3 +256,54 @@ wording ("Show the emissions projection upto 2040 for the top 10 emitters") prod
 correctly identified as "the ETS-based statistical forecast (not a policy scenario)" in the
 model's own answer — and the model proactively offered the BAU/Moderate/Aggressive scenario
 alternative rather than guessing which the user meant.
+
+## Release 5 — AuthZ Architecture, Phase 1 (`SPEC.md` §8)
+
+**Status: Design confirmed 2026-08-13, Phase 1 (code side) shipped straight to `main` after PR
+review** — this server is about to leave localhost-only per `SPEC.md` §7's staged plan, and
+both `SPEC.md` §2.1 and `ARCHITECTURE.md` §7 had flagged real auth as a hard prerequisite for
+that. This release settles the design and implements the piece that's actually code in this
+repo.
+
+**The design (`SPEC.md` §8 in full).** "Comprehensive AuthZ" turned out to be four distinct
+trust boundaries, not one: the public dashboard and `api/` (B1/B2) can't hold a secret and stay
+unauthenticated by deliberate design (unrelated track, `api/main.py`'s own CORS addendum); this
+server's calls to `api/` (B3) stay unauthenticated too, already network-isolated
+(`127.0.0.1:8081`, Tunnel-only reachability) — an app-layer token there would be dead code with
+nothing yet on the `api/` side to check it. The one boundary that actually needed resolving —
+external MCP clients reaching this server once it's Tunnel-exposed (B4) — is gated by
+**Cloudflare Access at the edge** (Service Auth policy, per-client Service Tokens), not
+application code. This directly supersedes the original §2 Auth row's assumption
+("service-account token presented to the API") for this specific boundary — reviewed and
+confirmed correct for B3, wrong mechanism for B4.
+
+**Two gaps found and corrected before implementing**, verified against the installed `mcp` SDK
+directly rather than assumed: (1) `DEPLOY_BASE_PATH`'s documented production value carries a
+trailing slash, so naive path concatenation would have produced a double slash in
+`streamable_http_path` — needed the same `_normalize_deploy_prefix` normalization `api/main.py`
+already has, hand-mirrored rather than shared. (2) `TransportSecuritySettings`' DNS-rebinding
+allow-lists (`allowed_hosts`/`allowed_origins`) needed to apply *conditionally* — always-on
+would reject every local/test connection, which use `127.0.0.1:<port>`, not `labs.syena.io`.
+Confirmed `TransportSecurityMiddleware` only disables protection entirely when passed `None`,
+not an empty settings object — `server.py` reuses `DEPLOY_BASE_PATH`'s presence as the existing
+"deployed behind the Tunnel" signal to switch between the two, rather than inventing a second
+env var.
+
+**The `services/mcp-server` change.** `server.py` gained `_normalize_deploy_prefix` and
+`_streamable_http_settings()` (pure, independently testable), wired into the existing
+`mcp.run(transport="streamable-http", ...)` call via `streamable_http_path`/
+`transport_security`. `stdio` (Claude Desktop's local subprocess) is untouched — none of this
+applies there. Two new unit tests plus two real subprocess-level smoke tests, run before this
+release closed: `DEPLOY_BASE_PATH` unset serves `/mcp` exactly as before (regression check);
+set to `/ghg-emissions-analysis/`, a request with `Host: labs.syena.io` succeeds, a mismatched
+`Host` gets a `421`, and the old unprefixed `/mcp` path 404s. Full `pytest
+services/mcp-server/tests` green throughout (53 passed).
+
+**Deliberately not done in this release** (`SPEC.md` §8.4's remaining checklist, handed off as
+instructions rather than executed — no Mac Mini SSH or Cloudflare dashboard access from this
+session): the actual Cloudflare published route, Access application, and per-client Service
+Tokens; the Mac Mini `launchd` agent; client-side `CF-Access-Client-Id`/
+`CF-Access-Client-Secret` header config for Desktop and the not-yet-built LangGraph agent; and
+`api/main.py`'s CORS origin addition, owned by the separate `api/`/dashboard track per this
+session's explicit scope boundary. `SPEC.md` §8.5 (restricting `/api/*`, OAuth 2.1 for B4) is
+Phase 2, scope-confirmed but not designed.

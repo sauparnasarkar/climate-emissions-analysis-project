@@ -35,10 +35,16 @@ Full design (architecture decisions, cross-cutting conventions, tool catalog, op
   `GET /historical/timeseries`'s built-in default silently ignores `scope` (see `SPEC.md` §4).
   `get_gas_composition_by_decade` is the one exception that *can* rely on the API's
   omit-default, since that endpoint's default already respects `scope`. Don't conflate the two.
-- **V1 auth: unauthenticated, localhost only.** `api/` has no auth mechanism today, so no
-  token-presenting code is added on this side either — that would be dead code. Real
-  service-account auth is a hard prerequisite before any non-local deploy. Do not add
-  token-shaped code "for later" — see the root `CLAUDE.md`'s general no-speculative-code stance.
+- **Auth: `SPEC.md` §8, settled 2026-08-13.** This server's calls to `api/` (boundary B3) stay
+  unauthenticated, localhost-only, exactly as V1 shipped — that leg is already network-isolated,
+  and a token here would be dead code until `api/` has something to check it against. What
+  needed resolving before a non-local deploy was the *other* direction: external MCP clients
+  reaching this server (boundary B4) — gated by **Cloudflare Access at the edge**, not
+  app-layer code in this server, once deployed behind the Tunnel. `server.py` does carry one
+  small piece of hardening for that deploy: DNS-rebinding protection
+  (`transport_security`), active only when `DEPLOY_BASE_PATH` is set. Do not add
+  token-presenting code to `client.py` for the `api/` leg — see `SPEC.md` §8.2 for why that's
+  still the wrong mechanism for the boundary it would touch.
 - **V1 infra: `pyproject.toml` only.** Keeps this sub-project's deps (an MCP SDK, `rapidfuzz`)
   isolated from the shared root `requirements.txt` that the notebooks/jupyter also depend on.
   No Dockerfile, no CI job yet — deferred, not omitted (`SPEC.md` §2.1).
