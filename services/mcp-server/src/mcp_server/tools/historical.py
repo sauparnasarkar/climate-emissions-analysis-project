@@ -29,6 +29,14 @@ async def get_historical_emissions(
     response is capped at the 10 with the highest latest-year value and carries a
     `scope_note` explaining the cap (SPEC.md §3.2). An explicit `countries` list is always
     returned in full, uncapped.
+
+    IMPORTANT: only pass `countries` when the user named specific countries. For an
+    open-ended request ("how does X compare to other countries", "how has Y grown over
+    time") that doesn't name a country list, omit `countries` entirely and pick `scope`
+    instead -- that gives a real, data-ranked comparison set (highest latest-year value
+    first, with a scope_note saying how it was chosen), not an arbitrary hand-picked one.
+    Inventing a country list yourself produces a different, non-reproducible comparison
+    each time this tool is called for a similar question.
     """
     lists = await fetch_country_lists()
     omitted = countries is None
@@ -64,6 +72,11 @@ async def get_gas_composition_by_decade(
     get_historical_emissions, this endpoint's own no-countries default already respects
     `scope` correctly, so no extra resolution is needed for the omitted case (SPEC.md §4).
     When `countries` is given explicitly, each name is still resolved against `scope`.
+
+    IMPORTANT: only pass `countries` when the user named specific countries. For an
+    open-ended request that doesn't name a country list, omit `countries` and pick `scope`
+    instead, for the same reason as get_historical_emissions -- a hand-picked list is an
+    arbitrary, non-reproducible choice; the `scope` pool is a real, defined one.
     """
     client = get_client()
     if countries is None:
