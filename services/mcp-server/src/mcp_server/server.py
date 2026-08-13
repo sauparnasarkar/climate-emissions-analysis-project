@@ -33,7 +33,10 @@ want per-capita/growth-rate context or full forecast series/confidence intervals
 raw totals or 2030/2035/2040 snapshots -- get_historical_emissions carries per-capita
 (every gas) and, for CO2, year-over-year % growth and carbon intensity alongside the raw
 series, and get_forecast_comparison carries the same full historical/holdout/forecast/CI
-detail as get_forecast, just for many countries in one call.\
+detail as get_forecast, just for many countries in one call. "Projection"/"forecast" with no
+scenario language means the single ETS statistical trajectory (the get_forecast family); route
+to the scenario tools (the get_scenario_projection family) only when the question explicitly
+invokes scenarios, policy pathways, or BAU/Moderate/Aggressive.\
 """
 
 mcp = MCPServer("climate-emissions", instructions=SERVER_INSTRUCTIONS)

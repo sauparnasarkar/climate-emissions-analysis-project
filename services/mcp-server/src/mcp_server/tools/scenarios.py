@@ -27,6 +27,12 @@ async def get_scenario_projection(
     compare_scenarios_across_countries instead, which fetches every country's BAU/Moderate/
     Aggressive trajectories concurrently in one call rather than costing one MCP round trip
     per country.
+
+    Use this family only when the question explicitly invokes scenarios, policy pathways, or
+    BAU/Moderate/Aggressive (or synonyms like "business as usual", "aggressive climate
+    action") -- i.e. comparing multiple possible futures. A plain "projection"/"forecast"
+    question with no scenario language means the single statistical extrapolation -- use
+    get_forecast/get_forecast_comparison/get_forecast_summary instead.
     """
     if view == "single" and country is None:
         # The wrapped API rejects this with a 400 too, but its detail message doesn't

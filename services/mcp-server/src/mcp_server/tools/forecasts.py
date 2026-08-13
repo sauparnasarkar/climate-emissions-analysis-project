@@ -18,7 +18,15 @@ async def get_forecast(country: str) -> dict:
 
     Do NOT call this once per country to build a multi-country comparison -- use
     get_forecast_comparison instead, which fetches every country's forecast concurrently in
-    one call rather than costing one MCP round trip per country."""
+    one call rather than costing one MCP round trip per country.
+
+    Use this family (or get_forecast_comparison/get_forecast_summary) for plain
+    forecast/projection questions with no scenario language -- "what will X's emissions be by
+    2040", "projected emissions trend". This is the single statistical extrapolation, not a
+    policy pathway. If the question explicitly invokes scenarios, policy pathways, or
+    BAU/Moderate/Aggressive (or synonyms like "business as usual", "if climate policy
+    tightens"), use get_scenario_projection/compare_scenarios_across_countries/
+    get_scenario_cumulative_impact instead."""
     lists = await fetch_country_lists()
     resolved = resolve_country(country, lists, scope="expanded")
     client = get_client()
