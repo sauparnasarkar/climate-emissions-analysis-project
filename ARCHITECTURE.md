@@ -157,13 +157,14 @@ test suite's concern, not this app's).
 ## 6. Deploy topology
 
 Everything runs on a single Mac Mini, exposed publicly via Cloudflare Tunnel — no cloud
-hosting. Four `launchd` agents (`~/Library/LaunchAgents/com.ghgemissions.*.plist`):
+hosting. Five `launchd` agents (`~/Library/LaunchAgents/com.ghgemissions.*.plist`):
 
 | Agent | Runs | Port | Notes |
 |---|---|---|---|
 | `cloudflared` | `cloudflared tunnel run` | — | Publishes `labs.syena.io` → this machine; forwards full prefixed paths with no stripping (`KeepAlive`) |
 | `uvicorn` | `api.main:app` | `127.0.0.1:8081` | `DEPLOY_BASE_PATH=/ghg-emissions-analysis/` |
 | `vitepreview` | `vite preview` (built `climate-dashboard-react/dist`) | `127.0.0.1:4173` | Same `DEPLOY_BASE_PATH`; must be rebuilt (not just restarted) after any change, since the prefix is baked in at build time |
+| `mcpserver` | `python -m mcp_server` (Streamable HTTP) | `127.0.0.1:8765` | `DEPLOY_BASE_PATH=/ghg-emissions-analysis/`, `MCP_TRANSPORT=streamable-http`, `API_BASE_URL=http://127.0.0.1:8081/api` — running and verified locally on this machine, but **not yet reachable via the Tunnel**: no `cloudflared` route to this port exists yet, pending the Cloudflare Access setup in §7 |
 | `datarefresh` | `ghg-data-refresh.sh` | — | Weekly, §2 above |
 
 **Deploy sequencing**: `design-system` must be pulled (`git merge --ff-only`) *before*
@@ -188,16 +189,16 @@ import, no privileged access path) — `API_BASE_URL` env var, must include the 
 Independently versioned/deployable from `api/` (own `pyproject.toml`), though in practice both
 still ship from the same repo and the same Mac Mini would host both if this were deployed.
 
-**Not yet in the deploy topology (§6)**: as of this writing, it hasn't reached a Mac Mini
-deploy — no `launchd` agent for it exists in §6's table yet. The auth blocker that gated a
-public deploy is now resolved by design (`services/mcp-server/SPEC.md` §8, settled 2026-08-13):
-this server's own public endpoint is gated by Cloudflare Access at the edge, not an app-layer
-token, and the code-side piece (`DEPLOY_BASE_PATH`-driven path prefixing + DNS-rebinding
-protection) is implemented. What remains before this section gets a real deploy-topology entry
-is operational, not architectural: the Cloudflare dashboard work (new published route, Access
-application, Service Tokens per client) and the actual Mac Mini `launchd` agent —
-`services/mcp-server/SPEC.md` §8.4 tracks the checklist. A Dockerfile and CI job remain
-deliberately deferred (`SPEC.md` §2.1), unrelated to the auth resolution.
+**Deployed on the Mac Mini, not yet publicly reachable.** The `mcpserver` `launchd` agent (§6)
+is running and verified end-to-end locally (`SPEC.md` §8, settled 2026-08-13; auth design:
+Cloudflare Access at the edge gates external clients, not an app-layer token; code-side piece
+is `DEPLOY_BASE_PATH`-driven path prefixing + conditional DNS-rebinding protection). What's
+still missing is entirely on the Cloudflare side, not this machine: the published application
+route (`labs.syena.io` → `127.0.0.1:8765`, must sit above the dashboard's unanchored catch-all
+route or MCP requests get silently swallowed and served `index.html`), the Access application
+with a Service Auth policy, and per-client Service Tokens — `services/mcp-server/SPEC.md` §8.4
+tracks the checklist. A Dockerfile and CI job remain deliberately deferred (`SPEC.md` §2.1),
+unrelated to the auth resolution.
 
 ## 8. See also
 
