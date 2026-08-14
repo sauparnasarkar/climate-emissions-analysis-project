@@ -245,10 +245,14 @@ conversational-agent project that `services/mcp-server` began.
 
 ## 1. Purpose
 
-A conversational agent, surfaced as a new nav item in the React dashboard
-(`climate-dashboard-react/`), restricted to the climate-emissions domain, that answers by calling
-`services/mcp-server`'s tools and renders results using the existing design-system's chart/grid/
-card components — not a generic chatbot.
+A conversational agent, surfaced in the React dashboard (`climate-dashboard-react/`), restricted
+to the climate-emissions domain, that answers by calling `services/mcp-server`'s tools and renders
+results using the existing design-system's chart/grid/card components — not a generic chatbot.
+Originally a `NAV_ITEMS` entry like every other page; now a `SidebarNav.persistentAction` instead
+(direct instruction: "persistent, always-visible action," design-system PR #46) — an icon+label
+button next to the menu toggle, present in every sidebar state (expanded, collapsed-to-rail,
+mobile drawer closed) rather than one entry among the page list. The `/ask` route itself (§2
+below) is unchanged.
 
 ## 2. Interaction model
 
