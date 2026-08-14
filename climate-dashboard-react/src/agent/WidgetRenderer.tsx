@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactElement } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { Card, CardHeader, ChartCard, DataTable, InlineAlert, KpiStat, SyChart } from 'design-system';
+import { MarkdownText } from './MarkdownText';
 import { toolNameFromSourceTaggedCall } from './types';
 import type { WidgetSpec } from './types';
 
@@ -231,16 +232,19 @@ function MethodologyNotesWidget({ widget }: WidgetProps) {
   );
 }
 
-// general_climate_node (graph.py) builds this widget directly, not via ui_selection.py's
-// tool -> intent lookup -- its source_tool_call is the fixed literal "general_climate", not a
-// real tool's cache key (no colon at all, so toolNameFromSourceTaggedCall returns it whole).
-// Without this entry it would silently fall through to GenericFallbackWidget's "not recognized"
-// message on every single general_climate-classified query, not just a genuinely unmapped tool.
-function GeneralClimateWidget({ widget }: WidgetProps) {
+// general_climate_node and ui_selection_node's zero-tool-call path (graph.py) both build this
+// widget shape directly, not via ui_selection.py's tool -> intent lookup -- their source_tool_call
+// is a fixed literal ("general_climate" / "context_reuse"), not a real tool's cache key (no colon
+// at all, so toolNameFromSourceTaggedCall returns it whole). Without an entry for each, they'd
+// silently fall through to GenericFallbackWidget's "not recognized" message. Text renders as
+// markdown (MarkdownText), not a plain string: both paths carry the model's own largely
+// unconstrained writing, which -- confirmed live -- routinely includes headers/tables/bold for a
+// detailed comparison, unlike compose_response_node's own tightly-scoped plain-prose summaries.
+function TextAnswerWidget({ widget }: WidgetProps) {
   const props = widget.props as { text?: string };
   return (
     <Card header={<CardHeader title={widget.title} />}>
-      <div className="__s9cmpx-body3">{props.text}</div>
+      <MarkdownText text={props.text ?? ''} />
     </Card>
   );
 }
@@ -274,7 +278,8 @@ const RENDERERS: Record<string, (props: WidgetProps) => ReactElement> = {
   get_forecast_summary: ForecastSummaryWidget,
   get_scenario_cumulative_impact: ScenarioCumulativeWidget,
   get_methodology_notes: MethodologyNotesWidget,
-  general_climate: GeneralClimateWidget,
+  general_climate: TextAnswerWidget,
+  context_reuse: TextAnswerWidget,
 };
 
 export function WidgetRenderer({ widget }: WidgetProps) {

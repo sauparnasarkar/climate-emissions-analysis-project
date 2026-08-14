@@ -238,4 +238,38 @@ describe('AgentPage', () => {
     expect(screen.getByText('Here is the requested methodology summary.')).toBeInTheDocument();
     expect(screen.getByText('OWID CO2 dataset.')).toBeInTheDocument();
   });
+
+  it('renders a context_reuse answer as a normal markdown response, not an InlineAlert, with no duplicate paragraph', () => {
+    // SPEC.md correction #22: a turn that answered from prior context (zero new tool calls)
+    // carries a real, often markdown-rich answer -- must render like any other data answer, not
+    // like off_topic/opinion's short guardrail text (InlineAlert), and not duplicated (the widget
+    // and response_text are the same underlying text).
+    const result: AgentQueryResult = {
+      thread_id: 't1',
+      widgets: [
+        {
+          intent: 'text',
+          chart_kind: null,
+          title: 'Answer',
+          as_of: null,
+          source_tool_call: 'context_reuse',
+          props: { text: '## India\n\n**India** is growing fast.' },
+        },
+      ],
+      response_text: '## India\n\n**India** is growing fast.',
+      scope_notes: [],
+      suggested_prompts: [],
+      percent: 100,
+    };
+    stubStream({ result });
+    render(<AgentPage />);
+
+    expect(screen.getByRole('heading', { name: 'India' })).toBeInTheDocument();
+    expect(document.querySelector('strong')?.textContent).toBe('India');
+    // Only one rendering of the answer -- not also duplicated as a plain-text paragraph above it.
+    expect(screen.getAllByText(/is growing fast/)).toHaveLength(1);
+    // Not shown as an InlineAlert (role="status" for the "default" variant used throughout this
+    // page) -- off_topic/opinion's role, not this one's.
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
 });

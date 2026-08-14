@@ -306,12 +306,22 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
         # agent_node's own final message already carries that real, data-grounded answer; route_
         # after_ui_selection sends this turn straight to finalize instead of compose_response_node,
         # which has no widgets to synthesize from and would otherwise invent a misleading "no data"
-        # apology that contradicts what the model just said. No widget is built here (nothing new
-        # was fetched this turn), matching general_climate_node's text-only pattern.
+        # apology that contradicts what the model just said.
+        #
+        # A widget is built here too (SPEC.md correction #22), not just response_text -- mirroring
+        # general_climate_node's own text-only pattern, but with a distinct "context_reuse" tag
+        # rather than reusing "general_climate": the two are semantically different (this path
+        # reused prior tool data; general_climate never calls a tool at all) even though they
+        # render identically. Without a widget, the frontend's `!hasWidgets` check (AgentPage.tsx)
+        # -- meant to flag off_topic/opinion's short guardrail text as an InlineAlert -- also
+        # caught this path's substantive, often markdown-table-heavy answers, showing them inside
+        # an alert box instead of as a normal response. Confirmed live before this fix.
         last = state.messages[-1]
         content = last.content
         text = _text_from_content_blocks(content) if isinstance(content, list) else content
-        result["response_text"] = text or "(no response text)"
+        text = text or "(no response text)"
+        result["response_text"] = text
+        result["widgets"] = [WidgetSpec(intent="text", title="Answer", source_tool_call="context_reuse", props={"text": text})]
 
     return result
 
