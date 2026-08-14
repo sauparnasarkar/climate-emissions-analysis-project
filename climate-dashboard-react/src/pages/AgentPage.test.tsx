@@ -74,17 +74,17 @@ describe('AgentPage', () => {
     expect((grid as HTMLElement).style.gridTemplateColumns).toContain('min(280px, 100%)');
   });
 
-  it('prefills (but does not submit) a <Country>-templated starter prompt on click', async () => {
+  it('prefills (but does not submit) a country-specific starter prompt on click', async () => {
     const submit = vi.fn();
     stubStream({ submit });
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<AgentPage />);
 
-    await user.click(screen.getByText("How has <Country>'s emissions grown compared to other countries?"));
+    await user.click(screen.getByText("How has India's emissions grown compared to other countries?"));
 
     expect(submit).not.toHaveBeenCalled();
-    expect(screen.getByDisplayValue("How has <Country>'s emissions grown compared to other countries?")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("How has India's emissions grown compared to other countries?")).toBeInTheDocument();
   });
 
   it('submits immediately on a forecast starter prompt click (no placeholder to type over)', async () => {

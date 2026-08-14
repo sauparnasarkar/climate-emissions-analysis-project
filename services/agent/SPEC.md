@@ -256,14 +256,16 @@ screen only:
 
 | Category | Prompt |
 |---|---|
-| Historical trends | *What are `<Country>`'s historical emissions trends, and how do they compare to the top 10 sovereign emitters?* |
-| Historical trends | *How has `<Country>`'s emissions grown compared to other countries?* |
+| Historical trends | *What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?* |
+| Historical trends | *How has India's emissions grown compared to other countries?* |
 | Forecasts | *What are the top 10 forecasted emitters in 2040?* |
 | Forecasts | *Considering the top 10 emitters now and the forecasted ones in 2040, show the comparative trend for the countries.* |
 
-The two `<Country>`-templated prompts prefill `PromptBar`'s value with the literal template text
-and focus it, for the user to type over the placeholder — no separate country picker. The two
-forecast prompts have no placeholder and submit immediately on click.
+The two country-specific prompts prefill `PromptBar`'s value with the concrete prompt text (no
+longer a `<Country>` placeholder to type over — swapped to real countries, China/India, on direct
+instruction) and focus it, so the user can submit as-is or edit it, e.g. to a different country.
+No separate country picker. The two forecast prompts have no placeholder and submit immediately
+on click.
 
 The same `StarterPromptTile` composition is reused for the opinion-guardrail's suggested reframes
 (§6) — one clickable-prompt-card pattern used in two places, not two.

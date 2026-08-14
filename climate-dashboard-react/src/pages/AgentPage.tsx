@@ -6,17 +6,17 @@ import { WidgetRenderer } from '../agent/WidgetRenderer';
 import { toolNameFromSourceTaggedCall } from '../agent/types';
 import type { AgentQueryResult } from '../agent/types';
 
-// SPEC.md §4's four starter prompts. The two <Country>-templated ones prefill PromptBar's value
-// for the user to type over; the two forecast ones have no placeholder and submit immediately.
+// SPEC.md §4's four starter prompts. The two country-specific ones prefill PromptBar's value
+// for the user to edit before submitting; the two forecast ones submit immediately.
 const STARTER_PROMPTS: Array<{ kicker: string; prompt: string; prefill: boolean }> = [
   {
     kicker: 'Historical trends',
-    prompt: "What are <Country>'s historical emissions trends, and how do they compare to the top 10 sovereign emitters?",
+    prompt: "What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?",
     prefill: true,
   },
   {
     kicker: 'Historical trends',
-    prompt: "How has <Country>'s emissions grown compared to other countries?",
+    prompt: "How has India's emissions grown compared to other countries?",
     prefill: true,
   },
   { kicker: 'Forecasts', prompt: 'What are the top 10 forecasted emitters in 2040?', prefill: false },
@@ -121,7 +121,7 @@ export function AgentPage() {
   }, [result, pendingQuery]);
 
   const handleStarterClick = (item: (typeof STARTER_PROMPTS)[number]) => {
-    // SPEC.md §4: prefill + focus for the <Country>-templated prompts -- PromptBar's own prop
+    // SPEC.md §4: prefill + focus for the country-specific prompts -- PromptBar's own prop
     // surface (value/onChange/onSubmit/variant/placeholder/loading/disabled/actions/ariaLabel/
     // className) has no imperative focus method, so only the prefill half is achievable here;
     // the user still has to click into the textarea themselves. Flagged, not silently assumed
