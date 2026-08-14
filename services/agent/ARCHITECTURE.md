@@ -5,7 +5,7 @@ architecturally-significant changes (new node, new data flow, new deploy pattern
 history log (`ENHANCEMENTS.md`) or a design rationale doc (`SPEC.md`). Read `SPEC.md` first for
 *why*; this is *what exists and how the pieces connect*.
 
-**Status: Step 4 of 5 complete.** Sections below marked *(planned, Step N)* describe target
+**Status: Step 5 of 5 complete.** Sections below marked *(planned, Step N)* describe target
 shape from `SPEC.md`, not yet-built code — kept here rather than only in `SPEC.md` so this
 document stays the single "what actually connects to what" reference as later steps land.
 

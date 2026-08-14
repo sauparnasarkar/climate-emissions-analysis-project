@@ -82,6 +82,11 @@ design changes here, not just this file.
   not just an HTTP-level test — the one real bug found here (freshly-minted ids skipping
   registration entirely) was invisible at the HTTP level and only caught by testing the function
   directly. See `SPEC.md` "Corrections applied" #14.
+- **`stream_query`'s `error` event never carries a raw exception's own text.** `except Exception`
+  logs the real exception via `logger.exception` and yields the fixed `QUERY_STREAM_ERROR_MESSAGE`
+  to the client instead — same reasoning as `thread_id` validation above: a public, unauthenticated
+  endpoint, so exception text (which can reveal internal details like an MCP connection failure's
+  own address) must never reach an anonymous caller. See `SPEC.md` "Corrections applied" #19.
 - **The `climate-dashboard-react/` nav route is `/ask`, not `/agent`.** `/agent` collides with
   `vite.config.ts`'s `agentProxyEntry` proxy key (`${base}agent`, pointed at this service's own
   port 8766) — Vite's dev proxy matches by path prefix, so a page route literally named `/agent`

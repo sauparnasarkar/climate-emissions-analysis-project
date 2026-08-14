@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage
 from langchain_core.tools import StructuredTool
 
+from agent import server
 from agent.graph import build_graph
 from agent.server import app, get_graph
 
@@ -106,10 +107,16 @@ def test_query_rejects_query_exceeding_max_length():
     assert response.status_code == 422
 
 
-async def test_query_streams_error_event_on_graph_failure():
+async def test_query_streams_error_event_on_graph_failure(caplog):
     """If graph.astream() raises, the SSE stream must terminate with an `error` event
-    (not a silent mid-stream close) so the client always receives a typed terminal event."""
+    (not a silent mid-stream close) so the client always receives a typed terminal event.
+
+    The client-facing message must be the fixed, generic QUERY_STREAM_ERROR_MESSAGE, never the
+    real exception's own text -- SPEC.md "Corrections applied" #19: this is a public,
+    unauthenticated endpoint, and the real exception (which can reveal internal details like an
+    MCP connection failure's own 127.0.0.1:8765 address) is logged server-side instead."""
     import json
+    import logging
 
     from unittest.mock import MagicMock
 
@@ -123,7 +130,8 @@ async def test_query_streams_error_event_on_graph_failure():
     app.dependency_overrides[get_graph] = lambda: mock_graph
     try:
         client = TestClient(app)
-        response = client.post("/query", json={"query": "anything"})
+        with caplog.at_level(logging.ERROR, logger="agent.server"):
+            response = client.post("/query", json={"query": "anything"})
     finally:
         app.dependency_overrides.pop(get_graph, None)
 
@@ -131,7 +139,11 @@ async def test_query_streams_error_event_on_graph_failure():
     events = _parse_sse(response.text)
     assert events[-1]["event"] == "error"
     error_payload = json.loads(events[-1]["data"])
-    assert "MCP server disconnected" in error_payload["message"]
+    assert error_payload["message"] == server.QUERY_STREAM_ERROR_MESSAGE
+    assert "MCP server disconnected" not in error_payload["message"]
+
+    # The real exception is not silently swallowed -- it's just no longer client-facing.
+    assert any("MCP server disconnected" in record.getMessage() or "MCP server disconnected" in str(record.exc_info) for record in caplog.records)
 
 
 def test_query_rejects_malformed_thread_id():

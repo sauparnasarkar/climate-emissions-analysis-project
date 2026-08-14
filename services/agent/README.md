@@ -4,10 +4,10 @@ LangGraph agent that answers climate-emissions questions by calling `services/mc
 tools and rendering results as real design-system components. See [`SPEC.md`](SPEC.md) for the
 full design and [`CLAUDE.md`](CLAUDE.md) for agent-facing conventions.
 
-**Status:** Steps 1–4 complete — state schema, MCP client wiring, the full LangGraph node catalog
+**Status:** Steps 1–5 complete — state schema, MCP client wiring, the full LangGraph node catalog
 (guardrails, agent/tools loop, call-count guard, tool-call cache, UI intent selection), the real
-`POST /query` SSE endpoint, and the `climate-dashboard-react/` frontend (`/ask` nav item). Step 5
-(security review) not yet built.
+`POST /query` SSE endpoint, the `climate-dashboard-react/` frontend (`/ask` nav item), and a
+security review (`ENHANCEMENTS.md`'s Step 5 entry). Mac Mini deploy not yet done.
 
 ## Dev setup
 

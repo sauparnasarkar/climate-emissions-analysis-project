@@ -6,6 +6,7 @@ Run via `uvicorn agent.server:app` (matches `api/main.py`'s own run convention).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from collections.abc import AsyncIterator
@@ -19,6 +20,17 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from .graph import build_graph
+
+logger = logging.getLogger(__name__)
+
+# Generic, non-identifying message for stream_query's catch-all -- SPEC.md "Corrections applied"
+# #16/#19: the real exception (MCP connection failures revealing internal ports, LangChain/
+# Anthropic SDK error text, etc.) goes to `logger.exception` instead, matching `api/`'s own
+# convention of never surfacing a bare `str(exc)` to a public client (its routers catch a typed
+# `DataNotFoundError` and raise `HTTPException(..., detail=e.message)` -- a curated message, not
+# the exception's own text). This endpoint's failure modes aren't one small enumerable exception
+# type the way `DataNotFoundError` is, so one fixed fallback message covers the catch-all here.
+QUERY_STREAM_ERROR_MESSAGE = "Something went wrong while processing your query. Please try again."
 
 MAX_LIVE_THREADS = 1000  # SPEC.md §5's client-supplied thread_id keys unbounded server memory
 # (MemorySaver never evicts) -- a coarse V1 cap, not real LRU eviction. Flagged for Step 5.
@@ -179,8 +191,13 @@ async def stream_query(graph: CompiledStateGraph, query: str, thread_id: str) ->
                 }
             ),
         }
-    except Exception as exc:
-        yield {"event": "error", "data": json.dumps({"message": str(exc)})}
+    except Exception:
+        # Full exception (including internal details like an MCP connection failure's own
+        # 127.0.0.1:8765 address, or a LangChain/Anthropic SDK error string) stays server-side
+        # only -- this endpoint is public and unauthenticated, so `str(exc)` must never reach the
+        # client directly. See QUERY_STREAM_ERROR_MESSAGE's own comment.
+        logger.exception("stream_query failed mid-stream")
+        yield {"event": "error", "data": json.dumps({"message": QUERY_STREAM_ERROR_MESSAGE})}
 
 
 def get_graph(request: Request) -> CompiledStateGraph:
