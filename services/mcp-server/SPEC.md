@@ -296,10 +296,15 @@ allow-lists above, every request would be rejected. Must be passed explicitly:
 
 ```python
 transport_security=TransportSecuritySettings(
-    allowed_hosts=["labs.syena.io"],
+    allowed_hosts=["labs.syena.io", "127.0.0.1:8765", "localhost:8765"],
     allowed_origins=["https://labs.syena.io"],
 )
 ```
+
+(`allowed_hosts` grew the two loopback entries after a real gap surfaced during `services/agent`'s
+Mac Mini deploy — see the corrected §8.4 bullet below. `allowed_origins` stays `labs.syena.io`
+only: `Origin` is a browser-only header this server's actual callers, Tunnel or loopback, never
+send.)
 
 Left unset, this would present as "Tunnel healthy, Access passing tokens through, every MCP
 call still fails" with no obvious cause — worth catching in design rather than after deploying.
@@ -366,6 +371,16 @@ underneath) rather than a stopgap for missing auth.
   external agent deployment shows up later; it is not dead weight to remove, just currently
   idle. See `services/agent/SPEC.md` "Corrections applied" #4 and
   `services/agent/ARCHITECTURE.md` for the full boundary writeup on the agent's side.
+  **Corrected again 2026-08-14**: being B3 (no Cloudflare Access needed) turned out not to be
+  the whole story — `transport_security`'s `allowed_hosts` (DNS-rebinding protection, a
+  different mechanism than Access/Service Tokens, unconditionally active whenever
+  `DEPLOY_BASE_PATH` is set) was still locked to `labs.syena.io` only, so the agent's real
+  loopback request — `Host: 127.0.0.1:8765` — got `421 Misdirected Request` on first live dry
+  run. B3 reasoning covered *authentication*; it didn't cover this *transport-layer* allow-list,
+  a distinct control this server added for a different reason (DNS rebinding, not access
+  control). Fixed by adding `127.0.0.1:8765`/`localhost:8765` to `allowed_hosts` (see the
+  `_streamable_http_settings()` snippet above) — `services/mcp-server` PR, not folded into
+  `services/agent`'s own deploy per this file's "no changes folded in unprompted" convention.
 - [x] `api/main.py` — CORS `allow_origins` gains `https://labs.syena.io` alongside the existing
   dev origin (`http://localhost:5173`). Cross-referenced here (§4-style) but this is the one
   explicit, narrow exception to `CLAUDE.md`'s "no changes to `api/`" convention for this Phase
