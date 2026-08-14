@@ -117,6 +117,7 @@ export function AgentPage() {
   const [value, setValue] = useState('');
   const [sections, setSections] = useState<ResultSection[]>([]);
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
+  const [starterGridDismissed, setStarterGridDismissed] = useState(false);
   const threadIdRef = useRef<string | null>(null);
   // Identity-compared against the hook's own `result`, not a "have we consumed this yet" flag
   // gated on a separate ref -- useAgentStream returns a fresh object per submit() and holds it
@@ -126,17 +127,15 @@ export function AgentPage() {
   const nextSectionIdRef = useRef(0);
   const { submit, progress, result, error, loading } = useAgentStream();
 
-  const hasSubmitted = sections.length > 0 || loading || error != null;
+  const hasSubmitted = sections.length > 0 || result != null || loading || error != null;
   // PromptBar exposes no focus/blur hook (see handleStarterClick's own comment below), so
   // "the user is about to enter another prompt" is approximated as "the docked input is idle
-  // and empty" -- true right after a response lands (before they've typed or picked anything),
-  // false the instant they either start typing their own query or pick a starter prompt
-  // (prefill sets `value`, immediate-submit sets `loading`, both synchronously in the same
-  // batched render as handleSubmit's own setValue('') -- no flash of the grid reappearing
-  // between a starter-prompt click and the resulting query actually starting).
-  const showStarterGridBetweenTurns = hasSubmitted && !loading && value.trim() === '';
+  // and empty" on a fresh turn only: once they've typed or picked anything, keep the grid
+  // dismissed until a new response lands, even if they clear the text while still editing.
+  const showStarterGridBetweenTurns = hasSubmitted && !loading && !starterGridDismissed && value.trim() === '';
 
   const handleSubmit = (query: string) => {
+    setStarterGridDismissed(true);
     setPendingQuery(query);
     submit(query, threadIdRef.current);
     setValue('');
@@ -148,6 +147,7 @@ export function AgentPage() {
     threadIdRef.current = result.thread_id;
     const id = nextSectionIdRef.current++;
     setSections((prev) => [{ id, query: pendingQuery ?? '', result }, ...prev]);
+    setStarterGridDismissed(false);
     // pendingQuery is a dependency for freshness, not as a second trigger condition -- this
     // effect still only *acts* when `result` is new (the guard above). Including it just makes
     // sure the closure reads the latest submitted query rather than a stale one captured the
@@ -155,7 +155,13 @@ export function AgentPage() {
     // slightly ahead of the corresponding result arriving.
   }, [result, pendingQuery]);
 
+  const handleValueChange = (nextValue: string) => {
+    if (hasSubmitted) setStarterGridDismissed(true);
+    setValue(nextValue);
+  };
+
   const handleStarterClick = (item: (typeof STARTER_PROMPTS)[number]) => {
+    setStarterGridDismissed(true);
     // SPEC.md §4: prefill + focus for the country-specific prompts -- PromptBar's own prop
     // surface (value/onChange/onSubmit/variant/placeholder/loading/disabled/actions/ariaLabel/
     // className) has no imperative focus method, so only the prefill half is achievable here;
@@ -181,7 +187,7 @@ export function AgentPage() {
 
       <PromptBar
         value={value}
-        onChange={setValue}
+        onChange={handleValueChange}
         onSubmit={handleSubmit}
         variant={hasSubmitted ? 'docked' : 'landing'}
         loading={loading}

@@ -36,6 +36,20 @@ function stubStream(overrides: Partial<ReturnType<typeof useAgentStream>>) {
   });
 }
 
+function mutableStream(overrides: Partial<ReturnType<typeof useAgentStream>> = {}) {
+  const state: ReturnType<typeof useAgentStream> = {
+    submit: vi.fn(),
+    progress: null,
+    result: null,
+    error: null,
+    loading: false,
+    reset: vi.fn(),
+    ...overrides,
+  };
+  vi.mocked(useAgentStream).mockImplementation(() => state);
+  return state;
+}
+
 beforeEach(() => {
   mockReducedMotion(false);
 });
@@ -108,7 +122,7 @@ describe('AgentPage', () => {
     expect(screen.queryByText('What are the top 10 forecasted emitters in 2040?')).not.toBeInTheDocument();
   });
 
-  it('shows the starter-prompt grid again once a response lands and the input is idle', () => {
+  it('shows the starter-prompt grid again once a response lands after the loading state', () => {
     const result: AgentQueryResult = {
       thread_id: 't1',
       widgets: [],
@@ -117,15 +131,22 @@ describe('AgentPage', () => {
       suggested_prompts: [],
       percent: 100,
     };
-    stubStream({ result });
-    render(<AgentPage />);
+    const stream = mutableStream({ loading: true });
+    const { rerender } = render(<AgentPage />);
 
-    // hasSubmitted is now true (a section exists) and the input is idle/empty -- the same four
-    // starter prompts that show on the landing screen should reappear below the docked bar.
+    expect(screen.queryByText('What are the top 10 forecasted emitters in 2040?')).not.toBeInTheDocument();
+
+    stream.loading = false;
+    stream.result = result;
+    rerender(<AgentPage />);
+
+    // Once the result lands, the docked state should stay in place and the same four starter
+    // prompts should reappear below it for the next turn.
+    expect(screen.queryByText('Ask about climate emissions')).not.toBeInTheDocument();
     expect(screen.getByText('What are the top 10 forecasted emitters in 2040?')).toBeInTheDocument();
   });
 
-  it('hides the between-turns starter grid again once a prefill prompt is picked', async () => {
+  it('keeps the between-turns starter grid hidden while editing, even after clearing a prefill prompt', async () => {
     const result: AgentQueryResult = {
       thread_id: 't1',
       widgets: [],
@@ -134,22 +155,38 @@ describe('AgentPage', () => {
       suggested_prompts: [],
       percent: 100,
     };
-    // useAgentStream() itself is fully mocked/static in this suite (see stubStream), so a
-    // *submitted* prompt's own hide-via-loading path can't be exercised here -- that would
-    // require the mock's loading to flip, which submit() (a bare vi.fn() spy) never does.
-    // A prefill prompt hides the grid a different way -- setValue(item.prompt), AgentPage's own
-    // local state -- which this test can observe directly without touching the mocked hook.
     stubStream({ result });
     render(<AgentPage />);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
 
-    await import('@testing-library/user-event').then(({ default: userEvent }) =>
-      userEvent.setup().click(screen.getByText("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?")),
-    );
+    await user.click(screen.getByText("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?"));
+    await user.clear(screen.getByLabelText('Ask about climate emissions'));
 
-    expect(screen.getByDisplayValue("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?")).toBeInTheDocument();
     expect(
       screen.queryByText("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?", { selector: 'span' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('hides the between-turns starter grid immediately when an instant-submit prompt is picked', async () => {
+    const result: AgentQueryResult = {
+      thread_id: 't1',
+      widgets: [],
+      response_text: 'Some answer.',
+      scope_notes: [],
+      suggested_prompts: [],
+      percent: 100,
+    };
+    const submit = vi.fn();
+    stubStream({ result, submit });
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(<AgentPage />);
+
+    await user.click(screen.getByText('What are the top 10 forecasted emitters in 2040?'));
+
+    expect(submit).toHaveBeenCalledWith('What are the top 10 forecasted emitters in 2040?', null);
+    expect(screen.queryByText('What are the top 10 forecasted emitters in 2040?', { selector: 'span' })).not.toBeInTheDocument();
   });
 
   it('surfaces a stream error as an InlineAlert', () => {
