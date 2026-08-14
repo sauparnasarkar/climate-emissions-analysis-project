@@ -111,6 +111,15 @@ Two more real findings, both documented in `SPEC.md` #13–14 and fixed before m
   `_validate_and_register_thread_id`, not the HTTP-level tests (which never happened to exercise
   the cap boundary).
 
+Copilot's PR review caught two more, both fixed before merge (`SPEC.md` #16): `stream_query` had
+no error handling, so a mid-stream `graph.astream()`/`graph.aget_state()` failure silently
+truncated the connection with no machine-readable signal — fixed with a terminal `error` SSE
+event. `QueryRequest.query` had no upper bound, letting a client pin arbitrarily large strings
+into `MemorySaver` for the process lifetime (the thread-count cap doesn't bound per-thread
+payload size) — fixed with `max_length=4096`. Flagged, not fixed: the error event surfaces the
+raw `str(exc)` of any exception, broader than `api/`'s own convention of a curated `.message` —
+worth revisiting in Step 5.
+
 Shipped:
 - `src/agent/server.py`'s real `/query` endpoint, `get_graph` dependency (overridable in tests
   without fighting FastAPI's lifespan), `_validate_and_register_thread_id`,

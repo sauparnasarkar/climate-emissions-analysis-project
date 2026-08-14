@@ -127,6 +127,18 @@ conversational-agent project that `services/mcp-server` began.
     mechanisms for different transports — `api/`'s is the direct precedent for a FastAPI app
     (this one); `mcp-server`'s passes a path into the MCP SDK's own transport layer, which
     doesn't apply here.
+16. **`stream_query` needs a terminal `error` SSE event on an unhandled exception** — Copilot's
+    review of the Step 3 PR caught that a `graph.astream()`/`graph.aget_state()` failure after
+    the SSE stream had already started (HTTP 200 already sent) tore the connection down with no
+    machine-readable signal, leaving the client with a silently truncated stream. Fixed with a
+    `try/except Exception` wrapping the generator body, yielding
+    `{"event": "error", "data": {"message": str(exc)}}`. Also added `max_length=4096` on
+    `QueryRequest.query` — the `MAX_LIVE_THREADS` cap (#14) bounds thread *count*, not
+    per-thread payload size, and `MemorySaver` never evicts either way. **Flagged, not fixed,
+    for Step 5**: this yields the raw `str(exc)` of *any* exception, broader than `api/`'s own
+    convention of surfacing a specific, curated exception `.message` on a 503 — reconsider
+    whether error text needs sanitizing/genericizing before it reaches a public,
+    unauthenticated client.
 
 ---
 
