@@ -185,7 +185,9 @@ describe('AgentPage', () => {
 
     await user.click(screen.getByText('What are the top 10 forecasted emitters in 2040?'));
 
-    expect(submit).toHaveBeenCalledWith('What are the top 10 forecasted emitters in 2040?', null);
+    // threadIdRef is already 't1' from the seeded result above, not null (a genuinely fresh
+    // conversation's first submit would pass null; this is a follow-up in an existing thread).
+    expect(submit).toHaveBeenCalledWith('What are the top 10 forecasted emitters in 2040?', 't1');
     expect(screen.queryByText('What are the top 10 forecasted emitters in 2040?', { selector: 'span' })).not.toBeInTheDocument();
   });
 
