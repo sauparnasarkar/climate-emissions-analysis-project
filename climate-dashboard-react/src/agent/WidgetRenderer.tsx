@@ -99,16 +99,26 @@ function ForecastWidget({ widget }: WidgetProps) {
   return <ChartWidget title={widget.title} asOf={widget.as_of} series={series} xTitle="Year" yTitle="CO₂ (Mt)" />;
 }
 
+// hist_co2 is Array<number | null> (api/schemas.py's ForecastCountryResponse) -- a trailing
+// null right before the forecast segment would otherwise join to forecast_mean's first real
+// value across a null point, which SyChart renders as a visible gap in the line right at the
+// historical/forecast boundary. Trimming keeps the concatenated series joining real value to
+// real value. get_forecast's own single-country widget doesn't need this: it renders
+// Historical/Holdout/Forecast as three separate named series, never one continuous array.
+function trimTrailingNulls(years: number[], values: Array<number | null>): [number[], number[]] {
+  let end = values.length;
+  while (end > 0 && values[end - 1] == null) end--;
+  return [years.slice(0, end), values.slice(0, end) as number[]];
+}
+
 function ForecastComparisonWidget({ widget }: WidgetProps) {
   const props = widget.props as {
     forecasts?: Array<{ country: string; hist_years: number[]; hist_co2: Array<number | null>; forecast_years: number[]; forecast_mean: number[] }>;
   };
-  const series: SyChartSeries[] = (props.forecasts ?? []).map((f) => ({
-    name: f.country,
-    x: [...f.hist_years, ...f.forecast_years],
-    y: [...f.hist_co2, ...f.forecast_mean],
-    kind: 'line',
-  }));
+  const series: SyChartSeries[] = (props.forecasts ?? []).map((f) => {
+    const [histYears, histCo2] = trimTrailingNulls(f.hist_years, f.hist_co2);
+    return { name: f.country, x: [...histYears, ...f.forecast_years], y: [...histCo2, ...f.forecast_mean], kind: 'line' };
+  });
   return <ChartWidget title={widget.title} asOf={widget.as_of} series={series} xTitle="Year" yTitle="CO₂ (Mt)" />;
 }
 

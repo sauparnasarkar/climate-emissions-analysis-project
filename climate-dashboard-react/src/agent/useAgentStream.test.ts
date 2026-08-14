@@ -92,4 +92,20 @@ describe('useAgentStream', () => {
     act(() => secondOptions.onmessage({ event: 'result', data: JSON.stringify(freshPayload) }));
     expect(result.current.result).toEqual(freshPayload);
   });
+
+  it('does not report an intentional abort (unmount mid-stream) as a connection error', () => {
+    // Copilot's PR #144 review: onerror also fires for the AbortError this hook's own unmount
+    // cleanup triggers -- that's teardown, not a failure, and must not surface as `error`.
+    fetchEventSourceMock.mockReturnValue(new Promise(() => {}));
+    const { result, unmount } = renderHook(() => useAgentStream());
+    act(() => result.current.submit('q', null));
+    const options = lastCallOptions();
+
+    unmount();
+    // jsdom's DOMException isn't `instanceof Error`, so the hook wraps it -- same as any other
+    // non-Error onerror input; only the *message* is a stable thing to assert on here.
+    const abortError = new DOMException('The user aborted a request.', 'AbortError');
+    expect(() => options.onerror(abortError)).toThrow(/aborted/);
+    expect(result.current.error).toBeNull();
+  });
 });

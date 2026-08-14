@@ -77,6 +77,15 @@ export function useAgentStream(): UseAgentStreamResult {
         }
       },
       onerror(err) {
+        // An intentional abort (unmount's cleanup effect below, or a superseding submit()'s own
+        // abort() call) surfaces here as an AbortError too -- that's not a connection failure,
+        // it's this hook tearing itself down on purpose, so it must not be reported as one.
+        // Confirmed via Copilot's PR #144 review: without this check, an unmount mid-stream sets
+        // `error` on an already-unmounted component -- React 18+ silently no-ops that particular
+        // update, so it's not a live bug in this app today, but the intent was still wrong and a
+        // future caller relying on `error`'s value right after unmount (or a React version that
+        // doesn't no-op it) would see a misleading "Connection to the agent failed."
+        if (controller.signal.aborted) throw err instanceof Error ? err : new FatalStreamError(String(err));
         // Returning nothing/undefined from onerror would schedule a retry; throwing here (and
         // for every other error path in this call) is what stops it -- this hook always wants
         // exactly one attempt per submit(), matching services/agent's own non-idempotent query

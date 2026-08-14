@@ -113,6 +113,11 @@ export function AgentPage() {
     threadIdRef.current = result.thread_id;
     const id = nextSectionIdRef.current++;
     setSections((prev) => [{ id, query: pendingQuery ?? '', result }, ...prev]);
+    // pendingQuery is a dependency for freshness, not as a second trigger condition -- this
+    // effect still only *acts* when `result` is new (the guard above). Including it just makes
+    // sure the closure reads the latest submitted query rather than a stale one captured the
+    // last time `result` changed, on the rapid-second-submit path where pendingQuery updates
+    // slightly ahead of the corresponding result arriving.
   }, [result, pendingQuery]);
 
   const handleStarterClick = (item: (typeof STARTER_PROMPTS)[number]) => {

@@ -41,6 +41,25 @@ describe('WidgetRenderer', () => {
     expect(series).toEqual([{ name: 'China', x: [2020, 2021], y: [100, 110], kind: 'line' }]);
   });
 
+  it('renders get_forecast_comparison, trimming trailing nulls from hist_co2 before joining to the forecast segment', () => {
+    // Copilot's PR #144 review: a trailing null in hist_co2 right before the forecast segment
+    // would otherwise create a visible gap in the line at the historical/forecast join.
+    const w = widget({
+      intent: 'chart',
+      chart_kind: 'line',
+      source_tool_call: 'get_forecast_comparison:{"countries":["China"]}',
+      props: {
+        forecasts: [
+          { country: 'China', hist_years: [2016, 2017, 2018], hist_co2: [9000, 9500, null], forecast_years: [2019, 2020], forecast_mean: [10000, 10200] },
+        ],
+      },
+    });
+    render(<WidgetRenderer widget={w} />);
+    const series = JSON.parse(screen.getByTestId('sychart').dataset.series!)[0];
+    expect(series.x).toEqual([2016, 2017, 2019, 2020]);
+    expect(series.y).toEqual([9000, 9500, 10000, 10200]);
+  });
+
   it('renders get_top_emitters as bar with colorValues by default', () => {
     const w = widget({
       intent: 'chart',
