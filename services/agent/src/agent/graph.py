@@ -130,7 +130,23 @@ async def general_climate_node(state: AgentState, *, llm: BaseChatModel) -> dict
 
 async def agent_node(state: AgentState, *, llm: BaseChatModel, mcp_tools: list[BaseTool]) -> dict[str, Any]:
     bound = llm.bind_tools(mcp_tools)
-    messages = [SystemMessage(content=AGENT_SYSTEM_PROMPT), *state.messages]
+    # cache_control on the system block caches AGENT_SYSTEM_PROMPT *and* the ~13 MCP tool
+    # schemas bound above -- Anthropic's render order is tools -> system -> messages, so one
+    # breakpoint here covers both. This is the one call site worth marking: it repeats
+    # identically on every agent<->tools loop iteration within a turn (up to
+    # MAX_TOOL_CALLS_PER_TURN) and across every user's query, and the tool-schema payload alone
+    # measures ~12.5K characters (~3K+ tokens) against the real deployed services/mcp-server --
+    # comfortably over Sonnet's 1024-token cache-eligibility floor. The other five LLM nodes
+    # each carry a single-shot prompt under that floor; marking them would only add the
+    # cache-write premium with no read-side payoff, so this is deliberately not applied there.
+    # ChatAnthropic's own top-level `cache_control` kwarg only auto-hoists onto the last
+    # eligible block for non-direct transports (e.g. Bedrock) -- confirmed by reading
+    # langchain_anthropic's source directly, not assumed -- so the direct API this service uses
+    # needs the block-level form below instead.
+    system_message = SystemMessage(
+        content=[{"type": "text", "text": AGENT_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
+    )
+    messages = [system_message, *state.messages]
     ai_message: AIMessage = await bound.ainvoke(messages)
     return {"messages": [ai_message]}
 

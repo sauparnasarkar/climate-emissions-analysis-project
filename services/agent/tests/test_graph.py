@@ -105,6 +105,32 @@ async def test_data_query_single_tool_call():
     assert llm.exhausted
 
 
+async def test_agent_node_marks_system_prompt_cacheable():
+    # SPEC.md/CLAUDE.md: agent_node's system prompt (and, since Anthropic renders tools before
+    # system, the ~13 MCP tool schemas bound alongside it) is the one call site worth a
+    # cache_control breakpoint -- it repeats on every agent<->tools loop iteration and across
+    # every user's query. Verified against langchain_anthropic's real source: for the direct
+    # Anthropic API (not Bedrock/Vertex), cache_control must be a block-level key inside the
+    # SystemMessage's own content, not the top-level kwarg (that only auto-hoists for non-direct
+    # transports) -- this test pins the block-level form so a future edit can't silently drop it.
+    tool = await _make_methodology_tool()
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_methodology_notes", {}, "call-1")]),
+            AIMessage(content="done"),
+            {"response_text": "Here's the methodology."},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool])
+    await graph.ainvoke({"current_query": "how does the forecast model work?"}, config=THREAD_CONFIG)
+
+    system_message = llm.last_messages[0]
+    assert system_message.type == "system"
+    assert isinstance(system_message.content, list)
+    assert system_message.content[0]["cache_control"] == {"type": "ephemeral"}
+
+
 async def test_cache_hit_still_increments_tool_call_count():
     tool = await _make_counter_tool()
     same_args = _tool_call("get_methodology_notes", {"n": 1}, "call-a")

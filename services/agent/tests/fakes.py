@@ -33,7 +33,10 @@ class ScriptedChatModel:
         clone._schema = schema
         return clone
 
-    async def ainvoke(self, messages):  # noqa: ARG002 -- messages unused, this is a script, not a model
+    async def ainvoke(self, messages):
+        # Captured (not just consumed) so a test can assert on what a node actually sent --
+        # e.g. that agent_node's system message carries a cache_control breakpoint.
+        self.last_messages = messages
         if not self._responses:
             raise AssertionError("ScriptedChatModel ran out of scripted responses")
         value = self._responses.pop(0)

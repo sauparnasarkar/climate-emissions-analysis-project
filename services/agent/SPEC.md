@@ -497,3 +497,33 @@ hypothetical.
    script that does `security find-generic-password -w` before exec'ing `uvicorn`, so the plist
    file never holds the raw value at all. Not designed further than this — revisit only if the
    deploy's threat model actually changes, not preemptively.
+
+## 13. LLM prompt caching (Anthropic `cache_control`)
+
+Not §9's `tool_cache` (an app-level dict deduping repeated MCP tool calls within a turn) —
+this is Anthropic's own server-side prompt cache, keyed on the raw request bytes sent to the
+Messages API, unrelated to that mechanism.
+
+Only `agent_node` marks a `cache_control` breakpoint (`graph.py`), on its own `SystemMessage`'s
+content block, not the top-level `ChatAnthropic` kwarg — confirmed by reading
+`langchain_anthropic`'s source directly (not assumed): the top-level kwarg only auto-hoists a
+breakpoint for non-direct transports (Bedrock etc.), and this service calls the direct Anthropic
+API. Since Anthropic renders `tools → system → messages`, one breakpoint on the system block
+caches the bound MCP tool schemas *and* the system prompt together.
+
+**Why only this one call site.** Measured against the real deployed `services/mcp-server`: 13
+tools, ~12.5K characters (~3K+ tokens) of descriptions and JSON schemas — comfortably over
+Sonnet's 1024-token cache-eligibility floor. This exact payload repeats on every `agent`↔`tools`
+loop iteration within a turn (up to `MAX_TOOL_CALLS_PER_TURN`, §10) and is identical across every
+user's query, since the tool list never varies. The other five LLM nodes
+(`guardrail_router`/`opinion`/`general_climate`/`ui_selection`/`compose_response`) each carry a
+single-shot prompt — all six prompts in `prompts.py` total under 4KB combined, so individually
+they sit below the caching floor; marking them would add the ~1.25x cache-write premium with no
+read-side payoff.
+
+Verification: the unit test above pins the `cache_control` marker's presence on the request
+`agent_node` builds. Live-verified against the real Anthropic API using the actual deployed
+`services/mcp-server` tool schemas: two identical-prefix calls back to back produced
+`cache_creation_input_tokens=5329, cache_read_input_tokens=0` on the first call and
+`cache_creation_input_tokens=0, cache_read_input_tokens=5329` on the second — the full
+tools+system prefix was written once and read from cache on the repeat.
