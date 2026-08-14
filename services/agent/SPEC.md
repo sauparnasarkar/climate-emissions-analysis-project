@@ -81,6 +81,13 @@ conversational-agent project that `services/mcp-server` began.
     (`tests/test_graph.py`'s `test_data_query_against_real_mcp_server`) — a suite built only
     against local fake tools would never have caught this. `graph.py`'s
     `_tool_result_from_message` unwraps both shapes into the same raw dict/string result.
+11. **§3's tool→intent table itself was missing `get_forecast_comparison`** — carried over from
+    the original pasted spec, not introduced during Step 2's own implementation. Caught by
+    Copilot's review of the Step 2 PR (`ui_selection.py`'s `_TOOL_INTENT` dict had the same gap,
+    which would have silently produced a `text` widget instead of a `chart` for this tool); fixed
+    in both places, plus a regression test pinning the correct `chart`/`line` mapping. A reminder
+    that a table copied from an external design doc still needs to be cross-checked against the
+    real tool catalog, not just internally consistent with itself.
 
 ---
 
@@ -131,6 +138,7 @@ Tool → intent mapping (fixed lookup, no LLM judgment except the one case noted
 |---|---|
 | `get_historical_emissions`, `get_scenario_projection`, `compare_scenarios_across_countries` | `chart` (`line`) |
 | `get_forecast` | `chart` (`line` + `band`) |
+| `get_forecast_comparison` | `chart` (`line`) — the multi-country equivalent of `get_forecast` |
 | `get_top_emitters` | `chart` (`bar`, or `choropleth`/`treemap` per §3.1 below) |
 | `get_model_comparison`, `get_gas_composition_by_decade`, `get_forecast_summary`, `get_scenario_cumulative_impact` | `grid` |
 | `get_country_profile` | `card`, or `card` + `chart` — **the one non-deterministic case**, see §8 `ui_selection` |
