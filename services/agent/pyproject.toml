@@ -1,0 +1,33 @@
+[project]
+name = "climate-emissions-agent"
+version = "0.1.0"
+description = "LangGraph conversational agent for the climate-emissions-analysis-project, calling services/mcp-server's tools and rendering results as design-system components"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=0.2.0",
+    "langchain-mcp-adapters>=0.1.0",
+    "langchain-anthropic>=0.3.0",
+    "fastapi>=0.139.2",
+    "uvicorn>=0.34.0",
+    "pydantic>=2.9.0",
+    "httpx>=0.28.1",
+    "sse-starlette>=2.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=0.24.0",
+    "httpx2>=2.7.0",
+]
+
+[build-system]
+requires = ["setuptools>=83.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
