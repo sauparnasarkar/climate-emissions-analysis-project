@@ -513,5 +513,8 @@ they sit below the caching floor; marking them would add the ~1.25x cache-write 
 read-side payoff.
 
 Verification: the unit test above pins the `cache_control` marker's presence on the request
-`agent_node` builds; live confirmation against the real Anthropic API (`usage.cache_read_input_tokens`
-on a second, identical-prefix call) is the remaining step before merge.
+`agent_node` builds. Live-verified against the real Anthropic API using the actual deployed
+`services/mcp-server` tool schemas: two identical-prefix calls back to back produced
+`cache_creation_input_tokens=5329, cache_read_input_tokens=0` on the first call and
+`cache_creation_input_tokens=0, cache_read_input_tokens=5329` on the second — the full
+tools+system prefix was written once and read from cache on the repeat.
