@@ -31,7 +31,7 @@ export function StarterPromptTile({ kicker, prompt, onClick }: StarterPromptTile
         <span className="__s9cmpx-label3" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
           {kicker}
         </span>
-        <span className="__s9cmpx-body3">{prompt}</span>
+        <span className="__s9cmpx-body4">{prompt}</span>
       </div>
       <Icon name="chevron-right" size={18} style={{ flexShrink: 0, color: 'var(--__s9cmpx-static-text-weak)' }} />
     </Tile>

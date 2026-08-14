@@ -44,6 +44,18 @@ interface ResultSection {
 // summary of it, not a copy -- showing both there is intentional, not a duplicate.
 const TEXT_ANSWER_TAGS = new Set(['general_climate', 'context_reuse']);
 
+// Explicit column target, not auto-fit -- the user wants widget count to drive layout directly:
+// 1/2/3 widgets get that many columns each, 4 widgets deliberately drops to 2 (a 4-up row reads
+// as cramped at this card size) rather than the naive next step of 4, and 5+ caps at 3 so cards
+// stay legible regardless of how many widgets a turn produces. See the .agent-widget-grid media
+// query below for the mobile collapse this doesn't handle on its own (a repeat(N, ...) grid
+// doesn't shrink its own column count the way auto-fit does).
+function widgetColumnCount(count: number): number {
+  if (count <= 3) return count;
+  if (count === 4) return 2;
+  return 3;
+}
+
 function isTextOnlyAnswer(result: AgentQueryResult): boolean {
   return (
     result.widgets.length === 1 &&
@@ -52,23 +64,22 @@ function isTextOnlyAnswer(result: AgentQueryResult): boolean {
   );
 }
 
+// Same "explicit count, not auto-fit" reasoning as widgetColumnCount below, capped at 2x2 or 3x3
+// specifically (not widgetColumnCount's 1/2/3/2/3 curve) -- this grid now lives inside PromptBar's
+// own expandedContent, a fixed-width container, not a full-page one, so a squarer cap reads
+// better there than a wide flat row would.
+function starterPromptColumnCount(count: number): number {
+  return count <= 4 ? 2 : 3;
+}
+
 function StarterPromptsGrid({ onSelect }: { onSelect: (item: (typeof STARTER_PROMPTS)[number]) => void }) {
   return (
     <div
+      className="starter-prompt-grid"
       style={{
         display: 'grid',
-        // minmax(280px, 1fr) alone doesn't shrink below 280px per track even inside a
-        // narrower viewport -- auto-fit's intrinsic sizing still reserves room for as many
-        // fixed-280px columns as there are items, which forces this grid (and every flex
-        // ancestor up to <main>, none of which have min-width:0) wider than the screen.
-        // minmax(min(280px, 100%), 1fr) caps each track's minimum at the container's own
-        // available width, so it collapses to one column instead of overflowing. Confirmed
-        // live on a real narrow viewport: without this, <main> rendered at 968px on a 500px
-        // viewport; with it, 484px.
-        gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
-        gap: 16,
-        maxWidth: 900,
-        margin: '0 auto',
+        gridTemplateColumns: `repeat(${starterPromptColumnCount(STARTER_PROMPTS.length)}, 1fr)`,
+        gap: 12,
         width: '100%',
       }}
     >
@@ -86,7 +97,10 @@ function ResultSectionView({ section, onSuggestedPromptClick }: { section: Resul
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div className="__s9cmpx-label3" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+      {/* Same size as the answer text (MarkdownText's own <p> uses __s9cmpx-body3) -- only the
+          weaker color, not a smaller size, distinguishes the user's own query from the answer
+          below it. */}
+      <div className="__s9cmpx-body3" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
         {query}
       </div>
       {result.scope_notes.map((note, i) => (
@@ -108,9 +122,12 @@ function ResultSectionView({ section, onSuggestedPromptClick }: { section: Resul
       ) : (
         <>
           {!textOnly && <MarkdownText text={result.response_text} />}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+          <div
+            className="agent-widget-grid"
+            style={{ display: 'grid', gridTemplateColumns: `repeat(${widgetColumnCount(result.widgets.length)}, 1fr)`, gap: 16 }}
+          >
             {result.widgets.map((widget, i) => (
-              <div key={`${widget.source_tool_call}-${i}`} style={{ flex: '1 1 420px', minWidth: 0 }}>
+              <div key={`${widget.source_tool_call}-${i}`} style={{ minWidth: 0 }}>
                 <WidgetRenderer widget={widget} />
               </div>
             ))}
@@ -125,7 +142,6 @@ export function AgentPage() {
   const [value, setValue] = useState('');
   const [sections, setSections] = useState<ResultSection[]>([]);
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
-  const [starterGridDismissed, setStarterGridDismissed] = useState(false);
   const threadIdRef = useRef<string | null>(null);
   // Identity-compared against the hook's own `result`, not a "have we consumed this yet" flag
   // gated on a separate ref -- useAgentStream returns a fresh object per submit() and holds it
@@ -133,17 +149,12 @@ export function AgentPage() {
   // arrived" without depending on handleSubmit having run first in the same render cycle.
   const lastResultRef = useRef<AgentQueryResult | null>(null);
   const nextSectionIdRef = useRef(0);
+  const promptBarRef = useRef<HTMLTextAreaElement>(null);
   const { submit, progress, result, error, loading } = useAgentStream();
 
   const hasSubmitted = sections.length > 0 || result != null || loading || error != null;
-  // PromptBar exposes no focus/blur hook (see handleStarterClick's own comment below), so
-  // "the user is about to enter another prompt" is approximated as "the docked input is idle
-  // and empty" on a fresh turn only: once they've typed or picked anything, keep the grid
-  // dismissed until a new response lands, even if they clear the text while still editing.
-  const showStarterGridBetweenTurns = hasSubmitted && !loading && !starterGridDismissed && value.trim() === '';
 
   const handleSubmit = (query: string) => {
-    setStarterGridDismissed(true);
     setPendingQuery(query);
     submit(query, threadIdRef.current);
     setValue('');
@@ -155,7 +166,6 @@ export function AgentPage() {
     threadIdRef.current = result.thread_id;
     const id = nextSectionIdRef.current++;
     setSections((prev) => [{ id, query: pendingQuery ?? '', result }, ...prev]);
-    setStarterGridDismissed(false);
     // pendingQuery is a dependency for freshness, not as a second trigger condition -- this
     // effect still only *acts* when `result` is new (the guard above). Including it just makes
     // sure the closure reads the latest submitted query rather than a stale one captured the
@@ -163,20 +173,14 @@ export function AgentPage() {
     // slightly ahead of the corresponding result arriving.
   }, [result, pendingQuery]);
 
-  const handleValueChange = (nextValue: string) => {
-    if (hasSubmitted) setStarterGridDismissed(true);
-    setValue(nextValue);
-  };
-
   const handleStarterClick = (item: (typeof STARTER_PROMPTS)[number]) => {
-    setStarterGridDismissed(true);
-    // SPEC.md §4: prefill + focus for the country-specific prompts -- PromptBar's own prop
-    // surface (value/onChange/onSubmit/variant/placeholder/loading/disabled/actions/ariaLabel/
-    // className) has no imperative focus method, so only the prefill half is achievable here;
-    // the user still has to click into the textarea themselves. Flagged, not silently assumed
-    // fixed -- see SPEC.md "Corrections applied" #18.
+    // SPEC.md §4: prefill + focus for the country-specific prompts. PromptBar now exposes the
+    // textarea via ref (design-system PR #44, closing "Corrections applied" #18's previously
+    // flagged gap), so the focus half is no longer just aspirational -- the user lands in the
+    // textarea with the prefilled text ready to edit, not stuck on the tile they just clicked.
     if (item.prefill) {
       setValue(item.prompt);
+      promptBarRef.current?.focus();
     } else {
       handleSubmit(item.prompt);
     }
@@ -184,6 +188,21 @@ export function AgentPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: hasSubmitted ? '24px 24px 48px' : '48px 24px' }}>
+      {/* Placed once here, not per-section -- ResultSectionView renders one .agent-widget-grid
+          per turn, and they all want the identical collapse rule. A fixed repeat(N, 1fr) grid
+          doesn't shrink its own column count on a narrow viewport the way auto-fit does (SPEC.md
+          confirmed this repo's minmax(min(X,100%),1fr) pattern doesn't help here either -- with a
+          FIXED track count, every track's minimum resolves against the same container width, so
+          N>1 tracks still overflow instead of collapsing); one explicit breakpoint straight to a
+          single column is simpler and more predictable than trying to make the N-column math
+          responsive on its own. */}
+      {/* Same reasoning as .agent-widget-grid's own media query below, applied to the starter
+          grid now that it lives inside PromptBar's expandedContent -- a fixed 2- or 3-column
+          grid doesn't shrink its own column count on a narrow viewport the way auto-fit did in
+          its previous standalone placement. */}
+      <style>
+        {'@media (max-width: 768px) { .agent-widget-grid, .starter-prompt-grid { grid-template-columns: 1fr !important; } }'}
+      </style>
       {!hasSubmitted && (
         <div style={{ textAlign: 'center', marginBottom: 8 }}>
           <h1 className="__s9cmpx-headline3">Ask about climate emissions</h1>
@@ -194,15 +213,15 @@ export function AgentPage() {
       )}
 
       <PromptBar
+        ref={promptBarRef}
         value={value}
-        onChange={handleValueChange}
+        onChange={setValue}
         onSubmit={handleSubmit}
         variant={hasSubmitted ? 'docked' : 'landing'}
         loading={loading}
         ariaLabel="Ask about climate emissions"
+        expandedContent={<StarterPromptsGrid onSelect={handleStarterClick} />}
       />
-
-      {(!hasSubmitted || showStarterGridBetweenTurns) && <StarterPromptsGrid onSelect={handleStarterClick} />}
 
       {loading && <Progress value={progress?.percent ?? 0} label={progress?.label ?? 'Thinking…'} />}
 

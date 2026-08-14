@@ -385,6 +385,59 @@ same raw-element-plus-class pattern this component now also uses. Verified live,
 frontend deployed together, same India-after-China repro sequence: real "Answer" card, real
 sortable table, no InlineAlert, no raw markdown syntax.
 
+**Widget grid layout, requested directly (not a bug fix).** The previous fixes above left
+`AgentPage.tsx`'s widget grid on its original flex-wrap-at-420px layout, which produces however
+many columns happen to fit the viewport rather than a deliberate count. User asked for an explicit
+rule: 1/2/3 widgets get that many columns, 4 widgets drops to 2 (not 4 -- cramped at this card
+size), 5+ caps at 3. Implemented as an explicit `repeat(N, 1fr)` CSS grid (`widgetColumnCount`,
+SPEC.md §3.2) plus a single `@media (max-width: 768px)` collapse to 1 column, reusing
+`OverviewPage.tsx`'s existing `<style>`-tag-with-scoped-class pattern for the breakpoint override
+(a fixed-N grid doesn't auto-shrink columns the way the `auto-fit` pattern used elsewhere in this
+file does, so an explicit breakpoint was needed rather than another `minmax` trick). Six new
+parameterized tests pin the exact column count for 1 through 6 widgets. Live-verified at both a
+wide viewport (a real 4-widget China turn laying out 2×2) and a 500px mobile viewport (the same
+turn collapsing cleanly to one column).
+
+**Starter prompts moved inside `PromptBar` itself, requested directly (not a bug fix) --
+cross-repo change.** User asked for the starter-prompt grid to expand from inside the prompt bar
+on click/focus, collapse on submit, capped at 2x2/3x3, plus (in follow-up requests during the
+same investigation) smaller prompt-text fonts and the landing bar no longer being narrower than
+the docked one. The first two required a real capability `design-system`'s `PromptBar` didn't
+have -- three PRs there, all merged before wiring this app up to them:
+
+- **PR #44**: new `expandedContent` prop -- a panel that grows from inside the bar's own rounded
+  border (`grid-template-rows: 0fr → 1fr`, no guessed max-height) on focus, collapses on
+  blur-away or submit. Focus/blur (not click) so keyboard users get the same behavior; the blur
+  handler's `relatedTarget` check relies on `expandedContent`'s children being real focusable
+  elements (`StarterPromptTile` already sets `tabIndex={0}`) so a tile click doesn't collapse the
+  panel out from under itself. Two collapse paths: `trySubmit` itself (Enter/Send, which never
+  blurs) and a `loading`-driven effect (for a caller submitting externally -- an instant-submit
+  starter tile calls `useAgentStream`'s `submit()` directly, bypassing `trySubmit` entirely, so
+  only `loading` turning true reliably follows that path). Copilot's review caught a real gap in
+  the first commit -- the collapsed panel was hidden visually but not from the accessibility tree
+  or tab order -- fixed with `aria-hidden`/`inert`, matching this same design system's own
+  `Drawer` precedent (verified, not just trusted). Also added `forwardRef<HTMLTextAreaElement>`
+  (same pattern `Textarea` itself already used), resolving this project's own SPEC.md correction
+  #18, flagged during Step 4 and left unresolved until now: no way to move focus into the
+  textarea after a prefill click.
+- **PR #45**: landing no longer caps at `maxWidth: 540` while docked spans its full container --
+  the bar was visibly resizing between "before the first submit" and "after."
+
+With those merged, `AgentPage.tsx`'s own starter-grid state machine (`starterGridDismissed`,
+`showStarterGridBetweenTurns`, the dismiss-on-type handling in `handleValueChange`) was deleted
+entirely -- visibility is now genuinely focus-driven, owned by `PromptBar`, not an approximation.
+`StarterPromptsGrid` switched from `auto-fit` to an explicit 2/3-column count
+(`starterPromptColumnCount`, same reasoning as the response widget grid above) since it now lives
+in a fixed-width panel, not a full-page section; prompt text moved from `__s9cmpx-body3` to
+`__s9cmpx-body4`. `handleStarterClick` now calls the new ref's `.focus()` after prefilling.
+Eleven of `AgentPage.test.tsx`'s tests needed rewriting for the new model -- the old ones asserted
+DOM absence (`queryByText(...).not.toBeInTheDocument()`), which no longer holds now that the
+collapsed panel stays in the DOM (`aria-hidden`/`inert`, not unmounted); rewritten around
+`queryByRole`, which correctly excludes `aria-hidden` content the way `queryByText` doesn't.
+Live-verified end to end on the real deployed app: click-to-expand (landing and docked),
+prefill-then-focus, panel staying open through an edit, collapse on submit (both the Enter-key and
+instant-submit-tile paths), collapse on click-away, and the unified bar width.
+
 **Nav item replaced with a persistent sidebar action, requested directly (not a bug fix) --
 cross-repo change.** User was considering a left-clipping bug in the sidebar, then asked to
 handle a different change first: "Ask the Agent" moved out of `NAV_ITEMS` (one page among the
