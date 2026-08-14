@@ -108,6 +108,50 @@ describe('AgentPage', () => {
     expect(screen.queryByText('What are the top 10 forecasted emitters in 2040?')).not.toBeInTheDocument();
   });
 
+  it('shows the starter-prompt grid again once a response lands and the input is idle', () => {
+    const result: AgentQueryResult = {
+      thread_id: 't1',
+      widgets: [],
+      response_text: 'Some answer.',
+      scope_notes: [],
+      suggested_prompts: [],
+      percent: 100,
+    };
+    stubStream({ result });
+    render(<AgentPage />);
+
+    // hasSubmitted is now true (a section exists) and the input is idle/empty -- the same four
+    // starter prompts that show on the landing screen should reappear below the docked bar.
+    expect(screen.getByText('What are the top 10 forecasted emitters in 2040?')).toBeInTheDocument();
+  });
+
+  it('hides the between-turns starter grid again once a prefill prompt is picked', async () => {
+    const result: AgentQueryResult = {
+      thread_id: 't1',
+      widgets: [],
+      response_text: 'Some answer.',
+      scope_notes: [],
+      suggested_prompts: [],
+      percent: 100,
+    };
+    // useAgentStream() itself is fully mocked/static in this suite (see stubStream), so a
+    // *submitted* prompt's own hide-via-loading path can't be exercised here -- that would
+    // require the mock's loading to flip, which submit() (a bare vi.fn() spy) never does.
+    // A prefill prompt hides the grid a different way -- setValue(item.prompt), AgentPage's own
+    // local state -- which this test can observe directly without touching the mocked hook.
+    stubStream({ result });
+    render(<AgentPage />);
+
+    await import('@testing-library/user-event').then(({ default: userEvent }) =>
+      userEvent.setup().click(screen.getByText("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?")),
+    );
+
+    expect(screen.getByDisplayValue("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?")).toBeInTheDocument();
+    expect(
+      screen.queryByText("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?", { selector: 'span' }),
+    ).not.toBeInTheDocument();
+  });
+
   it('surfaces a stream error as an InlineAlert', () => {
     stubStream({ error: 'Connection to the agent failed.' });
     render(<AgentPage />);

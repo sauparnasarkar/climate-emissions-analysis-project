@@ -44,6 +44,33 @@ function isGeneralClimateOnly(result: AgentQueryResult): boolean {
   );
 }
 
+function StarterPromptsGrid({ onSelect }: { onSelect: (item: (typeof STARTER_PROMPTS)[number]) => void }) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        // minmax(280px, 1fr) alone doesn't shrink below 280px per track even inside a
+        // narrower viewport -- auto-fit's intrinsic sizing still reserves room for as many
+        // fixed-280px columns as there are items, which forces this grid (and every flex
+        // ancestor up to <main>, none of which have min-width:0) wider than the screen.
+        // minmax(min(280px, 100%), 1fr) caps each track's minimum at the container's own
+        // available width, so it collapses to one column instead of overflowing. Confirmed
+        // live on a real narrow viewport: without this, <main> rendered at 968px on a 500px
+        // viewport; with it, 484px.
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
+        gap: 16,
+        maxWidth: 900,
+        margin: '0 auto',
+        width: '100%',
+      }}
+    >
+      {STARTER_PROMPTS.map((item) => (
+        <StarterPromptTile key={item.prompt} kicker={item.kicker} prompt={item.prompt} onClick={() => onSelect(item)} />
+      ))}
+    </div>
+  );
+}
+
 function ResultSectionView({ section, onSuggestedPromptClick }: { section: ResultSection; onSuggestedPromptClick: (prompt: string) => void }) {
   const { query, result } = section;
   const hasWidgets = result.widgets.length > 0;
@@ -100,6 +127,14 @@ export function AgentPage() {
   const { submit, progress, result, error, loading } = useAgentStream();
 
   const hasSubmitted = sections.length > 0 || loading || error != null;
+  // PromptBar exposes no focus/blur hook (see handleStarterClick's own comment below), so
+  // "the user is about to enter another prompt" is approximated as "the docked input is idle
+  // and empty" -- true right after a response lands (before they've typed or picked anything),
+  // false the instant they either start typing their own query or pick a starter prompt
+  // (prefill sets `value`, immediate-submit sets `loading`, both synchronously in the same
+  // batched render as handleSubmit's own setValue('') -- no flash of the grid reappearing
+  // between a starter-prompt click and the resulting query actually starting).
+  const showStarterGridBetweenTurns = hasSubmitted && !loading && value.trim() === '';
 
   const handleSubmit = (query: string) => {
     setPendingQuery(query);
@@ -153,30 +188,7 @@ export function AgentPage() {
         ariaLabel="Ask about climate emissions"
       />
 
-      {!hasSubmitted && (
-        <div
-          style={{
-            display: 'grid',
-            // minmax(280px, 1fr) alone doesn't shrink below 280px per track even inside a
-            // narrower viewport -- auto-fit's intrinsic sizing still reserves room for as many
-            // fixed-280px columns as there are items, which forces this grid (and every flex
-            // ancestor up to <main>, none of which have min-width:0) wider than the screen.
-            // minmax(min(280px, 100%), 1fr) caps each track's minimum at the container's own
-            // available width, so it collapses to one column instead of overflowing. Confirmed
-            // live on a real narrow viewport: without this, <main> rendered at 968px on a 500px
-            // viewport; with it, 484px.
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
-            gap: 16,
-            maxWidth: 900,
-            margin: '0 auto',
-            width: '100%',
-          }}
-        >
-          {STARTER_PROMPTS.map((item) => (
-            <StarterPromptTile key={item.prompt} kicker={item.kicker} prompt={item.prompt} onClick={() => handleStarterClick(item)} />
-          ))}
-        </div>
-      )}
+      {(!hasSubmitted || showStarterGridBetweenTurns) && <StarterPromptsGrid onSelect={handleStarterClick} />}
 
       {loading && <Progress value={progress?.percent ?? 0} label={progress?.label ?? 'Thinking…'} />}
 

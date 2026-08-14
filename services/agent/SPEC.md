@@ -252,7 +252,16 @@ component work, only the kind-selection logic in `ui_selection`.
 
 Four prompts, rendered as an interactive `Tile` grid (kicker category label, prompt text, arrow
 icon — via the new `StarterPromptTile` composition, see "Corrections applied" #3) on the landing
-screen only:
+screen, and again **between turns** — once a response has landed and the docked input is idle
+and empty, before the user has typed or picked anything for the next query (direct instruction,
+added after Step 4 shipped). `PromptBar` exposes no focus/blur hook, so "the user is about to
+enter another prompt" is approximated as "docked input idle and empty," rather than a real focus
+event: it reappears the instant a response finishes (assuming nothing's been typed yet), and
+disappears again the moment the user either starts typing their own follow-up or picks a prompt
+from the grid (prefill sets the input value; immediate-submit starts loading — both synchronously
+override the idle/empty condition, so there's no flash of the grid reappearing between a click and
+the resulting query actually starting). `AgentPage.tsx`'s `StarterPromptsGrid` is the one grid
+definition reused for both placements.
 
 | Category | Prompt |
 |---|---|
