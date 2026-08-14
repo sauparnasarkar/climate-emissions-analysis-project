@@ -311,3 +311,52 @@ Two new tests against a real `services/mcp-server` subprocess (deliberately unre
 `API_BASE_URL`, matching the existing error-surfacing test's pattern): one confirms the
 transient-failure note appears when every call in a turn fails, the other confirms it does
 *not* appear when only some do.
+
+**Same "no widgets" symptom, second live occurrence — two hypotheses, first one wrong, corrected
+before shipping.** The user pinned the trigger precisely this time: submitting the India starter
+prompt right after the China one, same conversation thread. The fix above (correction #20) didn't
+cover it — `state.tool_calls` was genuinely empty, not "attempted and failed." Reproduced
+reliably (not a one-off) by replaying the exact sequence against the live public endpoint with the
+real `thread_id` carried across both calls.
+
+*First hypothesis (wrong, caught by the user before merge).* Root-caused via controlled variant
+testing directly against the real Anthropic API on the Mac Mini (the deployed key, handled
+entirely server-side — read via `PlistBuddy` inside the SSH command, never viewed or printed):
+turn 1's raw message history — including a single prior `get_historical_emissions(scope=
+"sovereign")` result (~31KB, full history for all ~215 sovereign countries) — was persisting in
+full into turn 2's context. Truncating just that one payload was enough on its own to make the
+model call tools normally again, which read as "the large payload is confusing the model." Shipped
+a first draft: `finalize_node` pruning the turn's raw agent↔tools round trip via LangGraph's
+`RemoveMessage` once the turn's compact summary was written, live-verified to make turn 2 call
+`get_historical_emissions` again and return a real widget.
+
+*The user then pointed out the same sequence in Claude Desktop with the MCP connector* — turn 2
+also makes zero tool calls there, and Desktop still answers correctly. That reframed everything:
+the model *not* calling a tool on turn 2 was never the bug — it's the model correctly reusing
+data it already fetched, exactly what an efficient MCP client should do. Confirmed directly by
+tracing `agent_node`'s own turn-2 response (previously never surfaced anywhere in the pipeline):
+it was a fully correct, detailed, data-grounded answer about India's growth, built from turn 1's
+still-present context. The truncation experiment only "worked" because shrinking the payload
+removed the data the model needed, forcing a redundant re-fetch — not because anything was
+actually confusing it. The real defect: `ui_selection_node`/`compose_response_node` assumed a
+`data_query` turn always has fresh `state.tool_calls` to build a response from, and silently
+discarded `agent_node`'s own good answer whenever it didn't, synthesizing a "no data" apology that
+directly contradicted what the model had just said.
+
+**Reworked before merge.** Reverted the `finalize_node` pruning entirely — it "fixed" the symptom
+only by removing the model's ability to reuse context, forcing a wasteful re-fetch on every
+follow-up regardless of need. Fixed properly instead: `ui_selection_node` now extracts
+`agent_node`'s own final message text (handling both the plain-string and content-block-list
+shapes, since extended thinking makes the latter the common case) and uses it directly as
+`response_text` when a turn made zero tool calls; a new `route_after_ui_selection` conditional
+edge routes that case straight to `finalize`, skipping `compose_response_node` (which has no
+widgets to work from and would otherwise overwrite a good answer). No widget is built in this
+case — nothing new was fetched — matching `general_climate_node`'s existing text-only pattern.
+Verified against the real Anthropic API with the exact repro sequence before shipping: turn 2 now
+answers India's growth correctly, from reused context, with zero new tool calls — matching Claude
+Desktop's behavior for the identical sequence.
+
+**Flagged separately, not fixed here:** `get_historical_emissions(scope="sovereign")`'s ~31KB,
+215-country uncapped payload is no longer "the bug," but its size is still real and still a
+`services/mcp-server` concern, not `services/agent`'s — this sub-project's own convention is not
+to modify `services/mcp-server` directly. Worth trimming or paginating there independently.

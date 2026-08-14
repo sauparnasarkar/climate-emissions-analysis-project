@@ -289,15 +289,38 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
     # Distinguishes "every tool call this turn failed" (a real backend/network problem) from
     # "tools succeeded but nothing matched a widget" -- without this, compose_response_node sees
     # an empty widgets list either way and invents a generic "try rephrasing" apology even when
-    # the actual cause was a transient failure, not an ambiguous query. Only fires when there were
-    # tool calls at all; a data_query turn that never called a tool is a different (unreachable
-    # here) path.
+    # the actual cause was a transient failure, not an ambiguous query.
     if state.tool_calls and all(is_error_result(record.result) for record in state.tool_calls):
         note = "The underlying data service didn't return results for this query -- this looks like a transient failure, not a problem with the question itself."
         logger.warning("ui_selection_node: all %d tool call(s) this turn failed", len(state.tool_calls))
         scope_notes = [*scope_notes, note]
 
-    return {"widgets": widgets, "scope_notes": scope_notes}
+    result: dict[str, Any] = {"widgets": widgets, "scope_notes": scope_notes}
+
+    if not state.tool_calls:
+        # A data_query turn that made zero tool calls at all -- confirmed reachable (SPEC.md
+        # correction #21), and confirmed *correct* model behavior, not a bug: with a substantial
+        # prior tool result still in context (e.g. a previous turn's get_historical_emissions),
+        # the model can reasonably answer a follow-up directly instead of re-fetching data it
+        # already has -- exactly what Claude Desktop's own MCP client does for the same sequence.
+        # agent_node's own final message already carries that real, data-grounded answer; route_
+        # after_ui_selection sends this turn straight to finalize instead of compose_response_node,
+        # which has no widgets to synthesize from and would otherwise invent a misleading "no data"
+        # apology that contradicts what the model just said. No widget is built here (nothing new
+        # was fetched this turn), matching general_climate_node's text-only pattern.
+        last = state.messages[-1]
+        content = last.content
+        text = _text_from_content_blocks(content) if isinstance(content, list) else content
+        result["response_text"] = text or "(no response text)"
+
+    return result
+
+
+def route_after_ui_selection(state: AgentState) -> Literal["compose_response", "finalize"]:
+    # Zero tool calls this turn means ui_selection_node already set response_text directly from
+    # agent_node's own answer -- compose_response_node has no widgets to synthesize from in that
+    # case and would overwrite a good answer with an apology. See ui_selection_node's own comment.
+    return "compose_response" if state.tool_calls else "finalize"
 
 
 async def compose_response_node(state: AgentState, *, llm: BaseChatModel) -> dict[str, Any]:
@@ -313,6 +336,17 @@ async def finalize_node(state: AgentState) -> dict[str, Any]:
     # path nodes (off_topic/opinion/general_climate/compose_response) deliberately don't append
     # their own raw output, avoiding duplicate/near-duplicate messages across turns. Full widget
     # payloads are never appended, to bound context growth (SPEC.md §8's finalize row).
+    #
+    # This turn's raw agent<->tools round trip (tool_use AIMessages and ToolMessages) is
+    # deliberately left in `state.messages`, not pruned -- SPEC.md correction #21. An earlier draft
+    # of this fix pruned it via RemoveMessage on the theory that a large prior tool result (e.g.
+    # get_historical_emissions(scope="sovereign")'s ~31KB/215-country payload) left in context was
+    # confusing the model into skipping tool calls on a later, unrelated turn. Confirmed wrong: the
+    # model's own text for that "skipped" turn was a correct, data-grounded answer reusing the
+    # prior tool result already in context -- exactly what Claude Desktop's own MCP client does for
+    # the same sequence, not a malfunction. Pruning this history would have silently traded away
+    # that reuse capability (forcing a wasteful re-fetch on every follow-up) to paper over a
+    # different bug, now fixed properly in ui_selection_node/route_after_ui_selection instead.
     summary = state.response_text[:500] if state.response_text else "(no response text)"
     return {"messages": [AIMessage(content=summary)]}
 
@@ -375,7 +409,11 @@ async def build_graph(
     )
     graph.add_edge("tools", "agent")
     graph.add_edge("call_cap_notice", "ui_selection")
-    graph.add_edge("ui_selection", "compose_response")
+    graph.add_conditional_edges(
+        "ui_selection",
+        route_after_ui_selection,
+        {"compose_response": "compose_response", "finalize": "finalize"},
+    )
     graph.add_edge("compose_response", "finalize")
     graph.add_edge("off_topic", "finalize")
     graph.add_edge("opinion", "finalize")

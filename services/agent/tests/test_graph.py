@@ -11,7 +11,7 @@ fit together.
 
 from __future__ import annotations
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -200,6 +200,52 @@ async def test_turn_reset_fields_and_thread_scoped_cache_persist():
     assert turn2["tool_calls"] == []
     assert turn2["response_text"] == OFF_TOPIC_RESPONSE
     assert len(turn2["tool_cache"]) == 1  # survived from turn 1, per SPEC.md §7/§9
+
+
+async def test_zero_tool_call_turn_reuses_prior_context_and_skips_compose_response():
+    # SPEC.md correction #21: confirmed live against the real Anthropic API and against Claude
+    # Desktop's own MCP client behavior for the identical scenario -- when a data_query turn makes
+    # zero tool calls, that's the model reasonably reusing a prior turn's tool result already in
+    # context (e.g. a broad historical-emissions pull that already covered the new question), not
+    # a malfunction. agent_node's own answer is used directly as response_text; compose_response_
+    # node (which has no widgets to synthesize from) must never run for this path -- if it did,
+    # the LLM's scripted queue below would be short a response and `exhausted` would fail.
+    tool = await _make_methodology_tool()
+    checkpointer = MemorySaver()
+
+    turn1_llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_methodology_notes", {}, "call-1")]),
+            AIMessage(content="Here's the methodology, freshly fetched."),
+            {"response_text": "Here's the methodology."},
+        ]
+    )
+    graph = await build_graph(llm=turn1_llm, mcp_tools=[tool], checkpointer=checkpointer)
+    turn1 = await graph.ainvoke({"current_query": "how does the forecast model work?"}, config=THREAD_CONFIG)
+    assert turn1["response_text"] == "Here's the methodology."
+
+    # Turn 2: the model answers directly from turn 1's still-present context, no new tool call --
+    # content is a list of blocks (thinking + text), matching the real API's shape, to prove the
+    # extraction handles that form and not just a plain string.
+    turn2_llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(
+                content=[
+                    {"type": "thinking", "thinking": "I already have this.", "signature": "sig"},
+                    {"type": "text", "text": "Based on what I already fetched, here's a follow-up answer."},
+                ]
+            ),
+        ]
+    )
+    turn2_graph = await build_graph(llm=turn2_llm, mcp_tools=[tool], checkpointer=checkpointer)
+    turn2 = await turn2_graph.ainvoke({"current_query": "can you elaborate on that?"}, config=THREAD_CONFIG)
+
+    assert turn2["tool_calls"] == []
+    assert turn2["widgets"] == []
+    assert turn2["response_text"] == "Based on what I already fetched, here's a follow-up answer."
+    assert turn2_llm.exhausted  # compose_response_node never ran -- nothing left unconsumed
 
 
 async def test_data_query_against_real_mcp_server(running_mcp_server):
