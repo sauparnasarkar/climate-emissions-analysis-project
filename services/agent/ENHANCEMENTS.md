@@ -189,3 +189,39 @@ starter-prompt prefill vs. immediate-submit behavior, the docked transition, and
 proxy path returning a genuine `Bad Gateway` (confirming the SSE POST reaches the proxy layer
 correctly) which the `error` SSE/`onopen`-reject path renders as an `InlineAlert` — not a client
 crash.
+
+## Step 5 — Security review
+
+An automated vulnerability scan (categories: input validation, auth/authz, crypto/secrets,
+injection/RCE, data exposure) plus independent verification of every finding, covering the whole
+feature (`services/agent/src/agent/*.py` + `climate-dashboard-react`'s agent integration) against
+the pre-Step-1 base commit, not just the latest PR's diff.
+
+**One real finding, already self-flagged during Step 3** (`SPEC.md` "Corrections applied" #16,
+resolved here as #19): `stream_query`'s catch-all `except Exception` forwarded `str(exc)` to the
+public, unauthenticated `/query` endpoint's client-facing `error` SSE event — a real information-
+disclosure surface (MCP connection failures reveal `127.0.0.1:8765`; LangChain/Anthropic SDK
+error text isn't meant for end users), and a direct deviation from `api/`'s own established
+convention (`DataNotFoundError` → a curated `.message`, never a bare exception's own text). Fixed:
+a fixed, generic `QUERY_STREAM_ERROR_MESSAGE` goes to the client; the real exception is logged
+server-side via `logger.exception` instead of silently dropped. `tests/test_server.py`'s existing
+`test_query_streams_error_event_on_graph_failure` updated to assert the generic message (not the
+simulated exception's own text) and, via `caplog`, that the real exception is still logged.
+
+**Everything else checked, no finding above the review's confidence threshold**: CORS (identical
+allowlist to `api/main.py`'s, no wildcard/credentials), `thread_id` validation (strict UUID check
+before any use; not practically guessable/enumerable), XSS in `WidgetRenderer.tsx` (no
+`dangerouslySetInnerHTML` anywhere — every LLM/tool-derived string renders through plain JSX text
+interpolation, which React auto-escapes), format-string injection in `progress_labels.py`
+(deliberately builder functions, not `.format(**args)`), checkpoint deserialization
+(`allowed_msgpack_modules` is an allowlist restricting reconstructable types, not attacker-
+supplied bytes), the MCP client's localhost trust boundary (documented B3 design, read-only
+public climate-data tools, no realistic high-impact path). `MAX_LIVE_THREADS`'s coarse cap (#14)
+is a resource-exhaustion concern, explicitly out of this review's scope (not revisited here —
+still a real V1 stopgap, not real LRU/TTL eviction, same as when #14 first flagged it).
+
+Shipped: `server.py`'s `logger`/`QUERY_STREAM_ERROR_MESSAGE`, the updated
+`test_query_streams_error_event_on_graph_failure`.
+
+Steps 1–5 of 5 now complete. Not yet built: the Mac Mini deploy, a distinct final action after
+all 5 steps land (not itself one of the 5) — see root `ARCHITECTURE.md` for current status.

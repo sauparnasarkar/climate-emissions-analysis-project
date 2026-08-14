@@ -156,6 +156,20 @@ conversational-agent project that `services/mcp-server` began.
     workaround keyed to `design-system`'s internal CSS class names, which this repo's own
     against-hacks convention rules out. Revisit if `design-system` ever exposes a real focus
     handle on `PromptBar`.
+19. **`stream_query`'s terminal `error` event no longer surfaces `str(exc)` directly (Step 5,
+    resolving #16's own "flagged, not fixed" item).** A Step 5 security review (automated
+    vulnerability scan + independent verification, not just the earlier Copilot pass) confirmed
+    the risk #16 already named: a bare `except Exception as exc: ... str(exc)` on a public,
+    unauthenticated endpoint can leak internal details (an MCP connection failure's own
+    `127.0.0.1:8765` address, LangChain/Anthropic SDK error text) to any client. Fixed by
+    replacing the client-facing message with a fixed, generic `QUERY_STREAM_ERROR_MESSAGE`
+    (`server.py`) and logging the real exception server-side via `logger.exception` instead —
+    matching `api/`'s own established convention of never forwarding a bare exception's text,
+    just a curated one (`DataNotFoundError` → `HTTPException(..., detail=e.message)`), adapted
+    here since this endpoint's failure modes aren't one small enumerable exception type the way
+    `DataNotFoundError` is. `tests/test_server.py`'s `test_query_streams_error_event_on_graph_failure`
+    now asserts the generic message *and* (via `caplog`) that the real exception was logged, not
+    silently dropped.
 
 ---
 
