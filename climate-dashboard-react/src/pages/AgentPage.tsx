@@ -44,6 +44,33 @@ function isGeneralClimateOnly(result: AgentQueryResult): boolean {
   );
 }
 
+function StarterPromptsGrid({ onSelect }: { onSelect: (item: (typeof STARTER_PROMPTS)[number]) => void }) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        // minmax(280px, 1fr) alone doesn't shrink below 280px per track even inside a
+        // narrower viewport -- auto-fit's intrinsic sizing still reserves room for as many
+        // fixed-280px columns as there are items, which forces this grid (and every flex
+        // ancestor up to <main>, none of which have min-width:0) wider than the screen.
+        // minmax(min(280px, 100%), 1fr) caps each track's minimum at the container's own
+        // available width, so it collapses to one column instead of overflowing. Confirmed
+        // live on a real narrow viewport: without this, <main> rendered at 968px on a 500px
+        // viewport; with it, 484px.
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
+        gap: 16,
+        maxWidth: 900,
+        margin: '0 auto',
+        width: '100%',
+      }}
+    >
+      {STARTER_PROMPTS.map((item) => (
+        <StarterPromptTile key={item.prompt} kicker={item.kicker} prompt={item.prompt} onClick={() => onSelect(item)} />
+      ))}
+    </div>
+  );
+}
+
 function ResultSectionView({ section, onSuggestedPromptClick }: { section: ResultSection; onSuggestedPromptClick: (prompt: string) => void }) {
   const { query, result } = section;
   const hasWidgets = result.widgets.length > 0;
@@ -90,6 +117,7 @@ export function AgentPage() {
   const [value, setValue] = useState('');
   const [sections, setSections] = useState<ResultSection[]>([]);
   const [pendingQuery, setPendingQuery] = useState<string | null>(null);
+  const [starterGridDismissed, setStarterGridDismissed] = useState(false);
   const threadIdRef = useRef<string | null>(null);
   // Identity-compared against the hook's own `result`, not a "have we consumed this yet" flag
   // gated on a separate ref -- useAgentStream returns a fresh object per submit() and holds it
@@ -99,9 +127,15 @@ export function AgentPage() {
   const nextSectionIdRef = useRef(0);
   const { submit, progress, result, error, loading } = useAgentStream();
 
-  const hasSubmitted = sections.length > 0 || loading || error != null;
+  const hasSubmitted = sections.length > 0 || result != null || loading || error != null;
+  // PromptBar exposes no focus/blur hook (see handleStarterClick's own comment below), so
+  // "the user is about to enter another prompt" is approximated as "the docked input is idle
+  // and empty" on a fresh turn only: once they've typed or picked anything, keep the grid
+  // dismissed until a new response lands, even if they clear the text while still editing.
+  const showStarterGridBetweenTurns = hasSubmitted && !loading && !starterGridDismissed && value.trim() === '';
 
   const handleSubmit = (query: string) => {
+    setStarterGridDismissed(true);
     setPendingQuery(query);
     submit(query, threadIdRef.current);
     setValue('');
@@ -113,6 +147,7 @@ export function AgentPage() {
     threadIdRef.current = result.thread_id;
     const id = nextSectionIdRef.current++;
     setSections((prev) => [{ id, query: pendingQuery ?? '', result }, ...prev]);
+    setStarterGridDismissed(false);
     // pendingQuery is a dependency for freshness, not as a second trigger condition -- this
     // effect still only *acts* when `result` is new (the guard above). Including it just makes
     // sure the closure reads the latest submitted query rather than a stale one captured the
@@ -120,7 +155,13 @@ export function AgentPage() {
     // slightly ahead of the corresponding result arriving.
   }, [result, pendingQuery]);
 
+  const handleValueChange = (nextValue: string) => {
+    if (hasSubmitted) setStarterGridDismissed(true);
+    setValue(nextValue);
+  };
+
   const handleStarterClick = (item: (typeof STARTER_PROMPTS)[number]) => {
+    setStarterGridDismissed(true);
     // SPEC.md §4: prefill + focus for the country-specific prompts -- PromptBar's own prop
     // surface (value/onChange/onSubmit/variant/placeholder/loading/disabled/actions/ariaLabel/
     // className) has no imperative focus method, so only the prefill half is achievable here;
@@ -146,37 +187,14 @@ export function AgentPage() {
 
       <PromptBar
         value={value}
-        onChange={setValue}
+        onChange={handleValueChange}
         onSubmit={handleSubmit}
         variant={hasSubmitted ? 'docked' : 'landing'}
         loading={loading}
         ariaLabel="Ask about climate emissions"
       />
 
-      {!hasSubmitted && (
-        <div
-          style={{
-            display: 'grid',
-            // minmax(280px, 1fr) alone doesn't shrink below 280px per track even inside a
-            // narrower viewport -- auto-fit's intrinsic sizing still reserves room for as many
-            // fixed-280px columns as there are items, which forces this grid (and every flex
-            // ancestor up to <main>, none of which have min-width:0) wider than the screen.
-            // minmax(min(280px, 100%), 1fr) caps each track's minimum at the container's own
-            // available width, so it collapses to one column instead of overflowing. Confirmed
-            // live on a real narrow viewport: without this, <main> rendered at 968px on a 500px
-            // viewport; with it, 484px.
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
-            gap: 16,
-            maxWidth: 900,
-            margin: '0 auto',
-            width: '100%',
-          }}
-        >
-          {STARTER_PROMPTS.map((item) => (
-            <StarterPromptTile key={item.prompt} kicker={item.kicker} prompt={item.prompt} onClick={() => handleStarterClick(item)} />
-          ))}
-        </div>
-      )}
+      {(!hasSubmitted || showStarterGridBetweenTurns) && <StarterPromptsGrid onSelect={handleStarterClick} />}
 
       {loading && <Progress value={progress?.percent ?? 0} label={progress?.label ?? 'Thinking…'} />}
 
