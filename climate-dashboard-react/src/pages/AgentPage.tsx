@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { InlineAlert, Progress, PromptBar } from 'design-system';
 import { StarterPromptTile } from '../components/StarterPromptTile';
 import { useAgentStream } from '../agent/useAgentStream';
+import { MarkdownText } from '../agent/MarkdownText';
 import { WidgetRenderer } from '../agent/WidgetRenderer';
 import { toolNameFromSourceTaggedCall } from '../agent/types';
 import type { AgentQueryResult } from '../agent/types';
@@ -34,13 +35,20 @@ interface ResultSection {
 }
 
 // A section renders as plain response text (no intro paragraph above it, no widgets grid) when
-// it's exactly the shape general_climate_node produces (graph.py) -- a single text widget whose
-// own content already *is* response_text, so showing both would repeat the same paragraph twice.
-function isGeneralClimateOnly(result: AgentQueryResult): boolean {
+// its one widget's own content already *is* response_text, so showing both would repeat the same
+// paragraph twice -- true for general_climate_node's fixed text widget and, since SPEC.md
+// correction #22, ui_selection_node's "context_reuse" widget (a zero-tool-call turn that answered
+// from prior context) -- both set response_text directly from the same raw text as their widget.
+// Deliberately NOT any single text-intent widget: get_methodology_notes, for example, also
+// produces exactly one text widget, but its response_text is compose_response_node's own separate
+// summary of it, not a copy -- showing both there is intentional, not a duplicate.
+const TEXT_ANSWER_TAGS = new Set(['general_climate', 'context_reuse']);
+
+function isTextOnlyAnswer(result: AgentQueryResult): boolean {
   return (
     result.widgets.length === 1 &&
     result.widgets[0].intent === 'text' &&
-    toolNameFromSourceTaggedCall(result.widgets[0].source_tool_call) === 'general_climate'
+    TEXT_ANSWER_TAGS.has(toolNameFromSourceTaggedCall(result.widgets[0].source_tool_call))
   );
 }
 
@@ -74,7 +82,7 @@ function StarterPromptsGrid({ onSelect }: { onSelect: (item: (typeof STARTER_PRO
 function ResultSectionView({ section, onSuggestedPromptClick }: { section: ResultSection; onSuggestedPromptClick: (prompt: string) => void }) {
   const { query, result } = section;
   const hasWidgets = result.widgets.length > 0;
-  const textOnly = hasWidgets && isGeneralClimateOnly(result);
+  const textOnly = hasWidgets && isTextOnlyAnswer(result);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -99,7 +107,7 @@ function ResultSectionView({ section, onSuggestedPromptClick }: { section: Resul
         </>
       ) : (
         <>
-          {!textOnly && <div className="__s9cmpx-body3">{result.response_text}</div>}
+          {!textOnly && <MarkdownText text={result.response_text} />}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
             {result.widgets.map((widget, i) => (
               <div key={`${widget.source_tool_call}-${i}`} style={{ flex: '1 1 420px', minWidth: 0 }}>

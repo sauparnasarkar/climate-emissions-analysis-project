@@ -148,6 +148,48 @@ describe('WidgetRenderer', () => {
     expect(screen.queryByText(/recognized yet/)).not.toBeInTheDocument();
   });
 
+  it('renders ui_selection_node\'s context_reuse tag (zero-tool-call turn) the same way as general_climate', () => {
+    // SPEC.md correction #22: a turn that reused prior context instead of calling a new tool
+    // gets its own distinct tag, not "general_climate" -- semantically different (this path did
+    // reuse tool data at some point; general_climate never calls a tool at all) even though both
+    // render identically as a single text widget.
+    const w = widget({
+      intent: 'text',
+      source_tool_call: 'context_reuse',
+      title: 'Answer',
+      props: { text: "India's emissions have grown steadily." },
+    });
+    render(<WidgetRenderer widget={w} />);
+    expect(screen.getByText("India's emissions have grown steadily.")).toBeInTheDocument();
+    expect(screen.queryByText(/recognized yet/)).not.toBeInTheDocument();
+  });
+
+  it('renders markdown -- headers, bold, and a GFM table -- as real elements, not raw syntax', () => {
+    // Confirmed live: agent_node's own unconstrained answers (surfaced via the context_reuse
+    // path above) routinely include headers/bold/tables for a detailed comparison, unlike
+    // compose_response_node's plain-prose summaries -- raw '##'/'**'/'|---|' syntax showing up
+    // as literal text reads as broken, not just unstyled.
+    const markdown = [
+      '## India vs. Peers',
+      '',
+      "**India** leads in relative growth.",
+      '',
+      '| Country | Growth |',
+      '| --- | --- |',
+      '| India | +452% |',
+      '| China | +395% |',
+    ].join('\n');
+    const w = widget({ intent: 'text', source_tool_call: 'context_reuse', title: 'Answer', props: { text: markdown } });
+    render(<WidgetRenderer widget={w} />);
+
+    expect(screen.getByRole('heading', { name: 'India vs. Peers' })).toBeInTheDocument();
+    expect(document.querySelector('strong')?.textContent).toBe('India');
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Growth' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '+452%' })).toBeInTheDocument();
+    expect(screen.queryByText(/##|\*\*India\*\*/)).not.toBeInTheDocument();
+  });
+
   it('falls back to a warning for a tool ui_selection.py has no mapping for, without crashing', () => {
     const w = widget({ intent: 'card', source_tool_call: 'some_future_tool:{}', props: {} });
     render(<WidgetRenderer widget={w} />);

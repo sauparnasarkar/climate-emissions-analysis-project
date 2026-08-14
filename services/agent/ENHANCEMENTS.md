@@ -360,3 +360,27 @@ Desktop's behavior for the identical sequence.
 215-country uncapped payload is no longer "the bug," but its size is still real and still a
 `services/mcp-server` concern, not `services/agent`'s — this sub-project's own convention is not
 to modify `services/mcp-server` directly. Worth trimming or paginating there independently.
+
+**Same fix, third live occurrence — this time in `climate-dashboard-react`, caught by the user
+looking at their own screenshot.** The India answer above (real, correct, data-grounded) rendered
+inside the alert-style InlineAlert box, and its markdown (`##` headers, `**bold**`, a GFM table)
+showed as raw literal syntax instead of formatted content. Root cause: `AgentPage.tsx`'s
+`!hasWidgets` check for "show this as an InlineAlert" was written when the only zero-widget shape
+was off_topic/opinion's brief guardrail apology — correction #21's new zero-tool-call path also
+produces zero widgets, but with a substantive answer, and the same check couldn't tell them apart.
+Separately, nothing in the frontend rendered markdown at all, anywhere. Fixed both: `ui_selection_
+node` now builds a `WidgetSpec` (tag `"context_reuse"`, distinct from `general_climate`'s own
+tag even though they render the same) for this path, so it flows through the normal response
+rendering instead of InlineAlert; a new `MarkdownText` component (`react-markdown` + `remark-gfm`)
+renders headers/paragraphs/lists onto this app's existing typography classes, and — after the user
+asked directly why tables weren't using a real grid component — GFM tables specifically render
+through design-system's actual `Table` component (reshaping react-markdown's rendered `<thead>`/
+`<tbody>` tree into `Table`'s `columns`/`rows` props, preserving inline formatting like a bolded
+cell) rather than a plain `<table>`, matching this project's real-components-only principle. The
+user also asked whether plain text (headers/paragraphs) should use design-system's `Typography`
+component instead of raw elements + CSS classes — decided against: no page in this app uses
+`Typography` yet, so adopting it only in this one new file would be an inconsistency, not an
+improvement; every other page (`AboutPage.tsx`, `AgentPage.tsx`, `StarterPromptTile.tsx`) uses the
+same raw-element-plus-class pattern this component now also uses. Verified live, backend and
+frontend deployed together, same India-after-China repro sequence: real "Answer" card, real
+sortable table, no InlineAlert, no raw markdown syntax.

@@ -207,14 +207,39 @@ conversational-agent project that `services/mcp-server` began.
     latter the common case) and sets it as `response_text` directly when `state.tool_calls` is
     empty; a new `route_after_ui_selection` conditional edge sends that case straight to
     `finalize`, skipping `compose_response_node` entirely (it has no widgets to synthesize from
-    and would otherwise overwrite a good answer). No widget is built in this case, matching
-    `general_climate_node`'s existing text-only pattern — nothing new was fetched this turn.
-    **A first draft of this fix pruned all prior-turn tool history in `finalize_node` instead**
-    (via `RemoveMessage`), which also "worked" empirically but for the wrong reason: it prevented
-    the model from ever having old context to reuse, forcing a fresh tool call on every follow-up
-    regardless of whether one was actually needed. Reverted once the reuse behavior was understood
-    to be correct and worth preserving — see `ENHANCEMENTS.md` for the full sequence of both
-    hypotheses.
+    and would otherwise overwrite a good answer). **A first draft of this fix pruned all
+    prior-turn tool history in `finalize_node` instead** (via `RemoveMessage`), which also
+    "worked" empirically but for the wrong reason: it prevented the model from ever having old
+    context to reuse, forcing a fresh tool call on every follow-up regardless of whether one was
+    actually needed. Reverted once the reuse behavior was understood to be correct and worth
+    preserving — see `ENHANCEMENTS.md` for the full sequence of both hypotheses. (Correction #22
+    below adds a widget to this path after all, for a frontend reason unrelated to this point.)
+22. **A widget-free zero-tool-call answer (correction #21) rendered inside `climate-dashboard-
+    react`'s InlineAlert — off_topic/opinion's short guardrail-text component — instead of as a
+    normal response, and with raw markdown syntax showing through.** `AgentPage.tsx`'s
+    `!hasWidgets` check was written when the only zero-widget shape was off_topic/opinion's brief
+    apology text; correction #21 introduced a second, unrelated zero-widget shape (a substantive,
+    often markdown-table-rich answer) that the same check couldn't distinguish. Fixed on both
+    sides: `ui_selection_node` now builds a `WidgetSpec(intent="text", source_tool_call=
+    "context_reuse", ...)` for this path — a distinct tag from `general_climate_node`'s
+    `"general_climate"` (semantically different: this path did reuse tool data at some point;
+    general_climate never calls a tool at all) even though both render identically — so
+    `hasWidgets` is true and the normal response path renders it instead of InlineAlert.
+    Separately, neither `response_text` nor any text widget was ever rendered as markdown
+    anywhere in the frontend; agent_node's largely unconstrained answers on this path routinely
+    include headers/bold/GFM tables (confirmed live), unlike `compose_response_node`'s
+    tightly-scoped plain-prose summaries, so the raw `##`/`**`/`|---|` syntax showed through as
+    literal text. Fixed via a new `MarkdownText` component (`react-markdown` + `remark-gfm`,
+    real React elements throughout, never `dangerouslySetInnerHTML`); headers/paragraphs/lists
+    map onto this app's existing `__s9cmpx-*` typography classes (no page in this app uses
+    design-system's `Typography` component yet, so adopting it only here would be an unexplained
+    inconsistency, not a real improvement), and GFM tables specifically render through
+    design-system's real `Table` component — reshaping react-markdown's already-rendered
+    `<thead>`/`<tbody>` tree into `Table`'s `columns`/`rows` props (preserving inline formatting
+    like a bolded cell) rather than a plain `<table>`, matching this project's "real components,
+    never generated markup" principle. Live-verified end to end (backend + frontend together,
+    same India-after-China repro sequence): the answer renders as a normal card with a real,
+    sortable table — not an alert box, not raw syntax.
 
 ---
 

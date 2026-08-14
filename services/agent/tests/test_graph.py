@@ -243,9 +243,17 @@ async def test_zero_tool_call_turn_reuses_prior_context_and_skips_compose_respon
     turn2 = await turn2_graph.ainvoke({"current_query": "can you elaborate on that?"}, config=THREAD_CONFIG)
 
     assert turn2["tool_calls"] == []
-    assert turn2["widgets"] == []
     assert turn2["response_text"] == "Based on what I already fetched, here's a follow-up answer."
     assert turn2_llm.exhausted  # compose_response_node never ran -- nothing left unconsumed
+
+    # SPEC.md correction #22: a widget is built too, tagged "context_reuse" (not "general_climate"
+    # -- semantically different, even though both render as a single text widget) -- so the
+    # frontend's !hasWidgets check (meant for off_topic/opinion's short guardrail text) doesn't
+    # catch this path's substantive answers and show them inside an alert box.
+    assert len(turn2["widgets"]) == 1
+    assert turn2["widgets"][0].intent == "text"
+    assert turn2["widgets"][0].source_tool_call == "context_reuse"
+    assert turn2["widgets"][0].props["text"] == "Based on what I already fetched, here's a follow-up answer."
 
 
 async def test_data_query_against_real_mcp_server(running_mcp_server):
