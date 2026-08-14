@@ -63,6 +63,21 @@ def test_build_widget_maps_known_tool_to_fixed_intent():
     assert widget.props == {"series": []}
 
 
+def test_build_widget_forecast_comparison_is_chart_not_text():
+    # get_forecast_comparison is the multi-country equivalent of get_forecast and must resolve to
+    # chart/line, not fall through to the ("text", None) default.
+    record = ToolCallRecord(
+        tool_name="get_forecast_comparison",
+        args={"countries": ["China", "India"]},
+        result={"series": []},
+        progress_label="Comparing forecasts for China, India",
+    )
+    widget = build_widget(record, "compare forecasts for China and India")
+    assert widget is not None
+    assert widget.intent == "chart"
+    assert widget.chart_kind == "line"
+
+
 def test_build_country_profile_widgets_card_only():
     record = ToolCallRecord(
         tool_name="get_country_profile", args={"country": "China"}, result={"co2": []}, progress_label="x"

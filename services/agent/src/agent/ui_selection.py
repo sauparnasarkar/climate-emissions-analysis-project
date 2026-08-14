@@ -28,6 +28,7 @@ _TOOL_INTENT: dict[str, tuple[str, str | None]] = {
     "get_scenario_projection": ("chart", "line"),
     "compare_scenarios_across_countries": ("chart", "line"),
     "get_forecast": ("chart", "line"),  # + band CI, both series live in this one widget's props
+    "get_forecast_comparison": ("chart", "line"),  # multi-country equivalent of get_forecast
     "get_model_comparison": ("grid", None),
     "get_gas_composition_by_decade": ("grid", None),
     "get_forecast_summary": ("grid", None),
