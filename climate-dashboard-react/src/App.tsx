@@ -14,18 +14,12 @@ import { AgentPage } from './pages/AgentPage';
 
 // `group` is omitted for About, which is meta-content pinned to the sidebar's existing
 // footerItems slot rather than clustered with either group.
+// services/agent's conversational agent (SPEC.md §1-§2) is no longer a NAV_ITEMS entry -- it's a
+// SidebarNav.persistentAction instead (direct instruction: "persistent, always-visible action"
+// next to the menu toggle, not one page among the others in the list). See the SidebarNav render
+// below for its wiring; the '/ask' route itself is unchanged, still registered in <Routes>.
 const NAV_ITEMS: Array<Omit<SidebarNavItem, 'active'> & { path: string; group?: 'Exploration' | 'Projection' }> = [
   { id: 'overview', label: 'Overview', icon: 'home', path: '/', group: 'Exploration' },
-  // services/agent's conversational agent (SPEC.md §1-§2) -- spans both historical and forecast
-  // questions (§4's starter prompts), so it leads the Exploration group rather than sitting in
-  // either group's middle.
-  // Deliberately not '/agent' -- that path prefix is already claimed by the SSE proxy entry to
-  // services/agent's own backend (vite.config.ts's agentProxyEntry, matching the production
-  // Cloudflare route labs.syena.io/ghg-emissions-analysis/agent). Vite's dev proxy matches by
-  // path prefix, so a page route literally named '/agent' would itself get proxied to the
-  // backend instead of rendering the SPA -- confirmed live (ECONNREFUSED against the
-  // not-yet-running agent process the moment this page route was visited in dev).
-  { id: 'agent', label: 'Ask the Agent', icon: 'send', path: '/ask', group: 'Exploration' },
   { id: 'historical', label: 'Historical Trends', icon: 'document', path: '/historical', group: 'Exploration' },
   { id: 'country-profile', label: 'Country Profile', icon: 'user', path: '/country-profile', group: 'Exploration' },
   { id: 'data-explorer', label: 'Data Explorer', icon: 'search', path: '/data-explorer', group: 'Exploration' },
@@ -155,6 +149,12 @@ function App() {
             const target = NAV_ITEMS.find((item) => item.id === id);
             if (target) navigate(target.path);
           }}
+          persistentAction={{
+            icon: 'sparkle',
+            label: 'Ask the Agent',
+            onClick: () => navigate('/ask'),
+            active: location.pathname === '/ask',
+          }}
         />
         <main
           id="main-content"
@@ -170,6 +170,13 @@ function App() {
         >
           <Routes>
             <Route path="/" element={<OverviewPage />} />
+            {/* Deliberately not '/agent' -- that path prefix is already claimed by the SSE proxy
+                entry to services/agent's own backend (vite.config.ts's agentProxyEntry, matching
+                the production Cloudflare route labs.syena.io/ghg-emissions-analysis/agent).
+                Vite's dev proxy matches by path prefix, so a page route literally named '/agent'
+                would itself get proxied to the backend instead of rendering the SPA -- confirmed
+                live (ECONNREFUSED against the not-yet-running agent process the moment this page
+                route was visited in dev). */}
             <Route path="/ask" element={<AgentPage />} />
             <Route path="/historical" element={<HistoricalTrendsPage />} />
             <Route path="/country-profile" element={<CountryProfilePage />} />

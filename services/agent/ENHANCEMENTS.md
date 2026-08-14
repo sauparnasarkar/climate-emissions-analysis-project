@@ -437,3 +437,36 @@ collapsed panel stays in the DOM (`aria-hidden`/`inert`, not unmounted); rewritt
 Live-verified end to end on the real deployed app: click-to-expand (landing and docked),
 prefill-then-focus, panel staying open through an edit, collapse on submit (both the Enter-key and
 instant-submit-tile paths), collapse on click-away, and the unified bar width.
+
+**Nav item replaced with a persistent sidebar action, requested directly (not a bug fix) --
+cross-repo change.** User was considering a left-clipping bug in the sidebar, then asked to
+handle a different change first: "Ask the Agent" moved out of `NAV_ITEMS` (one page among the
+Exploration group) into a persistent, always-visible icon next to the sidebar's menu toggle. This
+needed a real capability `design-system`'s `SidebarNav` didn't have -- a new `persistentAction`
+prop (design-system PR #46), plus a new `sparkle` icon (four-point twinkle star, the standard
+AI/generative-entry-point convention, not a repurposed existing icon). Two real bugs caught and
+fixed live during this work, neither from a test:
+
+- The row variant's active-state background silently failed to apply -- a hardcoded inline
+  `background: 'none'` was overriding the CSS class's own `background-color` rule regardless of
+  class order (inline styles always win). The class itself *was* applying correctly (confirmed
+  via direct DOM inspection: `className` had the `--active` modifier, `getComputedStyle` even
+  showed the *wrong* background), which is exactly the kind of bug a screenshot alone doesn't
+  reveal -- it looks identical to "the class isn't applying" from the outside.
+- The mobile floating variant's active color referenced a CSS custom property
+  (`--__s9cmpx-interactive-primary-default`) that doesn't exist anywhere in this theme --
+  design-system's own "active"/"primary" styling is scoped to component-owning classes (e.g.
+  `Button`'s own `--__s9cmpx-c-button-primary-background-color-default`), not flat global tokens.
+  Fixed by reusing the real `Button` component instead of guessing colors a second time.
+
+`App.tsx`'s `NAV_ITEMS` no longer has an `'agent'` entry; the `/ask` route itself is unchanged
+(still registered in `<Routes>`), and its "why not `/agent`" comment moved from the now-deleted
+nav entry to the route registration, where the reasoning still applies. `App.tsx` has no direct
+test file (never has, in this codebase) and the new `persistentAction` mechanism is already
+thoroughly covered by design-system's own `SidebarNav` stories, so this wiring (simple
+`navigate('/ask')` + `location.pathname === '/ask'`) was verified live rather than adding a new
+top-level test harness pattern unilaterally. Live-verified: persistent in both expanded and
+collapsed-rail states, active background correctly present on `/ask` and absent elsewhere.
+
+The left-clipping bug itself is still open -- deferred at the user's own request to handle this
+nav change first.
