@@ -66,6 +66,22 @@ design changes here, not just this file.
   plain-string shape into the same result. Only ever verify this kind of adapter-level shape
   against a real `services/mcp-server` subprocess, not a hand-built fake tool — see `SPEC.md`
   "Corrections applied" #10 for how this one was actually caught.
+- **Progress events come from `graph.astream(..., stream_mode="updates")`, not a callback.**
+  `graph.py` has no `on_progress` parameter — it was removed after Step 2's design didn't survive
+  contact with Step 3's serving shape (one graph built at startup, reused across every request; a
+  callback bound at construction time would leak between concurrent requests). `server.py`'s
+  `stream_query` reads each `ToolCallRecord.progress_label` straight off the `tools` node's
+  per-superstep update instead. See `SPEC.md` "Corrections applied" #12.
+- **The checkpointer's serde must register `ToolCallRecord`/`WidgetSpec`** — a bare
+  `MemorySaver()` logs (and a future `langgraph` version will hard-fail on) deserializing
+  `tool_cache`'s values. Always build checkpointers via `graph.py`'s `_default_checkpointer()`,
+  never a bare `MemorySaver()`, if you ever need a second one (e.g. in a test).
+- **`thread_id` is a real input-validation boundary, not a UUID nicety** — `server.py`'s
+  `/query` is public and unauthenticated, and `MemorySaver` never evicts. Any change to
+  `_validate_and_register_thread_id` needs a direct unit test on the cap/registration behavior,
+  not just an HTTP-level test — the one real bug found here (freshly-minted ids skipping
+  registration entirely) was invisible at the HTTP level and only caught by testing the function
+  directly. See `SPEC.md` "Corrections applied" #14.
 - **Scope:** classical build discipline, same as the rest of this repo — no scope creep beyond
   `SPEC.md`'s node catalog and UI-intent schema.
 

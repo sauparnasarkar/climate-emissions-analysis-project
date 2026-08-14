@@ -13,13 +13,22 @@ with a *partial* update dict (e.g. `{"current_query": "..."}"`, not a fresh `Age
 is what makes that persistence actually work -- passing a full fresh model instance overwrites
 every field, including `tool_cache`, which SPEC.md §7 requires to survive across turns. See
 `tests/test_graph.py`'s persistence test for the empirical proof of both halves of this.
+
+Progress events (SPEC.md §5) are read from `graph.astream(..., stream_mode="updates")`, not a
+callback baked into `tools_node` at build time -- a callback bound once at graph-construction
+time would have every concurrent request's progress interleave into whichever caller's queue
+was bound first, since Step 3's server builds and reuses one graph across all requests. Each
+`ToolCallRecord` already carries its own `progress_label`, so the `tools` node's per-superstep
+update dict is enough on its own; `server.py` does the diffing against what it's already
+streamed. This does mean a label surfaces after that tool call finishes, not before it starts
+(`stream_mode="updates"` emits post-node) -- acceptable per SPEC.md §5's own "running estimate"
+framing, and far simpler than `astream_events`' pre-execution `on_tool_start` hook.
 """
 
 from __future__ import annotations
 
 import functools
 import json
-from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -27,6 +36,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
@@ -48,8 +58,6 @@ from .state import AgentState, ToolCallRecord, WidgetSpec
 from .ui_selection import build_country_profile_widgets, build_widget, is_error_result
 
 MAX_TOOL_CALLS_PER_TURN = 6  # SPEC.md §10 -- generous headroom, tune after real usage
-
-ProgressCallback = Callable[[str], None]
 
 
 class _Classification(BaseModel):
@@ -174,7 +182,6 @@ async def tools_node(
     state: AgentState,
     *,
     mcp_tools: list[BaseTool],
-    on_progress: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     tools_by_name = {tool.name: tool for tool in mcp_tools}
     last = state.messages[-1]
@@ -201,9 +208,13 @@ async def tools_node(
 
         key = cache_key(call["name"], call["args"])
         if key in tool_cache:
+            # Note: the record kept here retains its original progress_label (not re-prefixed
+            # "Reusing: ..." per SPEC.md §9's pseudocode) -- server.py's SSE progress stream reads
+            # labels straight off ToolCallRecord via astream(stream_mode="updates"), with no live
+            # callback to decorate per-instance (see this module's docstring). A cache hit's
+            # progress event is therefore indistinguishable from a fresh fetch's; the functional
+            # guarantee (no re-fetch, still counts toward the §10 cap) is unaffected.
             record = tool_cache[key]
-            if on_progress:
-                on_progress(f"Reusing: {record.progress_label}")
             is_error = isinstance(record.result, dict) and "error" in record.result
             content = record.result["error"] if is_error else json.dumps(record.result)
             new_messages.append(
@@ -219,8 +230,6 @@ async def tools_node(
                 )
                 new_messages.append(ToolMessage(content=error_text, tool_call_id=call["id"], status="error"))
             else:
-                if on_progress:
-                    on_progress(label)
                 tool_message: ToolMessage = await tool.ainvoke(call)
                 result = _tool_result_from_message(tool_message)
                 record = ToolCallRecord(tool_name=call["name"], args=call["args"], result=result, progress_label=label)
@@ -273,11 +282,22 @@ async def finalize_node(state: AgentState) -> dict[str, Any]:
     return {"messages": [AIMessage(content=summary)]}
 
 
+def _default_checkpointer() -> MemorySaver:
+    # allowed_msgpack_modules is required, not cosmetic: without it, langgraph's default serde
+    # logs "Deserializing unregistered type ... will be blocked in a future version" every time
+    # tool_cache (dict[str, ToolCallRecord]) round-trips through a checkpoint, and a future
+    # langgraph version turns that into a hard failure. Confirmed empirically that both
+    # ToolCallRecord and WidgetSpec need registering -- both flow through persisted state.
+    serde = JsonPlusSerializer(
+        allowed_msgpack_modules=[("agent.state", "ToolCallRecord"), ("agent.state", "WidgetSpec")]
+    )
+    return MemorySaver(serde=serde)
+
+
 async def build_graph(
     llm: BaseChatModel | None = None,
     mcp_tools: list[BaseTool] | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
-    on_progress: ProgressCallback | None = None,
 ) -> CompiledStateGraph:
     """Builds and compiles the full graph. `mcp_tools` is fetched once here (async, hence this
     factory is async too) rather than inside `agent_node`/`tools_node` per invocation -- fetching
@@ -301,7 +321,7 @@ async def build_graph(
     graph.add_node("opinion", functools.partial(opinion_node, llm=llm))
     graph.add_node("general_climate", functools.partial(general_climate_node, llm=llm))
     graph.add_node("agent", functools.partial(agent_node, llm=llm, mcp_tools=mcp_tools))
-    graph.add_node("tools", functools.partial(tools_node, mcp_tools=mcp_tools, on_progress=on_progress))
+    graph.add_node("tools", functools.partial(tools_node, mcp_tools=mcp_tools))
     graph.add_node("call_cap_notice", call_cap_notice_node)
     graph.add_node("ui_selection", functools.partial(ui_selection_node, llm=llm))
     graph.add_node("compose_response", functools.partial(compose_response_node, llm=llm))
@@ -327,4 +347,4 @@ async def build_graph(
     graph.add_edge("general_climate", "finalize")
     graph.add_edge("finalize", END)
 
-    return graph.compile(checkpointer=checkpointer or MemorySaver())
+    return graph.compile(checkpointer=checkpointer or _default_checkpointer())

@@ -4,10 +4,9 @@ LangGraph agent that answers climate-emissions questions by calling `services/mc
 tools and rendering results as real design-system components. See [`SPEC.md`](SPEC.md) for the
 full design and [`CLAUDE.md`](CLAUDE.md) for agent-facing conventions.
 
-**Status:** Steps 1–2 complete — state schema, MCP client wiring, bare FastAPI app, and the full
-LangGraph node catalog (guardrails, agent/tools loop, call-count guard, tool-call cache, UI
-intent selection). Steps 3–5 (SSE streaming, frontend integration, security review) not yet
-built.
+**Status:** Steps 1–3 complete — state schema, MCP client wiring, the full LangGraph node catalog
+(guardrails, agent/tools loop, call-count guard, tool-call cache, UI intent selection), and the
+real `POST /query` SSE endpoint. Steps 4–5 (frontend integration, security review) not yet built.
 
 ## Dev setup
 
@@ -40,4 +39,7 @@ agent connects to it unauthenticated over localhost, matching the co-located dep
 ANTHROPIC_API_KEY=... uvicorn agent.server:app --port 8766
 ```
 
-No graph or query endpoint is wired yet — only `/health`.
+`POST /query` (`{"query": "...", "thread_id": null}`) streams progress events and a final
+`result` event over SSE. Omit `thread_id` on the first query of a new conversation — the server
+mints and returns one in the `result` event; pass it back on subsequent queries in the same
+conversation to keep `tool_cache`/`messages` history (SPEC.md §7/§9).

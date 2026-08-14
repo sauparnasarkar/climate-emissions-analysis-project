@@ -88,6 +88,57 @@ conversational-agent project that `services/mcp-server` began.
     in both places, plus a regression test pinning the correct `chart`/`line` mapping. A reminder
     that a table copied from an external design doc still needs to be cross-checked against the
     real tool catalog, not just internally consistent with itself.
+12. **Progress events (§5) are read from `graph.astream(..., stream_mode="updates")` in
+    `server.py`, not a callback threaded into `tools_node`.** The original Step 2 design (an
+    `on_progress` callback baked into the graph at `build_graph()` time) doesn't survive contact
+    with Step 3's actual serving shape: the graph is built once at startup and reused across
+    every request, so a callback bound once at construction time would have concurrent requests'
+    progress interleave into whichever caller's queue was bound first. `ToolCallRecord` already
+    carries its own `progress_label`, so `server.py`'s `stream_query` reads it straight off the
+    `tools` node's per-superstep update, diffed against what it's already streamed (that update
+    always carries the full accumulated `tool_calls` list, not just the newest entries — no
+    reducer on that field). One consequence: a label surfaces after that tool call finishes, not
+    before it starts (`stream_mode="updates"` emits post-node), and a cache-hit's progress event
+    is no longer distinguishable from a fresh fetch's (§9's pseudocode's "Reusing: ..." prefix
+    has no live callback to attach to anymore) — both acceptable per §5's own "running estimate"
+    framing, not a functional regression.
+13. **The checkpointer needs `allowed_msgpack_modules` registered, not just a bare
+    `MemorySaver()`.** `tool_cache: dict[str, ToolCallRecord]` round-tripping through a
+    checkpoint logged "Deserializing unregistered type ... will be blocked in a future version"
+    during Step 2's own persistence verification — filtered out as noise at the time, but it's
+    exactly the field §7 requires to persist, so it would have broken outright on a future
+    `langgraph` upgrade. `graph.py`'s `_default_checkpointer()` registers both `ToolCallRecord`
+    and `WidgetSpec` explicitly.
+14. **A client-supplied `thread_id` is a real input-validation boundary on a public,
+    unauthenticated endpoint, not just a UUID nicety.** `MemorySaver` holds full `messages`
+    history and `tool_cache` per thread with no eviction, so `server.py` rejects any `thread_id`
+    that isn't a well-formed UUID (400) and bounds the number of distinct threads the process
+    will ever track (`MAX_LIVE_THREADS`, 503 once full) — a coarse V1 stopgap, not real LRU/TTL
+    eviction, explicitly flagged for Step 5's security review rather than silently deferred.
+    **A real bug caught by testing this path directly**: the first version's `None`-input branch
+    (minting a fresh id for a brand-new conversation — the common case, since every conversation's
+    *first* query takes it) returned early without ever registering the minted id or checking the
+    cap, meaning the cap only ever bounded client-supplied ids on later queries in an existing
+    thread, never the primary path. Fixed and pinned with a regression test
+    (`tests/test_server_validation.py`'s `test_freshly_minted_thread_id_is_also_subject_to_the_cap`).
+15. **`server.py`'s `DEPLOY_BASE_PATH` handling mirrors `api/main.py`'s
+    `StripDeployPrefixMiddleware`, not `services/mcp-server`'s `_streamable_http_settings`.**
+    Both are real "third hand-mirrored copy" precedents in this repo, but they're different
+    mechanisms for different transports — `api/`'s is the direct precedent for a FastAPI app
+    (this one); `mcp-server`'s passes a path into the MCP SDK's own transport layer, which
+    doesn't apply here.
+16. **`stream_query` needs a terminal `error` SSE event on an unhandled exception** — Copilot's
+    review of the Step 3 PR caught that a `graph.astream()`/`graph.aget_state()` failure after
+    the SSE stream had already started (HTTP 200 already sent) tore the connection down with no
+    machine-readable signal, leaving the client with a silently truncated stream. Fixed with a
+    `try/except Exception` wrapping the generator body, yielding
+    `{"event": "error", "data": {"message": str(exc)}}`. Also added `max_length=4096` on
+    `QueryRequest.query` — the `MAX_LIVE_THREADS` cap (#14) bounds thread *count*, not
+    per-thread payload size, and `MemorySaver` never evicts either way. **Flagged, not fixed,
+    for Step 5**: this yields the raw `str(exc)` of *any* exception, broader than `api/`'s own
+    convention of surfacing a specific, curated exception `.message` on a 503 — reconsider
+    whether error text needs sanitizing/genericizing before it reaches a public,
+    unauthenticated client.
 
 ---
 

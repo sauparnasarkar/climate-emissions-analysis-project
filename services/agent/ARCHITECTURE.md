@@ -5,7 +5,7 @@ architecturally-significant changes (new node, new data flow, new deploy pattern
 history log (`ENHANCEMENTS.md`) or a design rationale doc (`SPEC.md`). Read `SPEC.md` first for
 *why*; this is *what exists and how the pieces connect*.
 
-**Status: Step 2 of 5 complete.** Sections below marked *(planned, Step N)* describe target
+**Status: Step 3 of 5 complete.** Sections below marked *(planned, Step N)* describe target
 shape from `SPEC.md`, not yet-built code — kept here rather than only in `SPEC.md` so this
 document stays the single "what actually connects to what" reference as later steps land.
 
@@ -48,13 +48,20 @@ co-located agent never leaves the machine, so it's the same B3 trust boundary
 | `src/agent/progress_labels.py` | `progress_label(tool_name, args)` — one builder function per real tool (not `.format()` templates; every tool has an optional arg a bare template can't handle safely). |
 | `src/agent/prompts.py` | Every fixed/system prompt (`SPEC.md` §6's off-topic copy, guardrail classifier, opinion/general_climate/agent/ui_selection/compose_response system prompts). |
 | `src/agent/ui_selection.py` | The fixed §3 tool→intent lookup, `get_top_emitters`'s bar/choropleth/treemap keyword heuristic (§3.1), and the `get_country_profile` card/card+chart widget builder. `WidgetSpec.props` carries each tool's raw result through unshaped — Step 4's renderer builds the real per-component prop shape. |
-| `src/agent/graph.py` | The full node catalog (`SPEC.md` §8): `guardrail_router` → `off_topic` / `opinion` / `general_climate` / `agent`↔`tools` (looped, `call_cap_notice` on cap trip) → `ui_selection` → `compose_response` → `finalize`. `build_graph()` is async (fetches MCP tools once), takes injectable `llm`/`mcp_tools`/`checkpointer`/`on_progress`, and requires a checkpointer + `thread_id` for cross-turn `tool_cache`/`messages` persistence to work at all — see `SPEC.md` "Corrections applied" #7. |
+| `src/agent/graph.py` | The full node catalog (`SPEC.md` §8): `guardrail_router` → `off_topic` / `opinion` / `general_climate` / `agent`↔`tools` (looped, `call_cap_notice` on cap trip) → `ui_selection` → `compose_response` → `finalize`. `build_graph()` is async (fetches MCP tools once), takes injectable `llm`/`mcp_tools`/`checkpointer`, and requires a checkpointer + `thread_id` for cross-turn `tool_cache`/`messages` persistence to work at all — see `SPEC.md` "Corrections applied" #7. `_default_checkpointer()` registers `ToolCallRecord`/`WidgetSpec` for msgpack (#13). No `on_progress` callback (removed in Step 3, #12) — progress is read from `graph.astream(..., stream_mode="updates")` by whichever caller is running the graph. |
 
-*(planned, Step 3)* `server.py` gains a `POST` query endpoint that runs the compiled graph and
-streams `{progress events..., final: {widgets, response_text, scope_notes, suggested_prompts}}`
-over SSE. `DEPLOY_BASE_PATH`-aware path prefixing, mirroring `api/main.py`'s
-`_normalize_deploy_prefix` / `services/mcp-server`'s `_streamable_http_settings()` — a third
-independently-owned copy of the same function, per this repo's established convention.
+`server.py`'s `POST /query` runs the compiled graph (injected via the `get_graph` FastAPI
+dependency, resolved from `app.state.graph` in production, overridable in tests) and streams
+SPEC.md §5's progress events, then one final `result` event
+(`{thread_id, widgets, response_text, scope_notes, suggested_prompts, percent: 100}`), over SSE
+(`sse_starlette.EventSourceResponse`). `DEPLOY_BASE_PATH`-aware path prefixing mirrors
+`api/main.py`'s `StripDeployPrefixMiddleware` directly (the correct precedent for a FastAPI app
+— `services/mcp-server`'s `_streamable_http_settings()` is a different mechanism for a
+different transport, despite both being "third hand-mirrored copy" cases, #15). `thread_id` is
+either client-supplied (validated as a well-formed UUID) or server-minted on a client's first
+query; either way it's registered against a coarse `MAX_LIVE_THREADS` cap (#14) — a real
+input-validation boundary on this public, unauthenticated endpoint, not a nicety, since
+`MemorySaver` never evicts.
 
 ## Trust boundaries
 
