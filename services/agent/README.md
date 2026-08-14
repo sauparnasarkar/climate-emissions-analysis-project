@@ -4,9 +4,10 @@ LangGraph agent that answers climate-emissions questions by calling `services/mc
 tools and rendering results as real design-system components. See [`SPEC.md`](SPEC.md) for the
 full design and [`CLAUDE.md`](CLAUDE.md) for agent-facing conventions.
 
-**Status:** Step 1 (backend scaffold + MCP client) complete — state schema, MCP client wiring,
-bare FastAPI app. Steps 2–5 (graph core, SSE streaming, frontend integration, security review)
-not yet built.
+**Status:** Steps 1–2 complete — state schema, MCP client wiring, bare FastAPI app, and the full
+LangGraph node catalog (guardrails, agent/tools loop, call-count guard, tool-call cache, UI
+intent selection). Steps 3–5 (SSE streaming, frontend integration, security review) not yet
+built.
 
 ## Dev setup
 

@@ -48,6 +48,39 @@ conversational-agent project that `services/mcp-server` began.
    built with an injectable LLM seam (`build_graph(llm=...)` / `get_llm()`), and unit tests for
    graph routing use a fake/stub LLM. Exactly one real-call smoke test exists
    (`tests/test_llm_smoke.py`), skipped automatically when `ANTHROPIC_API_KEY` is unset.
+7. **A checkpointer + stable `thread_id` is required, not optional, for §7/§9's persistence to
+   actually work.** `build_graph()` defaults to an in-process `MemorySaver` — this service is a
+   single, unreplicated process, so losing in-flight conversations on restart is acceptable,
+   matching this project's "no server-side caching beyond what's explicit" bias. Callers must
+   invoke the compiled graph with a **partial update dict** (e.g. `{"current_query": "..."}"`),
+   not a fresh `AgentState(...)` instance, under a stable
+   `config={"configurable": {"thread_id": ...}}` — passing a full model instance overwrites
+   every channel, including `tool_cache`, on every turn, silently defeating the whole point of
+   persisting it. Confirmed empirically (`tests/test_graph.py`'s
+   `test_turn_reset_fields_and_thread_scoped_cache_persist`) before this became load-bearing
+   across three steps. Step 3's SSE endpoint mints/holds this `thread_id` per browser session;
+   Step 4's frontend carries it across queries in the docked state.
+8. **`agent`/`tools` process a whole batch of parallel tool calls per step, not one at a time.**
+   §9's pseudocode shows a single `call`, but this isn't a simplification available to skip:
+   Anthropic requires every `tool_use` block in an assistant message to have a matching
+   `tool_result` in the very next turn, and a model routinely requests several tools in one
+   response. `tools_node` iterates every entry in the last message's `tool_calls`; a call that
+   the §10 cap blocks mid-batch still gets a synthetic `status="error"` `ToolMessage` (never a
+   missing `tool_result`), and the guard's `scope_notes` note is written by a dedicated
+   `call_cap_notice` node between `agent`'s conditional edge and `ui_selection` — a conditional-
+   edge function can only choose a route, a state write inside one is silently discarded.
+9. **`WidgetSpec.props` carries each tool's raw result through unshaped in Step 2.** Building
+   the exact per-component prop shape (`SyChart`'s `locations`/`colorValues`, `DataTable`'s
+   `columns`, etc.) is Step 4's job, once a renderer exists to consume and be tested against it —
+   nothing in Step 2 exercises that shape, so it isn't built yet.
+10. **A real MCP tool's successful/failed `ToolMessage.content` is a list of content blocks,
+    not a plain string.** `langchain_mcp_adapters`'s wire-protocol conversion wraps a tool's
+    result as `[{"type": "text", "text": "<json>"}]` (and the same shape for an error's
+    message), unlike a locally-built `StructuredTool.from_function`'s plain-string content. Only
+    surfaced by testing against a real `services/mcp-server` subprocess
+    (`tests/test_graph.py`'s `test_data_query_against_real_mcp_server`) — a suite built only
+    against local fake tools would never have caught this. `graph.py`'s
+    `_tool_result_from_message` unwraps both shapes into the same raw dict/string result.
 
 ---
 
@@ -325,9 +358,19 @@ hypothetical.
 
 1. Multi-widget layout specifics (exact responsive grid breakpoints for 2 vs. 3+ widgets) — not
    yet pinned down, deferred to Step 4 frontend implementation.
-2. `ui_selection`'s `KpiStat`-vs-`chart` judgment call — implementation not yet decided: a
-   dedicated structured-output call, or folded into the same call that does the deterministic
-   template lookups for uniformity. Either works; not blocking.
+2. ~~`ui_selection`'s `KpiStat`-vs-`chart` judgment call — implementation not yet decided.~~
+   **Resolved in Step 2**: a dedicated `with_structured_output` call (`_CountryProfileSelection`,
+   `graph.py`'s `ui_selection_node`), separate from the fixed §3 lookup table's deterministic
+   path — kept the two paths distinct rather than folding them together, since only this one
+   tool needs an LLM call at all and mixing it into a shared call would make every other tool's
+   widget-building pay for a judgment it doesn't need.
 3. `PromptBar`'s landing→docked transition animation — no existing shared motion token found in
    the design system as of this scoping pass; flagged for a future design-system session.
 4. Session-wide cumulative call/cost counter (§10) — deferred pending real Stage 2 usage data.
+5. `get_top_emitters`'s bar/choropleth/treemap pick (§3.1) is a keyword heuristic on
+   `current_query` (`ui_selection.py`'s `select_top_emitters_chart_kind`), not an LLM call —
+   matches §8's claim that only `get_country_profile` needs one. Verified against both starter
+   prompts that mention "forecast" (§4): a single forecasted metric stays `bar`; only a query
+   naming *both* a current-state concept and a forecast concept together becomes `treemap`.
+   Revisit if real queries turn out to need finer-grained intent detection than keyword matching
+   provides.
