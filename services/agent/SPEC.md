@@ -147,15 +147,16 @@ conversational-agent project that `services/mcp-server` began.
     any other non-geographic query); `WidgetSpec.chart_kind`'s `Literal` no longer includes
     `"treemap"`. A genuine dual-metric treemap is deferred to §12 open item 5 — it needs a merged
     result from two tool calls, which `ui_selection` doesn't build.
-18. **`PromptBar` has no imperative focus API, so the §4 starter-prompt "prefill and focus"
-    behavior only prefills.** `PromptBar`'s confirmed real prop surface (§2) is `value`,
+18. **Resolved (was: `PromptBar` has no imperative focus API, so the §4 starter-prompt "prefill
+    and focus" behavior only prefills).** `PromptBar`'s prop surface at the time was `value`,
     `onChange`, `onSubmit`, `variant`, `placeholder`, `loading`, `disabled`, `actions`,
-    `ariaLabel`, `className` — no ref forwarding, no exposed `.focus()`. `AgentPage.tsx`'s
-    `handleStarterClick` sets `value` to the templated prompt text on click (the user still
-    types over it after clicking into the textarea themselves) rather than adding a DOM-query
-    workaround keyed to `design-system`'s internal CSS class names, which this repo's own
-    against-hacks convention rules out. Revisit if `design-system` ever exposes a real focus
-    handle on `PromptBar`.
+    `ariaLabel`, `className` — no ref forwarding, no exposed `.focus()`; `AgentPage.tsx`'s
+    `handleStarterClick` could only set `value`, not move focus, and this repo's own
+    against-hacks convention ruled out a DOM-query workaround keyed to `design-system`'s internal
+    CSS class names. Fixed properly instead of worked around: `PromptBar` now exposes its
+    textarea via `React.forwardRef<HTMLTextAreaElement, ...>` (design-system PR #44, same
+    pattern `Textarea` itself already used) — see §4's current text for how `handleStarterClick`
+    uses it.
 19. **`stream_query`'s terminal `error` event no longer surfaces `str(exc)` directly (Step 5,
     resolving #16's own "flagged, not fixed" item).** A Step 5 security review (automated
     vulnerability scan + independent verification, not just the earlier Copilot pass) confirmed
@@ -336,17 +337,22 @@ viewport (a real 4-widget China turn laying out 2×2, not 4-across) and a 500px 
 ## 4. Starter prompts
 
 Four prompts, rendered as an interactive `Tile` grid (kicker category label, prompt text, arrow
-icon — via the new `StarterPromptTile` composition, see "Corrections applied" #3) on the landing
-screen, and again **between turns** — once a response has landed and the docked input is idle
-and empty, before the user has typed or picked anything for the next query (direct instruction,
-added after Step 4 shipped). `PromptBar` exposes no focus/blur hook, so "the user is about to
-enter another prompt" is approximated as "docked input idle and empty," rather than a real focus
-event: it reappears the instant a response finishes (assuming nothing's been typed yet), and
-disappears again the moment the user either starts typing their own follow-up or picks a prompt
-from the grid (prefill sets the input value; immediate-submit starts loading — both synchronously
-override the idle/empty condition, so there's no flash of the grid reappearing between a click and
-the resulting query actually starting). `AgentPage.tsx`'s `StarterPromptsGrid` is the one grid
-definition reused for both placements.
+icon — via the `StarterPromptTile` composition, see "Corrections applied" #3), in a fixed 2x2
+layout (`starterPromptColumnCount`, same "explicit count, not auto-fit" reasoning as the response
+widget grid, §3.2), font sizes reduced a step (`__s9cmpx-body4` for the prompt text) since the
+grid now sits inside a compact panel rather than a full-page section (direct instruction).
+
+**Lives inside `PromptBar` itself, not as a separate element below it** (direct instruction,
+superseding an earlier "idle and empty between turns" approximation): passed as `PromptBar`'s
+`expandedContent` prop (design-system PR #44), a panel that grows from inside the bar's own
+rounded border on focus and collapses on blur-away or submit — see design-system's own
+`PromptBar.stories.tsx` for the interaction contract (`relatedTarget`-based blur handling so a
+tile click doesn't collapse the panel out from under itself; dual collapse paths for
+Enter/Send-triggered vs. externally-triggered submissions). Landing's `autoFocus` means the grid
+is visible immediately on first load, same as before; for the docked bar (no autofocus), the user
+clicks in to reveal it — a real focus-driven interaction now, not an approximated state machine.
+`AgentPage.tsx` no longer tracks "dismissed"/"idle and empty" itself at all; visibility is fully
+owned by `PromptBar`.
 
 | Category | Prompt |
 |---|---|
@@ -358,11 +364,21 @@ definition reused for both placements.
 The two country-specific prompts prefill `PromptBar`'s value with the concrete prompt text (no
 longer a `<Country>` placeholder to type over — swapped to real countries, China/India, on direct
 instruction) and focus it, so the user can submit as-is or edit it, e.g. to a different country.
-No separate country picker. The two forecast prompts have no placeholder and submit immediately
-on click.
+No separate country picker. Focus now genuinely works, resolving "Corrections applied" #18's
+previously-flagged gap: `PromptBar` exposes its textarea via `forwardRef`
+(`React.forwardRef<HTMLTextAreaElement, ...>`, same pattern `Textarea` itself already used,
+design-system PR #44), so `handleStarterClick` calls `promptBarRef.current?.focus()` directly
+after prefilling. The two forecast prompts have no placeholder and submit immediately on click.
+
+`PromptBar`'s `landing`/`docked` variants also no longer differ in width (design-system PR #45)
+— `landing` previously capped at 540px, centered, while `docked` spanned its full container,
+so the bar visibly resized between "before the first submit" and "after" (direct instruction to
+make them match; no documented rationale existed for 540 specifically).
 
 The same `StarterPromptTile` composition is reused for the opinion-guardrail's suggested reframes
-(§6) — one clickable-prompt-card pattern used in two places, not two.
+(§6) — one clickable-prompt-card pattern used in two places, not two. Those reframe tiles are
+unaffected by this section -- they render inline with their own result section, not inside
+`PromptBar`.
 
 ## 5. Progress indicator
 

@@ -69,26 +69,24 @@ describe('AgentPage', () => {
     expect(screen.getAllByRole('button', { name: /Send/ })).toHaveLength(1);
   });
 
-  it('sizes the starter-prompt grid so tracks shrink below 280px on a narrow viewport', () => {
-    // jsdom has no real layout engine, so this can't measure actual overflow the way a real
-    // browser does -- confirmed live on a real narrow viewport (labs.syena.io/ghg-emissions-
-    // analysis/ask, 500px window): plain `minmax(280px, 1fr)` refuses to shrink below 280px per
-    // auto-fit track, which pushed <main> to 968px wide with nothing to constrain it back to the
-    // viewport. `minmax(min(280px, 100%), 1fr)` fixed it (484px). This test pins the CSS pattern
-    // so a future edit can't silently revert to the overflowing literal.
+  it('lays out the four starter prompts in a fixed 2x2 grid, not auto-fit', () => {
+    // Now that this grid lives inside PromptBar's own expandedContent (a fixed-width container),
+    // not a full-page one, it targets an explicit 2/3-column count the same way the response
+    // widget grid does, rather than auto-fit reflowing based on available width.
     stubStream({});
-    render(<AgentPage />);
-    // StarterPromptTile's prompt text sits in a <span>, inside the tile's own inner flex column
-    // div, inside the Tile's own root div, inside the grid -- three hops up from the text node.
-    const promptText = screen.getByText('What are the top 10 forecasted emitters in 2040?');
-    const tileInnerColumn = promptText.closest('div');
-    const tileRoot = tileInnerColumn?.parentElement;
-    const grid = tileRoot?.parentElement;
+    const { container } = render(<AgentPage />);
+
+    const grid = container.querySelector('.starter-prompt-grid') as HTMLElement;
     expect(grid).not.toBeNull();
-    expect((grid as HTMLElement).style.gridTemplateColumns).toContain('min(280px, 100%)');
+    expect(grid.style.gridTemplateColumns).toBe('repeat(2, 1fr)');
+    expect(grid.children).toHaveLength(4);
   });
 
-  it('prefills (but does not submit) a country-specific starter prompt on click', async () => {
+  it('prefills a country-specific starter prompt on click, focuses the textarea, and does not submit', async () => {
+    // The starter grid now lives inside PromptBar's own expandedContent (design-system PR #44) --
+    // clicking a tile moves focus there first, so this also confirms the panel doesn't collapse
+    // out from under the click, and that the new ref-based focus() call (closing "Corrections
+    // applied" #18) actually lands the user in the textarea afterward, not stuck on the tile.
     const submit = vi.fn();
     stubStream({ submit });
     const { default: userEvent } = await import('@testing-library/user-event');
@@ -98,7 +96,9 @@ describe('AgentPage', () => {
     await user.click(screen.getByText("How has India's emissions grown compared to other countries?"));
 
     expect(submit).not.toHaveBeenCalled();
-    expect(screen.getByDisplayValue("How has India's emissions grown compared to other countries?")).toBeInTheDocument();
+    const textarea = screen.getByDisplayValue("How has India's emissions grown compared to other countries?");
+    expect(textarea).toBeInTheDocument();
+    expect(textarea).toHaveFocus();
   });
 
   it('submits immediately on a forecast starter prompt click (no placeholder to type over)', async () => {
@@ -113,40 +113,23 @@ describe('AgentPage', () => {
     expect(submit).toHaveBeenCalledWith('What are the top 10 forecasted emitters in 2040?', null);
   });
 
-  it('shows a labeled Progress bar while loading, docks the PromptBar, and hides the starter grid', () => {
+  it('shows a labeled Progress bar and docks the PromptBar while loading', () => {
     stubStream({ loading: true, progress: { label: 'Fetching historical emissions for China', percent: 30 } });
     render(<AgentPage />);
 
     expect(screen.getByText('Fetching historical emissions for China')).toBeInTheDocument();
     expect(screen.getByText('30%')).toBeInTheDocument();
-    expect(screen.queryByText('What are the top 10 forecasted emitters in 2040?')).not.toBeInTheDocument();
+    // Docked never autofocuses (unlike landing), and loading itself also collapses the panel --
+    // queryByRole, unlike queryByText, correctly excludes the aria-hidden tiles still in the DOM
+    // (SPEC.md: the collapsed panel is aria-hidden/inert, not unmounted, per design-system's own
+    // Drawer precedent).
+    expect(screen.queryByRole('button', { name: /forecasted emitters/ })).not.toBeInTheDocument();
   });
 
-  it('shows the starter-prompt grid again once a response lands after the loading state', () => {
-    const result: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: [],
-      response_text: 'Some answer.',
-      scope_notes: [],
-      suggested_prompts: [],
-      percent: 100,
-    };
-    const stream = mutableStream({ loading: true });
-    const { rerender } = render(<AgentPage />);
-
-    expect(screen.queryByText('What are the top 10 forecasted emitters in 2040?')).not.toBeInTheDocument();
-
-    stream.loading = false;
-    stream.result = result;
-    rerender(<AgentPage />);
-
-    // Once the result lands, the docked state should stay in place and the same four starter
-    // prompts should reappear below it for the next turn.
-    expect(screen.queryByText('Ask about climate emissions')).not.toBeInTheDocument();
-    expect(screen.getByText('What are the top 10 forecasted emitters in 2040?')).toBeInTheDocument();
-  });
-
-  it('keeps the between-turns starter grid hidden while editing, even after clearing a prefill prompt', async () => {
+  it('keeps the starter grid collapsed after a response lands -- reveals it only once the docked bar is focused', async () => {
+    // Replaces the earlier "grid reappears automatically between turns" behavior: visibility is
+    // now purely focus-driven (matching the user's own "expand on clicking" request), not an
+    // approximated dismissed/idle-and-empty state machine.
     const result: AgentQueryResult = {
       thread_id: 't1',
       widgets: [],
@@ -160,15 +143,44 @@ describe('AgentPage', () => {
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
 
+    expect(screen.queryByText('Ask about climate emissions')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /forecasted emitters/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Ask about climate emissions'));
+    expect(screen.getByRole('button', { name: /forecasted emitters/ })).toBeInTheDocument();
+  });
+
+  it('keeps the panel open through a prefill-and-edit, since focus stays inside the bar the whole time', async () => {
+    const result: AgentQueryResult = {
+      thread_id: 't1',
+      widgets: [],
+      response_text: 'Some answer.',
+      scope_notes: [],
+      suggested_prompts: [],
+      percent: 100,
+    };
+    stubStream({ result });
+    render(<AgentPage />);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+
+    await user.click(screen.getByLabelText('Ask about climate emissions'));
     await user.click(screen.getByText("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?"));
     await user.clear(screen.getByLabelText('Ask about climate emissions'));
 
+    // Clicking the tile moved focus to the textarea (this same page's own prefill+focus wiring),
+    // and clearing text doesn't blur it -- so the panel is still expanded, unlike the old
+    // dismissed-on-edit approximation this test used to check for.
     expect(
-      screen.queryByText("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?", { selector: 'span' }),
-    ).not.toBeInTheDocument();
+      screen.getByText("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?"),
+    ).toBeInTheDocument();
   });
 
-  it('hides the between-turns starter grid immediately when an instant-submit prompt is picked', async () => {
+  it('collapses the panel once an instant-submit tile triggers loading, even though the click never touches PromptBar\'s own submit path', async () => {
+    // Mirrors design-system PromptBar.stories.tsx's own ExpandedContentCollapsesOnExternalSubmit:
+    // AgentPage's instant-submit tiles call the useAgentStream hook's submit() directly, bypassing
+    // PromptBar's internal trySubmit entirely -- only the `loading` prop turning true (which a
+    // static stubStream() mock never does on its own) drives the collapse here.
     const result: AgentQueryResult = {
       thread_id: 't1',
       widgets: [],
@@ -178,17 +190,22 @@ describe('AgentPage', () => {
       percent: 100,
     };
     const submit = vi.fn();
-    stubStream({ result, submit });
+    const stream = mutableStream({ result, submit });
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<AgentPage />);
+    const { rerender } = render(<AgentPage />);
+
+    await user.click(screen.getByLabelText('Ask about climate emissions'));
+    expect(screen.getByRole('button', { name: /forecasted emitters/ })).toBeInTheDocument();
 
     await user.click(screen.getByText('What are the top 10 forecasted emitters in 2040?'));
-
     // threadIdRef is already 't1' from the seeded result above, not null (a genuinely fresh
     // conversation's first submit would pass null; this is a follow-up in an existing thread).
     expect(submit).toHaveBeenCalledWith('What are the top 10 forecasted emitters in 2040?', 't1');
-    expect(screen.queryByText('What are the top 10 forecasted emitters in 2040?', { selector: 'span' })).not.toBeInTheDocument();
+
+    stream.loading = true;
+    rerender(<AgentPage />);
+    expect(screen.queryByRole('button', { name: /forecasted emitters/ })).not.toBeInTheDocument();
   });
 
   it('surfaces a stream error as an InlineAlert', () => {
