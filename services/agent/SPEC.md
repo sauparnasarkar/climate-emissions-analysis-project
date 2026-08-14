@@ -466,3 +466,14 @@ hypothetical.
    applied" #17) needs a merged result from `get_top_emitters` + `get_forecast_comparison`, which
    `ui_selection` doesn't build; revisit if real usage shows this comparison is common enough to
    justify a two-tool-call widget.
+6. **`ANTHROPIC_API_KEY` storage on the Mac Mini deploy** — ships in Release 1 (`ENHANCEMENTS.md`)
+   as a plain `EnvironmentVariables` entry in `com.ghgemissions.agent.plist` (`chmod 600`,
+   single-user machine — accepted deliberately, on direct instruction, 2026-08-14). The narrow
+   exposure this accepts: any process already running as the same local user can read the key
+   out of the live agent's environment via `launchctl print`/`ps eww`, even though the plist file
+   itself is unreadable to anyone else. Deferred, better option if this machine's threat model
+   ever changes (a second local account, shared access, etc.): store the key in macOS Keychain
+   (`security add-generic-password`) and swap the plist's `ProgramArguments` for a small wrapper
+   script that does `security find-generic-password -w` before exec'ing `uvicorn`, so the plist
+   file never holds the raw value at all. Not designed further than this — revisit only if the
+   deploy's threat model actually changes, not preemptively.
