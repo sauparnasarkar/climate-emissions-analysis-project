@@ -33,7 +33,7 @@ import logging
 from typing import Any, Literal
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
@@ -294,17 +294,33 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
         note = "The underlying data service didn't return results for this query -- this looks like a transient failure, not a problem with the question itself."
         logger.warning("ui_selection_node: all %d tool call(s) this turn failed", len(state.tool_calls))
         scope_notes = [*scope_notes, note]
-    elif not state.tool_calls:
-        # A data_query turn that made zero tool calls at all -- previously assumed unreachable, but
-        # confirmed reachable (SPEC.md correction #21): agent_node's LLM can decide not to call any
-        # tool, most often when a large prior tool result still in context (before the finalize_node
-        # pruning fix) crowds out its judgment. Same distinguishing purpose as the branch above --
-        # flags this as worth a retry rather than compose_response_node inventing a generic apology.
-        note = "The assistant didn't retrieve any data for this query -- try rephrasing or asking again."
-        logger.warning("ui_selection_node: data_query turn made zero tool calls")
-        scope_notes = [*scope_notes, note]
 
-    return {"widgets": widgets, "scope_notes": scope_notes}
+    result: dict[str, Any] = {"widgets": widgets, "scope_notes": scope_notes}
+
+    if not state.tool_calls:
+        # A data_query turn that made zero tool calls at all -- confirmed reachable (SPEC.md
+        # correction #21), and confirmed *correct* model behavior, not a bug: with a substantial
+        # prior tool result still in context (e.g. a previous turn's get_historical_emissions),
+        # the model can reasonably answer a follow-up directly instead of re-fetching data it
+        # already has -- exactly what Claude Desktop's own MCP client does for the same sequence.
+        # agent_node's own final message already carries that real, data-grounded answer; route_
+        # after_ui_selection sends this turn straight to finalize instead of compose_response_node,
+        # which has no widgets to synthesize from and would otherwise invent a misleading "no data"
+        # apology that contradicts what the model just said. No widget is built here (nothing new
+        # was fetched this turn), matching general_climate_node's text-only pattern.
+        last = state.messages[-1]
+        content = last.content
+        text = _text_from_content_blocks(content) if isinstance(content, list) else content
+        result["response_text"] = text or "(no response text)"
+
+    return result
+
+
+def route_after_ui_selection(state: AgentState) -> Literal["compose_response", "finalize"]:
+    # Zero tool calls this turn means ui_selection_node already set response_text directly from
+    # agent_node's own answer -- compose_response_node has no widgets to synthesize from in that
+    # case and would overwrite a good answer with an apology. See ui_selection_node's own comment.
+    return "compose_response" if state.tool_calls else "finalize"
 
 
 async def compose_response_node(state: AgentState, *, llm: BaseChatModel) -> dict[str, Any]:
@@ -321,21 +337,18 @@ async def finalize_node(state: AgentState) -> dict[str, Any]:
     # their own raw output, avoiding duplicate/near-duplicate messages across turns. Full widget
     # payloads are never appended, to bound context growth (SPEC.md §8's finalize row).
     #
-    # This turn's raw agent<->tools round trip (tool_use AIMessages, ToolMessages, and agent_node's
-    # own final non-tool-call AIMessage) is pruned here via RemoveMessage, replaced by the one
-    # summary line below -- SPEC.md correction #21. Confirmed live against the real Anthropic API:
-    # a single prior turn's raw history (e.g. get_historical_emissions(scope="sovereign")'s
-    # ~31KB/215-country payload) left in state.messages was enough on its own to make agent_node
-    # silently return zero tool_calls on a completely unrelated follow-up query, with no exception
-    # and no error -- just a "no data available" apology. Everything strictly after the current
-    # turn's own HumanMessage (added by guardrail_router_node moments ago) belongs to this turn and
-    # is safe to drop; every earlier turn's HumanMessage and its own (already-pruned) summary
-    # AIMessage are left untouched, so cross-turn context isn't lost, only the verbose replay of it.
-    last_human_idx = max((i for i, m in enumerate(state.messages) if isinstance(m, HumanMessage)), default=-1)
-    prune = [RemoveMessage(id=m.id) for m in state.messages[last_human_idx + 1 :]]
-
+    # This turn's raw agent<->tools round trip (tool_use AIMessages and ToolMessages) is
+    # deliberately left in `state.messages`, not pruned -- SPEC.md correction #21. An earlier draft
+    # of this fix pruned it via RemoveMessage on the theory that a large prior tool result (e.g.
+    # get_historical_emissions(scope="sovereign")'s ~31KB/215-country payload) left in context was
+    # confusing the model into skipping tool calls on a later, unrelated turn. Confirmed wrong: the
+    # model's own text for that "skipped" turn was a correct, data-grounded answer reusing the
+    # prior tool result already in context -- exactly what Claude Desktop's own MCP client does for
+    # the same sequence, not a malfunction. Pruning this history would have silently traded away
+    # that reuse capability (forcing a wasteful re-fetch on every follow-up) to paper over a
+    # different bug, now fixed properly in ui_selection_node/route_after_ui_selection instead.
     summary = state.response_text[:500] if state.response_text else "(no response text)"
-    return {"messages": [*prune, AIMessage(content=summary)]}
+    return {"messages": [AIMessage(content=summary)]}
 
 
 def _default_checkpointer() -> MemorySaver:
@@ -396,7 +409,11 @@ async def build_graph(
     )
     graph.add_edge("tools", "agent")
     graph.add_edge("call_cap_notice", "ui_selection")
-    graph.add_edge("ui_selection", "compose_response")
+    graph.add_conditional_edges(
+        "ui_selection",
+        route_after_ui_selection,
+        {"compose_response": "compose_response", "finalize": "finalize"},
+    )
     graph.add_edge("compose_response", "finalize")
     graph.add_edge("off_topic", "finalize")
     graph.add_edge("opinion", "finalize")

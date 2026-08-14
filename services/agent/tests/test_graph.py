@@ -202,13 +202,14 @@ async def test_turn_reset_fields_and_thread_scoped_cache_persist():
     assert len(turn2["tool_cache"]) == 1  # survived from turn 1, per SPEC.md §7/§9
 
 
-async def test_finalize_prunes_previous_turn_tool_history():
-    # SPEC.md correction #21: a completed turn's raw agent<->tools round trip (tool_use
-    # AIMessages, ToolMessages, and agent_node's own final non-tool-call AIMessage) must not
-    # persist into later turns' context -- confirmed live against the real Anthropic API that a
-    # single large prior tool result left in place is enough on its own to make the model return
-    # zero tool_calls on a completely unrelated follow-up query. Only the compact finalize summary
-    # should survive across the turn boundary.
+async def test_zero_tool_call_turn_reuses_prior_context_and_skips_compose_response():
+    # SPEC.md correction #21: confirmed live against the real Anthropic API and against Claude
+    # Desktop's own MCP client behavior for the identical scenario -- when a data_query turn makes
+    # zero tool calls, that's the model reasonably reusing a prior turn's tool result already in
+    # context (e.g. a broad historical-emissions pull that already covered the new question), not
+    # a malfunction. agent_node's own answer is used directly as response_text; compose_response_
+    # node (which has no widgets to synthesize from) must never run for this path -- if it did,
+    # the LLM's scripted queue below would be short a response and `exhausted` would fail.
     tool = await _make_methodology_tool()
     checkpointer = MemorySaver()
 
@@ -216,46 +217,35 @@ async def test_finalize_prunes_previous_turn_tool_history():
         [
             {"classification": "data_query"},
             AIMessage(content="", tool_calls=[_tool_call("get_methodology_notes", {}, "call-1")]),
-            AIMessage(content="Here's what I found."),  # agent_node's own raw final text
+            AIMessage(content="Here's the methodology, freshly fetched."),
             {"response_text": "Here's the methodology."},
         ]
     )
     graph = await build_graph(llm=turn1_llm, mcp_tools=[tool], checkpointer=checkpointer)
     turn1 = await graph.ainvoke({"current_query": "how does the forecast model work?"}, config=THREAD_CONFIG)
+    assert turn1["response_text"] == "Here's the methodology."
 
-    # Immediately after turn 1: only the query and the one compact summary remain -- the tool-call
-    # AIMessage, the ToolMessage, and agent_node's own raw "Here's what I found" text are gone.
-    assert [type(m).__name__ for m in turn1["messages"]] == ["HumanMessage", "AIMessage"]
-    assert turn1["messages"][1].content == "Here's the methodology."
-
-    turn2_llm = ScriptedChatModel([{"classification": "off_topic"}])
-    turn2_graph = await build_graph(llm=turn2_llm, mcp_tools=[tool], checkpointer=checkpointer)
-    turn2 = await turn2_graph.ainvoke({"current_query": "write me a poem"}, config=THREAD_CONFIG)
-
-    # Turn 1's compact summary survives into turn 2 -- pruning only removes a turn's OWN raw
-    # artifacts, never a previous turn's already-compact representation.
-    assert [type(m).__name__ for m in turn2["messages"]] == ["HumanMessage", "AIMessage", "HumanMessage", "AIMessage"]
-    assert not any(isinstance(m, ToolMessage) for m in turn2["messages"])
-
-
-async def test_ui_selection_notes_zero_tool_calls():
-    # Companion to the all-failed-calls case in test_real_tool_execution_error_surfaces_without_
-    # crashing below -- confirmed reachable (not "unreachable" as an earlier comment assumed):
-    # agent_node's LLM can decide to make zero tool calls on a data_query turn.
-    tool = await _make_methodology_tool()
-    llm = ScriptedChatModel(
+    # Turn 2: the model answers directly from turn 1's still-present context, no new tool call --
+    # content is a list of blocks (thinking + text), matching the real API's shape, to prove the
+    # extraction handles that form and not just a plain string.
+    turn2_llm = ScriptedChatModel(
         [
             {"classification": "data_query"},
-            AIMessage(content="I don't have anything to add."),  # no tool_calls at all
-            {"response_text": "No data was retrieved for this query."},
+            AIMessage(
+                content=[
+                    {"type": "thinking", "thinking": "I already have this.", "signature": "sig"},
+                    {"type": "text", "text": "Based on what I already fetched, here's a follow-up answer."},
+                ]
+            ),
         ]
     )
-    graph = await build_graph(llm=llm, mcp_tools=[tool])
-    result = await graph.ainvoke({"current_query": "how does the forecast model work?"}, config=THREAD_CONFIG)
+    turn2_graph = await build_graph(llm=turn2_llm, mcp_tools=[tool], checkpointer=checkpointer)
+    turn2 = await turn2_graph.ainvoke({"current_query": "can you elaborate on that?"}, config=THREAD_CONFIG)
 
-    assert result["tool_calls"] == []
-    assert result["widgets"] == []
-    assert any("didn't retrieve any data" in note for note in result["scope_notes"])
+    assert turn2["tool_calls"] == []
+    assert turn2["widgets"] == []
+    assert turn2["response_text"] == "Based on what I already fetched, here's a follow-up answer."
+    assert turn2_llm.exhausted  # compose_response_node never ran -- nothing left unconsumed
 
 
 async def test_data_query_against_real_mcp_server(running_mcp_server):

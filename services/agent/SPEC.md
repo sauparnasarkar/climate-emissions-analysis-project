@@ -179,27 +179,42 @@ conversational-agent project that `services/mcp-server` began.
     entry naming it a transient backend failure, so `compose_response_node` stops synthesizing a
     generic "try rephrasing" apology that looks identical to an honest no-match case. See
     `ENHANCEMENTS.md`'s "Mac Mini deploy" section for the full investigation.
-21. **A completed turn's raw tool history, left in `state.messages` indefinitely, could make the
-    model silently stop calling tools on a later, unrelated turn.** Found reproducing a second,
-    live "no widgets" report the user pinned to a specific sequence (India query submitted right
-    after the China starter prompt, same thread) — correction #20's fix didn't cover it, since
-    `state.tool_calls` was genuinely empty (zero tool calls attempted, not "attempted and failed").
-    Root-caused via controlled variant testing directly against the real Anthropic API (Mac Mini,
-    key handled server-side only): `agent_node`'s final non-tool-call `AIMessage` and
-    `finalize_node`'s own separate summary `AIMessage` were both persisting back-to-back with no
-    turn boundary between them, and — the actual determining factor, confirmed by truncating it in
-    isolation while leaving everything else untouched — a single prior turn's
-    `get_historical_emissions(scope="sovereign")` result (~31KB, all ~215 sovereign countries'
-    full history) was also persisting in full. With that payload still in context, the model
-    returned `tool_calls=[]` on an entirely unrelated India query; with it stripped down (real
-    data, same position, same duplicate-message structure otherwise unchanged), the model called
-    tools normally. Fixed in `finalize_node`: everything strictly after the current turn's own
-    `HumanMessage` (its raw agent↔tools round trip) is now removed via LangGraph's `RemoveMessage`
-    and replaced by the one summary line already written there — earlier turns' own summaries are
-    untouched, so cross-turn context isn't lost, only the verbose replay of it. Also closed the
-    matching gap in `ui_selection_node`: an earlier comment on correction #20's fix asserted a
-    zero-tool-call `data_query` turn was "unreachable" — it isn't, as this investigation proved —
-    so that path now gets its own `scope_notes` entry too, the same way the all-failed case does.
+21. **A `data_query` turn with zero tool calls isn't a bug — the model reusing already-fetched
+    context is correct, expected behavior, and the pipeline discarding its answer was the actual
+    defect.** Found reproducing a second, live "no widgets" report the user pinned to a specific
+    sequence (India query submitted right after the China starter prompt, same thread) —
+    correction #20's fix didn't cover it, since `state.tool_calls` was genuinely empty (zero tool
+    calls attempted, not "attempted and failed"). The first hypothesis, root-caused via controlled
+    variant testing directly against the real Anthropic API (Mac Mini, key handled server-side
+    only), was that a single prior turn's `get_historical_emissions(scope="sovereign")` result
+    (~31KB, all ~215 sovereign countries' full history) left in context was confusing the model
+    into skipping tool calls — truncating that one payload in isolation, everything else
+    untouched, did flip the model back to calling tools. **That hypothesis was wrong**, caught by
+    the user comparing against Claude Desktop's own MCP client: the identical two-turn sequence
+    there also produces zero tool calls on turn 2, and Desktop still answers correctly — because
+    it *reuses* turn 1's already-fetched sovereign data rather than re-fetching it, exactly the
+    efficient behavior a model should exhibit. Confirmed directly: `agent_node`'s own discarded
+    turn-2 text (captured via tracing, never previously surfaced anywhere) was a fully correct,
+    detailed, data-grounded answer about India's growth built from turn 1's context. The truncation
+    experiment "worked" only because shrinking the payload removed the *data* the model needed,
+    forcing a redundant re-fetch — not because it fixed a defect in the model's judgment. The real
+    defect: `ui_selection_node`/`compose_response_node` assumed a data_query turn always produces
+    fresh `state.tool_calls` to build widgets and a response from, and silently discarded
+    `agent_node`'s own answer whenever it didn't, synthesizing a misleading "no data" apology that
+    actively contradicted what the model had just said. Fixed by giving that answer somewhere to
+    go instead of erasing it: `ui_selection_node` now extracts `agent_node`'s final message text
+    (handling both plain-string and content-block-list shapes, since extended thinking makes the
+    latter the common case) and sets it as `response_text` directly when `state.tool_calls` is
+    empty; a new `route_after_ui_selection` conditional edge sends that case straight to
+    `finalize`, skipping `compose_response_node` entirely (it has no widgets to synthesize from
+    and would otherwise overwrite a good answer). No widget is built in this case, matching
+    `general_climate_node`'s existing text-only pattern — nothing new was fetched this turn.
+    **A first draft of this fix pruned all prior-turn tool history in `finalize_node` instead**
+    (via `RemoveMessage`), which also "worked" empirically but for the wrong reason: it prevented
+    the model from ever having old context to reuse, forcing a fresh tool call on every follow-up
+    regardless of whether one was actually needed. Reverted once the reuse behavior was understood
+    to be correct and worth preserving — see `ENHANCEMENTS.md` for the full sequence of both
+    hypotheses.
 
 ---
 
