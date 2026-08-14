@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import functools
 import json
+import logging
 from typing import Any, Literal
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -56,6 +57,8 @@ from .prompts import (
 )
 from .state import AgentState, ToolCallRecord, WidgetSpec
 from .ui_selection import build_country_profile_widgets, build_widget, is_error_result
+
+logger = logging.getLogger(__name__)
 
 MAX_TOOL_CALLS_PER_TURN = 6  # SPEC.md §10 -- generous headroom, tune after real usage
 
@@ -225,6 +228,7 @@ async def tools_node(
             label = progress_label(call["name"], call["args"])
             if tool is None:
                 error_text = f"Unknown tool: {call['name']}"
+                logger.warning("tools_node: %s", error_text)
                 record = ToolCallRecord(
                     tool_name=call["name"], args=call["args"], result={"error": error_text}, progress_label=label
                 )
@@ -232,6 +236,8 @@ async def tools_node(
             else:
                 tool_message: ToolMessage = await tool.ainvoke(call)
                 result = _tool_result_from_message(tool_message)
+                if is_error_result(result):
+                    logger.warning("tools_node: %s failed: %s", call["name"], result.get("error"))
                 record = ToolCallRecord(tool_name=call["name"], args=call["args"], result=result, progress_label=label)
                 new_messages.append(tool_message)
             tool_cache[key] = record
@@ -262,7 +268,20 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
             widget = build_widget(record, state.current_query)
             if widget is not None:
                 widgets.append(widget)
-    return {"widgets": widgets}
+
+    scope_notes = state.scope_notes
+    # Distinguishes "every tool call this turn failed" (a real backend/network problem) from
+    # "tools succeeded but nothing matched a widget" -- without this, compose_response_node sees
+    # an empty widgets list either way and invents a generic "try rephrasing" apology even when
+    # the actual cause was a transient failure, not an ambiguous query. Only fires when there were
+    # tool calls at all; a data_query turn that never called a tool is a different (unreachable
+    # here) path.
+    if state.tool_calls and all(is_error_result(record.result) for record in state.tool_calls):
+        note = "The underlying data service didn't return results for this query -- this looks like a transient failure, not a problem with the question itself."
+        logger.warning("ui_selection_node: all %d tool call(s) this turn failed", len(state.tool_calls))
+        scope_notes = [*scope_notes, note]
+
+    return {"widgets": widgets, "scope_notes": scope_notes}
 
 
 async def compose_response_node(state: AgentState, *, llm: BaseChatModel) -> dict[str, Any]:

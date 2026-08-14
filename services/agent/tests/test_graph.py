@@ -224,4 +224,36 @@ async def test_real_tool_execution_error_surfaces_without_crashing(running_mcp_s
     assert "error" in record.result
     # No widget should be built from a failed tool call.
     assert result["widgets"] == []
+    # Every tool call this turn errored -- ui_selection_node must flag this as a transient
+    # failure, not let compose_response_node's LLM invent a generic "rephrase your question"
+    # apology that looks identical to a genuine no-match case.
+    assert any("transient failure" in note for note in result["scope_notes"])
+
+
+async def test_partial_tool_failure_does_not_trigger_transient_failure_note(running_mcp_server):
+    """One call succeeds (get_methodology_notes, which never reaches api/) and one fails
+    (get_country_profile, against running_mcp_server's deliberately unreachable API_BASE_URL) in
+    the same turn -- the transient-failure scope_note above must only fire when *every* call in
+    the turn errored, not whenever any one of several does."""
+    real_tools = await get_mcp_tools(running_mcp_server)
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(
+                content="",
+                tool_calls=[
+                    _tool_call("get_methodology_notes", {}, "call-1"),
+                    _tool_call("get_country_profile", {"country": "China"}, "call-2"),
+                ],
+            ),
+            AIMessage(content="done"),
+            {"response_text": "Here's what I found, though China's profile is unavailable."},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=real_tools)
+    result = await graph.ainvoke({"current_query": "how does the forecast model work, and what's China's profile?"}, config=THREAD_CONFIG)
+
+    assert result["tool_call_count"] == 2
+    assert len(result["widgets"]) == 1  # only the successful call produces a widget
+    assert not any("transient failure" in note for note in result["scope_notes"])
     assert llm.exhausted

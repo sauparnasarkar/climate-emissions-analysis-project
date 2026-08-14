@@ -289,3 +289,25 @@ to 484px in the same 500px viewport) and again after rebuild/redeploy. One new r
 (`AgentPage.test.tsx`) pins the CSS pattern in the grid's inline style so a future edit can't
 silently revert to the overflowing literal — jsdom has no real layout engine, so it can't catch
 the overflow itself, only the regression of the fix.
+
+**"No widgets generated" bug report, investigated, root cause not reproducible, gap in
+observability fixed instead.** A live query ("How has India's emissions grown compared to other
+countries?") produced `compose_response_node`'s generic no-data apology instead of real widgets.
+Re-running the identical query against the live public endpoint immediately afterward returned
+three real widgets with real data — not reliably reproducible. Checked `services/agent` and
+`services/mcp-server` logs (both `.log` and `.error.log`) and `api/`'s own uvicorn log around the
+relevant window: no errors, no slow requests, only clean `200 OK` churn including a successful
+sovereign-scope 215-country historical fan-out. Root cause is genuinely unknowable from what was
+retained, and that unknowability is itself the finding: `tools_node` built an error
+`ToolCallRecord` on both its unknown-tool and real-tool-failure branches without ever logging
+anything, and `ui_selection_node` silently `continue`d past every error record with no signal
+that the resulting empty widget list came from every tool call failing rather than from a query
+that genuinely matched nothing. Fixed both gaps rather than chasing an unreproducible one-off:
+`tools_node` now logs a `logger.warning` on each tool failure; `ui_selection_node` now checks
+whether *every* tool call in the turn errored and, if so, appends a scope_notes entry
+distinguishing a transient backend failure from a no-match case, so `compose_response_node`
+stops inventing a "try rephrasing your question" apology for what was actually a system failure.
+Two new tests against a real `services/mcp-server` subprocess (deliberately unreachable
+`API_BASE_URL`, matching the existing error-surfacing test's pattern): one confirms the
+transient-failure note appears when every call in a turn fails, the other confirms it does
+*not* appear when only some do.
