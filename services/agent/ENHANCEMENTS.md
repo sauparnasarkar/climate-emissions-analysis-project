@@ -384,3 +384,16 @@ improvement; every other page (`AboutPage.tsx`, `AgentPage.tsx`, `StarterPromptT
 same raw-element-plus-class pattern this component now also uses. Verified live, backend and
 frontend deployed together, same India-after-China repro sequence: real "Answer" card, real
 sortable table, no InlineAlert, no raw markdown syntax.
+
+**Widget grid layout, requested directly (not a bug fix).** The previous fixes above left
+`AgentPage.tsx`'s widget grid on its original flex-wrap-at-420px layout, which produces however
+many columns happen to fit the viewport rather than a deliberate count. User asked for an explicit
+rule: 1/2/3 widgets get that many columns, 4 widgets drops to 2 (not 4 -- cramped at this card
+size), 5+ caps at 3. Implemented as an explicit `repeat(N, 1fr)` CSS grid (`widgetColumnCount`,
+SPEC.md §3.2) plus a single `@media (max-width: 768px)` collapse to 1 column, reusing
+`OverviewPage.tsx`'s existing `<style>`-tag-with-scoped-class pattern for the breakpoint override
+(a fixed-N grid doesn't auto-shrink columns the way the `auto-fit` pattern used elsewhere in this
+file does, so an explicit breakpoint was needed rather than another `minmax` trick). Six new
+parameterized tests pin the exact column count for 1 through 6 widgets. Live-verified at both a
+wide viewport (a real 4-widget China turn laying out 2×2) and a 500px mobile viewport (the same
+turn collapsing cleanly to one column).

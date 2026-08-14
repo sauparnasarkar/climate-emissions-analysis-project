@@ -44,6 +44,18 @@ interface ResultSection {
 // summary of it, not a copy -- showing both there is intentional, not a duplicate.
 const TEXT_ANSWER_TAGS = new Set(['general_climate', 'context_reuse']);
 
+// Explicit column target, not auto-fit -- the user wants widget count to drive layout directly:
+// 1/2/3 widgets get that many columns each, 4 widgets deliberately drops to 2 (a 4-up row reads
+// as cramped at this card size) rather than the naive next step of 4, and 5+ caps at 3 so cards
+// stay legible regardless of how many widgets a turn produces. See the .agent-widget-grid media
+// query below for the mobile collapse this doesn't handle on its own (a repeat(N, ...) grid
+// doesn't shrink its own column count the way auto-fit does).
+function widgetColumnCount(count: number): number {
+  if (count <= 3) return count;
+  if (count === 4) return 2;
+  return 3;
+}
+
 function isTextOnlyAnswer(result: AgentQueryResult): boolean {
   return (
     result.widgets.length === 1 &&
@@ -108,9 +120,12 @@ function ResultSectionView({ section, onSuggestedPromptClick }: { section: Resul
       ) : (
         <>
           {!textOnly && <MarkdownText text={result.response_text} />}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+          <div
+            className="agent-widget-grid"
+            style={{ display: 'grid', gridTemplateColumns: `repeat(${widgetColumnCount(result.widgets.length)}, 1fr)`, gap: 16 }}
+          >
             {result.widgets.map((widget, i) => (
-              <div key={`${widget.source_tool_call}-${i}`} style={{ flex: '1 1 420px', minWidth: 0 }}>
+              <div key={`${widget.source_tool_call}-${i}`} style={{ minWidth: 0 }}>
                 <WidgetRenderer widget={widget} />
               </div>
             ))}
@@ -184,6 +199,15 @@ export function AgentPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: hasSubmitted ? '24px 24px 48px' : '48px 24px' }}>
+      {/* Placed once here, not per-section -- ResultSectionView renders one .agent-widget-grid
+          per turn, and they all want the identical collapse rule. A fixed repeat(N, 1fr) grid
+          doesn't shrink its own column count on a narrow viewport the way auto-fit does (SPEC.md
+          confirmed this repo's minmax(min(X,100%),1fr) pattern doesn't help here either -- with a
+          FIXED track count, every track's minimum resolves against the same container width, so
+          N>1 tracks still overflow instead of collapsing); one explicit breakpoint straight to a
+          single column is simpler and more predictable than trying to make the N-column math
+          responsive on its own. */}
+      <style>{'@media (max-width: 768px) { .agent-widget-grid { grid-template-columns: 1fr !important; } }'}</style>
       {!hasSubmitted && (
         <div style={{ textAlign: 'center', marginBottom: 8 }}>
           <h1 className="__s9cmpx-headline3">Ask about climate emissions</h1>

@@ -272,4 +272,40 @@ describe('AgentPage', () => {
     // page) -- off_topic/opinion's role, not this one's.
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
+
+  function nWidgets(n: number): AgentQueryResult['widgets'] {
+    return Array.from({ length: n }, (_, i) => ({
+      intent: 'text' as const,
+      chart_kind: null,
+      title: `Widget ${i}`,
+      as_of: null,
+      source_tool_call: `get_methodology_notes:{"n":${i}}`,
+      props: { data_provenance: `source ${i}` },
+    }));
+  }
+
+  it.each([
+    [1, 1],
+    [2, 2],
+    [3, 3],
+    [4, 2], // deliberately not 4 -- a 4-up row of these cards reads as cramped
+    [5, 3],
+    [6, 3],
+  ])('lays out %i widgets in %i columns', (widgetCount, expectedColumns) => {
+    const result: AgentQueryResult = {
+      thread_id: 't1',
+      widgets: nWidgets(widgetCount),
+      response_text: 'Summary.',
+      scope_notes: [],
+      suggested_prompts: [],
+      percent: 100,
+    };
+    stubStream({ result });
+    const { container } = render(<AgentPage />);
+
+    const grid = container.querySelector('.agent-widget-grid') as HTMLElement;
+    expect(grid).not.toBeNull();
+    expect(grid.style.gridTemplateColumns).toBe(`repeat(${expectedColumns}, 1fr)`);
+    expect(grid.children).toHaveLength(widgetCount);
+  });
 });

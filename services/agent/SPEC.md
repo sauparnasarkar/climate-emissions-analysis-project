@@ -318,6 +318,21 @@ arguments (e.g. `"{country} forecast, {horizon}-year horizon"`), not written by 
 Both are existing `SyChart` kinds, already proven on the dashboard's Overview page — no new chart
 component work, only the kind-selection logic in `ui_selection`.
 
+### 3.2 Widget grid layout (`climate-dashboard-react`)
+
+A turn's widgets render in an explicit `N`-column CSS grid (`AgentPage.tsx`'s
+`widgetColumnCount`), driven directly by widget count, not by an auto-fit/available-width
+calculation: 1, 2, or 3 widgets get that many columns each; 4 widgets deliberately drops to 2
+(a 4-up row reads as cramped at this card size) rather than the naive next step of 4; 5+ caps at
+3 so cards stay legible regardless of how many widgets a turn produces. A single `@media
+(max-width: 768px)` override (the `.agent-widget-grid` class, same `<style>`-tag pattern
+`OverviewPage.tsx`'s hero grid already uses) collapses any column count to 1 on narrow viewports
+— a fixed `repeat(N, 1fr)` grid doesn't shrink its own column count the way `repeat(auto-fit,
+minmax(...))` does (the pattern the starter-prompt grid and mobile-overflow fix use elsewhere in
+this file), so an explicit breakpoint is needed here instead. Live-verified at both a wide
+viewport (a real 4-widget China turn laying out 2×2, not 4-across) and a 500px mobile viewport
+(the same turn collapsing cleanly to one column, no horizontal overflow).
+
 ## 4. Starter prompts
 
 Four prompts, rendered as an interactive `Tile` grid (kicker category label, prompt text, arrow
