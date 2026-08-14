@@ -82,6 +82,17 @@ design changes here, not just this file.
   not just an HTTP-level test — the one real bug found here (freshly-minted ids skipping
   registration entirely) was invisible at the HTTP level and only caught by testing the function
   directly. See `SPEC.md` "Corrections applied" #14.
+- **The `climate-dashboard-react/` nav route is `/ask`, not `/agent`.** `/agent` collides with
+  `vite.config.ts`'s `agentProxyEntry` proxy key (`${base}agent`, pointed at this service's own
+  port 8766) — Vite's dev proxy matches by path prefix, so a page route literally named `/agent`
+  would itself get proxied to this backend instead of ever rendering the SPA. Confirmed live, not
+  hypothetical: navigating to a `/agent` page route threw `ECONNREFUSED` against this service
+  before it was even running. The backend's own proxy prefix (`agent`) stays as-is — it matches
+  the already-decided production Cloudflare route `labs.syena.io/ghg-emissions-analysis/agent`.
+- **`get_top_emitters`'s "now vs. forecast" query no longer produces a `treemap`.** Found while
+  building the Step 4 renderer: the tool's real result carries one metric (`co2`), so there's no
+  second dimension for a treemap's tile color to encode — see `SPEC.md` "Corrections applied"
+  #17. `WidgetSpec.chart_kind`'s `Literal` no longer includes `"treemap"` at all.
 - **Scope:** classical build discipline, same as the rest of this repo — no scope creep beyond
   `SPEC.md`'s node catalog and UI-intent schema.
 

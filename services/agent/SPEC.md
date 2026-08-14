@@ -139,6 +139,23 @@ conversational-agent project that `services/mcp-server` began.
     convention of surfacing a specific, curated exception `.message` on a 503 — reconsider
     whether error text needs sanitizing/genericizing before it reaches a public,
     unauthenticated client.
+17. **`get_top_emitters`'s "current + forecast" query no longer resolves to `treemap`.** Found
+    while building Step 4's widget renderer: the original design's treemap tile size/color pair
+    assumed two metrics, but `get_top_emitters`'s real result (`composed.py`) carries exactly one
+    (`co2`) — coloring tiles by the value that already sizes them isn't a second dimension, it's
+    decoration. `select_top_emitters_chart_kind` now falls back to `bar` for that case (same as
+    any other non-geographic query); `WidgetSpec.chart_kind`'s `Literal` no longer includes
+    `"treemap"`. A genuine dual-metric treemap is deferred to §12 open item 5 — it needs a merged
+    result from two tool calls, which `ui_selection` doesn't build.
+18. **`PromptBar` has no imperative focus API, so the §4 starter-prompt "prefill and focus"
+    behavior only prefills.** `PromptBar`'s confirmed real prop surface (§2) is `value`,
+    `onChange`, `onSubmit`, `variant`, `placeholder`, `loading`, `disabled`, `actions`,
+    `ariaLabel`, `className` — no ref forwarding, no exposed `.focus()`. `AgentPage.tsx`'s
+    `handleStarterClick` sets `value` to the templated prompt text on click (the user still
+    types over it after clicking into the textarea themselves) rather than adding a DOM-query
+    workaround keyed to `design-system`'s internal CSS class names, which this repo's own
+    against-hacks convention rules out. Revisit if `design-system` ever exposes a real focus
+    handle on `PromptBar`.
 
 ---
 
@@ -178,7 +195,7 @@ Four intents, each a fixed pairing with real design-system components — not ge
 
 | Intent | Component(s) | Chart kinds (if `chart`) |
 |---|---|---|
-| `chart` | `ChartCard` + `SyChart` | `line` (trends), `band` (forecast CI), `bar` (ranked lists, colorValues for "heatmap" bars), `choropleth` (geography), `treemap` (size+color "heatmap") |
+| `chart` | `ChartCard` + `SyChart` | `line` (trends), `band` (forecast CI), `bar` (ranked lists, colorValues for "heatmap" bars), `choropleth` (geography) |
 | `grid` | `DataTable` in a `Card`/`CardHeader` | — |
 | `card` | `KpiStat` (one or a small row) | — |
 | `text` | Plain text in a `Card` | — |
@@ -190,7 +207,7 @@ Tool → intent mapping (fixed lookup, no LLM judgment except the one case noted
 | `get_historical_emissions`, `get_scenario_projection`, `compare_scenarios_across_countries` | `chart` (`line`) |
 | `get_forecast` | `chart` (`line` + `band`) |
 | `get_forecast_comparison` | `chart` (`line`) — the multi-country equivalent of `get_forecast` |
-| `get_top_emitters` | `chart` (`bar`, or `choropleth`/`treemap` per §3.1 below) |
+| `get_top_emitters` | `chart` (`bar`, or `choropleth` per §3.1 below) |
 | `get_model_comparison`, `get_gas_composition_by_decade`, `get_forecast_summary`, `get_scenario_cumulative_impact` | `grid` |
 | `get_country_profile` | `card`, or `card` + `chart` — **the one non-deterministic case**, see §8 `ui_selection` |
 | `get_methodology_notes` | `text` |
@@ -207,13 +224,15 @@ arguments (e.g. `"{country} forecast, {horizon}-year horizon"`), not written by 
 - Geographic spread ("where are emissions highest") → `choropleth`, with the tool response's ISO
   code carried into `SyChart`'s `locations: string[]` prop (see "Corrections applied" #2 — not
   `iso_code`).
-- Size **and** a second metric at once (e.g. current volume vs. forecasted growth — the 4th
-  starter prompt) → `treemap`, tile size = one metric, tile color = the other. This is what
-  makes a single-widget response cover a "now vs. forecast" comparison instead of needing two
-  separate charts.
+- A query naming both a current-state concept and a forecast concept together (e.g. the 4th
+  starter prompt) still resolves to `bar` — see "Corrections applied" #17. The original design
+  called for `treemap` here (tile size = one metric, tile color = the other), but
+  `get_top_emitters`'s real result carries exactly one metric (`co2`); there's no second metric to
+  color by. A genuine dual-metric treemap needs a merged result from two tool calls and isn't
+  built — see §12 open item 5.
 
-All three are existing `SyChart` kinds, already proven on the dashboard's Overview page — no new
-chart component work, only the kind-selection logic in `ui_selection`.
+Both are existing `SyChart` kinds, already proven on the dashboard's Overview page — no new chart
+component work, only the kind-selection logic in `ui_selection`.
 
 ## 4. Starter prompts
 
@@ -426,10 +445,10 @@ hypothetical.
 3. `PromptBar`'s landing→docked transition animation — no existing shared motion token found in
    the design system as of this scoping pass; flagged for a future design-system session.
 4. Session-wide cumulative call/cost counter (§10) — deferred pending real Stage 2 usage data.
-5. `get_top_emitters`'s bar/choropleth/treemap pick (§3.1) is a keyword heuristic on
-   `current_query` (`ui_selection.py`'s `select_top_emitters_chart_kind`), not an LLM call —
-   matches §8's claim that only `get_country_profile` needs one. Verified against both starter
-   prompts that mention "forecast" (§4): a single forecasted metric stays `bar`; only a query
-   naming *both* a current-state concept and a forecast concept together becomes `treemap`.
-   Revisit if real queries turn out to need finer-grained intent detection than keyword matching
-   provides.
+5. `get_top_emitters`'s bar/choropleth pick (§3.1) is a keyword heuristic on `current_query`
+   (`ui_selection.py`'s `select_top_emitters_chart_kind`), not an LLM call — matches §8's claim
+   that only `get_country_profile` needs one. A genuine dual-metric treemap (current volume vs.
+   forecasted growth, the original design for a query naming both concepts — see "Corrections
+   applied" #17) needs a merged result from `get_top_emitters` + `get_forecast_comparison`, which
+   `ui_selection` doesn't build; revisit if real usage shows this comparison is common enough to
+   justify a two-tool-call widget.

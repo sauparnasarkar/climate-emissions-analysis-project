@@ -28,8 +28,11 @@ def test_select_top_emitters_chart_kind_geographic_is_choropleth():
     assert select_top_emitters_chart_kind("where are emissions highest?") == "choropleth"
 
 
-def test_select_top_emitters_chart_kind_current_and_forecast_is_treemap():
-    assert select_top_emitters_chart_kind(STARTER_PROMPT_COMPARATIVE) == "treemap"
+def test_select_top_emitters_chart_kind_current_and_forecast_still_bar():
+    # Step 4 correction (SPEC.md "Corrections applied" #17): get_top_emitters carries one metric,
+    # so a "now vs. forecast" query no longer gets a treemap -- there's no second metric to color
+    # tiles by. Falls back to bar like any other non-geographic query.
+    assert select_top_emitters_chart_kind(STARTER_PROMPT_COMPARATIVE) == "bar"
 
 
 def test_is_error_result():

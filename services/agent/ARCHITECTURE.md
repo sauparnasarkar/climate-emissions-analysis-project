@@ -5,7 +5,7 @@ architecturally-significant changes (new node, new data flow, new deploy pattern
 history log (`ENHANCEMENTS.md`) or a design rationale doc (`SPEC.md`). Read `SPEC.md` first for
 *why*; this is *what exists and how the pieces connect*.
 
-**Status: Step 3 of 5 complete.** Sections below marked *(planned, Step N)* describe target
+**Status: Step 4 of 5 complete.** Sections below marked *(planned, Step N)* describe target
 shape from `SPEC.md`, not yet-built code — kept here rather than only in `SPEC.md` so this
 document stays the single "what actually connects to what" reference as later steps land.
 
@@ -47,8 +47,24 @@ co-located agent never leaves the machine, so it's the same B3 trust boundary
 | `src/agent/cache.py` | `cache_key()` — SPEC.md §9's thread-scoped tool-call cache key, list-arg-order-independent. |
 | `src/agent/progress_labels.py` | `progress_label(tool_name, args)` — one builder function per real tool (not `.format()` templates; every tool has an optional arg a bare template can't handle safely). |
 | `src/agent/prompts.py` | Every fixed/system prompt (`SPEC.md` §6's off-topic copy, guardrail classifier, opinion/general_climate/agent/ui_selection/compose_response system prompts). |
-| `src/agent/ui_selection.py` | The fixed §3 tool→intent lookup, `get_top_emitters`'s bar/choropleth/treemap keyword heuristic (§3.1), and the `get_country_profile` card/card+chart widget builder. `WidgetSpec.props` carries each tool's raw result through unshaped — Step 4's renderer builds the real per-component prop shape. |
+| `src/agent/ui_selection.py` | The fixed §3 tool→intent lookup, `get_top_emitters`'s bar/choropleth keyword heuristic (§3.1, no `treemap` since #17), and the `get_country_profile` card/card+chart widget builder. `WidgetSpec.props` carries each tool's raw result through unshaped — `climate-dashboard-react/src/agent/WidgetRenderer.tsx` (Step 4) is the renderer that builds the real per-component prop shape. |
 | `src/agent/graph.py` | The full node catalog (`SPEC.md` §8): `guardrail_router` → `off_topic` / `opinion` / `general_climate` / `agent`↔`tools` (looped, `call_cap_notice` on cap trip) → `ui_selection` → `compose_response` → `finalize`. `build_graph()` is async (fetches MCP tools once), takes injectable `llm`/`mcp_tools`/`checkpointer`, and requires a checkpointer + `thread_id` for cross-turn `tool_cache`/`messages` persistence to work at all — see `SPEC.md` "Corrections applied" #7. `_default_checkpointer()` registers `ToolCallRecord`/`WidgetSpec` for msgpack (#13). No `on_progress` callback (removed in Step 3, #12) — progress is read from `graph.astream(..., stream_mode="updates")` by whichever caller is running the graph. |
+
+## Frontend (`climate-dashboard-react/`, Step 4)
+
+| Module | Responsibility |
+|---|---|
+| `src/agent/types.ts` | Wire types mirroring `state.py`'s `WidgetSpec` and `server.py`'s SSE payloads exactly. `toolNameFromSourceTaggedCall()` recovers a tool name from `cache_key`'s `${tool_name}:${json args}` shape. |
+| `src/agent/useAgentStream.ts` | `POST ${base}agent/query` via `@microsoft/fetch-event-source` (native `EventSource` is GET-only, and this needs a body). Request-id-guarded against a stale in-flight stream landing after a newer `submit()`. `onopen`/`onerror` always throw — this is a one-shot query-response exchange, not a subscription the library's indefinite-retry default is meant for. |
+| `src/agent/WidgetRenderer.tsx` | `WidgetSpec` → real `design-system` component, keyed on the tool name recovered from `source_tool_call`. `get_country_profile` dispatches on `widget.intent`, not the source id, since both its widgets share one. `general_climate_node`'s fixed-literal source (`"general_climate"`) gets its own entry. Unmapped tools fall back to a generic renderer rather than crashing the section. |
+| `src/components/StarterPromptTile.tsx` | The `Tile`+`Icon`+text composition `SPEC.md` "Corrections applied" #3 called for — shared by the landing grid (§4) and opinion-guardrail suggested reframes (§6). |
+| `src/pages/AgentPage.tsx` | Landing/docked interaction model (§2), mounted at `/ask` — **not** `/agent`, which collides with `vite.config.ts`'s `agentProxyEntry` proxy key (path-prefix matching would proxy the page navigation itself to the backend). |
+
+`vite.config.ts` proxies `${base}agent` (dev/preview only) to `services/agent`'s port 8766,
+alongside the existing `${base}api` entry to `api/`'s port 8081 — both merged into one
+`server.proxy`/`preview.proxy` object. In production, Cloudflare routes
+`labs.syena.io/ghg-emissions-analysis/agent/*` directly to `services/agent` (Step 5's deploy),
+bypassing this dev-only proxy entirely.
 
 `server.py`'s `POST /query` runs the compiled graph (injected via the `get_graph` FastAPI
 dependency, resolved from `app.state.graph` in production, overridable in tests) and streams

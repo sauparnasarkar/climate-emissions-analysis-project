@@ -131,4 +131,61 @@ Shipped:
   `_validate_and_register_thread_id`'s UUID validation, cap behavior, and reuse semantics;
   `_progress_percent`/`_normalize_deploy_prefix` unit tests.
 
-Not yet built: the frontend nav item and the Mac Mini deploy — Steps 4–5.
+Not yet built: the Mac Mini deploy — Step 5.
+
+## Step 4 — Frontend integration (`climate-dashboard-react/`)
+
+A new `/ask` nav item ("Ask the Agent", `AgentPage.tsx`) consuming `services/agent`'s real
+`POST /query` SSE endpoint from Step 3, rendering `WidgetSpec`s as real `design-system`
+components per `SPEC.md` §3 — no generated markup, matching Stage 1/2's own convention.
+
+One real correction made during this step, before any frontend code was written (`SPEC.md` #17):
+`get_top_emitters`'s "current + forecast" query no longer resolves to `treemap`. The original
+design's treemap tile size/color pair assumed two metrics; the tool's real result carries exactly
+one (`co2`). `select_top_emitters_chart_kind` now falls back to `bar` for that case, and
+`WidgetSpec.chart_kind`'s `Literal` dropped `"treemap"` entirely — a genuine dual-metric treemap
+is deferred to `SPEC.md` §12 open item 5 (needs a merged result from two tool calls).
+
+Shipped:
+- `src/agent/useAgentStream.ts` — a hand-rolled `fetch()` + `@microsoft/fetch-event-source`
+  hook consuming `POST /agent/query`'s real progress/result/error SSE shape. Request-id-guarded
+  against a stale in-flight stream landing after a newer `submit()`, same discipline as
+  `hooks/useAsync.ts`'s cancellation guard.
+- `src/agent/WidgetRenderer.tsx` — maps every real tool's raw result shape (cross-referenced
+  against `api/schemas.py` and `services/mcp-server/src/mcp_server/tools/*.py`, not guessed)
+  into its exact `design-system` prop shape. `get_country_profile` dispatches on `widget.intent`
+  (`card` vs `chart`), not `source_tool_call` alone — both widgets share one source id.
+  `general_climate_node`'s fixed-literal `source_tool_call` (`"general_climate"`, no real tool's
+  cache key) gets its own entry — without it, every `general_climate`-classified query would
+  silently fall through to the "not recognized" fallback.
+- `src/components/StarterPromptTile.tsx` — the `Tile` + `Icon` + text composition `SPEC.md`
+  "Corrections applied" #3 called for, reused for both the landing grid (§4) and opinion-
+  guardrail suggested reframes (§6).
+- `src/pages/AgentPage.tsx` — landing/docked interaction model (§2): a 2×2 starter-prompt grid
+  before the first query, newest-result-first stacked sections after. Sections with no widgets
+  (off_topic/opinion) render `response_text` as an `InlineAlert`; a `general_climate`-shaped
+  single-text-widget result skips the redundant intro paragraph, since the widget already
+  carries the same text.
+- `vite.config.ts` — a second `agentProxyEntry` (port 8766) alongside the existing `api/` one,
+  merged into both `server.proxy` and `preview.proxy` rather than replacing it. No Workbox
+  `runtimeCaching` change needed: `NetworkFirst` only intercepts GET by default, and `/query` is
+  a POST.
+- Tests: `useAgentStream.test.ts` (progress/result/error dispatch, stale-stream guard, non-ok
+  `onopen` rethrow), `WidgetRenderer.test.tsx` (representative tools incl. the
+  `get_country_profile` intent-dispatch case and the `general_climate` fixed-source case),
+  `AgentPage.test.tsx` (landing/docked/loading/error/scope_notes), `StarterPromptTile.test.tsx`.
+
+**A real bug caught by live browser verification, not just the test suite**: the nav route was
+first wired as `/agent`, which collides with `vite.config.ts`'s `agentProxyEntry` proxy key
+(`${base}agent`) — Vite's dev proxy matches by path prefix, so navigating to the page itself got
+proxied to the (not-yet-running) agent backend instead of rendering the SPA, throwing
+`ECONNREFUSED`. No test caught this, since Vitest never exercises Vite's own dev-server proxy
+layer. Moved the page route to `/ask`; the proxy prefix stays `agent` (matches the already-
+decided production Cloudflare route `labs.syena.io/ghg-emissions-analysis/agent`).
+
+**Not verified live**: a real end-to-end query against a running `services/agent` (needs
+`ANTHROPIC_API_KEY`, not available in this environment). Verified instead: landing render,
+starter-prompt prefill vs. immediate-submit behavior, the docked transition, and the real Vite
+proxy path returning a genuine `Bad Gateway` (confirming the SSE POST reaches the proxy layer
+correctly) which the `error` SSE/`onopen`-reject path renders as an `InlineAlert` — not a client
+crash.
