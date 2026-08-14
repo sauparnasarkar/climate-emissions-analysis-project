@@ -11,7 +11,7 @@ fit together.
 
 from __future__ import annotations
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -200,6 +200,62 @@ async def test_turn_reset_fields_and_thread_scoped_cache_persist():
     assert turn2["tool_calls"] == []
     assert turn2["response_text"] == OFF_TOPIC_RESPONSE
     assert len(turn2["tool_cache"]) == 1  # survived from turn 1, per SPEC.md §7/§9
+
+
+async def test_finalize_prunes_previous_turn_tool_history():
+    # SPEC.md correction #21: a completed turn's raw agent<->tools round trip (tool_use
+    # AIMessages, ToolMessages, and agent_node's own final non-tool-call AIMessage) must not
+    # persist into later turns' context -- confirmed live against the real Anthropic API that a
+    # single large prior tool result left in place is enough on its own to make the model return
+    # zero tool_calls on a completely unrelated follow-up query. Only the compact finalize summary
+    # should survive across the turn boundary.
+    tool = await _make_methodology_tool()
+    checkpointer = MemorySaver()
+
+    turn1_llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_methodology_notes", {}, "call-1")]),
+            AIMessage(content="Here's what I found."),  # agent_node's own raw final text
+            {"response_text": "Here's the methodology."},
+        ]
+    )
+    graph = await build_graph(llm=turn1_llm, mcp_tools=[tool], checkpointer=checkpointer)
+    turn1 = await graph.ainvoke({"current_query": "how does the forecast model work?"}, config=THREAD_CONFIG)
+
+    # Immediately after turn 1: only the query and the one compact summary remain -- the tool-call
+    # AIMessage, the ToolMessage, and agent_node's own raw "Here's what I found" text are gone.
+    assert [type(m).__name__ for m in turn1["messages"]] == ["HumanMessage", "AIMessage"]
+    assert turn1["messages"][1].content == "Here's the methodology."
+
+    turn2_llm = ScriptedChatModel([{"classification": "off_topic"}])
+    turn2_graph = await build_graph(llm=turn2_llm, mcp_tools=[tool], checkpointer=checkpointer)
+    turn2 = await turn2_graph.ainvoke({"current_query": "write me a poem"}, config=THREAD_CONFIG)
+
+    # Turn 1's compact summary survives into turn 2 -- pruning only removes a turn's OWN raw
+    # artifacts, never a previous turn's already-compact representation.
+    assert [type(m).__name__ for m in turn2["messages"]] == ["HumanMessage", "AIMessage", "HumanMessage", "AIMessage"]
+    assert not any(isinstance(m, ToolMessage) for m in turn2["messages"])
+
+
+async def test_ui_selection_notes_zero_tool_calls():
+    # Companion to the all-failed-calls case in test_real_tool_execution_error_surfaces_without_
+    # crashing below -- confirmed reachable (not "unreachable" as an earlier comment assumed):
+    # agent_node's LLM can decide to make zero tool calls on a data_query turn.
+    tool = await _make_methodology_tool()
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="I don't have anything to add."),  # no tool_calls at all
+            {"response_text": "No data was retrieved for this query."},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool])
+    result = await graph.ainvoke({"current_query": "how does the forecast model work?"}, config=THREAD_CONFIG)
+
+    assert result["tool_calls"] == []
+    assert result["widgets"] == []
+    assert any("didn't retrieve any data" in note for note in result["scope_notes"])
 
 
 async def test_data_query_against_real_mcp_server(running_mcp_server):

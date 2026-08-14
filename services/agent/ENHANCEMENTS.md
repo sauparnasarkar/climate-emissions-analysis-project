@@ -311,3 +311,30 @@ Two new tests against a real `services/mcp-server` subprocess (deliberately unre
 `API_BASE_URL`, matching the existing error-surfacing test's pattern): one confirms the
 transient-failure note appears when every call in a turn fails, the other confirms it does
 *not* appear when only some do.
+
+**Same "no widgets" symptom, second live occurrence, different and now confirmed root cause.**
+The user pinned the trigger precisely this time: submitting the India starter prompt right after
+the China one, same conversation thread. The fix above (correction #20) didn't cover it —
+`state.tool_calls` was genuinely empty, not "attempted and failed." Reproduced reliably (not a
+one-off) by replaying the exact sequence against the live public endpoint with the real
+`thread_id` carried across both calls. Root-caused via controlled variant testing directly
+against the real Anthropic API on the Mac Mini (the deployed key, handled entirely server-side —
+read via `PlistBuddy` inside the SSH command, never viewed or printed): turn 1's raw message
+history — including `agent_node`'s own final text and `finalize_node`'s separate summary sitting
+back-to-back with no turn boundary, and, the actual determining factor, a single prior
+`get_historical_emissions(scope="sovereign")` result (~31KB, full history for all ~215 sovereign
+countries) — was persisting in full into turn 2's context. Truncating just that one payload, with
+everything else (including the back-to-back duplicate messages) left exactly as production sends
+it, was enough on its own to make the model call tools normally again; the duplicate-message
+structure alone, with the payload still present, was not. Fixed in `finalize_node`: the turn's
+raw agent↔tools round trip is now pruned via LangGraph's `RemoveMessage` once the turn's compact
+summary is written, so a large tool result never survives past the turn that produced it. Also
+corrected `ui_selection_node`'s own comment, which had asserted a zero-tool-call `data_query` turn
+was unreachable — this investigation proved otherwise — and gave that case its own `scope_notes`
+entry. Verified against the real Anthropic API with the exact repro sequence before shipping:
+turn 2 now calls `get_historical_emissions` and returns a real widget with a coherent response.
+
+**Flagged separately, not fixed here:** `get_historical_emissions(scope="sovereign")`'s ~31KB,
+215-country uncapped payload is the deeper root cause and is a `services/mcp-server` concern, not
+`services/agent`'s — this sub-project's own convention is not to modify `services/mcp-server`
+directly. Worth trimming or paginating there independently of this fix.

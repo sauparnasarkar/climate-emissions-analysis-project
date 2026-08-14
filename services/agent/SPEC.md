@@ -179,6 +179,27 @@ conversational-agent project that `services/mcp-server` began.
     entry naming it a transient backend failure, so `compose_response_node` stops synthesizing a
     generic "try rephrasing" apology that looks identical to an honest no-match case. See
     `ENHANCEMENTS.md`'s "Mac Mini deploy" section for the full investigation.
+21. **A completed turn's raw tool history, left in `state.messages` indefinitely, could make the
+    model silently stop calling tools on a later, unrelated turn.** Found reproducing a second,
+    live "no widgets" report the user pinned to a specific sequence (India query submitted right
+    after the China starter prompt, same thread) — correction #20's fix didn't cover it, since
+    `state.tool_calls` was genuinely empty (zero tool calls attempted, not "attempted and failed").
+    Root-caused via controlled variant testing directly against the real Anthropic API (Mac Mini,
+    key handled server-side only): `agent_node`'s final non-tool-call `AIMessage` and
+    `finalize_node`'s own separate summary `AIMessage` were both persisting back-to-back with no
+    turn boundary between them, and — the actual determining factor, confirmed by truncating it in
+    isolation while leaving everything else untouched — a single prior turn's
+    `get_historical_emissions(scope="sovereign")` result (~31KB, all ~215 sovereign countries'
+    full history) was also persisting in full. With that payload still in context, the model
+    returned `tool_calls=[]` on an entirely unrelated India query; with it stripped down (real
+    data, same position, same duplicate-message structure otherwise unchanged), the model called
+    tools normally. Fixed in `finalize_node`: everything strictly after the current turn's own
+    `HumanMessage` (its raw agent↔tools round trip) is now removed via LangGraph's `RemoveMessage`
+    and replaced by the one summary line already written there — earlier turns' own summaries are
+    untouched, so cross-turn context isn't lost, only the verbose replay of it. Also closed the
+    matching gap in `ui_selection_node`: an earlier comment on correction #20's fix asserted a
+    zero-tool-call `data_query` turn was "unreachable" — it isn't, as this investigation proved —
+    so that path now gets its own `scope_notes` entry too, the same way the all-failed case does.
 
 ---
 

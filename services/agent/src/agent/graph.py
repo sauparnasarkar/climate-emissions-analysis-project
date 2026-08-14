@@ -33,7 +33,7 @@ import logging
 from typing import Any, Literal
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
@@ -289,12 +289,19 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
     # Distinguishes "every tool call this turn failed" (a real backend/network problem) from
     # "tools succeeded but nothing matched a widget" -- without this, compose_response_node sees
     # an empty widgets list either way and invents a generic "try rephrasing" apology even when
-    # the actual cause was a transient failure, not an ambiguous query. Only fires when there were
-    # tool calls at all; a data_query turn that never called a tool is a different (unreachable
-    # here) path.
+    # the actual cause was a transient failure, not an ambiguous query.
     if state.tool_calls and all(is_error_result(record.result) for record in state.tool_calls):
         note = "The underlying data service didn't return results for this query -- this looks like a transient failure, not a problem with the question itself."
         logger.warning("ui_selection_node: all %d tool call(s) this turn failed", len(state.tool_calls))
+        scope_notes = [*scope_notes, note]
+    elif not state.tool_calls:
+        # A data_query turn that made zero tool calls at all -- previously assumed unreachable, but
+        # confirmed reachable (SPEC.md correction #21): agent_node's LLM can decide not to call any
+        # tool, most often when a large prior tool result still in context (before the finalize_node
+        # pruning fix) crowds out its judgment. Same distinguishing purpose as the branch above --
+        # flags this as worth a retry rather than compose_response_node inventing a generic apology.
+        note = "The assistant didn't retrieve any data for this query -- try rephrasing or asking again."
+        logger.warning("ui_selection_node: data_query turn made zero tool calls")
         scope_notes = [*scope_notes, note]
 
     return {"widgets": widgets, "scope_notes": scope_notes}
@@ -313,8 +320,22 @@ async def finalize_node(state: AgentState) -> dict[str, Any]:
     # path nodes (off_topic/opinion/general_climate/compose_response) deliberately don't append
     # their own raw output, avoiding duplicate/near-duplicate messages across turns. Full widget
     # payloads are never appended, to bound context growth (SPEC.md §8's finalize row).
+    #
+    # This turn's raw agent<->tools round trip (tool_use AIMessages, ToolMessages, and agent_node's
+    # own final non-tool-call AIMessage) is pruned here via RemoveMessage, replaced by the one
+    # summary line below -- SPEC.md correction #21. Confirmed live against the real Anthropic API:
+    # a single prior turn's raw history (e.g. get_historical_emissions(scope="sovereign")'s
+    # ~31KB/215-country payload) left in state.messages was enough on its own to make agent_node
+    # silently return zero tool_calls on a completely unrelated follow-up query, with no exception
+    # and no error -- just a "no data available" apology. Everything strictly after the current
+    # turn's own HumanMessage (added by guardrail_router_node moments ago) belongs to this turn and
+    # is safe to drop; every earlier turn's HumanMessage and its own (already-pruned) summary
+    # AIMessage are left untouched, so cross-turn context isn't lost, only the verbose replay of it.
+    last_human_idx = max((i for i, m in enumerate(state.messages) if isinstance(m, HumanMessage)), default=-1)
+    prune = [RemoveMessage(id=m.id) for m in state.messages[last_human_idx + 1 :]]
+
     summary = state.response_text[:500] if state.response_text else "(no response text)"
-    return {"messages": [AIMessage(content=summary)]}
+    return {"messages": [*prune, AIMessage(content=summary)]}
 
 
 def _default_checkpointer() -> MemorySaver:
