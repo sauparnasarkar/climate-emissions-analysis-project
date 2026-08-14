@@ -35,6 +35,17 @@ def test_tool_call_record_round_trip():
     assert record.result == {"data": [1, 2, 3]}
 
 
+def test_tool_call_record_accepts_list_result():
+    # Several MCP tools return a list at the top level -- result must accept Any, not just dict.
+    record = ToolCallRecord(
+        tool_name="list_countries",
+        args={},
+        result=["China", "India", "USA"],
+        progress_label="Listing countries",
+    )
+    assert record.result == ["China", "India", "USA"]
+
+
 def test_widget_spec_requires_intent_and_rejects_unknown_chart_kind():
     widget = WidgetSpec(
         intent="chart",

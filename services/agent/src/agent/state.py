@@ -8,7 +8,7 @@ and replaces its own owned fields; nothing else is auto-merged, e.g. `tool_cache
 returned as a full new dict from the node that mutates it).
 """
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 class ToolCallRecord(BaseModel):
     tool_name: str
     args: dict
-    result: dict | None = None
+    result: Any | None = None
     progress_label: str
 
 
