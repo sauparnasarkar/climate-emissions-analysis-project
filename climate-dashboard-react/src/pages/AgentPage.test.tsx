@@ -55,6 +55,25 @@ describe('AgentPage', () => {
     expect(screen.getAllByRole('button', { name: /Send/ })).toHaveLength(1);
   });
 
+  it('sizes the starter-prompt grid so tracks shrink below 280px on a narrow viewport', () => {
+    // jsdom has no real layout engine, so this can't measure actual overflow the way a real
+    // browser does -- confirmed live on a real narrow viewport (labs.syena.io/ghg-emissions-
+    // analysis/ask, 500px window): plain `minmax(280px, 1fr)` refuses to shrink below 280px per
+    // auto-fit track, which pushed <main> to 968px wide with nothing to constrain it back to the
+    // viewport. `minmax(min(280px, 100%), 1fr)` fixed it (484px). This test pins the CSS pattern
+    // so a future edit can't silently revert to the overflowing literal.
+    stubStream({});
+    render(<AgentPage />);
+    // StarterPromptTile's prompt text sits in a <span>, inside the tile's own inner flex column
+    // div, inside the Tile's own root div, inside the grid -- three hops up from the text node.
+    const promptText = screen.getByText('What are the top 10 forecasted emitters in 2040?');
+    const tileInnerColumn = promptText.closest('div');
+    const tileRoot = tileInnerColumn?.parentElement;
+    const grid = tileRoot?.parentElement;
+    expect(grid).not.toBeNull();
+    expect((grid as HTMLElement).style.gridTemplateColumns).toContain('min(280px, 100%)');
+  });
+
   it('prefills (but does not submit) a <Country>-templated starter prompt on click', async () => {
     const submit = vi.fn();
     stubStream({ submit });

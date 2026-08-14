@@ -267,8 +267,25 @@ were in place: a live `POST /query` against the running Mac Mini process returne
 Sonnet-generated `response_text` — the full guardrails → tool-call → widget-selection → SSE
 pipeline working against live infrastructure, confirmed 2026-08-14.
 
-**Not yet done**: the Cloudflare Tunnel route for the public
-`labs.syena.io/ghg-emissions-analysis/agent` → `localhost:8766` endpoint. Dashboard-managed
-(token-file-based tunnel, no local `config.yml`) — needs to sit above the existing unanchored
-`/ghg-emissions-analysis` catch-all row, same ordering `services/mcp-server`'s own route
-already established.
+**Cloudflare Tunnel route added and verified live** (2026-08-14): `labs.syena.io/ghg-emissions-
+analysis/agent` → `localhost:8766`, added via the Zero Trust dashboard's Published Application
+Routes above the existing unanchored `/ghg-emissions-analysis` catch-all row, same ordering
+`services/mcp-server`'s own route already established. A full public-path query (`/health` and a
+real `POST /query`) confirmed working from outside the Mac Mini.
+
+**Mobile responsiveness bug, found via real device use after the route went live, fixed same
+day.** The `/ask` page overflowed horizontally on an iPhone. Root-caused by reproducing in a
+real (non-jsdom) narrow browser viewport rather than guessing from source: `AgentPage.tsx`'s
+starter-prompt grid used `gridTemplateColumns: repeat(auto-fit, minmax(280px, 1fr))`, and
+`auto-fit`'s intrinsic sizing reserves room for as many fixed-280px tracks as there are grid
+items regardless of the container's actual available width — confirmed live, `<main>` rendered
+at 968px wide inside a 500px viewport, with three 280px tracks laid out side by side rather than
+collapsing to one column. None of the page's other content (the widget-result flex row, which
+already had `minWidth: 0` and shrunk correctly) contributed to the overflow — isolated to this
+one grid. Fixed with the standard responsive-grid-without-media-queries pattern,
+`minmax(min(280px, 100%), 1fr)`, which caps each track's minimum at the container's own
+available width instead of a hard floor; confirmed live before touching source (`<main>` dropped
+to 484px in the same 500px viewport) and again after rebuild/redeploy. One new regression test
+(`AgentPage.test.tsx`) pins the CSS pattern in the grid's inline style so a future edit can't
+silently revert to the overflowing literal — jsdom has no real layout engine, so it can't catch
+the overflow itself, only the regression of the fix.

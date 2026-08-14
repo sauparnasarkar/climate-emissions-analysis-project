@@ -157,7 +157,15 @@ export function AgentPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            // minmax(280px, 1fr) alone doesn't shrink below 280px per track even inside a
+            // narrower viewport -- auto-fit's intrinsic sizing still reserves room for as many
+            // fixed-280px columns as there are items, which forces this grid (and every flex
+            // ancestor up to <main>, none of which have min-width:0) wider than the screen.
+            // minmax(min(280px, 100%), 1fr) caps each track's minimum at the container's own
+            // available width, so it collapses to one column instead of overflowing. Confirmed
+            // live on a real narrow viewport: without this, <main> rendered at 968px on a 500px
+            // viewport; with it, 484px.
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
             gap: 16,
             maxWidth: 900,
             margin: '0 auto',
