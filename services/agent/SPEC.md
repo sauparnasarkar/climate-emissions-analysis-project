@@ -170,6 +170,15 @@ conversational-agent project that `services/mcp-server` began.
     `DataNotFoundError` is. `tests/test_server.py`'s `test_query_streams_error_event_on_graph_failure`
     now asserts the generic message *and* (via `caplog`) that the real exception was logged, not
     silently dropped.
+20. **A turn where every tool call fails was indistinguishable from one that genuinely matched no
+    widget.** Found investigating a live "no widgets generated" bug report that turned out not to
+    be reliably reproducible, and — because `tools_node` logged nothing on either of its error
+    branches — not diagnosable from logs either. Fixed on both sides: `tools_node` now logs a
+    `logger.warning` when a tool is unknown or a real tool call errors; `ui_selection_node` now
+    checks whether every `ToolCallRecord` in the turn errored and, if so, appends a `scope_notes`
+    entry naming it a transient backend failure, so `compose_response_node` stops synthesizing a
+    generic "try rephrasing" apology that looks identical to an honest no-match case. See
+    `ENHANCEMENTS.md`'s "Mac Mini deploy" section for the full investigation.
 
 ---
 
