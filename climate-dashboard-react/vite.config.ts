@@ -68,6 +68,27 @@ const apiProxy = {
 
 const apiProxyEntry = { [`${base}api`]: apiProxy }
 
+// services/agent's own FastAPI app (port 8766, see services/agent/README.md), proxied under
+// `${base}agent` the same way `api/` is proxied under `${base}api` -- a separate process, so a
+// separate proxy entry rather than folding it into apiProxy. Unlike `api/`, whose routes are
+// mounted under a permanent `/api` prefix of their own (so stripping just `base` leaves the
+// right path), `services/agent`'s routes are bare (`/query`, `/health`, no `/agent` segment) --
+// the whole `${base}agent` proxy key must be stripped, not just `base`, or every request would
+// 404 against the agent process locally (it has no DEPLOY_BASE_PATH set in dev, so `/agent/query`
+// isn't a route it knows). The SSE `/query` endpoint needs no other special-casing: Vite's
+// http-proxy streams the response body through as it arrives either way, and Workbox's
+// runtimeCaching below only intercepts GET requests by default (no `method` override set), so
+// this POST endpoint is never touched by the service worker's NetworkFirst handler -- no
+// SSE-aware exclusion needed.
+const agentProxyPrefix = `${base}agent`
+const agentProxy = {
+  target: 'http://localhost:8766',
+  changeOrigin: true,
+  rewrite: (p: string) => (p.startsWith(agentProxyPrefix) ? p.slice(agentProxyPrefix.length) || '/' : p),
+}
+
+const agentProxyEntry = { [agentProxyPrefix]: agentProxy }
+
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
@@ -171,11 +192,11 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    proxy: apiProxyEntry,
+    proxy: { ...apiProxyEntry, ...agentProxyEntry },
   },
   preview: {
     port: 4173,
-    proxy: apiProxyEntry,
+    proxy: { ...apiProxyEntry, ...agentProxyEntry },
     // Vite blocks unrecognized Host headers by default (DNS-rebinding protection) —
     // the Cloudflare Tunnel forwards requests with Host: labs.syena.io, which needs
     // an explicit allow. Gated on the *normalized* base (not the raw env var) so

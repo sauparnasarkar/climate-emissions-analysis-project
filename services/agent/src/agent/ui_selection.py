@@ -37,22 +37,21 @@ _TOOL_INTENT: dict[str, tuple[str, str | None]] = {
 }
 
 _GEOGRAPHIC_MARKERS = ("where", "map", "geographic", "geography", "around the world", "by region")
-_CURRENT_MARKERS = ("now", "current", "today", "currently")
-_FORECAST_MARKERS = ("forecast", "forecasted", "projected", "future")
 
 
 def select_top_emitters_chart_kind(current_query: str) -> str:
-    """SPEC.md §3.1: bar (ranked list, default), choropleth (geographic spread), or treemap
-    (current size vs. a second/forecast metric -- only when the query names *both* a "current"
-    concept and a "forecast" concept together; "forecasted emitters in 2040" alone is still a
-    single-metric ranked list, i.e. still `bar`)."""
+    """SPEC.md §3.1: bar (ranked list, default) or choropleth (geographic spread).
+
+    Corrected in Step 4 (SPEC.md "Corrections applied" #17): the original design also picked
+    `treemap` for a query naming both a "current" and a "forecast" concept, sized by one metric
+    and colored by the other. `get_top_emitters`'s real result (`composed.py`) carries exactly
+    one metric (`co2`) -- a treemap coloring tiles by the same value that sizes them is
+    decoration, not a second dimension. A genuine dual-metric treemap needs a merged result from
+    two tool calls (`get_top_emitters` + `get_forecast_comparison`), which `ui_selection` doesn't
+    build today -- see SPEC.md §12 open item. Until then this heuristic never returns `treemap`."""
     query = current_query.lower()
     if any(marker in query for marker in _GEOGRAPHIC_MARKERS):
         return "choropleth"
-    has_current = any(marker in query for marker in _CURRENT_MARKERS)
-    has_forecast = any(marker in query for marker in _FORECAST_MARKERS)
-    if has_current and has_forecast:
-        return "treemap"
     return "bar"
 
 

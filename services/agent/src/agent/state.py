@@ -23,7 +23,7 @@ class ToolCallRecord(BaseModel):
 
 class WidgetSpec(BaseModel):
     intent: Literal["chart", "grid", "card", "text"]
-    chart_kind: Literal["line", "bar", "band", "choropleth", "treemap"] | None = None
+    chart_kind: Literal["line", "bar", "band", "choropleth"] | None = None
     title: str
     as_of: str | None = None
     source_tool_call: str

@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@microsoft/fetch-event-source": "^2.0.1",
     "ag-grid-community": "^36.0.0",
     "ag-grid-react": "^36.0.0",
     "plotly.js-dist-min": "^3.7.0",
