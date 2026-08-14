@@ -195,12 +195,37 @@ Access application with a Service Auth policy (not login-based) and named, indiv
 revocable Service Tokens per client — `SPEC.md` §8, settled and shipped 2026-08-13. Verified
 from outside the Mac Mini: the public endpoint returns `403` with no credentials or a wrong
 Service Token, confirming Access enforces before a request ever reaches this machine. Client
-consumers (Claude Desktop's remote-MCP config, and eventually the Stage 2 LangGraph agent) still
-need `CF-Access-Client-Id`/`CF-Access-Client-Secret` headers wired in on their side —
-`services/mcp-server/SPEC.md` §8.4 tracks that last bullet. A Dockerfile and CI job remain
-deliberately deferred (`SPEC.md` §2.1), unrelated to the auth resolution.
+consumers reaching in from **outside** the Mac Mini (Claude Desktop's remote-MCP config, any
+future external tester) need `CF-Access-Client-Id`/`CF-Access-Client-Secret` headers wired in on
+their side — `services/mcp-server/SPEC.md` §8.4 tracks that. The Stage 2 LangGraph agent
+(§9) turned out **not** to be one of these clients — see §9 for why. A Dockerfile and CI job
+remain deliberately deferred (`SPEC.md` §2.1), unrelated to the auth resolution.
 
-## 8. See also
+## 9. Conversational agent (`services/agent/`)
+
+LangGraph agent, Stage 2 of the same conversational-agent project §7 began — surfaced as a new
+nav item in `climate-dashboard-react/` (§5), calling `services/mcp-server`'s tools (§7) as an
+MCP client and rendering results as real design-system components. Full design lives in
+`services/agent/SPEC.md`/`ARCHITECTURE.md`; this section covers only where it sits relative to
+the rest of the system.
+
+**Data flow**: MCP client of `services/mcp-server` (`langchain-mcp-adapters`'
+`MultiServerMCPClient`), not a raw HTTP client of `api/` — inherits `services/mcp-server`'s
+country-resolution guard and response trimming for free by staying at the MCP layer.
+
+**Trust boundary — co-located B3, not B4.** Deployed on the same Mac Mini as
+`services/mcp-server`, so it reaches it over `127.0.0.1:8765` unauthenticated — the same B3
+boundary `services/mcp-server`→`api/` already uses, not the Cloudflare-Access-gated B4 path §7
+describes for *external* clients. A co-located agent never leaves the machine. Its own public
+endpoint (browser → `services/agent`) is B1/B2-tier, same as `api/` — protected by an existing
+Cloudflare edge rate-limit rule on the whole `/ghg-emissions-analysis` path prefix rather than
+app-layer code, since every request there also costs a real Anthropic API call.
+
+**Status**: Step 1 of 5 (backend scaffold + MCP client) shipped. Graph core, SSE streaming,
+frontend nav item, security review, and Mac Mini deploy are Steps 2–5 — see
+`services/agent/ENHANCEMENTS.md` for release-by-release status.
+
+## 10. See also
 
 - **`SPEC.md`** — curriculum requirements (§§1–2), the mentor's addendum with full
   narrative rationale for every architectural decision (§5), curriculum corrections (§6),
@@ -215,4 +240,8 @@ deliberately deferred (`SPEC.md` §2.1), unrelated to the auth resolution.
 - **`services/mcp-server/SPEC.md`**, **`services/mcp-server/CLAUDE.md`**,
   **`services/mcp-server/ENHANCEMENTS.md`** — the MCP server sub-project's own design,
   agent-facing instructions, and release history, kept separate from the above rather than
-  folded in (§8).
+  folded in (§7).
+- **`services/agent/SPEC.md`**, **`services/agent/CLAUDE.md`**,
+  **`services/agent/ARCHITECTURE.md`**, **`services/agent/ENHANCEMENTS.md`** — the
+  conversational agent sub-project's own design, agent-facing instructions, cross-cutting
+  architecture, and release history, kept separate from the above rather than folded in (§9).

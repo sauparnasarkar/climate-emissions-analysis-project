@@ -13,13 +13,15 @@ The mentor's working repository for the GHG trend analysis and forecasting proje
 
 > **Scope note:** Only the notebooks (Weeks 1–5) and the Streamlit app (`app.py`, Week 6
 > stretch goal) are part of the internship curriculum — see `SPEC.md` §§1–2 for what interns
-> are actually asked to build. `api/`, `climate-dashboard-react/`, and `services/mcp-server/`
-> are a **separate, later expansion built by the mentor**, turning this project into a
-> reference example of a production-shaped data engineering + front-end dashboard +
-> agent-tooling stack — **not** an internship deliverable, not graded, not part of intern
-> certification. See `SPEC.md` §5 for the `api/`/`climate-dashboard-react/` addendum and
-> [`services/mcp-server/SPEC.md`](services/mcp-server/SPEC.md) for the MCP server's own spec,
-> both documented separately from the internship spec for exactly this reason.
+> are actually asked to build. `api/`, `climate-dashboard-react/`, `services/mcp-server/`, and
+> `services/agent/` are a **separate, later expansion built by the mentor**, turning this
+> project into a reference example of a production-shaped data engineering + front-end
+> dashboard + agent-tooling stack — **not** an internship deliverable, not graded, not part of
+> intern certification. See `SPEC.md` §5 for the `api/`/`climate-dashboard-react/` addendum,
+> [`services/mcp-server/SPEC.md`](services/mcp-server/SPEC.md) for the MCP server's own spec
+> (Stage 1 of the conversational-agent project), and
+> [`services/agent/SPEC.md`](services/agent/SPEC.md) for the LangGraph agent built on top of it
+> (Stage 2) — all documented separately from the internship spec for exactly this reason.
 
 Contains:
 - `notebook/week1_eda.ipynb` … `notebook/week5_scenarios.ipynb` — one notebook per week (split from the original single combined notebook, v8); each runs independently, loading CSVs saved by the previous week
@@ -29,6 +31,7 @@ Contains:
 - `api/` — FastAPI backend (mentor's post-internship reference-architecture expansion, not internship scope — see the scope note above), exposing the same page computations as JSON for `climate-dashboard-react/`; mirrors `app.py`'s pandas logic 1:1 endpoint-by-endpoint, `@lru_cache` in place of `@st.cache_data`. Has a pytest suite (`api/tests/`, run via `pytest api/tests`) covering every endpoint's happy path, 4xx/503 error paths, and pandas edge cases, against fixture CSVs written to a temp dir rather than the real (gitignored) data
 - `climate-dashboard-react/` — React + TypeScript dashboard (mentor's post-internship reference-architecture expansion, not internship scope) consuming `api/`, themed via the Analytics Theme of the `design-system` project (a separate, sibling checkout at `../design-system` relative to this repo — not part of this monorepo since it's shared across other projects too; `climate-dashboard-react/vite.config.ts` aliases straight to its `src/`). Has a Vitest + React Testing Library suite (`npm test`) — API client tests plus a loading/data/error smoke test per page; `SyChart` is stubbed in page tests since Plotly's DOM lifecycle is `design-system`'s own test suite's concern, not this app's
 - `services/mcp-server/` — MCP server (mentor's post-internship reference-architecture expansion, not internship scope) wrapping `api/` as hand-curated MCP tools for Claude Desktop/Code and, later, a LangGraph agent — Stage 1 of a separate conversational-agent project. Independently versioned/deployable from `api/` (own `pyproject.toml`), calls `api/` over HTTP like any other consumer, not a shared-library import. Own [`CLAUDE.md`](services/mcp-server/CLAUDE.md), [`SPEC.md`](services/mcp-server/SPEC.md), and `ENHANCEMENTS.md` — see those rather than this file or the root `SPEC.md`/`ENHANCEMENTS.md` for its design and release history
+- `services/agent/` — LangGraph conversational agent (mentor's post-internship reference-architecture expansion, not internship scope), surfaced as a new nav item in `climate-dashboard-react/` — Stage 2 of the conversational-agent project `services/mcp-server` began. Calls `services/mcp-server`'s tools as an MCP client (`langchain-mcp-adapters`), unauthenticated over localhost since it's co-located with `services/mcp-server` on the same deploy host; renders results as real `design-system` components, never generated markup. Independently versioned/deployable (own `pyproject.toml`). Own [`CLAUDE.md`](services/agent/CLAUDE.md) and [`SPEC.md`](services/agent/SPEC.md) — see those rather than this file for its design and node catalog
 - `data/` — gitignored CSVs; interns download OWID dataset manually, all other CSVs (`ghg_filtered.csv`, `ghg_features.csv`, `model_comparison_regression.csv`, `ets_forecasts.csv`, `model_comparison.csv`, `scenario_projections.csv`) are regenerated locally by running the week notebooks in order
 - `requirements.txt` — pinned Python deps (pandas, scikit-learn, statsmodels, streamlit, fastapi, uvicorn, etc.) — shared across the internship code and the post-internship `api/` expansion alike
 
@@ -60,7 +63,8 @@ Contains:
 
 - **Project specification (v51, current):** [`SPEC.md`](SPEC.md) — full weekly breakdown, deliverables, and requirements (§§1–2); §5 separately documents the mentor's post-internship `api/`/`climate-dashboard-react/` reference architecture, explicitly out of internship scope; §6 documents post-ship corrections to the curriculum notebooks themselves (not new scope)
 - **MCP server specification:** [`services/mcp-server/SPEC.md`](services/mcp-server/SPEC.md) — architecture decisions, cross-cutting tool conventions, and the tool catalog for the MCP server sub-project; kept separate from the root `SPEC.md` since it's a distinct sub-project, not a dashboard addendum. Companion [`services/mcp-server/CLAUDE.md`](services/mcp-server/CLAUDE.md) and its own `ENHANCEMENTS.md` cover that sub-project's day-to-day guidance and release history
-- **Technical architecture:** [`ARCHITECTURE.md`](ARCHITECTURE.md) — a current-state description of how the system is actually built (data pipeline, `api`/`climate-dashboard-react`/`services/mcp-server` internals, deploy topology on the Mac Mini, design-system integration). Unlike `SPEC.md`/`ENHANCEMENTS.md`, this doesn't narrate history — update it only on architecturally-significant changes (new service, new data flow, new pattern), not per bug fix
+- **Conversational agent specification:** [`services/agent/SPEC.md`](services/agent/SPEC.md) — the LangGraph node catalog, UI-intent schema, guardrails, and generative-UI design for the Stage 2 agent sub-project; kept separate from the root `SPEC.md` for the same reason as the MCP server's own spec. Companion [`services/agent/CLAUDE.md`](services/agent/CLAUDE.md) and its own `ENHANCEMENTS.md`/`ARCHITECTURE.md` cover that sub-project's day-to-day guidance, release history, and cross-cutting architecture
+- **Technical architecture:** [`ARCHITECTURE.md`](ARCHITECTURE.md) — a current-state description of how the system is actually built (data pipeline, `api`/`climate-dashboard-react`/`services/mcp-server`/`services/agent` internals, deploy topology on the Mac Mini, design-system integration). Unlike `SPEC.md`/`ENHANCEMENTS.md`, this doesn't narrate history — update it only on architecturally-significant changes (new service, new data flow, new pattern), not per bug fix
 - Project brief v1: Google Doc ID `1fcVx1dBr3mNZkNVgX42iCfsmiYrVtdFw`
 - Project brief v2: Google Doc ID `1cBMazlkGQ2WvYnp4KGB_skEobZbZClOimW6-ACW3tlQ`
 - Project brief v3: Google Doc ID `17wcMXnhYk_SKfPtiINOLD-Og-e5kUovoHQH25VA9_QE`

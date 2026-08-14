@@ -225,7 +225,7 @@ risk in the original ask:
 | B1 — Browser ↔ dashboard | Anonymous public visitor ↔ static SPA | No — public by design |
 | B2 — Browser ↔ `api/` | Anonymous public visitor ↔ FastAPI | No — anything a browser sends is visible via DevTools/view-source; no mechanism can hide a secret from the party presenting it |
 | B3 — This server ↔ `api/` | This server ↔ `api/`, same Mac Mini | Yes — both sides are ours |
-| B4 — External MCP clients ↔ this server | This project's LangGraph agent, Claude Desktop/Code, named testers ↔ this server, now internet-reachable | Yes — the client list is small and known |
+| B4 — External MCP clients ↔ this server | Claude Desktop/Code, named testers ↔ this server, now internet-reachable. **Not** this project's own LangGraph agent — see the corrected §8.4 checklist item below; a co-located agent is B3, not B4. | Yes — the client list is small and known |
 
 A single bearer-token gate on `/api/*` would authenticate B3 correctly but breaks B2 (the
 dashboard has no way to hold the secret) — the two must not share one gate. This is why §8.2
@@ -237,7 +237,7 @@ leaves `/api/*` open and puts the actual new auth surface on B4.
 |---|---|---|---|
 | B1/B2 | Stay unauthenticated. `CORS allow_origins` gains the production origin (`https://labs.syena.io`) alongside the existing dev origin. This is an `api/main.py` change, owned by root `SPEC.md`'s own addendum, not this file — listed here only as the §4-style cross-reference this doc already uses for API-side dependencies. | Data is meant to be public; a browser-visible token protects nothing and adds maintenance for no real gain. The existing Cloudflare rate-limit rule (50 req/10s per IP on `/ghg-emissions-analysis`) and response-header rules (CSP, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`) already cover the realistic abuse surface for public read data. | A same-origin session cookie or edge-issued token — adds complexity without stopping a determined actor, since the browser must always be able to read what it renders. |
 | B3 | No change. `uvicorn` stays bound to `127.0.0.1:8081`, reachable only via the Tunnel — this server's calls to `api/` are already network-isolated, not merely unauthenticated. | Network topology already does the job an app-layer token would do here. Revisit only when Phase 2 (§8.5) restricts `/api/*` itself. | A service-account bearer token on this leg now — the eventual target shape per §2, but dead code while `api/` has no auth to check it against (same reasoning §2.1 already gave for V1; still true). |
-| B4 | Cloudflare Access, Service Auth policy, scoped to a new published application route — no application-layer auth code added to this server. | Matches the actual client list at launch (§8's header date): this project's agent, Claude Desktop/Code, and a handful of named testers — a small, fully known set is exactly what Access Service Tokens are for. Free-tier Zero Trust (confirmed: up to 50 seats, Service Tokens included) covers this with room to spare. Enforcement happens at Cloudflare's edge, before a request reaches the Mac Mini at all — less code to write and maintain than hand-rolled bearer-token middleware, and per-client revocation/rotation becomes a dashboard action instead of a deploy. | Hand-rolled bearer-token ASGI middleware — viable, more code, no material security difference for this client list. OAuth 2.1 — the correct mechanism once clients aren't ones being personally handed out; deferred to §8.5. |
+| B4 | Cloudflare Access, Service Auth policy, scoped to a new published application route — no application-layer auth code added to this server. | Matches the actual client list at launch (§8's header date): Claude Desktop/Code and a handful of named testers — a small, fully known set is exactly what Access Service Tokens are for. (This project's own LangGraph agent turned out not to be in this list — see §8.4's corrected checklist item; it's co-located and reaches this server as a B3 client instead.) Free-tier Zero Trust (confirmed: up to 50 seats, Service Tokens included) covers this with room to spare. Enforcement happens at Cloudflare's edge, before a request reaches the Mac Mini at all — less code to write and maintain than hand-rolled bearer-token middleware, and per-client revocation/rotation becomes a dashboard action instead of a deploy. | Hand-rolled bearer-token ASGI middleware — viable, more code, no material security difference for this client list. OAuth 2.1 — the correct mechanism once clients aren't ones being personally handed out; deferred to §8.5. |
 
 ### 8.3 Deploy topology — path on the existing hostname, not a new subdomain
 
@@ -357,11 +357,15 @@ underneath) rather than a stopgap for missing auth.
   Confirmed working end-to-end: connector loaded, all 13 tools listed correctly. Uses the
   `ghg-emissions-mcp-claude-desktop` Service Token specifically (not the app-agent/tester ones),
   keeping per-client attribution/revocation meaningful.
-- [ ] **Client-side, LangGraph agent (Stage 2).** Doesn't exist yet. When built, its HTTP client
-  needs the same two headers (`CF-Access-Client-Id`/`CF-Access-Client-Secret`) set directly on
-  its calls to this server — no OAuth-flow mismatch to work around there, since it isn't going
-  through Desktop's GUI connector mechanism at all. Uses the `ghg-emissions-mcp-app-agent`
-  Service Token.
+- [x] **Client-side, LangGraph agent (Stage 2) — turned out not to be a B4 client.** Corrected
+  2026-08-13 when `services/agent`'s Step 1 confirmed it's deployed **co-located on the same Mac
+  Mini** as this server, not reaching in from outside it. That makes it a B3 case, not B4: it
+  connects over `127.0.0.1:8765`, unauthenticated, the same trust boundary this server's own
+  calls to `api/` already use — no Cloudflare Access headers, no Service Token. The
+  `ghg-emissions-mcp-app-agent` Service Token (provisioned above) stays unused unless an actual
+  external agent deployment shows up later; it is not dead weight to remove, just currently
+  idle. See `services/agent/SPEC.md` "Corrections applied" #4 and
+  `services/agent/ARCHITECTURE.md` for the full boundary writeup on the agent's side.
 - [x] `api/main.py` — CORS `allow_origins` gains `https://labs.syena.io` alongside the existing
   dev origin (`http://localhost:5173`). Cross-referenced here (§4-style) but this is the one
   explicit, narrow exception to `CLAUDE.md`'s "no changes to `api/`" convention for this Phase
