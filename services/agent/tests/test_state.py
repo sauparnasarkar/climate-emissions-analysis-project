@@ -35,13 +35,17 @@ def test_tool_call_record_round_trip():
     assert record.result == {"data": [1, 2, 3]}
 
 
-def test_tool_call_record_accepts_list_result():
-    # Several MCP tools return a list at the top level -- result must accept Any, not just dict.
+def test_tool_call_record_accepts_non_dict_result():
+    # `result: Any | None` is deliberately permissive -- every one of the 13 real
+    # services/mcp-server tools today returns an object-shaped response (each api/ endpoint
+    # declares a BaseModel response_model, never a bare top-level list), so `dict | None` would
+    # be accurate for the current catalog. `Any` is kept anyway as forward-looking slack for
+    # tool shapes added in later steps, not because a current tool needs it.
     record = ToolCallRecord(
-        tool_name="list_countries",
+        tool_name="hypothetical_future_tool",
         args={},
         result=["China", "India", "USA"],
-        progress_label="Listing countries",
+        progress_label="Example",
     )
     assert record.result == ["China", "India", "USA"]
 
