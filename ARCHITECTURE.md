@@ -221,8 +221,8 @@ endpoint (browser → `services/agent`) is B1/B2-tier, same as `api/` — protec
 Cloudflare edge rate-limit rule on the whole `/ghg-emissions-analysis` path prefix rather than
 app-layer code, since every request there also costs a real Anthropic API call.
 
-**Status**: Step 1 of 5 (backend scaffold + MCP client) shipped. Graph core, SSE streaming,
-frontend nav item, security review, and Mac Mini deploy are Steps 2–5 — see
+**Status**: Steps 1–2 of 5 (backend scaffold + MCP client, LangGraph graph core) shipped. SSE
+streaming, frontend nav item, security review, and Mac Mini deploy are Steps 3–5 — see
 `services/agent/ENHANCEMENTS.md` for release-by-release status.
 
 ## 10. See also

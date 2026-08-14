@@ -52,6 +52,20 @@ design changes here, not just this file.
 - **Own isolated `pyproject.toml`**, same pattern as `services/mcp-server`'s isolation from the
   root `requirements.txt` — this sub-project's deps (`langgraph`, `langchain-mcp-adapters`,
   `langchain-anthropic`) don't belong in the shared notebook/Streamlit dependency set.
+- **A checkpointer + stable `thread_id` is mandatory, not optional** (`graph.py`'s
+  `build_graph()`, default `MemorySaver`). Invoke the compiled graph with a **partial update
+  dict** (e.g. `{"current_query": "..."}"`) under `config={"configurable": {"thread_id": ...}}`
+  — never a fresh `AgentState(...)` instance, which overwrites every channel including the
+  thread-scoped `tool_cache` on every single turn. See `SPEC.md` "Corrections applied" #7.
+- **`tools_node` processes every tool call in a batch**, not one at a time, and a call blocked
+  by the §10 cap mid-batch still gets a synthetic error `ToolMessage` — Anthropic requires a
+  `tool_result` for every `tool_use` block in the same turn, no exceptions. See `SPEC.md`
+  "Corrections applied" #8.
+- **A real MCP tool's `ToolMessage.content` is a list of content blocks, not a plain string** —
+  `graph.py`'s `_tool_result_from_message` unwraps both that shape and a local fake tool's
+  plain-string shape into the same result. Only ever verify this kind of adapter-level shape
+  against a real `services/mcp-server` subprocess, not a hand-built fake tool — see `SPEC.md`
+  "Corrections applied" #10 for how this one was actually caught.
 - **Scope:** classical build discipline, same as the rest of this repo — no scope creep beyond
   `SPEC.md`'s node catalog and UI-intent schema.
 
