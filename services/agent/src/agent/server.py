@@ -129,7 +129,7 @@ def health():
 
 
 class QueryRequest(BaseModel):
-    query: str = Field(min_length=1)
+    query: str = Field(min_length=1, max_length=4096)
     thread_id: str | None = None
 
 
@@ -150,34 +150,37 @@ async def stream_query(graph: CompiledStateGraph, query: str, thread_id: str) ->
     seen_tool_call_count = 0
     event_count = 0
 
-    async for update in graph.astream({"current_query": query}, config=config, stream_mode="updates"):
-        tools_update = update.get("tools")
-        if tools_update is None:
-            continue
-        tool_calls = tools_update.get("tool_calls") or []
-        for record in tool_calls[seen_tool_call_count:]:
-            event_count += 1
-            yield {
-                "event": "progress",
-                "data": json.dumps({"label": record.progress_label, "percent": _progress_percent(event_count)}),
-            }
-        seen_tool_call_count = len(tool_calls)
+    try:
+        async for update in graph.astream({"current_query": query}, config=config, stream_mode="updates"):
+            tools_update = update.get("tools")
+            if tools_update is None:
+                continue
+            tool_calls = tools_update.get("tool_calls") or []
+            for record in tool_calls[seen_tool_call_count:]:
+                event_count += 1
+                yield {
+                    "event": "progress",
+                    "data": json.dumps({"label": record.progress_label, "percent": _progress_percent(event_count)}),
+                }
+            seen_tool_call_count = len(tool_calls)
 
-    snapshot = await graph.aget_state(config)
-    final_state = snapshot.values
-    yield {
-        "event": "result",
-        "data": json.dumps(
-            {
-                "thread_id": thread_id,
-                "widgets": [widget.model_dump() for widget in final_state.get("widgets", [])],
-                "response_text": final_state.get("response_text", ""),
-                "scope_notes": final_state.get("scope_notes", []),
-                "suggested_prompts": final_state.get("suggested_prompts", []),
-                "percent": 100,
-            }
-        ),
-    }
+        snapshot = await graph.aget_state(config)
+        final_state = snapshot.values
+        yield {
+            "event": "result",
+            "data": json.dumps(
+                {
+                    "thread_id": thread_id,
+                    "widgets": [widget.model_dump() for widget in final_state.get("widgets", [])],
+                    "response_text": final_state.get("response_text", ""),
+                    "scope_notes": final_state.get("scope_notes", []),
+                    "suggested_prompts": final_state.get("suggested_prompts", []),
+                    "percent": 100,
+                }
+            ),
+        }
+    except Exception as exc:
+        yield {"event": "error", "data": json.dumps({"message": str(exc)})}
 
 
 def get_graph(request: Request) -> CompiledStateGraph:

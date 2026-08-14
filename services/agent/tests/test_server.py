@@ -86,6 +86,54 @@ async def test_query_streams_progress_then_result():
     uuid.UUID(result_payload["thread_id"])  # server-minted, must be a real UUID
 
 
+def test_query_rejects_empty_query():
+    app.dependency_overrides[get_graph] = lambda: object()
+    try:
+        client = TestClient(app)
+        response = client.post("/query", json={"query": ""})
+    finally:
+        app.dependency_overrides.pop(get_graph, None)
+    assert response.status_code == 422
+
+
+def test_query_rejects_query_exceeding_max_length():
+    app.dependency_overrides[get_graph] = lambda: object()
+    try:
+        client = TestClient(app)
+        response = client.post("/query", json={"query": "x" * 4097})
+    finally:
+        app.dependency_overrides.pop(get_graph, None)
+    assert response.status_code == 422
+
+
+async def test_query_streams_error_event_on_graph_failure():
+    """If graph.astream() raises, the SSE stream must terminate with an `error` event
+    (not a silent mid-stream close) so the client always receives a typed terminal event."""
+    import json
+
+    from unittest.mock import MagicMock
+
+    async def _failing_astream(*args, **kwargs):
+        yield {"agent": {}}  # emit one update so the stream has started, then raise
+        raise RuntimeError("MCP server disconnected")
+
+    mock_graph = MagicMock()
+    mock_graph.astream = _failing_astream
+
+    app.dependency_overrides[get_graph] = lambda: mock_graph
+    try:
+        client = TestClient(app)
+        response = client.post("/query", json={"query": "anything"})
+    finally:
+        app.dependency_overrides.pop(get_graph, None)
+
+    assert response.status_code == 200  # header already sent
+    events = _parse_sse(response.text)
+    assert events[-1]["event"] == "error"
+    error_payload = json.loads(events[-1]["data"])
+    assert "MCP server disconnected" in error_payload["message"]
+
+
 def test_query_rejects_malformed_thread_id():
     # get_graph() is resolved (as a FastAPI dependency) before the endpoint body runs its own
     # thread_id validation, so app.state.graph must exist for *any* request to this route, even
