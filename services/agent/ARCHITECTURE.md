@@ -5,9 +5,11 @@ architecturally-significant changes (new node, new data flow, new deploy pattern
 history log (`ENHANCEMENTS.md`) or a design rationale doc (`SPEC.md`). Read `SPEC.md` first for
 *why*; this is *what exists and how the pieces connect*.
 
-**Status: Step 5 of 5 complete.** Sections below marked *(planned, Step N)* describe target
-shape from `SPEC.md`, not yet-built code — kept here rather than only in `SPEC.md` so this
-document stays the single "what actually connects to what" reference as later steps land.
+**Status: Step 5 of 5 complete, deployed and running on the Mac Mini.** Sections below marked
+*(planned, Step N)* describe target shape from `SPEC.md`, not yet-built code — kept here rather
+than only in `SPEC.md` so this document stays the single "what actually connects to what"
+reference as later steps land. See "Deploy topology" below for what's live vs. still pending
+(the public Cloudflare route).
 
 ---
 
@@ -92,12 +94,25 @@ Extends the four-boundary model `services/mcp-server/SPEC.md` §8 established:
 
 ## Deploy topology (Mac Mini)
 
-*(planned, Step 6)* `com.ghgemissions.agent.plist` launchd agent, mirroring
+**Live.** `com.ghgemissions.agent.plist` launchd agent, mirroring
 `com.ghgemissions.mcpserver.plist` — own venv (`/opt/homebrew/bin/python3.14`, not bare
 `python3` — a non-interactive SSH shell's `PATH` resolves to the stale system 3.9.6 otherwise),
-own port, own logs under `~/Library/Logs/ghgemissions-agent*.log`, `ANTHROPIC_API_KEY` set via
+port 8766, own logs under `~/Library/Logs/ghgemissions-agent*.log`, `ANTHROPIC_API_KEY` set via
 the plist's `EnvironmentVariables` (never committed to git — the plist itself lives only on the
-Mac Mini, handed off as deploy instructions, same as `services/mcp-server`'s own plist).
+Mac Mini). `MCP_SERVER_URL` is set explicitly to
+`http://127.0.0.1:8765/ghg-emissions-analysis/mcp` — the module-level default
+(`mcp_client.py`'s bare `http://127.0.0.1:8765/mcp`) is a local-dev value only; the real deploy's
+`services/mcp-server` runs with `DEPLOY_BASE_PATH` set, which changes both its real path *and*
+activates `transport_security.allowed_hosts` (`services/mcp-server/SPEC.md` §8.3/§8.4, `ENHANCEMENTS.md`
+Release 6) — the loopback host/port this plist connects on had to be added to that allow-list
+before this connection worked at all, found on the first live dry run, fixed in
+`services/mcp-server` PR #146.
+
+**Not yet done**: the Cloudflare Tunnel route for the public
+`labs.syena.io/ghg-emissions-analysis/agent` → `localhost:8766` endpoint — dashboard-managed
+(token-file-based tunnel, no local `config.yml`), needs to sit above the existing unanchored
+`/ghg-emissions-analysis` catch-all row, same ordering constraint `services/mcp-server`'s own
+route already established.
 
 ## See also
 

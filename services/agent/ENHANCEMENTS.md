@@ -225,3 +225,50 @@ Shipped: `server.py`'s `logger`/`QUERY_STREAM_ERROR_MESSAGE`, the updated
 
 Steps 1–5 of 5 now complete. Not yet built: the Mac Mini deploy, a distinct final action after
 all 5 steps land (not itself one of the 5) — see root `ARCHITECTURE.md` for current status.
+
+## Mac Mini deploy
+
+**Status: Running, one piece outstanding (public Cloudflare route).**
+
+New venv (`/opt/homebrew/bin/python3.14`, not bare `python3` — a non-interactive SSH shell's
+`PATH` resolves to the stale system 3.9.6 otherwise), `pip install -e '.[dev]'`, full hermetic
+suite green on the Mac Mini itself (48 passed). New `com.ghgemissions.agent.plist` launchd
+agent mirroring `com.ghgemissions.mcpserver.plist`'s shape (own venv path, port 8766, logs under
+`~/Library/Logs/ghgemissions-agent*.log`).
+
+**Real cross-sub-project gap found on the first live dry run, not caught by either sub-project's
+own test suite**: `services/agent`'s MCP client couldn't reach the real, deployed
+`services/mcp-server` — `mcp.shared.exceptions.McpError: Session terminated`. Two distinct causes,
+found in order:
+1. Wrong path — the module default `MCP_SERVER_URL=http://127.0.0.1:8765/mcp` assumes local dev;
+   the real deploy's `services/mcp-server` runs with `DEPLOY_BASE_PATH` set, which changes its
+   real path to `/ghg-emissions-analysis/mcp`. Fixed by setting `MCP_SERVER_URL` explicitly in
+   this plist.
+2. `services/mcp-server`'s own `transport_security.allowed_hosts` (DNS-rebinding protection,
+   `services/mcp-server/SPEC.md` §8.3/§8.4) was locked to `labs.syena.io` only — a real, distinct
+   gap in that sub-project, not this one. Confirmed live via curl (`421 Misdirected Request` on
+   the real loopback `Host` header, `200 OK` only when spoofing `Host: labs.syena.io`). Fixed as
+   its own `services/mcp-server` change (PR #146, not folded into this deploy) — see that
+   sub-project's own `ENHANCEMENTS.md` Release 6 for the full writeup. `services/mcp-server`'s
+   Release 5 AuthZ work had already reclassified this agent as B3 (co-located, no Cloudflare
+   Access needed); that correction covered authentication only; DNS-rebinding protection is a
+   separate mechanism that needed its own, independent fix.
+
+`ANTHROPIC_API_KEY` supplied directly into the plist by the user (never handled or viewed by
+Claude) — stored as a plain `EnvironmentVariables` entry (`chmod 600` plist, single-user
+machine, accepted deliberately; `SPEC.md` §12 open item #6 records the Keychain-based
+alternative as a deferred enhancement, not designed further until the machine's threat model
+changes).
+
+**First genuine end-to-end verification of this entire build**, once both fixes and the real key
+were in place: a live `POST /query` against the running Mac Mini process returned a real SSE
+`progress` event, a real `get_country_profile` tool call through `services/mcp-server` to `api/`
+(actual China CO₂ data, 1990–2024), two real widgets (`card` + `chart`), and a genuine
+Sonnet-generated `response_text` — the full guardrails → tool-call → widget-selection → SSE
+pipeline working against live infrastructure, confirmed 2026-08-14.
+
+**Not yet done**: the Cloudflare Tunnel route for the public
+`labs.syena.io/ghg-emissions-analysis/agent` → `localhost:8766` endpoint. Dashboard-managed
+(token-file-based tunnel, no local `config.yml`) — needs to sit above the existing unanchored
+`/ghg-emissions-analysis` catch-all row, same ordering `services/mcp-server`'s own route
+already established.

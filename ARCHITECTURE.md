@@ -222,8 +222,11 @@ Cloudflare edge rate-limit rule on the whole `/ghg-emissions-analysis` path pref
 app-layer code, since every request there also costs a real Anthropic API call.
 
 **Status**: Steps 1–5 of 5 (backend scaffold + MCP client, LangGraph graph core, SSE streaming,
-`climate-dashboard-react/`'s `/ask` nav item, security review) shipped. Mac Mini deploy is next —
-see `services/agent/ENHANCEMENTS.md` for release-by-release status.
+`climate-dashboard-react/`'s `/ask` nav item, security review) shipped, and deployed/running on
+the Mac Mini (`com.ghgemissions.agent`, port 8766) — verified live end-to-end (real MCP tool
+call, real LLM response) 2026-08-14. Only the public Cloudflare Tunnel route
+(`labs.syena.io/ghg-emissions-analysis/agent`) remains — see `services/agent/ENHANCEMENTS.md`
+for release-by-release status.
 
 ## 10. See also
 

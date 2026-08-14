@@ -7,7 +7,11 @@ full design and [`CLAUDE.md`](CLAUDE.md) for agent-facing conventions.
 **Status:** Steps 1–5 complete — state schema, MCP client wiring, the full LangGraph node catalog
 (guardrails, agent/tools loop, call-count guard, tool-call cache, UI intent selection), the real
 `POST /query` SSE endpoint, the `climate-dashboard-react/` frontend (`/ask` nav item), and a
-security review (`ENHANCEMENTS.md`'s Step 5 entry). Mac Mini deploy not yet done.
+security review (`ENHANCEMENTS.md`'s Step 5 entry). Deployed and running on the Mac Mini
+(`com.ghgemissions.agent` launchd agent, port 8766); a genuine end-to-end query — real SSE
+progress event, real `services/mcp-server` tool call, real LLM response — verified live
+2026-08-14. Cloudflare Tunnel route for the public `/ghg-emissions-analysis/agent` endpoint is
+the one remaining step — see `ENHANCEMENTS.md`'s deploy entry.
 
 ## Dev setup
 
