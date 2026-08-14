@@ -77,3 +77,49 @@ Shipped:
   `select_top_emitters_chart_kind`'s heuristic against SPEC.md §4's own starter prompts.
 
 Not yet built: SSE streaming, the frontend nav item, and the Mac Mini deploy — Steps 3–5.
+
+---
+
+## Release 3 — SSE streaming surface (Step 3 of 5)
+
+`server.py` gained the real query surface: `POST /query` runs the compiled graph and streams
+SPEC.md §5's progress events, then one final `result` event, over SSE
+(`sse_starlette.EventSourceResponse`). `DEPLOY_BASE_PATH`-aware path prefixing mirrors
+`api/main.py`'s `StripDeployPrefixMiddleware` directly (the correct precedent for a FastAPI app
+— `services/mcp-server`'s `_streamable_http_settings` is a different mechanism for a different
+transport, despite both being "third hand-mirrored copy" cases). CORS matches `api/`'s public
+B1/B2 tier, protected by the existing Cloudflare edge rate-limit rule, not new app code.
+
+The Step 2 design's `on_progress` callback didn't survive contact with how this service actually
+serves requests — the graph is built once at startup and reused across every request, so a
+callback bound at construction time would leak one request's progress into another's SSE stream
+under concurrent load. Replaced with `graph.astream(..., stream_mode="updates")`: each
+`ToolCallRecord` already carries its own `progress_label`, so `stream_query` reads labels
+straight off the `tools` node's per-superstep update rather than a callback. Full details in
+`SPEC.md`'s "Corrections applied" #12.
+
+Two more real findings, both documented in `SPEC.md` #13–14 and fixed before merge:
+
+- **The checkpointer's default serde silently didn't support `ToolCallRecord`/`WidgetSpec`** —
+  a warning noticed but dismissed during Step 2's own persistence verification, now understood
+  to be exactly the field SPEC.md §7 requires to survive across turns. Fixed by registering both
+  types via `allowed_msgpack_modules`.
+- **A real bug in the `thread_id` cap**: the branch that mints a fresh id for a brand-new
+  conversation (the common case — every conversation's first query) returned early without ever
+  registering the id or checking `MAX_LIVE_THREADS`, so the cap only ever applied to
+  client-supplied ids on later queries, never the primary path. Caught by a direct unit test on
+  `_validate_and_register_thread_id`, not the HTTP-level tests (which never happened to exercise
+  the cap boundary).
+
+Shipped:
+- `src/agent/server.py`'s real `/query` endpoint, `get_graph` dependency (overridable in tests
+  without fighting FastAPI's lifespan), `_validate_and_register_thread_id`,
+  `StripDeployPrefixMiddleware`.
+- `graph.py`: removed `on_progress`/`ProgressCallback`, added `_default_checkpointer()`.
+- Tests: SSE event-sequence assertions (progress before result, not just the final payload) via
+  a fake-tool graph through the real ASGI endpoint; one true end-to-end test against a real
+  `services/mcp-server` subprocess through that same endpoint; direct unit tests for
+  `_validate_and_register_thread_id`'s UUID validation, cap behavior, and reuse semantics;
+  `_progress_percent`/`_normalize_deploy_prefix` unit tests.
+
+Not yet built: the frontend nav item and the Mac Mini deploy — Steps 4–5.
