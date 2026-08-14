@@ -350,3 +350,29 @@ injecting `CF-Access-Client-Id`/`CF-Access-Client-Secret` via `--header` flags s
 wired into its own HTTP client once it exists — no OAuth-mismatch to work around there, since
 it never goes through Desktop's GUI mechanism. `SPEC.md` §8.5 (restricting `/api/*`, OAuth 2.1
 for B4) is Phase 2, scope-confirmed but not designed.
+
+## Release 6 — `allowed_hosts` gap for the co-located agent (`SPEC.md` §8.3/§8.4 correction)
+
+**Status: Shipped.** Found and fixed during `services/agent`'s Mac Mini deploy dry run
+(2026-08-14), the first time this server's real, `DEPLOY_BASE_PATH`-set deployment was ever
+called by anything other than the Cloudflare Tunnel.
+
+Release 5's own AuthZ writeup had already corrected the LangGraph agent from a B4 client
+(external, Cloudflare Access) to B3 (co-located, unauthenticated loopback) — but that correction
+covered *authentication* only. `transport_security`'s `allowed_hosts` (DNS-rebinding protection,
+a separate mechanism this same release added, unconditionally active whenever
+`DEPLOY_BASE_PATH` is set) was still locked to `labs.syena.io` alone. `services/agent`'s real
+connection carries `Host: 127.0.0.1:8765`, never `labs.syena.io` — it doesn't go through the
+Tunnel at all — so the very first live dry run got `421 Misdirected Request` on `initialize`,
+confirmed by curl directly against the running Mac Mini process (spoofing `Host:
+labs.syena.io` on the identical request succeeded, isolating the Host check as the sole cause,
+not a path mismatch).
+
+Fixed by widening `_streamable_http_settings()`'s `allowed_hosts` to
+`["labs.syena.io", "127.0.0.1:8765", "localhost:8765"]` — `allowed_origins` stays
+`labs.syena.io`-only, since `Origin` is a browser header neither the Tunnel nor a co-located
+server-to-server caller ever sends. Two existing unit tests updated for the new list, one new
+test added asserting both loopback hosts are present specifically for the deployed case. Kept
+as its own `services/mcp-server` change rather than folded into `services/agent`'s PR, per this
+file's "no changes folded in unprompted" convention — `services/agent`'s own deploy doc
+(`SPEC.md`/`CLAUDE.md`) cross-references this entry rather than re-deriving it.
