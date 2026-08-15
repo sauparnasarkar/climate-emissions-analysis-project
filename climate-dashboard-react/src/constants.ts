@@ -24,11 +24,10 @@ export const SCENARIO_COLORS: Record<string, string> = {
 // is bad (crimson) — used wherever a value's direction maps to an emissions outcome, as
 // opposed to a plain positive/negative-number convention.
 //
-// Two forms are needed: `var(...)` for plain DOM/CSS `style` props (theme-aware, resolved by
-// the browser), and a literal hex fallback for chart color props (SyChart's `color`/
-// `pointColors` are passed straight into Plotly's own color parser, which can't resolve CSS
-// custom properties — it silently renders black rather than falling back).
+// For plain DOM/CSS `style` props (theme-aware, resolved by the browser). Chart color props
+// (SyChart's `color`/`pointColors`) can't resolve `var(...)` at all -- see
+// `lib/resolveThemeColorHex.ts`'s `resolveSentimentColorHex` for that case instead of using
+// these directly, since a hardcoded hex here would be wrong the moment a non-default theme
+// (or a future theme toggle) is active.
 export const POSITIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-positive, #187254)';
 export const NEGATIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-negative, #8d1a2a)';
-export const POSITIVE_COLOR_HEX = '#187254';
-export const NEGATIVE_COLOR_HEX = '#8d1a2a';
