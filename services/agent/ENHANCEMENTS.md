@@ -473,3 +473,20 @@ change shipped that removing "Ask the Agent" from `NAV_ITEMS` resolved it as a s
 the clipped item was the long nav label itself, and moving it out of the regular item list into
 the persistent action (icon-only when collapsed, no separate label column to clip) removed the
 condition that caused it. No further action needed.
+
+**Auto-refocus-after-loading removed from `PromptBar` (design-system) -- reported live via
+screenshot: after a response landed, focus jumped back into the prompt bar and popped the
+starter-prompt grid back open on top of the answer.** Root cause: an existing effect
+(`if (prevLoadingRef.current && !loading) textareaRef.current?.focus()`, added earlier alongside
+the §4 expandable-content work to support a "keep asking" follow-up loop) refocused the textarea
+the instant `loading` returned to `false`. Because focus entering the bar is the exact trigger
+`expandedContent` uses to show itself, the "helpful" refocus had the side effect of re-surfacing
+the starter grid after literally every single turn -- worse than the convenience it was meant to
+buy. Removed the effect (and its now-unused `prevLoadingRef`) entirely rather than special-casing
+it to skip the expand only on this path: focus now stays exactly wherever the user left it once a
+response renders, both the stolen focus and the unwanted grid reappearance gone in one change.
+The old `RefocusAfterLoading` story (which asserted the now-removed behavior) was replaced with
+`NoRefocusOrExpandAfterLoading`, which asserts the opposite -- `expandedContent` stays collapsed
+and the textarea does not regain focus once `loading` resolves. `SPEC.md` "Corrections applied"
+#23. Live-verified against the deployed app on the exact repro from the report: submit a query,
+let the response render, confirm the bar stays collapsed and unfocused.

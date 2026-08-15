@@ -241,6 +241,16 @@ conversational-agent project that `services/mcp-server` began.
     never generated markup" principle. Live-verified end to end (backend + frontend together,
     same India-after-China repro sequence): the answer renders as a normal card with a real,
     sortable table — not an alert box, not raw syntax.
+23. **`PromptBar`'s auto-refocus-after-loading effect (design-system, added alongside the §4
+    expandable-content work) stole focus back into the bar the instant a response landed,**
+    which — because focus entering the bar is also the `expandedContent` show trigger — popped
+    the starter-prompt grid back open right as the answer rendered underneath it. The refocus was
+    originally meant to support a "keep asking" loop (land back in the textarea, ready to type a
+    follow-up, without reclicking), but the side effect of re-surfacing the starter grid after
+    every single turn was worse than the convenience it bought. Removed entirely rather than
+    patched to suppress just the expand — `loading` returning to `false` no longer calls
+    `textareaRef.current?.focus()` at all, so focus (and expandedContent's visibility) now stays
+    exactly wherever the user actually left it.
 
 ---
 
