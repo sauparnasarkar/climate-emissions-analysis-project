@@ -468,5 +468,8 @@ thoroughly covered by design-system's own `SidebarNav` stories, so this wiring (
 top-level test harness pattern unilaterally. Live-verified: persistent in both expanded and
 collapsed-rail states, active background correctly present on `/ask` and absent elsewhere.
 
-The left-clipping bug itself is still open -- deferred at the user's own request to handle this
-nav change first.
+The left-clipping bug itself turned out not to need a separate fix: user confirmed after this
+change shipped that removing "Ask the Agent" from `NAV_ITEMS` resolved it as a side effect --
+the clipped item was the long nav label itself, and moving it out of the regular item list into
+the persistent action (icon-only when collapsed, no separate label column to clip) removed the
+condition that caused it. No further action needed.
