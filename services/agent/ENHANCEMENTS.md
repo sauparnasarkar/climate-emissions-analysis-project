@@ -490,3 +490,40 @@ The old `RefocusAfterLoading` story (which asserted the now-removed behavior) wa
 and the textarea does not regain focus once `loading` resolves. `SPEC.md` "Corrections applied"
 #23. Live-verified against the deployed app on the exact repro from the report: submit a query,
 let the response render, confirm the bar stays collapsed and unfocused.
+
+**iOS Safari 100vh keyboard-close gap fixed at the App shell level, not this page --
+reported directly with real-device screenshots showing a large blank scrollable area below the
+footer right after submitting a query.** Root-caused to `App.tsx`'s root div using
+`min-height: 100vh`, a unit sized against iOS Safari's largest possible viewport rather than
+whatever's currently visible; submitting a query disables (and therefore blurs) `PromptBar`'s
+focused textarea, dismissing the on-screen keyboard abruptly instead of through iOS's normal
+tap-away animation, and WebKit's layout snapshot from while the keyboard was up didn't get
+recomputed on that abrupt a close. Fixed with a `.app-shell` class carrying a
+`min-height: 100dvh` stylesheet rule (real CSS, not inline style -- inline style objects can't
+express a fallback cascade for one property the way two consecutive stylesheet declarations
+can), keeping the existing inline `100vh` as the fallback for browsers without `dvh` support.
+`SPEC.md` "Corrections applied" #24. Couldn't reproduce the actual keyboard-close behavior in
+this session's own browser tooling (a real device's on-screen keyboard, not something a resized
+desktop Chrome window emulates) -- shipped on root-cause diagnosis plus confirming no layout
+regression at both mobile and desktop viewport widths; asked the user to confirm the fix on
+their actual iPhone.
+
+**That 100dvh fix turned out not to be the actual cause -- the real bug was iOS Safari
+auto-zooming the page in, fixed separately in design-system (PR #49).** The user's own
+device screenshots after the 100dvh deploy still showed the issue; asked a clarifying
+question about whether it was real scroll overflow versus a within-one-screen empty gap, and
+whether they'd fully closed/reopened Safari to rule out a stale PWA service-worker cache (they
+had). The user's next message named the actual symptom precisely: "the screen automatically
+zoomed in and expanded beyond the viewport... the top and menu icons are no longer visible...
+one has to manually zoom it back into view" -- a real pinch-zoom, not a height-calculation bug
+at all. Root cause: iOS Safari auto-zooms in on focus for any text input rendering below 16px,
+and `PromptBar`'s textarea is `Textarea`'s 'm' size (`body-3-short`, 14px); the same
+submit-disables-the-textarea abrupt blur from the 100dvh report is what prevents iOS's
+zoom-restore-on-blur from reliably running afterward, leaving the zoomed-in state stuck. Fixed
+in design-system PR #49 with `fontSize: 16` on the textarea's inline style (overriding the
+14px class token, scoped to just this field). `SPEC.md` "Corrections applied" #25. Live-verified
+via `getComputedStyle` on the deployed page (confirmed the 16px reached the real `<textarea>`,
+not a wrapper -- Copilot's review on PR #49 specifically flagged this as worth double-checking)
+and, most importantly, the user confirmed on their actual iPhone that the bug is gone. The
+100dvh fix (correction #24) was kept anyway -- still a real, independently-correct improvement
+for a PWA with an on-screen keyboard, just not what this particular report needed.

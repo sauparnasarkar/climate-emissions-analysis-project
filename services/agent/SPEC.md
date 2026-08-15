@@ -251,6 +251,45 @@ conversational-agent project that `services/mcp-server` began.
     patched to suppress just the expand — `loading` returning to `false` no longer calls
     `textareaRef.current?.focus()` at all, so focus (and expandedContent's visibility) now stays
     exactly wherever the user actually left it.
+24. **On iOS Safari, submitting a query left a large blank scrollable gap below the page's real
+    content** — reported directly, with screenshots from a real device. Root cause was in
+    `App.tsx`'s shell, not this page: the root div's `min-height: 100vh` is sized against the
+    *largest* possible viewport (URL bar collapsed), not whatever's actually visible, and
+    submitting disables (therefore blurs) `PromptBar`'s focused textarea, which dismisses the
+    on-screen keyboard abruptly rather than through iOS's normal tap-away animation. WebKit's
+    internal layout snapshot taken while the keyboard was still up didn't get recomputed on
+    this abrupt a close, leaving blank space the height of the vacated keyboard until something
+    else forced a reflow. Fixed by giving the shell's root div a `.app-shell` class with a
+    `min-height: 100dvh` stylesheet override (100vh kept as the inline-style fallback for
+    browsers without `dvh` support) — `dvh` tracks the actual visible viewport continuously, so
+    it can't get stuck stale the way a `vh` snapshot can. App-shell-level fix, not `/ask`-page-
+    specific, even though this page's submit-disables-the-textarea interaction is what surfaces
+    it — any other page with a focused, disable-on-submit input would hit the same bug.
+    **A real, correct improvement, but user follow-up (with a real device, "not resolved") showed
+    it wasn't the actual cause of the reported symptom** — see correction #25, which found and
+    fixed the genuine root cause. Kept anyway: `dvh` is still objectively more correct than `vh`
+    for a PWA with an on-screen keyboard, independent of whether it explains this particular
+    report.
+25. **The real root cause of correction #24's report: iOS Safari auto-zooms the whole page in
+    when a focused text input renders below 16px font-size** — user's exact words once asked to
+    clarify what "overflow" meant: "the screen automatically zoomed in and expanded beyond the
+    viewport... the top and menu icons are no longer visible... one has to manually zoom it back
+    into view." Not a height-calculation bug at all — a genuine pinch-zoom the browser applied
+    and didn't cleanly undo. `PromptBar`'s textarea uses the underlying `Textarea` 'm' size,
+    which is `body-3-short` (14px, below iOS's 16px no-zoom threshold). The same submit-disables-
+    the-textarea abrupt blur from #24 is what triggers it: iOS's zoom-restore-on-blur doesn't
+    reliably run when focus is lost via `disabled` rather than a natural tap-away, so the
+    zoomed-in state sticks. Fixed in design-system (PR #49): `fontSize: 16` on the textarea's
+    inline style, overriding the 14px class token, scoped to just this one field rather than the
+    shared `Textarea`/`Input` 'm' token (other consumers of that token share the same latent
+    risk but weren't reported and are out of scope here). Live-verified two ways beyond reading
+    the source: `getComputedStyle` on the deployed page confirmed `fontSize: 16px` reached the
+    real `<textarea>` element (not just a wrapper — Copilot's PR review specifically asked this
+    to be double-checked), and the user confirmed on their actual iPhone that the bug is gone.
+    Correction #24's own diagnosis (100vh vs 100dvh) turned out to be plausible-sounding but
+    wrong for this specific report — a lesson in verifying against the user's exact words
+    ("zoomed in," not "gap" or "overflow" in the generic sense) rather than pattern-matching to
+    the first plausible-looking bug class and shipping before confirming.
 
 ---
 
