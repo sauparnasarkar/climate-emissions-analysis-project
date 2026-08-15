@@ -490,3 +490,20 @@ The old `RefocusAfterLoading` story (which asserted the now-removed behavior) wa
 and the textarea does not regain focus once `loading` resolves. `SPEC.md` "Corrections applied"
 #23. Live-verified against the deployed app on the exact repro from the report: submit a query,
 let the response render, confirm the bar stays collapsed and unfocused.
+
+**iOS Safari 100vh keyboard-close gap fixed at the App shell level, not this page --
+reported directly with real-device screenshots showing a large blank scrollable area below the
+footer right after submitting a query.** Root-caused to `App.tsx`'s root div using
+`min-height: 100vh`, a unit sized against iOS Safari's largest possible viewport rather than
+whatever's currently visible; submitting a query disables (and therefore blurs) `PromptBar`'s
+focused textarea, dismissing the on-screen keyboard abruptly instead of through iOS's normal
+tap-away animation, and WebKit's layout snapshot from while the keyboard was up didn't get
+recomputed on that abrupt a close. Fixed with a `.app-shell` class carrying a
+`min-height: 100dvh` stylesheet rule (real CSS, not inline style -- inline style objects can't
+express a fallback cascade for one property the way two consecutive stylesheet declarations
+can), keeping the existing inline `100vh` as the fallback for browsers without `dvh` support.
+`SPEC.md` "Corrections applied" #24. Couldn't reproduce the actual keyboard-close behavior in
+this session's own browser tooling (a real device's on-screen keyboard, not something a resized
+desktop Chrome window emulates) -- shipped on root-cause diagnosis plus confirming no layout
+regression at both mobile and desktop viewport widths; asked the user to confirm the fix on
+their actual iPhone.

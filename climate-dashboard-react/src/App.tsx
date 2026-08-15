@@ -66,9 +66,20 @@ function App() {
   return (
     <div
       data-theme="analytics"
+      className="app-shell"
       style={{
         display: 'flex',
         flexDirection: 'column',
+        // 100vh fallback for browsers with no dvh support -- .app-shell's stylesheet rule below
+        // overrides this with 100dvh wherever it's understood. Reported directly, with
+        // screenshots: on iOS Safari, submitting a query disables (and therefore blurs) the
+        // focused textarea, which dismisses the keyboard immediately rather than through the
+        // OS's normal tap-away animation -- and 100vh is defined against the *largest* possible
+        // viewport (URL bar collapsed), not whatever's currently visible, so WebKit's own
+        // internal layout snapshot taken while the keyboard was still up doesn't get
+        // recomputed on this abrupt a close. The result: a blank scrollable gap the height of
+        // the vacated keyboard, persisting until something else forces reflow. 100dvh tracks
+        // the actual visible viewport continuously instead, so it can't get stuck stale.
         minHeight: '100vh',
         // Without this, the default content-box sizing adds the safe-area padding below
         // ON TOP of the 100vh minimum height, forcing unwanted vertical scroll in standalone
@@ -85,6 +96,10 @@ function App() {
         paddingRight: 'env(safe-area-inset-right, 0px)',
       }}
     >
+      {/* Inline styles can't express a fallback cascade for a single property the way a real
+          stylesheet rule can -- an unsupported `100dvh` value here would just be dropped by
+          React's style object, not fall back to `100vh` the way a second CSS declaration does. */}
+      <style>{'.app-shell { min-height: 100dvh; }'}</style>
       {/* Visually hidden until focused (standard clip-based technique -- design-system has
           no existing utility class for this). Confirmed genuinely absent before this fix,
           not a false positive -- the only href="#" elements in this app are the sidebar nav

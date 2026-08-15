@@ -251,6 +251,20 @@ conversational-agent project that `services/mcp-server` began.
     patched to suppress just the expand — `loading` returning to `false` no longer calls
     `textareaRef.current?.focus()` at all, so focus (and expandedContent's visibility) now stays
     exactly wherever the user actually left it.
+24. **On iOS Safari, submitting a query left a large blank scrollable gap below the page's real
+    content** — reported directly, with screenshots from a real device. Root cause was in
+    `App.tsx`'s shell, not this page: the root div's `min-height: 100vh` is sized against the
+    *largest* possible viewport (URL bar collapsed), not whatever's actually visible, and
+    submitting disables (therefore blurs) `PromptBar`'s focused textarea, which dismisses the
+    on-screen keyboard abruptly rather than through iOS's normal tap-away animation. WebKit's
+    internal layout snapshot taken while the keyboard was still up didn't get recomputed on
+    this abrupt a close, leaving blank space the height of the vacated keyboard until something
+    else forced a reflow. Fixed by giving the shell's root div a `.app-shell` class with a
+    `min-height: 100dvh` stylesheet override (100vh kept as the inline-style fallback for
+    browsers without `dvh` support) — `dvh` tracks the actual visible viewport continuously, so
+    it can't get stuck stale the way a `vh` snapshot can. App-shell-level fix, not `/ask`-page-
+    specific, even though this page's submit-disables-the-textarea interaction is what surfaces
+    it — any other page with a focused, disable-on-submit input would hit the same bug.
 
 ---
 
