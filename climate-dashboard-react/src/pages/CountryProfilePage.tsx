@@ -37,6 +37,12 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
   const { data, error, loading } = useAsync(() => api.countryProfile(country), [country]);
   const reduceMotion = useReducedMotion();
   useJumpToHashOnLoad(Boolean(data), reduceMotion);
+  // Resolved once per render rather than once per YoY data point (Copilot review, PR #157) --
+  // the underlying computed style can't change mid-render, so mapping every value through
+  // resolveSentimentColorHex() individually was N redundant DOM/getComputedStyle calls for
+  // what's really just 2 distinct colors.
+  const positiveColorHex = resolveSentimentColorHex('positive');
+  const negativeColorHex = resolveSentimentColorHex('negative');
 
   return (
     <div>
@@ -84,7 +90,7 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
                 x: data.yoy_years,
                 y: data.yoy_values,
                 kind: 'bar',
-                pointColors: data.yoy_values.map((v) => (v < 0 ? resolveSentimentColorHex('positive') : resolveSentimentColorHex('negative'))),
+                pointColors: data.yoy_values.map((v) => (v < 0 ? positiveColorHex : negativeColorHex)),
               }]}
             />
           </ChartCard>
