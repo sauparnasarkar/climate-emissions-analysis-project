@@ -7,7 +7,7 @@ import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { CountryProfileTableRow } from '../api/types';
-import { POSITIVE_COLOR_HEX, NEGATIVE_COLOR_HEX } from '../constants';
+import { resolveSentimentColorHex } from '../lib/resolveThemeColorHex';
 
 const COLUMNS: ColDef<CountryProfileTableRow>[] = [
   { field: 'year', headerName: 'Year' },
@@ -84,7 +84,7 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
                 x: data.yoy_years,
                 y: data.yoy_values,
                 kind: 'bar',
-                pointColors: data.yoy_values.map((v) => (v < 0 ? POSITIVE_COLOR_HEX : NEGATIVE_COLOR_HEX)),
+                pointColors: data.yoy_values.map((v) => (v < 0 ? resolveSentimentColorHex('positive') : resolveSentimentColorHex('negative'))),
               }]}
             />
           </ChartCard>

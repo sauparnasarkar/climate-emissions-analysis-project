@@ -4,4 +4,10 @@
    rather than overriding it globally for every other MultiSelect/Select consumer. */
 .country-picker-row .__s9cmpx-label3 {
   font-size: var(--__s9cmpx-web-label-2-font-size);
+  /* Must move in lockstep with the font-size above. label3's own line-height (0.75rem =
+     12px) is sized for label3's 12px text; leaving it while bumping the font to label2's
+     14px left the selected-country chips' `overflow: hidden` box 2px shorter than the text
+     it contains, shaving the descenders off every country with one -- "Japan", "Brazil",
+     "United Kingdom", "South Africa". */
+  line-height: var(--__s9cmpx-web-label-2-line-height);
 }

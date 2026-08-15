@@ -123,7 +123,25 @@ function App() {
       </a>
       <Header
         logo={
-          <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, textAlign: 'left', minWidth: 0 }}>
+          <span
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              lineHeight: 1.25,
+              textAlign: 'left',
+              minWidth: 0,
+              // SidebarNav's mobile menu toggle and its persistent "Ask the Agent" action are
+              // `position: fixed` over the header's top-right, so they're outside the Header's
+              // own layout and it reserves no room for them. On a 320px phone (Galaxy S9+) the
+              // action button painted directly on top of the title text. Reserving their
+              // footprint here caps the title so it ellipsizes short of them instead. Harmless
+              // at wider widths -- the title never gets near this cap on a desktop viewport.
+              // 96px of floating controls measured from the right edge (32px action button +
+              // 12px gap + 40px toggle + 12px inset), 24px for the logo's own left offset,
+              // and 16px of breathing room so the text ellipsizes clear of them, not under.
+              maxWidth: 'calc(100vw - 136px)',
+            }}
+          >
             <span
               style={{
                 fontSize: 'clamp(1rem, 4vw, 1.375rem)',
@@ -177,6 +195,12 @@ function App() {
           tabIndex={-1}
           style={{
             flex: 1,
+            // A flex child defaults to `min-width: auto` -- its own min-content width --
+            // so it can never shrink below the widest thing inside it. On a 320px-wide
+            // phone (Galaxy S9+) the Overview page's content floored this at 378px and
+            // pushed the whole page into horizontal scroll; every page's charts and tables
+            // reflow fine once the container is actually allowed to narrow.
+            minWidth: 0,
             background: 'var(--__s9cmpx-static-background-weak)',
             padding: 24,
             fontFamily: 'var(--__s9cmpx-font-families-primary)',

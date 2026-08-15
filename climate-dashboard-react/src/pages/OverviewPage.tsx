@@ -253,10 +253,19 @@ function AnimatedWorldMap({
   return (
     <>
       <ChartCard id="map" title={`CO₂ Emissions by Country (${currentYear})`} headingLevel={2} expandable>
-        <div style={{ marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
+        {/* flexWrap + a shrinkable slider track: Slider carries its own 220px min-width,
+            which together with the Play/Pause button floored this row (and therefore the
+            whole card, and therefore the page) at ~330px -- wider than a 320px phone like
+            the Galaxy S9+, forcing horizontal scroll on the entire Overview page. Wrapping
+            lets the slider drop to its own line before it has to overflow. */}
+        <div style={{ marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <Button variant="ghost-blue" onClick={toggle} disabled={reducedMotion}>
             {isPlaying ? 'Pause' : 'Play'}
           </Button>
+          {/* No `minWidth: 0` here on purpose: Slider hardcodes its own 220px min-width, so
+              zeroing this wrapper's floor would let the wrapper shrink while the Slider
+              inside overflowed it instead of the row wrapping. Keeping the intrinsic floor
+              is what makes flexWrap above actually trigger. */}
           <div style={{ flex: 1 }}>
             <Slider
               label="Year"
