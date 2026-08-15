@@ -507,3 +507,23 @@ this session's own browser tooling (a real device's on-screen keyboard, not some
 desktop Chrome window emulates) -- shipped on root-cause diagnosis plus confirming no layout
 regression at both mobile and desktop viewport widths; asked the user to confirm the fix on
 their actual iPhone.
+
+**That 100dvh fix turned out not to be the actual cause -- the real bug was iOS Safari
+auto-zooming the page in, fixed separately in design-system (PR #49).** The user's own
+device screenshots after the 100dvh deploy still showed the issue; asked a clarifying
+question about whether it was real scroll overflow versus a within-one-screen empty gap, and
+whether they'd fully closed/reopened Safari to rule out a stale PWA service-worker cache (they
+had). The user's next message named the actual symptom precisely: "the screen automatically
+zoomed in and expanded beyond the viewport... the top and menu icons are no longer visible...
+one has to manually zoom it back into view" -- a real pinch-zoom, not a height-calculation bug
+at all. Root cause: iOS Safari auto-zooms in on focus for any text input rendering below 16px,
+and `PromptBar`'s textarea is `Textarea`'s 'm' size (`body-3-short`, 14px); the same
+submit-disables-the-textarea abrupt blur from the 100dvh report is what prevents iOS's
+zoom-restore-on-blur from reliably running afterward, leaving the zoomed-in state stuck. Fixed
+in design-system PR #49 with `fontSize: 16` on the textarea's inline style (overriding the
+14px class token, scoped to just this field). `SPEC.md` "Corrections applied" #25. Live-verified
+via `getComputedStyle` on the deployed page (confirmed the 16px reached the real `<textarea>`,
+not a wrapper -- Copilot's review on PR #49 specifically flagged this as worth double-checking)
+and, most importantly, the user confirmed on their actual iPhone that the bug is gone. The
+100dvh fix (correction #24) was kept anyway -- still a real, independently-correct improvement
+for a PWA with an on-screen keyboard, just not what this particular report needed.
