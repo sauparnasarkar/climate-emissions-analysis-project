@@ -425,6 +425,26 @@ conversational-agent project that `services/mcp-server` began.
     prompt gets more constraining — plan for graceful coercion of near-miss shapes, not just
     tighter wording, especially for anything that reaches a public, unauthenticated endpoint
     (`server.py`'s `/query`) where a crash is a worse failure mode than a slightly-off answer.
+32. **A "compare countries under BAU/Moderate/Aggressive" query rendered three grid widgets
+    that looked identical, all titled "Fetching cumulative scenario impact" — reported live
+    with a screenshot.** Root cause, two compounding defects: (1) `get_scenario_cumulative_impact`
+    (`services/mcp-server`) already returns every scenario's cumulative value per country in a
+    single call — `sort_by` only changes row order/top-10 trim membership, never which
+    scenarios' values come back — but its docstring gave the model no reason not to call it
+    once per scenario, unlike its sibling `get_scenario_projection`, which explicitly warns
+    against the equivalent per-country pattern. The model made 3 calls where 1 already answers
+    the question. (2) Moderate/Aggressive are a uniform `BAU × (1 − rate)^years` decay applied
+    identically to every country (`notebook/week5_scenarios.ipynb` §5.2) — for dominant
+    emitters, that barely reshuffles ranking, so the 3 (already redundant) calls' results looked
+    near-identical on top of being redundant. (3) `progress_labels.py`'s
+    `get_scenario_cumulative_impact` builder was hardcoded to a fixed string regardless of
+    `sort_by`, unlike every sibling builder in the same dict — so even distinguishable results
+    would've rendered under identical, non-differentiating titles. Fixed both: added "call this
+    once" guidance to the tool's docstring (mirrors `get_scenario_projection`'s existing
+    pattern), and made the title builder interpolate `sort_by`
+    (`test_progress_labels.py`'s new `test_progress_label_scenario_cumulative_interpolates_sort_by`).
+    Doesn't add call-deduplication logic to `ui_selection_node` itself — the docstring fix
+    targets the actual cause (the model choosing to call 3×), not a symptom-level backstop.
 
 ---
 
