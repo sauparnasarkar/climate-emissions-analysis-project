@@ -82,35 +82,28 @@ describe('AgentPage', () => {
     expect(grid.children).toHaveLength(4);
   });
 
-  it('prefills a country-specific starter prompt on click, focuses the textarea, and does not submit', async () => {
+  it.each([
+    ["How has India's emissions grown compared to other countries?", 'country-specific'],
+    ['What are the top 10 forecasted emitters in 2040?', 'forecast'],
+  ])('prefills a %s starter prompt on click, focuses the textarea, and does not submit', async (prompt) => {
     // The starter grid now lives inside PromptBar's own expandedContent (design-system PR #44) --
     // clicking a tile moves focus there first, so this also confirms the panel doesn't collapse
     // out from under the click, and that the new ref-based focus() call (closing "Corrections
     // applied" #18) actually lands the user in the textarea afterward, not stuck on the tile.
+    // Both rows behave identically here (SPEC.md "Corrections applied" #26) -- the forecast row
+    // used to auto-submit instead, which read as an inconsistent surprise next to this row.
     const submit = vi.fn();
     stubStream({ submit });
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<AgentPage />);
 
-    await user.click(screen.getByText("How has India's emissions grown compared to other countries?"));
+    await user.click(screen.getByText(prompt));
 
     expect(submit).not.toHaveBeenCalled();
-    const textarea = screen.getByDisplayValue("How has India's emissions grown compared to other countries?");
+    const textarea = screen.getByDisplayValue(prompt);
     expect(textarea).toBeInTheDocument();
     expect(textarea).toHaveFocus();
-  });
-
-  it('submits immediately on a forecast starter prompt click (no placeholder to type over)', async () => {
-    const submit = vi.fn();
-    stubStream({ submit });
-    const { default: userEvent } = await import('@testing-library/user-event');
-    const user = userEvent.setup();
-    render(<AgentPage />);
-
-    await user.click(screen.getByText('What are the top 10 forecasted emitters in 2040?'));
-
-    expect(submit).toHaveBeenCalledWith('What are the top 10 forecasted emitters in 2040?', null);
   });
 
   it('shows a labeled Progress bar and docks the PromptBar while loading', () => {
@@ -178,15 +171,19 @@ describe('AgentPage', () => {
 
   it('collapses the panel once an instant-submit tile triggers loading, even though the click never touches PromptBar\'s own submit path', async () => {
     // Mirrors design-system PromptBar.stories.tsx's own ExpandedContentCollapsesOnExternalSubmit:
-    // AgentPage's instant-submit tiles call the useAgentStream hook's submit() directly, bypassing
-    // PromptBar's internal trySubmit entirely -- only the `loading` prop turning true (which a
-    // static stubStream() mock never does on its own) drives the collapse here.
+    // a §6 suggested-prompt "Try instead" reframe tile calls the useAgentStream hook's submit()
+    // directly (ResultSectionView's onSuggestedPromptClick={handleSubmit}), bypassing PromptBar's
+    // internal trySubmit entirely -- only the `loading` prop turning true (which a static
+    // stubStream() mock never does on its own) drives the collapse here. Starter-grid tiles no
+    // longer stand in for this case now that all four prefill instead of auto-submitting
+    // (SPEC.md "Corrections applied" #26) -- the reframe tile is the one remaining instant-submit
+    // path left in the app.
     const result: AgentQueryResult = {
       thread_id: 't1',
       widgets: [],
-      response_text: 'Some answer.',
+      response_text: "I can't offer opinions, but here's what the data shows instead.",
       scope_notes: [],
-      suggested_prompts: [],
+      suggested_prompts: ['How has emissions growth changed in China over the last decade?'],
       percent: 100,
     };
     const submit = vi.fn();
@@ -198,10 +195,10 @@ describe('AgentPage', () => {
     await user.click(screen.getByLabelText('Ask about climate emissions'));
     expect(screen.getByRole('button', { name: /forecasted emitters/ })).toBeInTheDocument();
 
-    await user.click(screen.getByText('What are the top 10 forecasted emitters in 2040?'));
+    await user.click(screen.getByText('How has emissions growth changed in China over the last decade?'));
     // threadIdRef is already 't1' from the seeded result above, not null (a genuinely fresh
     // conversation's first submit would pass null; this is a follow-up in an existing thread).
-    expect(submit).toHaveBeenCalledWith('What are the top 10 forecasted emitters in 2040?', 't1');
+    expect(submit).toHaveBeenCalledWith('How has emissions growth changed in China over the last decade?', 't1');
 
     stream.loading = true;
     rerender(<AgentPage />);

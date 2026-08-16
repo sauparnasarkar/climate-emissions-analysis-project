@@ -7,24 +7,23 @@ import { WidgetRenderer } from '../agent/WidgetRenderer';
 import { toolNameFromSourceTaggedCall } from '../agent/types';
 import type { AgentQueryResult } from '../agent/types';
 
-// SPEC.md §4's four starter prompts. The two country-specific ones prefill PromptBar's value
-// for the user to edit before submitting; the two forecast ones submit immediately.
-const STARTER_PROMPTS: Array<{ kicker: string; prompt: string; prefill: boolean }> = [
+// SPEC.md §4's four starter prompts. All four prefill PromptBar's value for the user to edit
+// before submitting -- previously the two forecast ones submitted immediately on click, which
+// read as an inconsistent surprise next to the two country-specific ones (direct instruction:
+// clicking either row should behave the same way).
+const STARTER_PROMPTS: Array<{ kicker: string; prompt: string }> = [
   {
     kicker: 'Historical trends',
     prompt: "What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?",
-    prefill: true,
   },
   {
     kicker: 'Historical trends',
     prompt: "How has India's emissions grown compared to other countries?",
-    prefill: true,
   },
-  { kicker: 'Forecasts', prompt: 'What are the top 10 forecasted emitters in 2040?', prefill: false },
+  { kicker: 'Forecasts', prompt: 'What are the top 10 forecasted emitters in 2040?' },
   {
     kicker: 'Forecasts',
     prompt: 'Considering the top 10 emitters now and the forecasted ones in 2040, show the comparative trend for the countries.',
-    prefill: false,
   },
 ];
 
@@ -174,16 +173,12 @@ export function AgentPage() {
   }, [result, pendingQuery]);
 
   const handleStarterClick = (item: (typeof STARTER_PROMPTS)[number]) => {
-    // SPEC.md §4: prefill + focus for the country-specific prompts. PromptBar now exposes the
-    // textarea via ref (design-system PR #44, closing "Corrections applied" #18's previously
-    // flagged gap), so the focus half is no longer just aspirational -- the user lands in the
-    // textarea with the prefilled text ready to edit, not stuck on the tile they just clicked.
-    if (item.prefill) {
-      setValue(item.prompt);
-      promptBarRef.current?.focus();
-    } else {
-      handleSubmit(item.prompt);
-    }
+    // SPEC.md §4: prefill + focus for every starter prompt. PromptBar exposes the textarea via
+    // ref (design-system PR #44, closing "Corrections applied" #18's previously flagged gap), so
+    // the focus half is no longer just aspirational -- the user lands in the textarea with the
+    // prefilled text ready to edit, not stuck on the tile they just clicked.
+    setValue(item.prompt);
+    promptBarRef.current?.focus();
   };
 
   return (

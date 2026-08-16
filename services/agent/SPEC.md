@@ -290,6 +290,19 @@ conversational-agent project that `services/mcp-server` began.
     wrong for this specific report — a lesson in verifying against the user's exact words
     ("zoomed in," not "gap" or "overflow" in the generic sense) rather than pattern-matching to
     the first plausible-looking bug class and shipping before confirming.
+26. **The §4 starter-prompt grid's forecast row auto-submitting while the historical-trends row
+    only prefilled was itself the bug — reported live as an inconsistency between the grid's two
+    rows.** This was a deliberate, documented design choice at ship time (SPEC.md previously read
+    "the two forecast prompts have no placeholder and submit immediately on click"), not a
+    regression — but it read as a surprise once both rows sat in the same grid: clicking one row
+    edits, clicking the other fires immediately with no chance to change the country/scope first.
+    Changed so all four tiles prefill + focus, none auto-submit (`AgentPage.tsx`'s
+    `STARTER_PROMPTS` dropped its `prefill: boolean` field entirely — no longer a per-item choice
+    — and `handleStarterClick` lost its now-dead auto-submit branch). The design-system
+    `PromptBar` collapse-on-external-submit behavior this used to exercise
+    (`AgentPage.test.tsx`) is still covered — via a §6 suggested-prompt "Try instead" reframe tile
+    instead, which still calls `submit()` directly rather than going through `PromptBar`'s own
+    `trySubmit`, since that mechanism wasn't removed, only the starter grid's own use of it.
 
 ---
 
@@ -414,14 +427,17 @@ owned by `PromptBar`.
 | Forecasts | *What are the top 10 forecasted emitters in 2040?* |
 | Forecasts | *Considering the top 10 emitters now and the forecasted ones in 2040, show the comparative trend for the countries.* |
 
-The two country-specific prompts prefill `PromptBar`'s value with the concrete prompt text (no
-longer a `<Country>` placeholder to type over — swapped to real countries, China/India, on direct
+All four prompts prefill `PromptBar`'s value with the concrete prompt text (no longer a
+`<Country>` placeholder to type over — swapped to real countries, China/India, on direct
 instruction) and focus it, so the user can submit as-is or edit it, e.g. to a different country.
 No separate country picker. Focus now genuinely works, resolving "Corrections applied" #18's
 previously-flagged gap: `PromptBar` exposes its textarea via `forwardRef`
 (`React.forwardRef<HTMLTextAreaElement, ...>`, same pattern `Textarea` itself already used,
 design-system PR #44), so `handleStarterClick` calls `promptBarRef.current?.focus()` directly
-after prefilling. The two forecast prompts have no placeholder and submit immediately on click.
+after prefilling. The two forecast prompts previously had no placeholder and submitted
+immediately on click; that was changed (direct instruction) after it read as an inconsistent
+surprise next to the two country-specific rows behaving differently on the same grid — clicking
+any of the four tiles now behaves identically.
 
 `PromptBar`'s `landing`/`docked` variants also no longer differ in width (design-system PR #45)
 — `landing` previously capped at 540px, centered, while `docked` spanned its full container,
