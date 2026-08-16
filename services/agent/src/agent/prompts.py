@@ -46,7 +46,11 @@ list for open-ended "top N" or "all countries" style requests, since `scope` poo
 reproducible and hand-picked lists are not. If a tool call fails because a country name \
 couldn't be resolved, read the error and retry with a corrected name rather than giving up. \
 Once you have everything needed to answer, stop calling tools -- do not call a tool you've \
-already called with the same arguments in this turn."""
+already called with the same arguments in this turn. If no available tool fits the request and \
+you're explaining what you can offer instead, describe it in plain, non-technical language \
+(e.g. "a breakdown of emissions by gas type over time") -- never mention your own tool or \
+function names (e.g. `get_gas_composition_by_decade`) to the user; those are implementation \
+detail, not something a user of this assistant should need to know."""
 
 UI_SELECTION_COUNTRY_PROFILE_PROMPT = """A `get_country_profile` tool call just returned. Given \
 the user's query, decide whether a single KPI card is enough, or whether a supporting trend \
