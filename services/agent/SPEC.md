@@ -315,10 +315,15 @@ conversational-agent project that `services/mcp-server` began.
     instead" tile from several turns back. Fixed both in one change: `AgentPage.tsx` gained a
     shared `prefillAndFocus` helper used by both `handleStarterClick` and the reframe tiles'
     `onSuggestedPromptClick` (no more `handleSubmit` call from a tile click at all), and
-    `ResultSectionView` gained a `showSuggestedPrompts` prop — true only for `sections[0]` (the
-    latest turn) while not `loading`, false for every older section and for the latest one
-    while a new submission is in flight. Older turns keep their decline text as chat history;
-    only the now-stale tiles stop rendering.
+    `ResultSectionView` gained a `showSuggestedPrompts` prop — originally `sections[0] && \
+!loading`, refined during PR review (Copilot, verified before merging) to
+    `section.result === useAgentStream's result && !loading` instead: comparing by the hook's
+    own result-object identity rather than array index closes a transitional-render gap where
+    the *previous* turn's tiles could briefly re-appear the instant a new result lands, since
+    the `useEffect` that prepends the new section to `sections` runs one render after `result`
+    itself updates — during that single render, `sections[0]` was still the old section even
+    though the new, already-non-loading result had arrived. Older turns keep their decline text
+    as chat history; only the now-stale tiles stop rendering.
 
     Consequence for test coverage: with this change, `AgentPage.tsx` no longer has *any* UI
     element that calls `submit()` directly, bypassing `PromptBar`'s own `trySubmit` — the
@@ -329,6 +334,22 @@ conversational-agent project that `services/mcp-server` began.
     exercised directly by design-system's own `PromptBar.stories.tsx`
     (`ExpandedContentCollapsesOnExternalSubmit`), which is where that generic behavior belongs
     regardless of whether any one consuming app currently has an external-submit call site.
+28. **A `data_query` turn's own answer text could leak raw internal tool/function names to the
+    user — reported live with a real example.** `agent_node` binds the real MCP tools
+    (`llm.bind_tools(mcp_tools)`), so the model has each tool's exact snake_case name in
+    context. When no single tool call fully satisfies a request, the model can fall into the
+    zero-tool-call `context_reuse` path (correction #21/#22) and explain what it can offer
+    instead — and with nothing telling it not to, it named its own tools verbatim (confirmed:
+    ``get_gas_composition_by_decade``, ``get_country_profile``, ``get_historical_emissions``
+    all appeared in backticks in a real answer explaining there's no sector-level breakdown
+    tool). Not a frontend bug — `WidgetRenderer`'s own titles are unaffected and already
+    human-readable everywhere else; this was the model's own generated prose passing straight
+    through as `response_text`. Fixed with one added sentence in `AGENT_SYSTEM_PROMPT`
+    (`prompts.py`) instructing the model to describe capabilities in plain, non-technical
+    language and never reference its own tool/function names to the user. `test_prompts.py`
+    (new) is a regression guard asserting the instruction text is present — prompt wording
+    itself isn't otherwise unit-testable without a real LLM call, so this only catches the
+    instruction being silently deleted later, not a model choosing to ignore it.
 
 ---
 
