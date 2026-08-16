@@ -96,11 +96,14 @@ function ResultSectionView({
 }: {
   section: ResultSection;
   onSuggestedPromptClick: (prompt: string) => void;
-  // Only the single latest section's own "Try instead" tiles stay actionable (direct report:
+  // Only the single current result's own "Try instead" tiles stay actionable (direct report:
   // every past turn's tiles remained clickable forever, unlike the starter grid which disappears
-  // once you've moved past it). False for every section behind the latest one, and for the
-  // latest one too while a new submission is in flight -- matching the starter grid's own
-  // collapse-on-loading behavior rather than waiting for the new section to land.
+  // once you've moved past it). False for every section behind the current result, and for that
+  // one too while a new submission is in flight -- matching the starter grid's own
+  // collapse-on-loading behavior rather than waiting for the new section to land. This is keyed
+  // to the hook's current result identity, not just sections[0], so a just-finished new result
+  // doesn't briefly re-expose the previous turn's stale tiles during the render before the effect
+  // prepends its new section.
   showSuggestedPrompts: boolean;
 }) {
   const { query, result } = section;
@@ -245,7 +248,7 @@ export function AgentPage() {
           key={section.id}
           section={section}
           onSuggestedPromptClick={prefillAndFocus}
-          showSuggestedPrompts={index === 0 && !loading}
+          showSuggestedPrompts={section.result === result && !loading}
         />
       ))}
     </div>
