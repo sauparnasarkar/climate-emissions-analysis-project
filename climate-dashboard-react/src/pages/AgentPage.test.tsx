@@ -83,9 +83,9 @@ describe('AgentPage', () => {
   });
 
   it.each([
-    ["How has India's emissions grown compared to other countries?", 'country-specific'],
-    ['What are the top 10 forecasted emitters in 2040?', 'forecast'],
-  ])('prefills a %s starter prompt on click, focuses the textarea, and does not submit', async (prompt) => {
+    ['country-specific', "How has India's emissions grown compared to other countries?"],
+    ['forecast', 'What are the top 10 forecasted emitters in 2040?'],
+  ])('prefills a %s starter prompt on click, focuses the textarea, and does not submit', async (_label, prompt) => {
     // The starter grid now lives inside PromptBar's own expandedContent (design-system PR #44) --
     // clicking a tile moves focus there first, so this also confirms the panel doesn't collapse
     // out from under the click, and that the new ref-based focus() call (closing "Corrections
