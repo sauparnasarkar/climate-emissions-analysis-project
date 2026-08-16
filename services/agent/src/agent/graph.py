@@ -40,7 +40,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from .cache import cache_key
 from .llm import get_llm
@@ -70,6 +70,18 @@ class _Classification(BaseModel):
 class _OpinionOutput(BaseModel):
     response_text: str
     suggested_prompts: list[str]
+
+    @field_validator("suggested_prompts", mode="before")
+    @classmethod
+    def _coerce_single_reframe_to_list(cls, v: object) -> object:
+        # Confirmed live in production (SPEC.md "Corrections applied" #31): grounding
+        # suggested_prompts in the real tool catalog (#29) can narrow the model down to a
+        # single good reframe, and it sometimes returns that as a bare string instead of a
+        # one-element list -- a schema technicality, not a content problem, but one that
+        # previously crashed the entire turn (ValidationError -> the generic client-facing
+        # "Something went wrong" message, worse than the original ungrounded-suggestion issue
+        # this was fixing). Tolerate the shape rather than failing on it.
+        return [v] if isinstance(v, str) else v
 
 
 class _CountryProfileSelection(BaseModel):

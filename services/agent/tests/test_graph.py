@@ -15,7 +15,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import MemorySaver
 
-from agent.graph import MAX_TOOL_CALLS_PER_TURN, _capability_summary, build_graph
+from agent.graph import MAX_TOOL_CALLS_PER_TURN, _capability_summary, _OpinionOutput, build_graph
 from agent.mcp_client import get_mcp_tools
 from agent.prompts import OFF_TOPIC_RESPONSE
 
@@ -65,6 +65,38 @@ async def test_opinion_routing():
     assert result["response_text"] == "I can't weigh in on that."
     assert result["suggested_prompts"] == ["How has China's trend changed?"]
     assert llm.exhausted
+
+
+def test_opinion_output_coerces_a_bare_string_suggested_prompt_into_a_list():
+    # SPEC.md "Corrections applied" #31: confirmed live -- grounding suggested_prompts in the
+    # real tool catalog (correction #29) can narrow the model down to a single good reframe, and
+    # it sometimes returns that as a bare string instead of a one-element list. Previously
+    # crashed the entire turn with a pydantic ValidationError (worse than the ungrounded-
+    # suggestion issue #29 was fixing) -- now tolerated instead.
+    output = _OpinionOutput(response_text="I can't weigh in.", suggested_prompts="How has X changed?")
+    assert output.suggested_prompts == ["How has X changed?"]
+
+
+def test_opinion_output_still_accepts_a_real_list():
+    output = _OpinionOutput(response_text="I can't weigh in.", suggested_prompts=["a", "b"])
+    assert output.suggested_prompts == ["a", "b"]
+
+
+async def test_opinion_routing_survives_a_bare_string_suggested_prompt_from_the_model():
+    # End-to-end version of the two tests above -- proves the coercion actually reaches the
+    # real opinion_node -> with_structured_output(_OpinionOutput) path, not just the model class
+    # in isolation. ScriptedChatModel's own `_schema(**value)` construction (fakes.py) is exactly
+    # how the real langchain_core structured-output parser builds `_OpinionOutput` from the
+    # model's raw tool-call args, so this reproduces the live crash faithfully.
+    llm = ScriptedChatModel(
+        [
+            {"classification": "opinion"},
+            {"response_text": "I can't weigh in on that.", "suggested_prompts": "How has China's trend changed?"},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[])
+    result = await graph.ainvoke({"current_query": "should China do more?"}, config=THREAD_CONFIG)
+    assert result["suggested_prompts"] == ["How has China's trend changed?"]
 
 
 def test_capability_summary_uses_first_paragraph_only_never_the_tool_name():
