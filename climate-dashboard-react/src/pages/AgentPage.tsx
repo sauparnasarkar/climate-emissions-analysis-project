@@ -89,7 +89,20 @@ function StarterPromptsGrid({ onSelect }: { onSelect: (item: (typeof STARTER_PRO
   );
 }
 
-function ResultSectionView({ section, onSuggestedPromptClick }: { section: ResultSection; onSuggestedPromptClick: (prompt: string) => void }) {
+function ResultSectionView({
+  section,
+  onSuggestedPromptClick,
+  showSuggestedPrompts,
+}: {
+  section: ResultSection;
+  onSuggestedPromptClick: (prompt: string) => void;
+  // Only the single latest section's own "Try instead" tiles stay actionable (direct report:
+  // every past turn's tiles remained clickable forever, unlike the starter grid which disappears
+  // once you've moved past it). False for every section behind the latest one, and for the
+  // latest one too while a new submission is in flight -- matching the starter grid's own
+  // collapse-on-loading behavior rather than waiting for the new section to land.
+  showSuggestedPrompts: boolean;
+}) {
   const { query, result } = section;
   const hasWidgets = result.widgets.length > 0;
   const textOnly = hasWidgets && isTextOnlyAnswer(result);
@@ -110,7 +123,7 @@ function ResultSectionView({ section, onSuggestedPromptClick }: { section: Resul
       {!hasWidgets ? (
         <>
           <InlineAlert variant="default">{result.response_text}</InlineAlert>
-          {result.suggested_prompts.length > 0 && (
+          {showSuggestedPrompts && result.suggested_prompts.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {result.suggested_prompts.map((prompt) => (
                 <StarterPromptTile key={prompt} kicker="Try instead" prompt={prompt} onClick={() => onSuggestedPromptClick(prompt)} />
@@ -172,14 +185,19 @@ export function AgentPage() {
     // slightly ahead of the corresponding result arriving.
   }, [result, pendingQuery]);
 
-  const handleStarterClick = (item: (typeof STARTER_PROMPTS)[number]) => {
-    // SPEC.md §4: prefill + focus for every starter prompt. PromptBar exposes the textarea via
-    // ref (design-system PR #44, closing "Corrections applied" #18's previously flagged gap), so
-    // the focus half is no longer just aspirational -- the user lands in the textarea with the
-    // prefilled text ready to edit, not stuck on the tile they just clicked.
-    setValue(item.prompt);
+  // SPEC.md §4/§6: prefill + focus, shared by the starter grid and the §6 suggested-prompt
+  // "Try instead" tiles -- both used to diverge (starter grid always prefilled, suggested
+  // prompts auto-submitted instead), which read as the same inconsistency in two different
+  // places. PromptBar exposes the textarea via ref (design-system PR #44, closing "Corrections
+  // applied" #18's previously flagged gap), so the focus half isn't just aspirational -- the
+  // user lands in the textarea with the prefilled text ready to edit, not stuck on the tile
+  // they just clicked.
+  const prefillAndFocus = (prompt: string) => {
+    setValue(prompt);
     promptBarRef.current?.focus();
   };
+
+  const handleStarterClick = (item: (typeof STARTER_PROMPTS)[number]) => prefillAndFocus(item.prompt);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: hasSubmitted ? '24px 24px 48px' : '48px 24px' }}>
@@ -222,8 +240,13 @@ export function AgentPage() {
 
       {error && <InlineAlert variant="error">{error}</InlineAlert>}
 
-      {sections.map((section) => (
-        <ResultSectionView key={section.id} section={section} onSuggestedPromptClick={handleSubmit} />
+      {sections.map((section, index) => (
+        <ResultSectionView
+          key={section.id}
+          section={section}
+          onSuggestedPromptClick={prefillAndFocus}
+          showSuggestedPrompts={index === 0 && !loading}
+        />
       ))}
     </div>
   );

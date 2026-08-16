@@ -300,9 +300,35 @@ conversational-agent project that `services/mcp-server` began.
     `STARTER_PROMPTS` dropped its `prefill: boolean` field entirely — no longer a per-item choice
     — and `handleStarterClick` lost its now-dead auto-submit branch). The design-system
     `PromptBar` collapse-on-external-submit behavior this used to exercise
-    (`AgentPage.test.tsx`) is still covered — via a §6 suggested-prompt "Try instead" reframe tile
-    instead, which still calls `submit()` directly rather than going through `PromptBar`'s own
-    `trySubmit`, since that mechanism wasn't removed, only the starter grid's own use of it.
+    (`AgentPage.test.tsx`) moved to a §6 suggested-prompt "Try instead" reframe tile instead,
+    which at the time still called `submit()` directly rather than going through `PromptBar`'s
+    own `trySubmit` — superseded by correction #27 below, which made those tiles prefill too.
+27. **The §6 suggested-prompt "Try instead" reframe tiles had the identical auto-submit
+    inconsistency correction #26 just fixed for the starter grid, plus a second bug: a resolved
+    turn's tiles stayed clickable forever.** Reported live, same session as #26: selecting a
+    reframe tile submitted immediately instead of prefilling (the exact pattern #26 fixed one
+    section earlier, left standing here because correction #26 explicitly kept this tile as "the
+    one remaining instant-submit path in the app" — reasonable at the time, wrong once reported
+    directly). Separately: every past turn's own `suggested_prompts` tiles remained fully
+    rendered and clickable in the scrolled-back result list indefinitely, with no equivalent of
+    the starter grid's collapse-once-you've-moved-on behavior — a user could click a "Try
+    instead" tile from several turns back. Fixed both in one change: `AgentPage.tsx` gained a
+    shared `prefillAndFocus` helper used by both `handleStarterClick` and the reframe tiles'
+    `onSuggestedPromptClick` (no more `handleSubmit` call from a tile click at all), and
+    `ResultSectionView` gained a `showSuggestedPrompts` prop — true only for `sections[0]` (the
+    latest turn) while not `loading`, false for every older section and for the latest one
+    while a new submission is in flight. Older turns keep their decline text as chat history;
+    only the now-stale tiles stop rendering.
+
+    Consequence for test coverage: with this change, `AgentPage.tsx` no longer has *any* UI
+    element that calls `submit()` directly, bypassing `PromptBar`'s own `trySubmit` — the
+    suggested-prompt tile correction #26 repurposed as that trigger no longer qualifies now that
+    it prefills too. The `AgentPage.test.tsx` test built on that trigger was removed rather than
+    given a new one to bypass with, since none exists in this component anymore; the underlying
+    `PromptBar` collapse-on-external-submit contract itself isn't newly uncovered — it's already
+    exercised directly by design-system's own `PromptBar.stories.tsx`
+    (`ExpandedContentCollapsesOnExternalSubmit`), which is where that generic behavior belongs
+    regardless of whether any one consuming app currently has an external-submit call site.
 
 ---
 
@@ -445,9 +471,11 @@ so the bar visibly resized between "before the first submit" and "after" (direct
 make them match; no documented rationale existed for 540 specifically).
 
 The same `StarterPromptTile` composition is reused for the opinion-guardrail's suggested reframes
-(§6) — one clickable-prompt-card pattern used in two places, not two. Those reframe tiles are
-unaffected by this section -- they render inline with their own result section, not inside
-`PromptBar`.
+(§6) — one clickable-prompt-card pattern used in two places, not two. Those reframe tiles render
+inline with their own result section, not inside `PromptBar` — but as of correction #27, they
+share this section's exact prefill-and-focus behavior via `AgentPage.tsx`'s `prefillAndFocus`,
+and are additionally gated by `showSuggestedPrompts` (§6) so only the latest, not-yet-superseded
+turn's tiles stay actionable.
 
 ## 5. Progress indicator
 
