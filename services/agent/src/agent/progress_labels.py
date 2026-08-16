@@ -31,7 +31,7 @@ _BUILDERS: dict[str, Callable[[dict], str]] = {
         if args.get("country")
         else f"Fetching global scenario projection ({args.get('scope', 'featured')})"
     ),
-    "get_scenario_cumulative_impact": lambda args: "Fetching cumulative scenario impact",
+    "get_scenario_cumulative_impact": lambda args: f"Fetching cumulative scenario impact (sorted by {args.get('sort_by', 'BAU')})",
     "compare_scenarios_across_countries": lambda args: f"Comparing scenarios across {_join_countries(args.get('countries'))}",
     "get_methodology_notes": lambda args: "Fetching methodology notes",
 }

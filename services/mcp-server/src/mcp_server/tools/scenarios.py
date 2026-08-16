@@ -57,7 +57,15 @@ async def get_scenario_cumulative_impact(sort_by: str = "BAU") -> dict:
     §3.2) always applies when there are more than 10 rows: capped to the top 10 (the
     wrapped API already returns `rows` pre-sorted by `sort_by`'s cumulative value
     descending, so this only slices, never re-sorts), with a scope_note explaining the
-    cap."""
+    cap.
+
+    Do NOT call this once per scenario to compare BAU/Moderate/Aggressive -- every row
+    already carries all three scenarios' cumulative values (`sort_by` only changes which
+    scenario ranks the returned rows and which 10 get kept by the trim above, it never
+    removes a scenario's values from the response). One call already answers "which
+    countries rank highest under each scenario"; call it again with a different `sort_by`
+    only if the top-10 set itself needs to be re-ranked by a different scenario, not to
+    fetch scenario values you don't already have."""
     client = get_client()
     body = await client.get("/scenarios/cumulative", params={"sort_by": sort_by})
     trimmed, note = trim(
