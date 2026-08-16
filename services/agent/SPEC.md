@@ -388,6 +388,19 @@ conversational-agent project that `services/mcp-server` began.
     the `build_graph` wiring itself doesn't crash and still returns `suggested_prompts` correctly
     with a real tool list present, the same level `test_opinion_routing` already tests the
     empty-list case at.
+30. **Correction #27's own Copilot-pushed refinement (`section.result === result`, dropping
+    `index`) left `sections.map((section, index) => ...)` with an unused `index` parameter —
+    caught by the Mac Mini deploy's real `npm run build`, not by this session's own pre-merge
+    verification.** Root cause of the miss: `climate-dashboard-react/tsconfig.json` is a
+    solution-style file (`"files": []`, only `references`) — `tsc --noEmit -p tsconfig.json`
+    against it validates the reference graph but does **not** actually type-check the referenced
+    projects' source files, so it reported clean while the real build command
+    (`tsc -b && vite build`, which does check them, `tsconfig.app.json`'s
+    `noUnusedLocals`/`noUnusedParameters` included) would have failed on this exact line. Fixed
+    by dropping the now-unused `index` param. Process lesson for this repo going forward: verify
+    a solution-style TS project with `tsc -b` (or the real `npm run build`), not `tsc --noEmit -p
+    tsconfig.json` — the latter is a false-negative-prone check here specifically because of the
+    `"files": []` root config shape, not a general TS caveat.
 
 ---
 
