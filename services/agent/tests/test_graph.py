@@ -15,7 +15,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import MemorySaver
 
-from agent.graph import MAX_TOOL_CALLS_PER_TURN, build_graph
+from agent.graph import MAX_TOOL_CALLS_PER_TURN, _capability_summary, build_graph
 from agent.mcp_client import get_mcp_tools
 from agent.prompts import OFF_TOPIC_RESPONSE
 
@@ -64,6 +64,55 @@ async def test_opinion_routing():
     assert result["classification"] == "opinion"
     assert result["response_text"] == "I can't weigh in on that."
     assert result["suggested_prompts"] == ["How has China's trend changed?"]
+    assert llm.exhausted
+
+
+def test_capability_summary_uses_first_paragraph_only_never_the_tool_name():
+    # SPEC.md "Corrections applied" #29: grounds opinion_node's reframes in what the dataset
+    # actually supports -- using the raw tool name here would reintroduce #28's leak one node
+    # over, and using the full docstring (IMPORTANT/edge-case paragraphs meant for the
+    # tool-calling model) would bury the one summary sentence a reframe-suggestion prompt needs.
+    tool = StructuredTool.from_function(
+        coroutine=lambda: None,  # pragma: no cover -- never invoked, only .description is read
+        name="get_gas_composition_by_decade",
+        description=(
+            "Decade-by-decade share of CO2/methane/nitrous oxide for one or more countries.\n\n"
+            "IMPORTANT: only pass countries when the user named specific countries."
+        ),
+    )
+    summary = _capability_summary([tool])
+    assert summary == "- Decade-by-decade share of CO2/methane/nitrous oxide for one or more countries."
+    assert "get_gas_composition_by_decade" not in summary
+    assert "IMPORTANT" not in summary
+
+
+async def test_opinion_routing_with_real_tools_present():
+    # SPEC.md "Corrections applied" #29: opinion_node now receives mcp_tools (previously always
+    # []) so its reframes can be grounded in what the dataset actually supports. Proves the
+    # wiring through build_graph's functools.partial doesn't crash and still returns
+    # suggested_prompts correctly with a real tool list present -- the grounding content itself
+    # (first-paragraph extraction, no tool names) is unit-tested directly against
+    # _capability_summary above, not re-verified here via prompt introspection (ScriptedChatModel
+    # can't cleanly expose what a with_structured_output call sent to a test holding the
+    # original, pre-clone `llm` reference -- see agent_node's own cache-control test for the one
+    # case, bind_tools, where that introspection does work).
+    tool = StructuredTool.from_function(
+        coroutine=lambda: None,  # pragma: no cover -- never invoked, only .description is read
+        name="get_historical_emissions",
+        description="Historical yearly emissions time series for one or more countries.",
+    )
+    llm = ScriptedChatModel(
+        [
+            {"classification": "opinion"},
+            {
+                "response_text": "I can't weigh in on that.",
+                "suggested_prompts": ["How has China's emissions trend compared to peers?"],
+            },
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool])
+    result = await graph.ainvoke({"current_query": "should China do more?"}, config=THREAD_CONFIG)
+    assert result["suggested_prompts"] == ["How has China's emissions trend compared to peers?"]
     assert llm.exhausted
 
 

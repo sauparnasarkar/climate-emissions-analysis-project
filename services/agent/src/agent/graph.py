@@ -113,10 +113,31 @@ async def off_topic_node(state: AgentState) -> dict[str, Any]:
     return {"response_text": OFF_TOPIC_RESPONSE}
 
 
-async def opinion_node(state: AgentState, *, llm: BaseChatModel) -> dict[str, Any]:
+def _capability_summary(mcp_tools: list[BaseTool]) -> str:
+    """First paragraph of each tool's own docstring, whitespace-collapsed to one line -- every
+    tool docstring in services/mcp-server leads with a plain-language summary sentence(s) before
+    the IMPORTANT/edge-case detail paragraphs meant for the tool-calling model, not for grounding
+    a reframe suggestion (SPEC.md "Corrections applied" #28 already stops user-facing text from
+    referencing tool names directly -- this only ever surfaces what each tool is *for*, never its
+    name)."""
+    lines = []
+    for t in mcp_tools:
+        first_paragraph = t.description.strip().split("\n\n")[0]
+        lines.append(f"- {' '.join(first_paragraph.split())}")
+    return "\n".join(lines)
+
+
+async def opinion_node(state: AgentState, *, llm: BaseChatModel, mcp_tools: list[BaseTool]) -> dict[str, Any]:
+    # SPEC.md "Corrections applied" #29: opinion_node used to have zero grounding in the real
+    # tool catalog, so its reframe suggestions were plausible-sounding guesses about what a
+    # climate-emissions dataset "should" support, not what this one actually does -- confirmed
+    # live (suggested a sector-level breakdown reframe when the dataset only tracks gas type).
     structured = llm.with_structured_output(_OpinionOutput)
+    system_prompt = OPINION_SYSTEM_PROMPT
+    if mcp_tools:
+        system_prompt = f"{OPINION_SYSTEM_PROMPT}\n\nCapability summary:\n{_capability_summary(mcp_tools)}"
     result = await structured.ainvoke(
-        [SystemMessage(content=OPINION_SYSTEM_PROMPT), HumanMessage(content=state.current_query)]
+        [SystemMessage(content=system_prompt), HumanMessage(content=state.current_query)]
     )
     return {"response_text": result.response_text, "suggested_prompts": result.suggested_prompts}
 
@@ -397,7 +418,7 @@ async def build_graph(
     graph: StateGraph[AgentState] = StateGraph(AgentState)
     graph.add_node("guardrail_router", functools.partial(guardrail_router_node, llm=llm))
     graph.add_node("off_topic", off_topic_node)
-    graph.add_node("opinion", functools.partial(opinion_node, llm=llm))
+    graph.add_node("opinion", functools.partial(opinion_node, llm=llm, mcp_tools=mcp_tools))
     graph.add_node("general_climate", functools.partial(general_climate_node, llm=llm))
     graph.add_node("agent", functools.partial(agent_node, llm=llm, mcp_tools=mcp_tools))
     graph.add_node("tools", functools.partial(tools_node, mcp_tools=mcp_tools))
