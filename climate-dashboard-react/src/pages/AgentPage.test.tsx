@@ -169,15 +169,12 @@ describe('AgentPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('collapses the panel once an instant-submit tile triggers loading, even though the click never touches PromptBar\'s own submit path', async () => {
-    // Mirrors design-system PromptBar.stories.tsx's own ExpandedContentCollapsesOnExternalSubmit:
-    // a §6 suggested-prompt "Try instead" reframe tile calls the useAgentStream hook's submit()
-    // directly (ResultSectionView's onSuggestedPromptClick={handleSubmit}), bypassing PromptBar's
-    // internal trySubmit entirely -- only the `loading` prop turning true (which a static
-    // stubStream() mock never does on its own) drives the collapse here. Starter-grid tiles no
-    // longer stand in for this case now that all four prefill instead of auto-submitting
-    // (SPEC.md "Corrections applied" #26) -- the reframe tile is the one remaining instant-submit
-    // path left in the app.
+  it('prefills a suggested-prompt ("Try instead") tile on click, focuses the textarea, and does not submit', async () => {
+    // SPEC.md "Corrections applied" #27: these §6 reframe tiles used to call submit() directly
+    // (ResultSectionView's onSuggestedPromptClick={handleSubmit}), bypassing PromptBar's own
+    // trySubmit -- the same auto-submit inconsistency #26 fixed for the starter grid, left
+    // standing here until reported directly. Now shares AgentPage's own prefillAndFocus with
+    // the starter grid, same as the country-specific/forecast prefill test above.
     const result: AgentQueryResult = {
       thread_id: 't1',
       widgets: [],
@@ -187,22 +184,60 @@ describe('AgentPage', () => {
       percent: 100,
     };
     const submit = vi.fn();
-    const stream = mutableStream({ result, submit });
+    stubStream({ result, submit });
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    const { rerender } = render(<AgentPage />);
-
-    await user.click(screen.getByLabelText('Ask about climate emissions'));
-    expect(screen.getByRole('button', { name: /forecasted emitters/ })).toBeInTheDocument();
+    render(<AgentPage />);
 
     await user.click(screen.getByText('How has emissions growth changed in China over the last decade?'));
-    // threadIdRef is already 't1' from the seeded result above, not null (a genuinely fresh
-    // conversation's first submit would pass null; this is a follow-up in an existing thread).
-    expect(submit).toHaveBeenCalledWith('How has emissions growth changed in China over the last decade?', 't1');
 
+    expect(submit).not.toHaveBeenCalled();
+    const textarea = screen.getByDisplayValue('How has emissions growth changed in China over the last decade?');
+    expect(textarea).toBeInTheDocument();
+    expect(textarea).toHaveFocus();
+  });
+
+  it("hides a turn's suggested-prompt tiles once superseded by a new submission, keeping its decline text", async () => {
+    // SPEC.md "Corrections applied" #27, second half: every past turn's "Try instead" tiles used
+    // to stay clickable forever, unlike the starter grid which disappears once you've moved past
+    // it -- a user could act on a suggestion several turns old. Only sections[0], and only while
+    // not loading, may show its own tiles now.
+    const firstResult: AgentQueryResult = {
+      thread_id: 't1',
+      widgets: [],
+      response_text: "I can't offer opinions, but here's what the data shows instead.",
+      scope_notes: [],
+      suggested_prompts: ['How has emissions growth changed in China over the last decade?'],
+      percent: 100,
+    };
+    const stream = mutableStream({ result: firstResult });
+    const { rerender } = render(<AgentPage />);
+
+    expect(screen.getByText('How has emissions growth changed in China over the last decade?')).toBeInTheDocument();
+
+    // Submitting anything -- `loading` turning true -- hides the now-stale tile immediately,
+    // before a new result even lands, mirroring the starter grid's own collapse-on-loading
+    // behavior rather than waiting on the next section to arrive.
     stream.loading = true;
     rerender(<AgentPage />);
-    expect(screen.queryByRole('button', { name: /forecasted emitters/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('How has emissions growth changed in China over the last decade?')).not.toBeInTheDocument();
+    expect(screen.getByText("I can't offer opinions, but here's what the data shows instead.")).toBeInTheDocument();
+
+    // Once a second result lands, the first turn permanently drops to index 1+ -- its tiles stay
+    // hidden even though loading is false again, but its decline text remains as chat history.
+    const secondResult: AgentQueryResult = {
+      thread_id: 't1',
+      widgets: [],
+      response_text: 'Some answer.',
+      scope_notes: [],
+      suggested_prompts: [],
+      percent: 100,
+    };
+    stream.loading = false;
+    stream.result = secondResult;
+    rerender(<AgentPage />);
+    expect(screen.queryByText('How has emissions growth changed in China over the last decade?')).not.toBeInTheDocument();
+    expect(screen.getByText("I can't offer opinions, but here's what the data shows instead.")).toBeInTheDocument();
   });
 
   it('surfaces a stream error as an InlineAlert', () => {
