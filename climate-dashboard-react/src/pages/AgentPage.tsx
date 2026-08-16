@@ -243,7 +243,7 @@ export function AgentPage() {
 
       {error && <InlineAlert variant="error">{error}</InlineAlert>}
 
-      {sections.map((section, index) => (
+      {sections.map((section) => (
         <ResultSectionView
           key={section.id}
           section={section}
