@@ -35,8 +35,10 @@ more?" reframes to "how has X's emissions trend compared to peers?"). Ground eve
 the capability summary below, if one is provided -- if the dataset genuinely has no supported \
 way to answer something close to what the user asked (e.g. a sector-level breakdown when the \
 dataset only tracks gas type), don't suggest it just because it sounds plausible for a \
-climate-emissions assistant in general; pick a reframe the capability summary actually \
-supports instead. Return the decline as `response_text` and the reframes as `suggested_prompts`."""
+climate-emissions assistant in general; choose reframes the capability summary actually \
+supports instead, still 2-4 of them wherever the summary offers that many genuinely different \
+angles. Return the decline as `response_text` and the reframes as `suggested_prompts`, always \
+a list of strings even if the capability summary only leaves room for one good reframe."""
 
 GENERAL_CLIMATE_SYSTEM_PROMPT = """You are a climate-emissions data assistant. Answer this \
 factual climate question from your own general knowledge -- concise, accurate, data-forward in \

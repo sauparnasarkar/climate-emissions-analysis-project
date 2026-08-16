@@ -401,6 +401,30 @@ conversational-agent project that `services/mcp-server` began.
     a solution-style TS project with `tsc -b` (or the real `npm run build`), not `tsc --noEmit -p
     tsconfig.json` — the latter is a false-negative-prone check here specifically because of the
     `"files": []` root config shape, not a general TS caveat.
+31. **Correction #29's own grounding fix crashed the entire turn in production — caught by
+    live testing against the deployed Mac Mini right after that PR's own deploy, not by its
+    tests.** Grounding `suggested_prompts` in the real tool catalog narrowed the model down to a
+    single good reframe for some queries, and it returned that reframe as a bare string instead
+    of a one-element list — `_OpinionOutput.suggested_prompts: list[str]` rejected it outright
+    (`pydantic_core.ValidationError: Input should be a valid list`), which
+    `stream_query`'s own exception handling (correction #19) turned into the generic
+    "Something went wrong" message with the real cause hidden from the user and only visible in
+    `~/Library/Logs/ghgemissions-agent.error.log` on the Mac Mini. Strictly worse than the
+    ungrounded-but-valid suggestions correction #29 was fixing — a hard failure instead of a
+    merely suboptimal one. Fixed two ways: (1) `_OpinionOutput` gained a `field_validator` on
+    `suggested_prompts` (`mode="before"`) that coerces a bare string into a one-element list
+    rather than rejecting it — the real, load-bearing fix, since it tolerates the model's output
+    shape regardless of wording; (2) `OPINION_SYSTEM_PROMPT` also gained a reinforcing sentence
+    ("always a list of strings even if the capability summary only leaves room for one good
+    reframe") as a secondary nudge to reduce how often the validator needs to step in, not a
+    substitute for it. `test_opinion_routing_survives_a_bare_string_suggested_prompt_from_the_model`
+    reproduces the exact crash shape end-to-end via `ScriptedChatModel`'s own `_schema(**value)`
+    construction (`fakes.py`), the same code path the real `langchain_core` structured-output
+    parser uses. General lesson for any future structured-output node here: a schema that's
+    correct on the happy path doesn't guarantee the model always honors it once the surrounding
+    prompt gets more constraining — plan for graceful coercion of near-miss shapes, not just
+    tighter wording, especially for anything that reaches a public, unauthenticated endpoint
+    (`server.py`'s `/query`) where a crash is a worse failure mode than a slightly-off answer.
 
 ---
 
