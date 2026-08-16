@@ -350,6 +350,44 @@ conversational-agent project that `services/mcp-server` began.
     (new) is a regression guard asserting the instruction text is present — prompt wording
     itself isn't otherwise unit-testable without a real LLM call, so this only catches the
     instruction being silently deleted later, not a model choosing to ignore it.
+29. **`opinion_node`'s `suggested_prompts` reframes had zero grounding in the real tool
+    catalog, so a reframe could itself be unanswerable — reported live: selecting a suggested
+    "which sectors contribute most" reframe got a "no, I don't have a sector-breakdown tool"
+    answer.** `opinion_node` called the LLM with only `OPINION_SYSTEM_PROMPT` and the user's raw
+    query — unlike `agent_node`, which is bound to the real MCP tools, it had no way to know the
+    dataset only tracks gas type (CO2/methane/nitrous oxide), not economic sector, so "which
+    sectors contribute most" sounded like a perfectly reasonable data question in general even
+    though this dataset can't answer it. Fixed by wiring `mcp_tools` into `opinion_node`
+    (`build_graph`'s own `functools.partial(opinion_node, llm=llm, mcp_tools=mcp_tools)`, mirroring
+    `agent_node`'s registration one line above it) and adding a new `_capability_summary()`
+    helper that turns the tool list into a plain-language grounding block: first paragraph of
+    each tool's own docstring only, whitespace-collapsed — every tool docstring in
+    `services/mcp-server` already leads with a one-sentence plain-language summary before its
+    IMPORTANT/edge-case detail paragraphs (written for the tool-calling model, not a reframe
+    prompt) — and never the tool's own name, so this doesn't reopen correction #28's leak one
+    node over. `OPINION_SYSTEM_PROMPT` gained one instruction to ground every reframe in that
+    summary and prefer a supported reframe over a plausible-sounding unsupported one. Guards
+    against an empty `mcp_tools` list (e.g. existing tests, and any future caller that doesn't
+    pass real tools) by leaving the prompt byte-for-byte unchanged rather than appending an empty
+    section.
+
+    This meaningfully reduces, but can't fully eliminate, mismatched suggestions — it's still one
+    LLM judgment call, just a grounded one instead of an ungrounded one, not a hard validation
+    that dry-runs each candidate reframe through the real agent before showing it (a real
+    dry-run would be more robust but adds a full extra agent turn's worth of latency/cost per
+    guardrail hit — deferred unless grounding alone proves insufficient in practice; explicit
+    scope decision, not an oversight).
+
+    Test coverage: `_capability_summary()` is unit-tested directly (first-paragraph extraction,
+    no tool name leak) rather than through `opinion_node`'s own LLM call — `ScriptedChatModel`
+    (`tests/fakes.py`)'s `with_structured_output()` returns a genuinely new clone object, so a
+    test holding the original `llm` it constructed can't see what a `with_structured_output`-only
+    node like `opinion_node` actually sent it (unlike `agent_node`'s `bind_tools()`, which
+    returns `self` and lets `test_agent_node_marks_system_prompt_cacheable` inspect
+    `llm.last_messages` directly). `test_opinion_routing_with_real_tools_present` instead proves
+    the `build_graph` wiring itself doesn't crash and still returns `suggested_prompts` correctly
+    with a real tool list present, the same level `test_opinion_routing` already tests the
+    empty-list case at.
 
 ---
 
