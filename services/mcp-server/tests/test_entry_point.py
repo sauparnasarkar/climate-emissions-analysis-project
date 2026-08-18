@@ -4,7 +4,7 @@ server.py: running the server as `python -m mcp_server.server` (rather than
 from its own "__main__" instance, so `tools/*.py`'s `from ..server import mcp` binds to a
 different MCPServer object than the one `main()` actually runs -- silently registering only
 `list_countries` (the one tool defined above the `from .tools import ...` line) instead of
-all 13. No in-process import test can catch this; it only reproduces via a real subprocess
+all 14. No in-process import test can catch this; it only reproduces via a real subprocess
 launched the way an MCP client actually launches this server, which is what this test does.
 """
 
