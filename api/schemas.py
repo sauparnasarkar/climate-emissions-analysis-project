@@ -30,6 +30,24 @@ class MoverRow(BaseModel):
     pct_change: Optional[float]
 
 
+class EmissionsChangeSummaryResponse(BaseModel):
+    # A summary, not one row per country -- response size must stay bounded regardless of
+    # `scope` size (sovereign is ~209 countries). `top_increases`/`top_decreases` reuse
+    # MoverRow, which is already the right small per-row shape; the top-level fields are the
+    # actual answer to "how many countries increased/decreased", which no existing endpoint
+    # computes at anything past the 10-country-capped Selected tier (see overview.py).
+    scope: str
+    baseline_year: int
+    latest_year: int
+    country_pool_size: int
+    countries_with_data: int
+    increased_count: int
+    decreased_count: int
+    unchanged_count: int
+    top_increases: list[MoverRow]
+    top_decreases: list[MoverRow]
+
+
 class OverviewTierMetrics(BaseModel):
     label: Literal["All Countries", "Expanded", "Selected"]
     countries_count: int

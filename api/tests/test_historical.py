@@ -196,7 +196,9 @@ def test_decade_composition_filtered_to_unknown_country_is_empty(client):
     assert body["decades"] == []
 
 
-@pytest.mark.parametrize("endpoint", ["/api/historical/timeseries", "/api/historical/decade-composition"])
+@pytest.mark.parametrize(
+    "endpoint", ["/api/historical/timeseries", "/api/historical/decade-composition", "/api/historical/change-summary"]
+)
 def test_503_when_raw_data_missing(data_dir, endpoint):
     from fastapi.testclient import TestClient
 
@@ -205,3 +207,98 @@ def test_503_when_raw_data_missing(data_dir, endpoint):
     resp = TestClient(app).get(endpoint)
     assert resp.status_code == 503
     assert "owid-co2-data.csv" in resp.json()["detail"]
+
+
+def _change_summary_client(data_dir):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    from .conftest import owid_raw_change_summary_df
+
+    owid_raw_change_summary_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    return TestClient(app)
+
+
+def test_change_summary_happy_path_counts_and_ranking(data_dir):
+    client = _change_summary_client(data_dir)
+    resp = client.get("/api/historical/change-summary", params={"scope": "sovereign"})
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["scope"] == "sovereign"
+    assert body["baseline_year"] == 1990
+    assert body["latest_year"] == 2024
+    # 7 countries in the fixture; Latvia has no 1990 row, so countries_with_data is 6.
+    assert body["country_pool_size"] == 7
+    assert body["countries_with_data"] == 6
+    # China, India, Zeroland increase (Zeroland's absolute_change is still a well-defined +50
+    # despite its undefined pct_change -- see the inf-guard test below); Ukraine, United
+    # Kingdom decrease; Norway unchanged.
+    assert body["increased_count"] == 3
+    assert body["decreased_count"] == 2
+    assert body["unchanged_count"] == 1
+    assert body["increased_count"] + body["decreased_count"] + body["unchanged_count"] == 6
+
+    # Ranked by absolute_change, biggest mover first in each direction.
+    assert [r["country"] for r in body["top_increases"]] == ["China", "India", "Zeroland"]
+    assert [r["country"] for r in body["top_decreases"]] == ["Ukraine", "United Kingdom"]
+    assert body["top_increases"][0]["absolute_change"] == pytest.approx(9600.0)
+    assert body["top_decreases"][0]["absolute_change"] == pytest.approx(-560.0)
+
+
+def test_change_summary_zero_baseline_country_keeps_absolute_change_nulls_pct(data_dir):
+    # Regression test for the inf guard: Zeroland's co2_1990 == 0.0 makes pct_change +inf,
+    # which plain dropna() does not remove and json.dumps can't serialize. No real sovereign
+    # country has co2 == 0 at 1990 today, but this must not crash -- and since
+    # absolute_change (0 -> 50 Mt) is still a real, well-defined increase, Zeroland must stay
+    # counted as increased with only its pct_change nulled, not dropped from the response
+    # entirely.
+    client = _change_summary_client(data_dir)
+    resp = client.get("/api/historical/change-summary", params={"scope": "sovereign"})
+    assert resp.status_code == 200
+    body = resp.json()
+    zeroland = next(r for r in body["top_increases"] if r["country"] == "Zeroland")
+    assert zeroland["absolute_change"] == pytest.approx(50.0)
+    assert zeroland["pct_change"] is None
+
+
+def test_change_summary_missing_baseline_row_excluded_not_crashed(data_dir):
+    # Latvia has only a 2024 row (no 1990) -- must be excluded from countries_with_data
+    # without a 500, mirroring overview.py's own top_movers empty-pair handling.
+    client = _change_summary_client(data_dir)
+    resp = client.get("/api/historical/change-summary", params={"scope": "sovereign"})
+    assert resp.status_code == 200
+    all_countries = {r["country"] for r in resp.json()["top_increases"] + resp.json()["top_decreases"]}
+    assert "Latvia" not in all_countries
+
+
+def test_change_summary_top_n_bounds(data_dir):
+    client = _change_summary_client(data_dir)
+    assert client.get("/api/historical/change-summary", params={"top_n": 0}).status_code == 422
+    assert client.get("/api/historical/change-summary", params={"top_n": 26}).status_code == 422
+    assert client.get("/api/historical/change-summary", params={"top_n": 1}).status_code == 200
+
+
+def test_change_summary_top_n_caps_each_direction(data_dir):
+    client = _change_summary_client(data_dir)
+    resp = client.get("/api/historical/change-summary", params={"scope": "sovereign", "top_n": 1})
+    body = resp.json()
+    assert len(body["top_increases"]) == 1
+    assert len(body["top_decreases"]) == 1
+    # Counts stay the true totals even though the lists are trimmed to top_n.
+    assert body["increased_count"] == 3
+    assert body["decreased_count"] == 2
+
+
+def test_change_summary_scope_changes_pool_size(data_dir):
+    # No selected_countries.json written -> load_expanded_countries() falls back to
+    # FEATURED_COUNTRIES, so "featured" and "expanded" coincide here; the real assertion is
+    # that `scope` is actually threaded into _scoped_pool at all (sovereign reaches everyone).
+    client = _change_summary_client(data_dir)
+    featured = client.get("/api/historical/change-summary", params={"scope": "featured"}).json()
+    sovereign = client.get("/api/historical/change-summary", params={"scope": "sovereign"}).json()
+    # FEATURED_COUNTRIES ∩ fixture = China, India, United Kingdom.
+    assert featured["country_pool_size"] == 3
+    assert sovereign["country_pool_size"] == 7
+    assert featured["country_pool_size"] != sovereign["country_pool_size"]
