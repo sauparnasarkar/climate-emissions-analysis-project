@@ -81,8 +81,12 @@ function seriesChangeSummaryRows(series: Array<{ name: string; values: Array<num
   });
 }
 
-function tooManySeriesNote(count: number): string {
-  return `${count} series — showing a table instead of a chart for readability.`;
+// `unit` names what `count` actually counts -- HistoricalEmissionsWidget/
+// ForecastComparisonWidget cap on raw series count ("N series"), but
+// CompareScenariosWidget caps on country count ("N countries"); a hardcoded "series" would
+// misstate what the user-visible note is describing for that case (Copilot review, PR #165).
+function tooManySeriesNote(count: number, unit: 'series' | 'countries' = 'series'): string {
+  return `${count} ${unit} — showing a table instead of a chart for readability.`;
 }
 
 function HistoricalEmissionsWidget({ widget }: WidgetProps) {
@@ -141,7 +145,7 @@ function CompareScenariosWidget({ widget }: WidgetProps) {
       { field: 'country', headerName: 'Country' },
       ...scenarioNames.map((s) => ({ field: s, headerName: s })),
     ];
-    return <GridWidget title={widget.title} columns={columns} rows={rows} note={tooManySeriesNote(countries.length)} />;
+    return <GridWidget title={widget.title} columns={columns} rows={rows} note={tooManySeriesNote(countries.length, 'countries')} />;
   }
   const series: SyChartSeries[] = Object.entries(scenarios).flatMap(([scenarioName, seriesList]) =>
     seriesList.map((s) => ({ name: `${s.name} — ${scenarioName}`, x: s.years, y: s.values, kind: 'line' as const })),

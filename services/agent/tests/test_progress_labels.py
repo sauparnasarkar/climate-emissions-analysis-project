@@ -26,7 +26,7 @@ def test_progress_label_unknown_tool_falls_back():
 def test_progress_label_truncates_long_country_lists():
     # Reported live: a 209-country explicit list rendered as one unreadable wall of text in
     # both the streamed SSE progress bar and (via ui_selection.py's _title_for) the widget's
-    # permanent title. _join_countries caps at 5 names + "and N more".
+    # permanent title. join_countries caps at 5 names + "and N more".
     countries = [f"Country{i}" for i in range(1, 210)]
     label = progress_label("get_historical_emissions", {"countries": countries})
     assert label == (

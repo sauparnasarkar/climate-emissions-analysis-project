@@ -113,7 +113,9 @@ describe('WidgetRenderer', () => {
     });
     render(<WidgetRenderer widget={w} />);
     expect(screen.queryByTestId('sychart')).not.toBeInTheDocument();
-    expect(screen.getByText(/11 series/)).toBeInTheDocument();
+    // Cap is by country count here, not raw series count (11 countries x 3 scenarios = 33
+    // raw series) -- the note must say what's actually being counted (Copilot review, PR #165).
+    expect(screen.getByText(/11 countries/)).toBeInTheDocument();
   });
 
   it('renders get_forecast_comparison, trimming trailing nulls from hist_co2 before joining to the forecast segment', () => {

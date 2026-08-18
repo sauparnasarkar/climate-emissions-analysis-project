@@ -111,6 +111,22 @@ def test_build_widget_historical_emissions_title_uses_truncated_country_join():
     )
 
 
+def test_build_widget_historical_emissions_title_falls_back_to_scope_when_countries_omitted():
+    # Copilot review, PR #165: when `countries` is omitted (a valid call shape -- the tool
+    # resolves the whole `scope` pool itself), the title must say which scope was used, not
+    # the generic "the selected countries" join_countries(None) alone would produce.
+    record = ToolCallRecord(
+        tool_name="get_historical_emissions",
+        args={"scope": "sovereign"},
+        result={"series": []},
+        progress_label="x",
+    )
+    widget = build_widget(record, "how many countries increased or decreased?")
+    assert widget is not None
+    assert widget.title == "Historical emissions -- sovereign scope"
+    assert "selected countries" not in widget.title
+
+
 def test_build_widget_forecast_comparison_is_chart_not_text():
     # get_forecast_comparison is the multi-country equivalent of get_forecast and must resolve to
     # chart/line, not fall through to the ("text", None) default.

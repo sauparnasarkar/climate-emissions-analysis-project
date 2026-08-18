@@ -71,13 +71,23 @@ def is_error_result(result) -> bool:
 # (ChartCard/CardHeader), not tied to loading state at all. Reported live: a widget's title
 # literally read "Fetching historical emissions for Afghanistan, Albania, ..." forever,
 # because it was reusing progress_label's verb-phrased text verbatim.
+def _countries_or_scope(args: dict) -> str:
+    # get_historical_emissions/get_gas_composition_by_decade/get_forecast_comparison all
+    # accept an optional `countries` alongside a `scope` default -- when `countries` is
+    # omitted, join_countries(None) alone would render as the generic "the selected
+    # countries", silently dropping which scope pool (e.g. sovereign's ~209 vs expanded's
+    # ~40) the tool actually used. Copilot review, PR #165.
+    countries = args.get("countries")
+    return join_countries(countries) if countries else f"{args.get('scope', 'expanded')} scope"
+
+
 _TITLE_BUILDERS: dict[str, Callable[[dict], str]] = {
     "get_country_profile": lambda args: f"{args.get('country', 'Country')} emissions profile",
-    "get_historical_emissions": lambda args: f"Historical emissions -- {join_countries(args.get('countries'))}",
-    "get_gas_composition_by_decade": lambda args: f"Gas composition by decade -- {join_countries(args.get('countries'))}",
+    "get_historical_emissions": lambda args: f"Historical emissions -- {_countries_or_scope(args)}",
+    "get_gas_composition_by_decade": lambda args: f"Gas composition by decade -- {_countries_or_scope(args)}",
     "get_forecast": lambda args: f"{args.get('country', 'Country')} emissions forecast",
     "get_forecast_summary": lambda args: f"Forecast summary ({args.get('scope', 'featured')})",
-    "get_forecast_comparison": lambda args: f"Forecast comparison -- {join_countries(args.get('countries'))}",
+    "get_forecast_comparison": lambda args: f"Forecast comparison -- {_countries_or_scope(args)}",
     "get_model_comparison": lambda args: "Model comparison",
     "get_top_emitters": lambda args: f"Top {args.get('n', 10)} emitters ({args.get('year', 'selected year')})",
     "get_scenario_projection": lambda args: (
