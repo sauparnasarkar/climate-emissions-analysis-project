@@ -8,6 +8,14 @@
 // (Historical Trends, Overview) so the two never drift.
 export const MAX_SELECTED_COUNTRIES = 10;
 
+// Same numeric convention as MAX_SELECTED_COUNTRIES above (a chart with more than 10 series
+// stops being readable), but a distinct constant since it governs a different concern:
+// render-time chart legibility for agent-driven widgets (WidgetRenderer.tsx), not picker
+// input. The agent can call a tool with an arbitrary explicit country list -- unlike every
+// MultiSelect on this dashboard, there's no upstream picker enforcing a cap before the data
+// reaches the chart.
+export const MAX_CHART_SERIES = 10;
+
 export const GAS_COLUMNS: Record<string, string> = {
   co2: 'CO₂',
   methane: 'Methane (CH₄)',

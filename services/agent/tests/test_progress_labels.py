@@ -23,6 +23,34 @@ def test_progress_label_unknown_tool_falls_back():
     assert progress_label("some_future_tool", {}) == "Calling some_future_tool"
 
 
+def test_progress_label_truncates_long_country_lists():
+    # Reported live: a 209-country explicit list rendered as one unreadable wall of text in
+    # both the streamed SSE progress bar and (via ui_selection.py's _title_for) the widget's
+    # permanent title. join_countries caps at 5 names + "and N more".
+    countries = [f"Country{i}" for i in range(1, 210)]
+    label = progress_label("get_historical_emissions", {"countries": countries})
+    assert label == (
+        "Fetching historical emissions for Country1, Country2, Country3, Country4, "
+        "Country5, and 204 more"
+    )
+
+
+def test_progress_label_country_join_boundary_not_truncated():
+    # Exactly at the limit (5) must not append "and 0 more".
+    countries = [f"Country{i}" for i in range(1, 6)]
+    label = progress_label("get_historical_emissions", {"countries": countries})
+    assert label == "Fetching historical emissions for Country1, Country2, Country3, Country4, Country5"
+    assert "more" not in label
+
+
+def test_progress_label_country_join_boundary_truncated_by_one():
+    # One over the limit (6) must truncate and say "and 1 more" (singular count, still
+    # correct even though the word itself doesn't change -- guards off-by-one).
+    countries = [f"Country{i}" for i in range(1, 7)]
+    label = progress_label("get_historical_emissions", {"countries": countries})
+    assert label.endswith("and 1 more")
+
+
 def test_progress_label_scenario_cumulative_interpolates_sort_by():
     # Reported live: three get_scenario_cumulative_impact calls with different sort_by all
     # rendered the identical title "Fetching cumulative scenario impact", making three

@@ -445,6 +445,27 @@ conversational-agent project that `services/mcp-server` began.
     (`test_progress_labels.py`'s new `test_progress_label_scenario_cumulative_interpolates_sort_by`).
     Doesn't add call-deduplication logic to `ui_selection_node` itself — the docstring fix
     targets the actual cause (the model choosing to call 3×), not a symptom-level backstop.
+33. **A "how many countries increased/decreased emissions since 1990" query rendered a
+    ~209-series line chart with an unreadable legend, and a widget title that permanently read
+    "Fetching historical emissions for Afghanistan, Albania, ... Zimbabwe" — reported live with
+    screenshots, compared unfavorably against the same question answered directly against
+    `services/mcp-server`'s tools via Claude Desktop.** Two distinct, compounding UX defects,
+    fixed independently of the deeper "no aggregate tool exists for this question" gap (tracked
+    separately, not yet fixed): (1) `ui_selection.py`'s `_title_for()` built every `WidgetSpec`'s
+    permanent `title` by calling `progress_labels.py`'s `progress_label()` directly — the same
+    verb-phrased text meant for the in-flight SSE progress bar ("Fetching..."), rendered by
+    `ChartCard`/`CardHeader` as static header content with no relationship to `loading` state at
+    all. Not a stale-progress-bar race condition; the widget never had a noun-phrase title to
+    begin with. Fixed with a parallel `_TITLE_BUILDERS` dict, phrased as labels ("Historical
+    emissions -- China, India") not actions. (2) `progress_labels.py`'s `join_countries` (renamed
+    from `_join_countries`, now also used by `_TITLE_BUILDERS`) had no length cap — an explicit
+    209-country tool call joined every name into one string, both in the SSE progress text and,
+    via defect (1), the permanent title. Capped at 5 names + "and N more". (3) No chart in
+    `climate-dashboard-react/src/agent/WidgetRenderer.tsx` capped its rendered series count —
+    `HistoricalEmissionsWidget`/`ForecastComparisonWidget` now fall back to a `GridWidget` table
+    past `MAX_CHART_SERIES=10`; `CompareScenariosWidget` caps on country count specifically
+    (its series count is countries × scenarios, so a flat series-count cap would wrongly
+    degrade a reasonable 4-country comparison).
 
 ---
 
