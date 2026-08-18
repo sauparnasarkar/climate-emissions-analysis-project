@@ -217,6 +217,40 @@ def owid_raw_headline_df() -> pd.DataFrame:
     ])
 
 
+def owid_raw_change_summary_df() -> pd.DataFrame:
+    """6 sovereign countries at 1990 and 2024 with a clean mix of increases, decreases, an
+    unchanged value, and a zero-1990-baseline country -- change-summary's own dedicated
+    fixture, mirroring owid_raw_headline_df's precedent (a builder for one endpoint's real
+    needs, not folded into the shared owid_raw_df, whose flat +1-per-year progression gives
+    every fixture country an identical absolute_change and can't exercise real
+    increase/decrease/inf-guard behavior). Plus one country with only a 2024 row (no 1990) to
+    exercise the missing-baseline exclusion path. Deliberately NOT part of
+    FIXTURE_BUILDERS/full_data. Written directly to a bare data_dir by tests that need it."""
+    # country, iso, co2_1990, co2_2024
+    rows_spec = [
+        ("China", "CHN", 2400.0, 12000.0),  # big increase
+        ("India", "IND", 500.0, 2800.0),  # increase
+        ("Ukraine", "UKR", 700.0, 140.0),  # big decrease
+        ("United Kingdom", "GBR", 600.0, 300.0),  # decrease
+        ("Norway", "NOR", 40.0, 40.0),  # unchanged
+        # Zero 1990 baseline -> pct_change is +inf, which dropna() alone does not catch and
+        # json can't serialize -- must be excluded by the endpoint's own inf guard, not just
+        # happen to work because no real country has this today.
+        ("Zeroland", "ZZZ", 0.0, 50.0),
+    ]
+    out = []
+    for country, iso, co2_1990, co2_2024 in rows_spec:
+        out.append((country, 1990, co2_1990, 1.0, 0.1, iso, 1.0, 0.1, 0.01, None, 0.3))
+        out.append((country, 2024, co2_2024, 1.0, 0.1, iso, 1.0, 0.1, 0.01, 1.0, 0.3))
+    # Only a 2024 row, no 1990 at all -- must be excluded from countries_with_data, not crash.
+    out.append(("Latvia", 2024, 8.3, 1.0, 0.1, "LVA", 1.0, 0.1, 0.01, 1.0, 0.3))
+    return pd.DataFrame(out, columns=[
+        "country", "year", "co2", "methane", "nitrous_oxide", "iso_code",
+        "co2_per_capita", "methane_per_capita", "nitrous_oxide_per_capita",
+        "co2_growth_prct", "co2_per_gdp",
+    ])
+
+
 def ghg_filtered_df() -> pd.DataFrame:
     # Kenya is outside both FIXTURE_COUNTRIES and the real api.constants.COUNTRIES focus
     # list — load_filtered() deliberately does NOT restrict to COUNTRIES (unlike load_raw),
