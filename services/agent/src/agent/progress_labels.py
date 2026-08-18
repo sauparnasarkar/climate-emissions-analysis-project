@@ -4,9 +4,9 @@ Builder functions rather than plain `.format(**args)` templates (a deliberate de
 SPEC.md §5's illustrative pseudocode): every tool here has at least one optional argument
 (`countries`, `scope`, `country`), and a bare `.format(**args)` either raises `KeyError` on an
 omitted key or renders a literal "None" when a key is present but `null` -- neither is
-acceptable for user-visible progress text. One entry per tool in the real 13-tool catalog
-confirmed in Step 1 (`services/mcp-server`'s `tools/*.py` + `server.py`), not the 3-entry
-excerpt SPEC.md's own pseudocode showed.
+acceptable for user-visible progress text. One entry per tool in the real 14-tool catalog
+(13 confirmed in Step 1, `get_emissions_change_summary` added later -- `services/mcp-server`'s
+`tools/*.py` + `server.py`), not the 3-entry excerpt SPEC.md's own pseudocode showed.
 """
 
 from collections.abc import Callable
@@ -38,6 +38,7 @@ _BUILDERS: dict[str, Callable[[dict], str]] = {
     "get_scenario_cumulative_impact": lambda args: f"Fetching cumulative scenario impact (sorted by {args.get('sort_by', 'BAU')})",
     "compare_scenarios_across_countries": lambda args: f"Comparing scenarios across {join_countries(args.get('countries'))}",
     "get_methodology_notes": lambda args: "Fetching methodology notes",
+    "get_emissions_change_summary": lambda args: f"Counting emissions changes since 1990 ({args.get('scope', 'sovereign')})",
 }
 
 

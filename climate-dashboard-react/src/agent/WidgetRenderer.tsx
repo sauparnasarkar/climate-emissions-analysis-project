@@ -234,6 +234,37 @@ function ModelComparisonWidget({ widget }: WidgetProps) {
   return <GridWidget title={widget.title} columns={columns} rows={props.rows ?? []} />;
 }
 
+// api/schemas.py's MoverRow shape, reused as-is by /historical/change-summary's
+// top_increases/top_decreases.
+interface MoverRow {
+  country: string;
+  co2_1990: number | null;
+  co2_latest: number | null;
+  absolute_change: number | null;
+  pct_change: number | null;
+}
+
+function EmissionsChangeSummaryWidget({ widget }: WidgetProps) {
+  const props = widget.props as { top_increases?: MoverRow[]; top_decreases?: MoverRow[] };
+  // One combined table -- widget.title already carries the real increased/decreased counts
+  // (ui_selection.py builds it from the tool's result, not args, specifically so
+  // compose_response_node sees a real number), so this table's job is just to show the
+  // biggest movers behind that count, not repeat it.
+  const rows: Record<string, unknown>[] = [
+    ...(props.top_increases ?? []).map((r) => ({ ...r, direction: 'Increase' })),
+    ...(props.top_decreases ?? []).map((r) => ({ ...r, direction: 'Decrease' })),
+  ];
+  const columns: ColDef<Record<string, unknown>>[] = [
+    { field: 'country', headerName: 'Country' },
+    { field: 'direction', headerName: 'Direction' },
+    { field: 'co2_1990', headerName: '1990 (Mt)' },
+    { field: 'co2_latest', headerName: 'Latest (Mt)' },
+    { field: 'absolute_change', headerName: 'Change (Mt)' },
+    { field: 'pct_change', headerName: '% Change' },
+  ];
+  return <GridWidget title={widget.title} columns={columns} rows={rows} />;
+}
+
 function GasCompositionWidget({ widget }: WidgetProps) {
   const props = widget.props as { decades?: number[]; series?: Array<{ gas_label: string; share: Array<number | null> }> };
   const decades = props.decades ?? [];
@@ -371,6 +402,7 @@ const RENDERERS: Record<string, (props: WidgetProps) => ReactElement> = {
   get_gas_composition_by_decade: GasCompositionWidget,
   get_forecast_summary: ForecastSummaryWidget,
   get_scenario_cumulative_impact: ScenarioCumulativeWidget,
+  get_emissions_change_summary: EmissionsChangeSummaryWidget,
   get_methodology_notes: MethodologyNotesWidget,
   general_climate: TextAnswerWidget,
   context_reuse: TextAnswerWidget,

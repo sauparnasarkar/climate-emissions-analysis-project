@@ -165,6 +165,21 @@ describe('WidgetRenderer', () => {
     expect(series).not.toHaveProperty('iso_code');
   });
 
+  it('renders get_emissions_change_summary combining top_increases/top_decreases into one titled grid', () => {
+    const w = widget({
+      intent: 'grid',
+      title: 'Emissions change since 1990: 154 up, 55 down of 209 countries (sovereign)',
+      source_tool_call: 'get_emissions_change_summary:{"scope":"sovereign"}',
+      props: {
+        top_increases: [{ country: 'China', co2_1990: 2400, co2_latest: 12000, absolute_change: 9600, pct_change: 400 }],
+        top_decreases: [{ country: 'Ukraine', co2_1990: 700, co2_latest: 140, absolute_change: -560, pct_change: -80 }],
+      },
+    });
+    render(<WidgetRenderer widget={w} />);
+    expect(screen.getByText('Emissions change since 1990: 154 up, 55 down of 209 countries (sovereign)')).toBeInTheDocument();
+    expect(screen.queryByTestId('sychart')).not.toBeInTheDocument();
+  });
+
   it('renders get_model_comparison as a titled grid Card without crashing on its columns/rows', () => {
     // AG Grid needs real layout measurements it never gets in jsdom (no ResizeObserver-driven
     // width), so -- same as every other DataTable-bearing page in this app -- cell content

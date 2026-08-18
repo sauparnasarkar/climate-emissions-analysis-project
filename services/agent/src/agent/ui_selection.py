@@ -130,6 +130,23 @@ def build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | Non
             props=record.result or {},
         )
 
+    if record.tool_name == "get_emissions_change_summary":
+        # The one widget whose title is built from `record.result`, not `record.args` (every
+        # other title, including _TITLE_BUILDERS above, only ever sees args) -- deliberate,
+        # not an oversight. compose_response_node (graph.py) only ever sees a widget's `title`,
+        # never `props` (stripped to bound context size for every widget regardless of type),
+        # so the real increased/decreased counts have to reach it through title or not at all.
+        # Reported live: without this, the agent's answer to "how many countries
+        # increased/decreased" couldn't state a real number -- see SPEC.md "Corrections
+        # applied" #33.
+        r = record.result or {}
+        title = (
+            f"Emissions change since {r.get('baseline_year', 1990)}: "
+            f"{r.get('increased_count', '?')} up, {r.get('decreased_count', '?')} down "
+            f"of {r.get('countries_with_data', '?')} countries ({r.get('scope', '')})"
+        )
+        return WidgetSpec(intent="grid", title=title, source_tool_call=source, props=r)
+
     intent, chart_kind = _TOOL_INTENT.get(record.tool_name, ("text", None))
     return WidgetSpec(
         intent=intent,

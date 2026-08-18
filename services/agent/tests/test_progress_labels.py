@@ -23,6 +23,17 @@ def test_progress_label_unknown_tool_falls_back():
     assert progress_label("some_future_tool", {}) == "Calling some_future_tool"
 
 
+def test_progress_label_emissions_change_summary_interpolates_scope():
+    assert progress_label("get_emissions_change_summary", {"scope": "expanded"}) == (
+        "Counting emissions changes since 1990 (expanded)"
+    )
+    # scope defaults to "sovereign" server-side -- must not KeyError or render "None" when
+    # omitted, same convention as every other optional-argument builder in this file.
+    assert progress_label("get_emissions_change_summary", {}) == (
+        "Counting emissions changes since 1990 (sovereign)"
+    )
+
+
 def test_progress_label_truncates_long_country_lists():
     # Reported live: a 209-country explicit list rendered as one unreadable wall of text in
     # both the streamed SSE progress bar and (via ui_selection.py's _title_for) the widget's
