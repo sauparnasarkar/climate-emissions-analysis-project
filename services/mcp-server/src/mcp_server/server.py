@@ -87,7 +87,8 @@ Climate emissions data for a curated set of countries (featured/expanded/soverei
 see list_countries). For any request comparing multiple countries -- growth, trends,
 rankings, forecasts -- prefer the one tool built for that (get_historical_emissions,
 get_gas_composition_by_decade, get_top_emitters, get_forecast_comparison,
-get_scenario_cumulative_impact, compare_scenarios_across_countries) over calling a
+get_scenario_cumulative_impact, compare_scenarios_across_countries,
+get_emissions_change_summary) over calling a
 single-country tool (get_country_profile, get_forecast, get_scenario_projection) once per
 country. The
 multi-country tools return a real, data-ranked, reproducible set when you don't name
@@ -100,7 +101,10 @@ series, and get_forecast_comparison carries the same full historical/holdout/for
 detail as get_forecast, just for many countries in one call. "Projection"/"forecast" with no
 scenario language means the single ETS statistical trajectory (the get_forecast family); route
 to the scenario tools (the get_scenario_projection family) only when the question explicitly
-invokes scenarios, policy pathways, or BAU/Moderate/Aggressive.\
+invokes scenarios, policy pathways, or BAU/Moderate/Aggressive. For "how many countries
+increased/decreased" or "biggest movers since 1990" questions, use
+get_emissions_change_summary -- it returns real counts and a bounded top-N list computed
+server-side, not a per-country series you'd have to eyeball or count yourself.\
 """
 
 mcp = MCPServer("climate-emissions", instructions=SERVER_INSTRUCTIONS)

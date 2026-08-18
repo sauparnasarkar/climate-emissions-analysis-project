@@ -127,6 +127,31 @@ def test_build_widget_historical_emissions_title_falls_back_to_scope_when_countr
     assert "selected countries" not in widget.title
 
 
+def test_build_widget_emissions_change_summary_title_carries_real_counts():
+    # The one widget whose title is built from record.result, not record.args -- the only
+    # way the real increased/decreased counts reach compose_response_node, which never sees
+    # props for any widget (SPEC.md "Corrections applied" #33).
+    record = ToolCallRecord(
+        tool_name="get_emissions_change_summary",
+        args={"scope": "sovereign", "top_n": 10},
+        result={
+            "scope": "sovereign",
+            "baseline_year": 1990,
+            "countries_with_data": 209,
+            "increased_count": 154,
+            "decreased_count": 55,
+            "top_increases": [],
+            "top_decreases": [],
+        },
+        progress_label="x",
+    )
+    widget = build_widget(record, "how many countries increased or decreased?")
+    assert widget is not None
+    assert widget.intent == "grid"
+    assert widget.title == "Emissions change since 1990: 154 up, 55 down of 209 countries (sovereign)"
+    assert widget.props["increased_count"] == 154
+
+
 def test_build_widget_forecast_comparison_is_chart_not_text():
     # get_forecast_comparison is the multi-country equivalent of get_forecast and must resolve to
     # chart/line, not fall through to the ("text", None) default.

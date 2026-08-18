@@ -1,10 +1,15 @@
 """SPEC.md §5 composed tools: get_top_emitters, get_methodology_notes,
-get_forecast_comparison.
+get_forecast_comparison, get_emissions_change_summary.
 
 None is a near-1:1 endpoint wrap -- get_top_emitters ranks a raw time-series payload in
 memory (no ranked-by-year endpoint exists), get_methodology_notes isn't endpoint-backed at
-all, and get_forecast_comparison fans out to /forecasts/{country} once per country
-concurrently (no multi-country forecast-with-full-series endpoint exists either).
+all, get_forecast_comparison fans out to /forecasts/{country} once per country concurrently
+(no multi-country forecast-with-full-series endpoint exists either), and
+get_emissions_change_summary is the one direct 1:1 wrap in this file (bounded output is a
+property of the endpoint it wraps, not something composed here) -- it lives here rather than
+historical.py because its job (steer the model away from get_historical_emissions for
+counting/ranking questions) is the same "composed, task-shaped tool" role as its siblings,
+not a raw data passthrough.
 """
 
 from __future__ import annotations
@@ -90,6 +95,31 @@ async def get_forecast_comparison(countries: list[str] | None = None, scope: str
         if note is not None:
             body["scope_note"] = note
     return body
+
+
+@mcp.tool()
+async def get_emissions_change_summary(scope: str = "sovereign", top_n: int = 10) -> dict:
+    """How many countries increased vs. decreased CO2 emissions since 1990, plus the
+    biggest movers in each direction, ranked by absolute Mt change. Composed from
+    /historical/change-summary -- returns real counts and a bounded top-N list regardless
+    of scope size, not a full per-country time series.
+
+    USE THIS instead of get_historical_emissions whenever the question is shaped like "how
+    many countries increased/decreased", "which countries cut emissions the most", or
+    "biggest gainers/decliners since 1990" -- across many or all countries.
+    get_historical_emissions returns one full time series per country with no way to reduce
+    that to a count; passing it every sovereign country to answer a counting question
+    returns an oversized, unreduced payload that has to be read off a chart by eye. This
+    tool does the counting server-side.
+
+    `scope` is 'featured' (10), 'expanded' (~40), or 'sovereign' (~209, default -- use this
+    for an unqualified "how many countries" question). `top_n` (default 10, max 25) bounds
+    each direction's movers list -- response size never scales with scope size.
+    """
+    if scope not in ("featured", "expanded", "sovereign"):
+        raise ValueError(f"scope must be 'featured', 'expanded', or 'sovereign', got '{scope}'")
+    client = get_client()
+    return await client.get("/historical/change-summary", params={"scope": scope, "top_n": top_n})
 
 
 @mcp.tool()

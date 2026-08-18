@@ -467,6 +467,22 @@ conversational-agent project that `services/mcp-server` began.
     (its series count is countries × scenarios, so a flat series-count cap would wrongly
     degrade a reasonable 4-country comparison).
 
+    **The deeper gap closed in a follow-up (same investigation, shipped as three
+    dependency-ordered changes across `api/`, `services/mcp-server`, and this sub-project):**
+    no tool existed to actually *count* increases/decreases, so the agent's only path to
+    answer the triggering question was passing every sovereign country to
+    `get_historical_emissions` and getting back raw per-country series it had no way to
+    reduce to a number. Added `GET /historical/change-summary` (`api/`, counts + a bounded
+    top-N movers per direction, ranked by absolute Mt change, default `scope="sovereign"`),
+    a composed `get_emissions_change_summary` tool wrapping it (`services/mcp-server`,
+    steers both this agent and Claude Desktop away from misusing
+    `get_historical_emissions` for count-shaped questions), and a `ui_selection.py` special
+    case that builds this one widget's title from the tool's *result* rather than its args —
+    the only way the real counts reach `compose_response_node`, which never sees any
+    widget's `props` at all (§3's UI-intent table, "one exception" note). Live-verified: the
+    new endpoint returns 154 increased / 55 decreased at sovereign scope, matching Claude
+    Desktop's own answer to the original triggering question exactly.
+
 ---
 
 ## 1. Purpose
@@ -523,6 +539,7 @@ Tool → intent mapping (fixed lookup, no LLM judgment except the one case noted
 | `get_forecast_comparison` | `chart` (`line`) — the multi-country equivalent of `get_forecast` |
 | `get_top_emitters` | `chart` (`bar`, or `choropleth` per §3.1 below) |
 | `get_model_comparison`, `get_gas_composition_by_decade`, `get_forecast_summary`, `get_scenario_cumulative_impact` | `grid` |
+| `get_emissions_change_summary` | `grid` — **title built from the tool result, not args**, see below |
 | `get_country_profile` | `card`, or `card` + `chart` — **the one non-deterministic case**, see §8 `ui_selection` |
 | `get_methodology_notes` | `text` |
 | `list_countries` | not user-facing via `ui_selection` — used internally by `guardrail_router`/`agent` for resolution context, never produces its own widget |
@@ -530,6 +547,10 @@ Tool → intent mapping (fixed lookup, no LLM judgment except the one case noted
 Widget `title`/`as_of` captions are generated deterministically from the triggering tool call's
 arguments (e.g. `"{country} forecast, {horizon}-year horizon"`), not written by the LLM per call
 — same reasoning as the progress labels (§5): consistent, not subject to per-call phrasing drift.
+**One exception:** `get_emissions_change_summary`'s title is built from the tool's *result*
+(`increased_count`/`decreased_count`/`countries_with_data`), not its args — the only way those
+real numbers reach `compose_response_node`, which never sees any widget's `props` (§8, "widget
+props excluded" note) — see "Corrections applied" #33.
 
 ### 3.1 Map and "heatmap" reads
 
@@ -617,7 +638,7 @@ turn's tiles stay actionable.
 ## 5. Progress indicator
 
 `Progress` (labeled, not `DotTyping`) shows during the `agent`↔`tools` loop. Labels are
-templated per tool, not LLM-generated per call — one entry per tool in the real 13-tool catalog
+templated per tool, not LLM-generated per call — one entry per tool in the real 14-tool catalog
 (`src/agent/progress_labels.py`, not the illustrative 3-entry excerpt this design doc originally
 sketched).
 
@@ -782,7 +803,7 @@ hypothetical.
 
 ## 11. Dependencies
 
-- [`services/mcp-server/SPEC.md`](../mcp-server/SPEC.md) — the full 13-tool catalog `agent` is
+- [`services/mcp-server/SPEC.md`](../mcp-server/SPEC.md) — the full 14-tool catalog `agent` is
   bound to, and the `scope_note`/country-resolution-guard conventions this document's
   `InlineAlert` rendering assumes.
 - Root [`SPEC.md`](../../SPEC.md) §5.22 — the API-layer changes (`scope` param, sovereign-tier gas

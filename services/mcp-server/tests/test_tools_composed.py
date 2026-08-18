@@ -1,8 +1,13 @@
 import pytest
 
-from api.tests.conftest import owid_raw_world_map_series_df
+from api.tests.conftest import owid_raw_change_summary_df, owid_raw_world_map_series_df
 from mcp_server.resolution import CountryResolutionError
-from mcp_server.tools.composed import get_forecast_comparison, get_methodology_notes, get_top_emitters
+from mcp_server.tools.composed import (
+    get_emissions_change_summary,
+    get_forecast_comparison,
+    get_methodology_notes,
+    get_top_emitters,
+)
 
 
 async def test_get_top_emitters_ranks_descending_and_excludes_none(bare_api_client, data_dir):
@@ -60,6 +65,36 @@ async def test_get_forecast_comparison_out_of_scope_explicit_country_raises(api_
 async def test_get_forecast_comparison_rejects_sovereign_scope(api_client):
     with pytest.raises(ValueError, match="scope must be 'featured' or 'expanded'"):
         await get_forecast_comparison(scope="sovereign")
+
+
+async def test_get_emissions_change_summary_passes_scope_and_top_n_through(bare_api_client, data_dir):
+    owid_raw_change_summary_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    body = await get_emissions_change_summary(scope="sovereign", top_n=1)
+    assert body["scope"] == "sovereign"
+    assert len(body["top_increases"]) == 1
+    assert len(body["top_decreases"]) == 1
+    # Counts stay the true totals even though the movers lists are trimmed to top_n=1 --
+    # proves this tool is a thin pass-through of the endpoint's own response, not
+    # re-deriving counts client-side from the (already top_n-capped) movers lists.
+    assert body["increased_count"] > 1
+    assert body["decreased_count"] > 1
+
+
+async def test_get_emissions_change_summary_default_scope_is_sovereign(bare_api_client, data_dir):
+    owid_raw_change_summary_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    body = await get_emissions_change_summary()
+    assert body["scope"] == "sovereign"
+    # 7 countries in the fixture; sovereign scope reaches all of them (see
+    # api/tests/test_historical.py's own test_change_summary_scope_changes_pool_size for
+    # the featured-vs-sovereign contrast this tool's default is meant to preserve).
+    assert body["country_pool_size"] == 7
+
+
+async def test_get_emissions_change_summary_invalid_scope_raises_before_any_http_call():
+    # No api_client/bare_api_client fixture -- the validation must happen before get_client()
+    # is ever called, matching get_forecast_comparison's own scope-validation test.
+    with pytest.raises(ValueError, match="scope must be 'featured', 'expanded', or 'sovereign'"):
+        await get_emissions_change_summary(scope="global")
 
 
 async def test_get_methodology_notes_returns_canonical_sections():
