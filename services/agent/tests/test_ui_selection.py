@@ -140,16 +140,46 @@ def test_build_widget_emissions_change_summary_title_carries_real_counts():
             "countries_with_data": 209,
             "increased_count": 154,
             "decreased_count": 55,
-            "top_increases": [],
-            "top_decreases": [],
+            "top_increases": [{"country": f"Up{i}"} for i in range(10)],
+            "top_decreases": [{"country": f"Down{i}"} for i in range(10)],
         },
         progress_label="x",
     )
     widget = build_widget(record, "how many countries increased or decreased?")
     assert widget is not None
     assert widget.intent == "grid"
-    assert widget.title == "Emissions change since 1990: 154 up, 55 down of 209 countries (sovereign)"
+    assert widget.title == (
+        "Emissions change since 1990: 154 up, 55 down of 209 countries (sovereign) -- "
+        "table shows the 20 biggest movers"
+    )
     assert widget.props["increased_count"] == 154
+
+
+def test_build_widget_emissions_change_summary_title_reflects_actual_row_count_not_requested_top_n():
+    # Reported live: the compose LLM had no signal the table was a bounded top-N sample (only
+    # top_n=10, but with 209 countries counted), and invented "the data reflects broad
+    # sovereign-level coverage... nearly the full set of recognized nations" for the table --
+    # false, since the grid only ever holds top_increases+top_decreases. The disclosed count
+    # must reflect the actual rows returned, not the `top_n` request param -- a direction with
+    # fewer real movers than top_n (e.g. featured scope, only 5 countries total) returns fewer
+    # rows than requested, and the title must say that real number.
+    record = ToolCallRecord(
+        tool_name="get_emissions_change_summary",
+        args={"scope": "featured", "top_n": 10},
+        result={
+            "scope": "featured",
+            "baseline_year": 1990,
+            "countries_with_data": 10,
+            "increased_count": 5,
+            "decreased_count": 5,
+            "top_increases": [{"country": f"Up{i}"} for i in range(5)],
+            "top_decreases": [{"country": f"Down{i}"} for i in range(5)],
+        },
+        progress_label="x",
+    )
+    widget = build_widget(record, "how many countries increased or decreased?")
+    assert widget is not None
+    assert widget.title.endswith("table shows the 10 biggest movers")
 
 
 def test_build_widget_forecast_comparison_is_chart_not_text():

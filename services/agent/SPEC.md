@@ -482,6 +482,25 @@ conversational-agent project that `services/mcp-server` began.
     widget's `props` at all (§3's UI-intent table, "one exception" note). Live-verified: the
     new endpoint returns 154 increased / 55 decreased at sovereign scope, matching Claude
     Desktop's own answer to the original triggering question exactly.
+34. **After the correction #33 follow-up deployed, the same query's composed answer claimed
+    "the data reflects broad sovereign-level coverage, so it captures nearly the full set of
+    recognized nations rather than a partial sample" — false; the grid only ever holds
+    `top_increases`/`top_decreases`, capped at `top_n` (default 10) per direction, 20 rows
+    total out of 209 countries.** Root cause: `get_emissions_change_summary`'s title (the
+    only field `compose_response_node` sees, per correction #33) disclosed the real
+    increased/decreased *counts* but said nothing about the *table* being a bounded sample —
+    the model had zero signal either way and invented a plausible-sounding but wrong claim
+    about table completeness, conflating "the counts cover all 209 countries" with "the table
+    shows all 209 countries." Fixed by appending `"-- table shows the {n} biggest movers"` to
+    the same title, `n` computed as `len(top_increases) + len(top_decreases)` (the actual
+    rows returned) rather than echoing the `top_n` request param, since a scope with fewer
+    real movers than `top_n` in one direction returns fewer rows than requested and the
+    disclosure must match what's actually shown, not what was asked for.
+    (Also confirmed, not fixed here: this same blind spot — a tool's own `scope_note`
+    trimming disclaimer, e.g. from `services/mcp-server`'s `trim()` helper, never reaches
+    `state.scope_notes` or `compose_response_node` for any tool, not just this one; `tools_node`
+    never reads a result's `scope_note` field at all. Pre-existing, wider than this one
+    correction — flagged as a separate future fix, not folded in here.)
 
 ---
 

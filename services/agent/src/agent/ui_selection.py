@@ -139,11 +139,24 @@ def build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | Non
         # Reported live: without this, the agent's answer to "how many countries
         # increased/decreased" couldn't state a real number -- see SPEC.md "Corrections
         # applied" #33.
+        #
+        # Reported live (follow-up): with only the counts in the title, compose_response_node
+        # had no signal that the *table* is a bounded top-N sample, not the full 209-country
+        # list the counts themselves cover -- it invented "the data reflects broad
+        # sovereign-level coverage... nearly the full set of recognized nations" for the
+        # table, which is false (the grid holds only top_increases+top_decreases, capped at
+        # `top_n` each). The title now discloses the shown-row count explicitly, using
+        # len(top_increases)+len(top_decreases) rather than echoing the `top_n` request param,
+        # since a direction with fewer real movers than `top_n` shows fewer rows than
+        # requested -- the actual row count is what compose_response_node needs to describe
+        # accurately, not the cap that was asked for.
         r = record.result or {}
+        n_shown = len(r.get("top_increases", [])) + len(r.get("top_decreases", []))
         title = (
             f"Emissions change since {r.get('baseline_year', 1990)}: "
             f"{r.get('increased_count', '?')} up, {r.get('decreased_count', '?')} down "
-            f"of {r.get('countries_with_data', '?')} countries ({r.get('scope', '')})"
+            f"of {r.get('countries_with_data', '?')} countries ({r.get('scope', '')}) -- "
+            f"table shows the {n_shown} biggest movers"
         )
         return WidgetSpec(intent="grid", title=title, source_tool_call=source, props=r)
 
