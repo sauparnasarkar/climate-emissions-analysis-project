@@ -66,6 +66,51 @@ def test_build_widget_maps_known_tool_to_fixed_intent():
     assert widget.props == {"series": []}
 
 
+_PROGRESS_VERBS = ("Fetching", "Running", "Comparing", "Ranking", "Loading", "Calling")
+
+
+def test_build_widget_title_is_not_progress_phrased():
+    # Reported live: a widget's title reused progress_labels.py's verb-phrased text verbatim
+    # ("Fetching historical emissions for Afghanistan, Albania, ...") and, since titles are
+    # rendered as a permanent card/chart header (not tied to loading state), stayed visible
+    # forever, reading as leftover progress text intermingled with the finished response.
+    # Every tool that gets a widget must have a noun-phrase title instead.
+    cases = [
+        ("get_historical_emissions", {"countries": ["China", "India"]}),
+        ("get_gas_composition_by_decade", {"countries": ["China"]}),
+        ("get_forecast", {"country": "China"}),
+        ("get_forecast_summary", {"scope": "featured"}),
+        ("get_forecast_comparison", {"countries": ["China", "India"]}),
+        ("get_model_comparison", {}),
+        ("get_scenario_projection", {"country": "China"}),
+        ("get_scenario_projection", {"scope": "featured"}),
+        ("get_scenario_cumulative_impact", {"sort_by": "Moderate"}),
+        ("compare_scenarios_across_countries", {"countries": ["China", "India"]}),
+        ("get_methodology_notes", {}),
+        ("get_top_emitters", {"n": 10, "year": 2020}),
+        ("get_country_profile", {"country": "China"}),
+    ]
+    for tool_name, args in cases:
+        record = ToolCallRecord(tool_name=tool_name, args=args, result={"data": []}, progress_label="x")
+        widget = build_widget(record, "any query")
+        assert widget is not None
+        assert not widget.title.startswith(_PROGRESS_VERBS), f"{tool_name} title still progress-phrased: {widget.title!r}"
+
+
+def test_build_widget_historical_emissions_title_uses_truncated_country_join():
+    record = ToolCallRecord(
+        tool_name="get_historical_emissions",
+        args={"countries": [f"Country{i}" for i in range(1, 210)]},
+        result={"series": []},
+        progress_label="x",
+    )
+    widget = build_widget(record, "how many countries increased or decreased?")
+    assert widget is not None
+    assert widget.title == (
+        "Historical emissions -- Country1, Country2, Country3, Country4, Country5, and 204 more"
+    )
+
+
 def test_build_widget_forecast_comparison_is_chart_not_text():
     # get_forecast_comparison is the multi-country equivalent of get_forecast and must resolve to
     # chart/line, not fall through to the ("text", None) default.

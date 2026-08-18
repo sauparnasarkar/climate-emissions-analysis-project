@@ -41,6 +41,81 @@ describe('WidgetRenderer', () => {
     expect(series).toEqual([{ name: 'China', x: [2020, 2021], y: [100, 110], kind: 'line' }]);
   });
 
+  it('renders get_historical_emissions as a chart at exactly the series cap', () => {
+    const series = Array.from({ length: 10 }, (_, i) => ({ name: `Country${i}`, years: [2020], values: [i] }));
+    const w = widget({
+      intent: 'chart',
+      chart_kind: 'line',
+      source_tool_call: 'get_historical_emissions:{}',
+      props: { series },
+    });
+    render(<WidgetRenderer widget={w} />);
+    expect(screen.getByTestId('sychart')).toBeInTheDocument();
+  });
+
+  it('falls back to a table for get_historical_emissions past the series cap, not a spaghetti chart', () => {
+    // Reported live: a 209-country call rendered as one unreadable chart with a giant legend.
+    const series = Array.from({ length: 11 }, (_, i) => ({ name: `Country${i}`, years: [1990, 2024], values: [100, 90] }));
+    const w = widget({
+      intent: 'chart',
+      chart_kind: 'line',
+      title: 'Historical emissions -- many countries',
+      source_tool_call: 'get_historical_emissions:{}',
+      props: { series },
+    });
+    render(<WidgetRenderer widget={w} />);
+    expect(screen.queryByTestId('sychart')).not.toBeInTheDocument();
+    expect(screen.getByText('Historical emissions -- many countries')).toBeInTheDocument();
+    expect(screen.getByText(/11 series/)).toBeInTheDocument();
+  });
+
+  it('falls back to a table for get_forecast_comparison past the series cap', () => {
+    const forecasts = Array.from({ length: 11 }, (_, i) => ({
+      country: `Country${i}`,
+      hist_years: [2018],
+      hist_co2: [100],
+      forecast_years: [2040],
+      forecast_mean: [120],
+    }));
+    const w = widget({
+      intent: 'chart',
+      chart_kind: 'line',
+      source_tool_call: 'get_forecast_comparison:{}',
+      props: { forecasts },
+    });
+    render(<WidgetRenderer widget={w} />);
+    expect(screen.queryByTestId('sychart')).not.toBeInTheDocument();
+    expect(screen.getByText(/11 series/)).toBeInTheDocument();
+  });
+
+  it('caps compare_scenarios_across_countries on COUNTRY count, not raw series count', () => {
+    // 4 countries × 3 scenarios = 12 raw series, well past a flat MAX_CHART_SERIES=10 series
+    // cap -- but only 4 countries, which is a perfectly readable comparison and must stay a
+    // chart, not degrade to a table just because of the scenario multiplier.
+    const makeSeries = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `Country${i}`, years: [2020], values: [i] }));
+    const w = widget({
+      intent: 'chart',
+      chart_kind: 'line',
+      source_tool_call: 'compare_scenarios_across_countries:{}',
+      props: { scenarios: { BAU: makeSeries(4), Moderate: makeSeries(4), Aggressive: makeSeries(4) } },
+    });
+    render(<WidgetRenderer widget={w} />);
+    expect(screen.getByTestId('sychart')).toBeInTheDocument();
+  });
+
+  it('falls back to a table for compare_scenarios_across_countries past the country-count cap', () => {
+    const makeSeries = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `Country${i}`, years: [2020], values: [i] }));
+    const w = widget({
+      intent: 'chart',
+      chart_kind: 'line',
+      source_tool_call: 'compare_scenarios_across_countries:{}',
+      props: { scenarios: { BAU: makeSeries(11), Moderate: makeSeries(11), Aggressive: makeSeries(11) } },
+    });
+    render(<WidgetRenderer widget={w} />);
+    expect(screen.queryByTestId('sychart')).not.toBeInTheDocument();
+    expect(screen.getByText(/11 series/)).toBeInTheDocument();
+  });
+
   it('renders get_forecast_comparison, trimming trailing nulls from hist_co2 before joining to the forecast segment', () => {
     // Copilot's PR #144 review: a trailing null in hist_co2 right before the forecast segment
     // would otherwise create a visible gap in the line at the historical/forecast join.

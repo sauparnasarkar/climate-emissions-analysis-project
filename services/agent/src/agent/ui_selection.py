@@ -16,7 +16,10 @@ back to the record that produced it without adding an id field `SPEC.md` §7's `
 doesn't have.
 """
 
+from collections.abc import Callable
+
 from .cache import cache_key
+from .progress_labels import join_countries
 from .state import ToolCallRecord, WidgetSpec
 
 # Tool -> (intent, chart_kind) for every tool with a single, unambiguous mapping (SPEC.md §3
@@ -59,13 +62,43 @@ def is_error_result(result) -> bool:
     return isinstance(result, dict) and "error" in result
 
 
-def _title_for(record: ToolCallRecord) -> str:
-    # Deterministic, generated from tool args (SPEC.md §3) -- reuses progress_label's phrasing
-    # convention but titlecased for display; exact copy is a Step 4/frontend concern once the
-    # renderer exists to show it.
-    from .progress_labels import progress_label
+# Tool -> noun-phrase title builder, one entry per tool `_title_for` covers (every
+# `_TOOL_INTENT` entry plus get_top_emitters/get_country_profile, which build their own
+# WidgetSpec elsewhere in this file). Deliberately NOT progress_labels.py's `_BUILDERS` --
+# those are phrased as an in-progress verb ("Fetching...", "Running...") for the SSE
+# progress bar, which is correct there but wrong here: `_title_for`'s output becomes a
+# WidgetSpec.title, rendered by the frontend as a *permanent* card/chart header
+# (ChartCard/CardHeader), not tied to loading state at all. Reported live: a widget's title
+# literally read "Fetching historical emissions for Afghanistan, Albania, ..." forever,
+# because it was reusing progress_label's verb-phrased text verbatim.
+_TITLE_BUILDERS: dict[str, Callable[[dict], str]] = {
+    "get_country_profile": lambda args: f"{args.get('country', 'Country')} emissions profile",
+    "get_historical_emissions": lambda args: f"Historical emissions -- {join_countries(args.get('countries'))}",
+    "get_gas_composition_by_decade": lambda args: f"Gas composition by decade -- {join_countries(args.get('countries'))}",
+    "get_forecast": lambda args: f"{args.get('country', 'Country')} emissions forecast",
+    "get_forecast_summary": lambda args: f"Forecast summary ({args.get('scope', 'featured')})",
+    "get_forecast_comparison": lambda args: f"Forecast comparison -- {join_countries(args.get('countries'))}",
+    "get_model_comparison": lambda args: "Model comparison",
+    "get_top_emitters": lambda args: f"Top {args.get('n', 10)} emitters ({args.get('year', 'selected year')})",
+    "get_scenario_projection": lambda args: (
+        f"{args['country']} scenario projection"
+        if args.get("country")
+        else f"Global scenario projection ({args.get('scope', 'featured')})"
+    ),
+    "get_scenario_cumulative_impact": lambda args: f"Cumulative scenario impact (sorted by {args.get('sort_by', 'BAU')})",
+    "compare_scenarios_across_countries": lambda args: f"Scenario comparison -- {join_countries(args.get('countries'))}",
+    "get_methodology_notes": lambda args: "Methodology notes",
+}
 
-    return progress_label(record.tool_name, record.args)
+
+def _title_for(record: ToolCallRecord) -> str:
+    # Deterministic, generated from tool args (SPEC.md §3), noun-phrased for a permanent
+    # widget header -- see `_TITLE_BUILDERS`'s own comment for why this is a separate table
+    # from progress_labels.py's verb-phrased `_BUILDERS` rather than a reuse of it.
+    builder = _TITLE_BUILDERS.get(record.tool_name)
+    if builder is None:
+        return record.tool_name.replace("_", " ").capitalize()
+    return builder(record.args)
 
 
 def build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | None:

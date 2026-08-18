@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactElement } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { Card, CardHeader, ChartCard, DataTable, InlineAlert, KpiStat, SyChart } from 'design-system';
+import { MAX_CHART_SERIES } from '../constants';
 import { MarkdownText } from './MarkdownText';
 import { toolNameFromSourceTaggedCall } from './types';
 import type { WidgetSpec } from './types';
@@ -46,17 +47,64 @@ function ChartWidget({ title, asOf, series, xTitle, yTitle, ariaLabel }: { title
   );
 }
 
-function GridWidget({ title, columns, rows }: { title: string; columns: ColDef<Record<string, unknown>>[]; rows: Record<string, unknown>[] }) {
+function GridWidget({
+  title,
+  columns,
+  rows,
+  note,
+}: {
+  title: string;
+  columns: ColDef<Record<string, unknown>>[];
+  rows: Record<string, unknown>[];
+  note?: string;
+}) {
   return (
     <Card header={<CardHeader title={title} />}>
+      {note && <InlineAlert variant="default">{note}</InlineAlert>}
       <DataTable columns={columns} rows={rows} />
     </Card>
   );
 }
 
+// Reported live: a get_historical_emissions call for all ~209 sovereign countries rendered
+// as a single line chart with ~209 series -- an unreadable chart with a legend eating most
+// of the screen. Past MAX_CHART_SERIES, fall back to a summary table instead. Applies to any
+// widget whose series count is driven directly by an agent-supplied country list (not bounded
+// by the tool's own `n` param or a single-country shape) -- see each call site below for why
+// it either needs this guard or is confirmed exempt.
+function seriesChangeSummaryRows(series: Array<{ name: string; values: Array<number | null> }>): Record<string, unknown>[] {
+  return series.map((s) => {
+    const first = s.values.find((v) => v != null) ?? null;
+    const last = lastDefined(s.values) ?? null;
+    const pct_change = first != null && last != null && first !== 0 ? ((last - first) / first) * 100 : null;
+    return { name: s.name, first_value: first, last_value: last, pct_change };
+  });
+}
+
+function tooManySeriesNote(count: number): string {
+  return `${count} series — showing a table instead of a chart for readability.`;
+}
+
 function HistoricalEmissionsWidget({ widget }: WidgetProps) {
   const props = widget.props as { gas_label?: string; series?: Array<{ name: string; years: number[]; values: Array<number | null> }> };
-  const series: SyChartSeries[] = (props.series ?? []).map((s) => ({ name: s.name, x: s.years, y: s.values, kind: 'line' }));
+  const rawSeries = props.series ?? [];
+  if (rawSeries.length > MAX_CHART_SERIES) {
+    const columns: ColDef<Record<string, unknown>>[] = [
+      { field: 'name', headerName: 'Country' },
+      { field: 'first_value', headerName: 'First Value' },
+      { field: 'last_value', headerName: 'Last Value' },
+      { field: 'pct_change', headerName: '% Change' },
+    ];
+    return (
+      <GridWidget
+        title={widget.title}
+        columns={columns}
+        rows={seriesChangeSummaryRows(rawSeries)}
+        note={tooManySeriesNote(rawSeries.length)}
+      />
+    );
+  }
+  const series: SyChartSeries[] = rawSeries.map((s) => ({ name: s.name, x: s.years, y: s.values, kind: 'line' }));
   return <ChartWidget title={widget.title} asOf={widget.as_of} series={series} xTitle="Year" yTitle={props.gas_label ?? 'CO₂ (Mt)'} />;
 }
 
@@ -74,7 +122,28 @@ function ScenarioProjectionWidget({ widget }: WidgetProps) {
 
 function CompareScenariosWidget({ widget }: WidgetProps) {
   const props = widget.props as { scenarios?: Record<string, Array<{ name: string; years: number[]; values: number[] }>> };
-  const series: SyChartSeries[] = Object.entries(props.scenarios ?? {}).flatMap(([scenarioName, seriesList]) =>
+  const scenarios = props.scenarios ?? {};
+  const scenarioNames = Object.keys(scenarios);
+  // Cap on COUNTRY count, not raw series count -- this widget's series count is
+  // countries × scenarios (typically 3), so a flat series-count cap would trip at just 3-4
+  // countries and wrongly degrade an entirely reasonable multi-country comparison.
+  const countries = scenarioNames.length > 0 ? scenarios[scenarioNames[0]].map((s) => s.name) : [];
+  if (countries.length > MAX_CHART_SERIES) {
+    const rows = countries.map((country, i) => {
+      const row: Record<string, unknown> = { country };
+      for (const scenarioName of scenarioNames) {
+        const s = scenarios[scenarioName][i];
+        row[scenarioName] = s ? (lastDefined(s.values) ?? null) : null;
+      }
+      return row;
+    });
+    const columns: ColDef<Record<string, unknown>>[] = [
+      { field: 'country', headerName: 'Country' },
+      ...scenarioNames.map((s) => ({ field: s, headerName: s })),
+    ];
+    return <GridWidget title={widget.title} columns={columns} rows={rows} note={tooManySeriesNote(countries.length)} />;
+  }
+  const series: SyChartSeries[] = Object.entries(scenarios).flatMap(([scenarioName, seriesList]) =>
     seriesList.map((s) => ({ name: `${s.name} — ${scenarioName}`, x: s.years, y: s.values, kind: 'line' as const })),
   );
   return <ChartWidget title={widget.title} asOf={widget.as_of} series={series} xTitle="Year" yTitle="CO₂ (Mt)" />;
@@ -116,7 +185,28 @@ function ForecastComparisonWidget({ widget }: WidgetProps) {
   const props = widget.props as {
     forecasts?: Array<{ country: string; hist_years: number[]; hist_co2: Array<number | null>; forecast_years: number[]; forecast_mean: number[] }>;
   };
-  const series: SyChartSeries[] = (props.forecasts ?? []).map((f) => {
+  const forecasts = props.forecasts ?? [];
+  if (forecasts.length > MAX_CHART_SERIES) {
+    // Distinct column headers from seriesChangeSummaryRows -- "last value" here is a
+    // forecasted figure, not an actual, and a shared generic label would mislabel it.
+    const rows = forecasts.map((f) => {
+      const latestActual = lastDefined(f.hist_co2) ?? null;
+      const latestForecast = f.forecast_mean.length > 0 ? f.forecast_mean[f.forecast_mean.length - 1] : null;
+      const pct_change =
+        latestActual != null && latestForecast != null && latestActual !== 0
+          ? ((latestForecast - latestActual) / latestActual) * 100
+          : null;
+      return { country: f.country, latest_actual: latestActual, latest_forecast: latestForecast, pct_change };
+    });
+    const columns: ColDef<Record<string, unknown>>[] = [
+      { field: 'country', headerName: 'Country' },
+      { field: 'latest_actual', headerName: 'Latest Actual' },
+      { field: 'latest_forecast', headerName: 'Forecasted' },
+      { field: 'pct_change', headerName: '% Change' },
+    ];
+    return <GridWidget title={widget.title} columns={columns} rows={rows} note={tooManySeriesNote(forecasts.length)} />;
+  }
+  const series: SyChartSeries[] = forecasts.map((f) => {
     const [histYears, histCo2] = trimTrailingNulls(f.hist_years, f.hist_co2);
     return { name: f.country, x: [...histYears, ...f.forecast_years], y: [...histCo2, ...f.forecast_mean], kind: 'line' };
   });
