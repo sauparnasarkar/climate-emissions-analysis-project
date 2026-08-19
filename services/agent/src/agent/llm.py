@@ -11,9 +11,11 @@ and skips itself when `ANTHROPIC_API_KEY` is unset.
 CLAUDE.md's "Model: Claude Sonnet 5 ... for every LLM node" decision still holds for the deployed
 Mac Mini instance. `guardrail_router` is this agent's safety boundary for a public unauthenticated
 endpoint; a small local model misclassifying off-topic input into `data_query` there is a real
-problem. Leave `LLM_PROVIDER` unset in any deployed environment. `langchain_openai` is imported
-lazily inside the `ollama` branch so the default (anthropic) path, and the rest of the test suite,
-never depends on it being installed.
+problem. Leave `LLM_PROVIDER` unset in any deployed environment. `langchain_openai` is a regular
+(non-optional) dependency in `pyproject.toml`, but still imported lazily inside the `ollama`
+branch as defense-in-depth: a venv where `pyproject.toml` changed but `pip install` hasn't been
+rerun yet shouldn't break the default anthropic path, or any anthropic-path test, just by this
+module being imported.
 
 `DEFAULT_OLLAMA_MODEL` is `llama3.1:8b`, not `qwen2.5-coder:7b` -- verified live against the
 Mac Mini's real Ollama endpoint (2026-08-19): `qwen2.5-coder:7b`'s `bind_tools()` output doesn't
@@ -26,16 +28,16 @@ usable via `LOCAL_LLM_MODEL` override for whatever it's still good at, but it is
 """
 
 import os
-from typing import Any
 
 from langchain_anthropic import ChatAnthropic
+from langchain_core.language_models.chat_models import BaseChatModel
 
 DEFAULT_MODEL = "claude-sonnet-5"
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434/v1"
 DEFAULT_OLLAMA_MODEL = "llama3.1:8b"
 
 
-def get_llm(model: str | None = None) -> Any:
+def get_llm(model: str | None = None) -> BaseChatModel:
     provider = os.environ.get("LLM_PROVIDER", "anthropic").lower()
 
     if provider == "ollama":
@@ -48,5 +50,8 @@ def get_llm(model: str | None = None) -> Any:
             temperature=0.0,
             max_retries=1,
         )
+
+    if provider != "anthropic":
+        raise ValueError(f"Unknown LLM_PROVIDER {provider!r} -- expected 'anthropic' or 'ollama'")
 
     return ChatAnthropic(model=model or os.environ.get("AGENT_LLM_MODEL", DEFAULT_MODEL))
