@@ -24,7 +24,21 @@ query it fabricated a call to a tool that was never in the bound tool list. `lla
 correct structured `tool_calls` for a real query, correctly abstained (no hallucinated tool) on an
 off-topic one, and structured-output classification worked on both. `qwen2.5-coder:7b` stays
 usable via `LOCAL_LLM_MODEL` override for whatever it's still good at, but it is not what
-`agent_node`'s `bind_tools()` path needs.
+`agent_node`'s `bind_tools()` path needs. The deployed instance moved on from `llama3.1:8b` to a
+custom `qwen2.5:14b-ctx8k` Ollama model tag (12288-context variant also evaluated) after a live
+compound query genuinely stalled under `llama3.1:8b`'s default 4096-token context -- see
+`ollama create`'s `num_ctx` parameter, not something this module controls.
+
+`timeout=150` on the Ollama branch bounds a single LLM call, not a full multi-call turn --
+`agent_node`/`guardrail_router`/`ui_selection_node`/`compose_response_node` each make their own
+separate call, so one query can chain several. Sized off a real 30-case timed battery against
+`qwen2.5:14b-ctx12k` (2026-08-19): the slowest *full* multi-call query took 247.9s total, meaning
+no single call within it could have taken longer than that -- 150s leaves comfortable headroom
+above realistic single-call latency while still turning a genuine stall (like the one that
+motivated this: a request sat at ~0.2% CPU for 4+ minutes with zero progress before `llama-server`
+was manually killed) into a bounded, known failure instead of an indefinite hang. Not applied to
+the Anthropic path -- no comparable stall has been observed there, and this is deliberately
+scoped to the problem that was actually seen.
 """
 
 import os
@@ -35,6 +49,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 DEFAULT_MODEL = "claude-sonnet-5"
 DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434/v1"
 DEFAULT_OLLAMA_MODEL = "llama3.1:8b"
+OLLAMA_REQUEST_TIMEOUT_SECONDS = 150
 
 
 def get_llm(model: str | None = None) -> BaseChatModel:
@@ -49,6 +64,7 @@ def get_llm(model: str | None = None) -> BaseChatModel:
             model=model or os.environ.get("LOCAL_LLM_MODEL", DEFAULT_OLLAMA_MODEL),
             temperature=0.0,
             max_retries=1,
+            timeout=OLLAMA_REQUEST_TIMEOUT_SECONDS,
         )
 
     if provider != "anthropic":
