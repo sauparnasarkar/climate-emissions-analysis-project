@@ -30,6 +30,7 @@ from __future__ import annotations
 import functools
 import json
 import logging
+import os
 from typing import Any, Literal
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -176,9 +177,15 @@ async def agent_node(state: AgentState, *, llm: BaseChatModel, mcp_tools: list[B
     # eligible block for non-direct transports (e.g. Bedrock) -- confirmed by reading
     # langchain_anthropic's source directly, not assumed -- so the direct API this service uses
     # needs the block-level form below instead.
-    system_message = SystemMessage(
-        content=[{"type": "text", "text": AGENT_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
-    )
+    # `cache_control` is an Anthropic-only content-block key; gated on LLM_PROVIDER (default
+    # "anthropic", matching llm.py's own default) rather than `isinstance(llm, ChatAnthropic)` so
+    # the ScriptedChatModel-based unit test below still exercises the marked path it pins.
+    if os.environ.get("LLM_PROVIDER", "anthropic").lower() == "anthropic":
+        system_message = SystemMessage(
+            content=[{"type": "text", "text": AGENT_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
+        )
+    else:
+        system_message = SystemMessage(content=AGENT_SYSTEM_PROMPT)
     messages = [system_message, *state.messages]
     ai_message: AIMessage = await bound.ainvoke(messages)
     return {"messages": [ai_message]}
