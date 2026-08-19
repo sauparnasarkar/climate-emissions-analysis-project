@@ -448,4 +448,7 @@ async def test_partial_tool_failure_adds_a_distinct_partial_data_note(running_mc
     result = await graph.ainvoke({"current_query": "how does the forecast model work, and what's China's profile?"}, config=THREAD_CONFIG)
 
     assert not any("transient failure" in note for note in result["scope_notes"])
-    assert any("partial data" in note and "get_country_profile" in note for note in result["scope_notes"])
+    # Plain-language (progress_label), never the raw tool name -- scope_notes reaches the client
+    # verbatim and AGENT_SYSTEM_PROMPT forbids ever naming a tool/function to the user.
+    assert any("partial data" in note and "China's emissions profile" in note for note in result["scope_notes"])
+    assert not any("get_country_profile" in note for note in result["scope_notes"])

@@ -345,13 +345,19 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
         # the answer is missing and will narrate confidently from only the data it did get. This
         # is a distinctly-worded note (not "transient failure", reserved for the all-failed case
         # above) so it doesn't trip test_partial_tool_failure_does_not_trigger_transient_failure_note.
-        failed_tool_names = sorted({record.tool_name for record in failed_records})
-        note = f"Some of the data needed to fully answer this couldn't be retrieved ({', '.join(failed_tool_names)}) -- this response may be based on partial data."
+        # scope_notes reaches the client verbatim (server.py streams it, rendered as an
+        # InlineAlert) -- AGENT_SYSTEM_PROMPT explicitly forbids ever naming a tool/function to
+        # the user, and list_countries in particular is internal-only and must never surface at
+        # all. Uses each record's own progress_label (already the plain-language description
+        # tools_node computed, e.g. "Fetching China's emissions profile") instead of tool_name;
+        # the raw tool name stays confined to the log line below.
+        failed_descriptions = sorted({record.progress_label for record in failed_records})
+        note = f"Some of the data needed to fully answer this couldn't be retrieved ({', '.join(failed_descriptions)}) -- this response may be based on partial data."
         logger.warning(
             "ui_selection_node: %d of %d tool call(s) this turn failed (%s)",
             len(failed_records),
             len(state.tool_calls),
-            ", ".join(failed_tool_names),
+            ", ".join(sorted({record.tool_name for record in failed_records})),
         )
         scope_notes = [*scope_notes, note]
 
