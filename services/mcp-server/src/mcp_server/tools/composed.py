@@ -72,6 +72,11 @@ async def get_forecast_comparison(countries: list[str] | None = None, scope: str
     response is capped at the 10 with the highest latest historical actual value and
     carries a scope_note (SPEC.md §3.2). An explicit `countries` list is always returned in
     full, uncapped.
+
+    IMPORTANT: each entry in `countries` must be a real country's common English name (e.g.
+    "China", "United States", "United Kingdom"), never an ISO code or abbreviation ("CHN",
+    "USA") -- the resolution guard fuzzy-matches against full names and will reject or badly
+    mismatch a code.
     """
     if scope not in ("featured", "expanded"):
         raise ValueError(f"scope must be 'featured' or 'expanded' for forecasts, got '{scope}'")

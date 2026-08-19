@@ -38,6 +38,11 @@ async def get_historical_emissions(
     Inventing a country list yourself produces a different, non-reproducible comparison
     each time this tool is called for a similar question.
 
+    IMPORTANT: each entry in `countries` must be a real country's common English name (e.g.
+    "China", "United States", "United Kingdom"), never an ISO code or abbreviation ("CHN",
+    "USA") -- the resolution guard fuzzy-matches against full names and will reject or badly
+    mismatch a code.
+
     Each series also carries `per_capita` (for whichever `gas` was requested), plus, for
     `gas="co2"` only, `yoy_pct_change` and `per_gdp` (carbon intensity) -- OWID doesn't
     compute year-over-year growth or per-GDP figures for methane/nitrous_oxide, so both are
@@ -89,6 +94,11 @@ async def get_gas_composition_by_decade(
     open-ended request that doesn't name a country list, omit `countries` and pick `scope`
     instead, for the same reason as get_historical_emissions -- a hand-picked list is an
     arbitrary, non-reproducible choice; the `scope` pool is a real, defined one.
+
+    IMPORTANT: each entry in `countries` must be a real country's common English name (e.g.
+    "China", "United States", "United Kingdom"), never an ISO code or abbreviation ("CHN",
+    "USA") -- the resolution guard fuzzy-matches against full names and will reject or badly
+    mismatch a code.
     """
     client = get_client()
     if countries is None:
