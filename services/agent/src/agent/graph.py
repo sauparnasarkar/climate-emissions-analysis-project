@@ -35,6 +35,7 @@ from typing import Any, Literal
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
+from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
@@ -176,9 +177,18 @@ async def agent_node(state: AgentState, *, llm: BaseChatModel, mcp_tools: list[B
     # eligible block for non-direct transports (e.g. Bedrock) -- confirmed by reading
     # langchain_anthropic's source directly, not assumed -- so the direct API this service uses
     # needs the block-level form below instead.
-    system_message = SystemMessage(
-        content=[{"type": "text", "text": AGENT_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
-    )
+    # `cache_control` is an Anthropic-only content-block key. Gated on the actual injected `llm`
+    # (isinstance check), not the `LLM_PROVIDER` env var -- graph-building functions take `llm` as
+    # an argument precisely so it can be swapped independently of env vars (e.g. a caller could
+    # inject ChatOpenAI directly without setting LLM_PROVIDER), so the env var isn't authoritative
+    # over what was actually passed in. ScriptedChatModel (the fake used in tests) isn't a
+    # ChatOpenAI instance, so the unit test pinning this block's presence still exercises it.
+    if isinstance(llm, ChatOpenAI):
+        system_message = SystemMessage(content=AGENT_SYSTEM_PROMPT)
+    else:
+        system_message = SystemMessage(
+            content=[{"type": "text", "text": AGENT_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}]
+        )
     messages = [system_message, *state.messages]
     ai_message: AIMessage = await bound.ainvoke(messages)
     return {"messages": [ai_message]}
