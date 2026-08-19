@@ -418,3 +418,34 @@ async def test_partial_tool_failure_does_not_trigger_transient_failure_note(runn
     assert len(result["widgets"]) == 1  # only the successful call produces a widget
     assert not any("transient failure" in note for note in result["scope_notes"])
     assert llm.exhausted
+
+
+async def test_partial_tool_failure_adds_a_distinct_partial_data_note(running_mcp_server):
+    """Same setup as the transient-failure-suppression test above, but checking the other half:
+    a partial failure must still leave *some* trace in scope_notes, distinctly worded from the
+    all-failed "transient failure" note. Without this, compose_response_node's payload (widgets
+    built from successful calls only, plus scope_notes) carries zero signal that
+    get_country_profile ever failed -- it can't narrate a gap it was never told about, so a real
+    (un-scripted) LLM will confidently answer from only the data it has. Caught live: qwen2.5:14b
+    answered a compound starter-prompt query from partial data with no acknowledgment that half
+    the tool calls failed, because nothing in its payload said so."""
+    real_tools = await get_mcp_tools(running_mcp_server)
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(
+                content="",
+                tool_calls=[
+                    _tool_call("get_methodology_notes", {}, "call-1"),
+                    _tool_call("get_country_profile", {"country": "China"}, "call-2"),
+                ],
+            ),
+            AIMessage(content="done"),
+            {"response_text": "Here's what I found, though China's profile is unavailable."},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=real_tools)
+    result = await graph.ainvoke({"current_query": "how does the forecast model work, and what's China's profile?"}, config=THREAD_CONFIG)
+
+    assert not any("transient failure" in note for note in result["scope_notes"])
+    assert any("partial data" in note and "get_country_profile" in note for note in result["scope_notes"])

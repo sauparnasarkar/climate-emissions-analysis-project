@@ -329,13 +329,30 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
                 widgets.append(widget)
 
     scope_notes = state.scope_notes
+    failed_records = [record for record in state.tool_calls if is_error_result(record.result)]
     # Distinguishes "every tool call this turn failed" (a real backend/network problem) from
     # "tools succeeded but nothing matched a widget" -- without this, compose_response_node sees
     # an empty widgets list either way and invents a generic "try rephrasing" apology even when
     # the actual cause was a transient failure, not an ambiguous query.
-    if state.tool_calls and all(is_error_result(record.result) for record in state.tool_calls):
+    if state.tool_calls and len(failed_records) == len(state.tool_calls):
         note = "The underlying data service didn't return results for this query -- this looks like a transient failure, not a problem with the question itself."
         logger.warning("ui_selection_node: all %d tool call(s) this turn failed", len(state.tool_calls))
+        scope_notes = [*scope_notes, note]
+    elif failed_records:
+        # Some (not all) calls failed this turn. compose_response_node only ever sees widgets
+        # (built from successful calls only) and scope_notes -- a failed call otherwise leaves
+        # zero trace anywhere in its payload, so without this note it has no way to know part of
+        # the answer is missing and will narrate confidently from only the data it did get. This
+        # is a distinctly-worded note (not "transient failure", reserved for the all-failed case
+        # above) so it doesn't trip test_partial_tool_failure_does_not_trigger_transient_failure_note.
+        failed_tool_names = sorted({record.tool_name for record in failed_records})
+        note = f"Some of the data needed to fully answer this couldn't be retrieved ({', '.join(failed_tool_names)}) -- this response may be based on partial data."
+        logger.warning(
+            "ui_selection_node: %d of %d tool call(s) this turn failed (%s)",
+            len(failed_records),
+            len(state.tool_calls),
+            ", ".join(failed_tool_names),
+        )
         scope_notes = [*scope_notes, note]
 
     result: dict[str, Any] = {"widgets": widgets, "scope_notes": scope_notes}
