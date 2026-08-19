@@ -84,7 +84,12 @@ async def compare_scenarios_across_countries(countries: list[str]) -> dict:
     """Per-scenario (BAU/Moderate/Aggressive) trajectories for multiple countries at once --
     one series per country per scenario, not summed across countries (unlike
     get_scenario_cumulative_impact). `countries` is required; each name is resolved against
-    the expanded (~40-country) scope."""
+    the expanded (~40-country) scope.
+
+    IMPORTANT: each entry in `countries` must be a real country's common English name (e.g.
+    "China", "United States", "United Kingdom"), never an ISO code or abbreviation ("CHN",
+    "USA") -- the resolution guard fuzzy-matches against full names and will reject or badly
+    mismatch a code."""
     lists = await fetch_country_lists()
     resolved = resolve_countries(countries, lists, scope="expanded")
     client = get_client()
