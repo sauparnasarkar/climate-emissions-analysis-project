@@ -15,6 +15,17 @@ def test_ollama_provider_sets_request_timeout(monkeypatch):
     assert llm.request_timeout == OLLAMA_REQUEST_TIMEOUT_SECONDS
 
 
+def test_ollama_provider_disables_retries(monkeypatch):
+    # max_retries=1 (or the ChatOpenAI/openai-SDK default of 2) silently doubles/triples the
+    # timeout paragraph's own documented bound on a genuine stall, since a retry just queues
+    # behind the still-stuck original request in Ollama's single inference slot rather than
+    # actually helping -- reproduced live 2026-08-20 (see llm.py's own docstring): a real query
+    # took elapsed=300.546s (2x OLLAMA_REQUEST_TIMEOUT_SECONDS) instead of the intended ~150s.
+    monkeypatch.setenv("LLM_PROVIDER", "ollama")
+    llm = get_llm()
+    assert llm.max_retries == 0
+
+
 def test_ollama_provider_defaults_to_llama3(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "ollama")
     monkeypatch.delenv("LOCAL_LLM_MODEL", raising=False)

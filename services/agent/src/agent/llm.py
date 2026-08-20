@@ -39,6 +39,19 @@ motivated this: a request sat at ~0.2% CPU for 4+ minutes with zero progress bef
 was manually killed) into a bounded, known failure instead of an indefinite hang. Not applied to
 the Anthropic path -- no comparable stall has been observed there, and this is deliberately
 scoped to the problem that was actually seen.
+
+`max_retries=0` on the Ollama branch -- `ChatOpenAI`'s default (`max_retries=2` upstream, this
+module previously passed `1`) silently doubles the effective bound the paragraph above just
+argued for: a genuine stall isn't a transient network blip, it's the request still sitting in
+Ollama's single inference slot (`OLLAMA_EVALUATION.md`) when the client gives up and retries --
+the retry queues behind the still-stuck original and stalls too. Reproduced live 2026-08-20: a
+real "which countries increased/decreased emissions" query hit exactly this, `agent_node`
+reporting `status=error elapsed=300.546s` (2x `OLLAMA_REQUEST_TIMEOUT_SECONDS`, one
+`Retrying request` log line from the `openai` SDK in between) instead of the documented ~150s
+bound. A retry only helps for a transient connection-level failure, which is far less likely on
+this loopback (`127.0.0.1`) connection than on a real remote API -- not worth doubling every
+genuine stall's wall-clock cost to hedge against. Not applied to the Anthropic path, which keeps
+its client default.
 """
 
 import os
@@ -69,7 +82,7 @@ def get_llm(model: str | None = None, *, provider: str | None = None) -> BaseCha
             api_key=os.environ.get("LOCAL_LLM_API_KEY", "ollama"),
             model=model or os.environ.get("LOCAL_LLM_MODEL", DEFAULT_OLLAMA_MODEL),
             temperature=0.0,
-            max_retries=1,
+            max_retries=0,
             timeout=OLLAMA_REQUEST_TIMEOUT_SECONDS,
         )
 
