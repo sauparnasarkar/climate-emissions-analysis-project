@@ -3352,3 +3352,19 @@ post-deploy tunnel response was byte-identical to the local pre-merge check.
 Shipped as `climate-emissions-analysis-project` PR #139, mentor-reviewed and merged. This
 documentation, per the established convention, was committed straight to `main` rather than
 through its own PR.
+
+## Release 19 — App-wide Admin Capability (Docs-first Stage)
+
+**Status: Docs-first stage (design written; implementation not yet started).**
+
+A new, cross-cutting admin capability, gated by a single Cloudflare Access login policy (Google
+as identity provider, restricted to one account) — full design in `ARCHITECTURE.md` §8. Owned
+federated-ly: each admin capability lives on the service that already owns the underlying
+setting, not a new shared admin service or database. This repo's own piece of it is a new,
+unlisted `/admin` route in `climate-dashboard-react/` (`src/pages/AdminPage.tsx`, reachable by
+URL only, same precedent `/ask` already set — absent from `NAV_ITEMS`/nav) that hosts the actual
+capability, LLM provider/model switching for `services/agent`. Full feature design lives in
+`services/agent/SPEC.md` §14 and `services/agent/ENHANCEMENTS.md`, not duplicated here — this
+entry exists because the SPA route itself is a root-tracked `climate-dashboard-react/` change.
+Will be revised once the frontend branch (Section 4 of the implementation sequence) actually
+lands.

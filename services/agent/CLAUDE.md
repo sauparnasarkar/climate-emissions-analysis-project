@@ -49,6 +49,14 @@ design changes here, not just this file.
   deployed instance (`qwen2.5:14b-ctx8k`) — see [`OLLAMA_EVALUATION.md`](OLLAMA_EVALUATION.md)
   for the model comparison, correctness/latency findings, and why this doesn't yet supersede the
   Sonnet default documented here.
+- **Admin LLM switch (`SPEC.md` §14).** Which of the two validated provider/model combos is live
+  is now a runtime, admin-panel-controlled setting, not just an env var — `GET`/`POST /admin/llm`,
+  gated at the edge by a Cloudflare Access login policy (Google IdP, one allow-listed account;
+  root `ARCHITECTURE.md` §8), with zero app-level auth code. `get_llm()` itself stays
+  env-var-only; the admin path calls it with an explicit `provider=`/`model=` override instead.
+  Switching is an in-process graph rebuild-and-swap (not a restart) that must carry the *same*
+  checkpointer and cached MCP tools forward — a naive rebuild with a fresh checkpointer would
+  silently drop every live conversation's history.
 - **Public endpoint, no app-layer rate limiting.** The Mac Mini's Cloudflare edge already rate-
   limits the whole `/ghg-emissions-analysis` path prefix (50 req/10s per IP) — `services/agent`
   deploys under that same prefix and inherits the protection. Don't add per-app rate-limiting

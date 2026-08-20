@@ -25,7 +25,7 @@ This repo contains two genuinely separate things sharing the same `data/` pipeli
 
 Both read from the same `data/` CSVs; neither depends on the other at runtime.
 
-A third strand, `services/mcp-server/` (§8), is joining the second group — it's a client of
+A third strand, `services/mcp-server/` (§7), is joining the second group — it's a client of
 `api/` (over HTTP, not the shared `data/` pipeline directly), so it doesn't fit this section's
 "reads from `data/`" framing, but the same "mentor's post-internship expansion, not internship
 scope" boundary applies to it.
@@ -200,6 +200,30 @@ future external tester) need `CF-Access-Client-Id`/`CF-Access-Client-Secret` hea
 their side — `services/mcp-server/SPEC.md` §8.4 tracks that. The Stage 2 LangGraph agent
 (§9) turned out **not** to be one of these clients — see §9 for why. A Dockerfile and CI job
 remain deliberately deferred (`SPEC.md` §2.1), unrelated to the auth resolution.
+
+## 8. Admin capabilities
+
+A single app-wide admin surface, gated by one Cloudflare Access application
+(`ghg-emissions-admin`, a **login** policy — Google as the identity provider, restricted to the
+mentor's own account — distinct from §7's Service Auth policy for machine clients). Two path
+rules exist today under that one application: the SPA hub page
+(`labs.syena.io/ghg-emissions-analysis/admin`, `climate-dashboard-react/src/pages/AdminPage.tsx`,
+deliberately absent from §5's `NAV_ITEMS`/nav — reachable by URL only, the same unlisted-route
+precedent `/ask` already sets) and `services/agent`'s admin API
+(`labs.syena.io/ghg-emissions-analysis/agent/admin`). Both paths must be gated, not just the API:
+a login policy answers an unauthenticated request with a redirect to Google, which only a real
+top-level page navigation can usefully follow — see `services/agent/SPEC.md` for the full
+rationale.
+
+**Ownership stays federated, not centralized.** Each admin capability lives on the service that
+already owns the underlying setting — no shared admin service, no shared database, consistent
+with this repo's existing "independently deployable services, HTTP not shared code" pattern (§7).
+Adding a future admin capability elsewhere (`api/`, `services/mcp-server`) means adding one more
+path rule to the same Cloudflare Access application, not standing up new auth infrastructure.
+
+**Current capability**: LLM provider/model selection for `services/agent`, replacing the
+plist-edit-and-restart workflow `services/agent/OLLAMA_EVALUATION.md` previously described — see
+`services/agent/SPEC.md` for the settings-store/allow-list/graph-swap design.
 
 ## 9. Conversational agent (`services/agent/`)
 

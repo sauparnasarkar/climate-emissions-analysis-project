@@ -893,3 +893,103 @@ Verification: the unit test above pins the `cache_control` marker's presence on 
 `cache_creation_input_tokens=5329, cache_read_input_tokens=0` on the first call and
 `cache_creation_input_tokens=0, cache_read_input_tokens=5329` on the second — the full
 tools+system prefix was written once and read from cache on the repeat.
+
+## 14. Admin LLM provider/model control
+
+Replaces the plist-edit-and-`launchctl`-restart workflow `OLLAMA_EVALUATION.md` previously
+described with a login-gated admin UI. Part of a cross-cutting, app-wide admin capability — see
+root [`ARCHITECTURE.md`](../../ARCHITECTURE.md) §8 for the shared Cloudflare Access application
+this hangs off of and the "each service owns its own admin routes" convention. Everything below
+is this service's own piece of that.
+
+### 14.1 Auth
+
+Gated entirely by Cloudflare Access at the edge — a **login** policy (Google as identity
+provider, one allow-listed email), distinct from `services/mcp-server/SPEC.md` §8's Service Auth
+policy for machine clients. Two path rules under one Access application: the SPA hub page
+(`labs.syena.io/ghg-emissions-analysis/admin`) and this service's admin API
+(`labs.syena.io/ghg-emissions-analysis/agent/admin`). **Zero app-level auth code** — no client
+secret, no session cookie, no JWT validation — matching the zero-app-code precedent
+`services/mcp-server` already established for its own B4 boundary. Both paths need their own
+Access rule: a login policy answers an unauthenticated request with a 302 to Google, which only a
+real top-level page navigation can usefully follow (a bare `fetch()` cannot) — so the SPA page
+navigation itself is what drives the login and sets the `CF_Authorization` cookie that every
+subsequent same-origin `fetch()` to the admin API then carries automatically.
+
+### 14.2 Allow-list
+
+Exactly two provider/model combos, both validated for this graph's tool-calling path by
+`OLLAMA_EVALUATION.md`'s 30-case battery — not free text:
+
+| id | provider | model | label |
+|---|---|---|---|
+| `anthropic-sonnet` | `anthropic` | `claude-sonnet-5` | Claude Sonnet 5 (Anthropic) |
+| `ollama-qwen14b-ctx8k` | `ollama` | `qwen2.5:14b-ctx8k` | Qwen 2.5 14B (local, 8k ctx) |
+
+`qwen2.5-coder:7b` (tool_calls never populate in `AIMessage`) and `llama3.1:8b` — `llm.py`'s own
+`DEFAULT_OLLAMA_MODEL` — (list-typed tool args serialize as Python-repr strings, 0/4 on the
+production starter prompts) are confirmed broken for this graph and are never exposed here — an
+open text field would let the admin panel silently break tool-calling with no diagnostic visible
+in the UI. `POST /admin/llm` (§14.4) validates the request's `id` against this list at the
+FastAPI layer (422 on a miss); the list itself lives in `src/agent/settings.py`.
+
+### 14.3 Persisted store
+
+`src/agent/settings.py`'s `resolve_active_choice()` precedence: **stored file (if present and
+still on the allow-list) → env vars (`LLM_PROVIDER`/`AGENT_LLM_MODEL`/`LOCAL_LLM_MODEL`, i.e.
+`llm.py`'s existing behavior) → code default** (`ALLOWED_CHOICES[0]`, Sonnet). The file lives
+**outside the repo checkout** (default
+`~/Library/Application Support/ghg-emissions-agent/llm_choice.json`, overridable via
+`AGENT_ADMIN_STORE_PATH` so tests never touch a real machine path), written atomically
+(tempfile + `os.replace`) so a crash mid-write can't corrupt it for the next boot. A malformed
+file, or an off-allow-list `(provider, model)` pair (hand-edited, or written by an older version
+of this code before an allow-list entry was retired), is treated as absent — logged, not raised;
+startup must never fail because of a stale settings file.
+
+**`get_llm()` itself stays env-var-only** (`llm.py`) — the settings-store lookup lives only in
+the admin code path below, never inside `get_llm()`. `get_llm()` gains one additive,
+keyword-only `provider: str | None = None` parameter; called with no arguments it is
+byte-for-byte identical to its pre-admin-panel behavior, so the existing `test_llm.py`/
+`test_llm_smoke.py` hermeticity contract ("Corrections applied" #6 — graph nodes take `llm`
+injected, never resolve config themselves) is unchanged.
+
+### 14.4 Endpoints (`server.py`)
+
+```
+GET  /admin/llm   -> {provider, model, label, updated_at}   # reports the live app.state.llm_choice,
+                                                              # not the file -- they can diverge
+POST /admin/llm   body: {id: <allow-list id>}   -> same shape, or a curated 4xx/5xx on failure
+```
+
+### 14.5 Runtime apply: rebuild-and-swap, not a restart
+
+`build_graph()` mainly constructs an LLM client; MCP tools and the checkpointer don't need
+rebuilding on a pure model swap. `lifespan` captures `app.state.checkpointer` (via
+`_default_checkpointer()` — **never** a bare `MemorySaver()`, needed for the `ToolCallRecord`/
+`WidgetSpec` serde registration "Corrections applied" #13 already requires) and
+`app.state.mcp_tools` once at startup, alongside `app.state.graph` and the resolved
+`app.state.llm_choice`.
+
+`POST /admin/llm`'s handler, guarded by a module-level `asyncio.Lock` (serializes two
+near-simultaneous admin writes — last-write-wins, appropriate for a single-admin-user UI with no
+conflict-resolution UX needed): builds a new graph with the new LLM but the **same** cached
+`mcp_tools` and **same** `checkpointer` instance, and swaps `app.state.graph` in only after the
+build succeeds.
+
+**Carrying the same checkpointer instance forward is the load-bearing correctness requirement
+here** — a rebuild that defaulted to a fresh checkpointer would silently drop every live
+conversation's `messages`/`tool_cache` (§9) on a model switch, with no error surfaced to anyone.
+Build-before-swap means a failed rebuild (unreachable Ollama URL, unknown model) leaves
+`app.state.graph` untouched — the endpoint returns a curated error and the previous model keeps
+serving requests, matching this document's existing "never leak raw exception text to a public
+endpoint" convention ("Corrections applied" #19's `stream_query` precedent). In-flight requests
+need no special handling: `get_graph(request)` (`server.py`) already resolves
+`request.app.state.graph` fresh per request, so a swap only changes which graph *new* requests
+see.
+
+### 14.6 Frontend
+
+`climate-dashboard-react/src/pages/AdminPage.tsx` (unlisted route `/admin`, absent from
+`NAV_ITEMS`/`persistentAction` — same precedent as `/ask`, §1) renders one `design-system`-built
+section, `LlmProviderSection`, today; `src/admin/adminClient.ts` calls the endpoints above
+through the existing `agentProxyEntry` Vite proxy — no proxy config change needed.

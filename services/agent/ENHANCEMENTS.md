@@ -527,3 +527,26 @@ not a wrapper -- Copilot's review on PR #49 specifically flagged this as worth d
 and, most importantly, the user confirmed on their actual iPhone that the bug is gone. The
 100dvh fix (correction #24) was kept anyway -- still a real, independently-correct improvement
 for a PWA with an on-screen keyboard, just not what this particular report needed.
+
+## Admin LLM provider/model switcher
+
+**Status: Docs-first stage (SPEC.md §14 written; implementation not yet started).**
+
+Replaces the manual plist-edit-plus-`launchctl kickstart` workflow `OLLAMA_EVALUATION.md`
+documents for switching between the two validated provider/model combos
+(`claude-sonnet-5`/`qwen2.5:14b-ctx8k`) with a login-gated admin panel. Part of a cross-cutting,
+app-wide admin capability (root `ARCHITECTURE.md` §8), not something scoped only to this
+service -- but the one capability it hosts today (LLM switching) lives entirely here.
+
+Planned, per `SPEC.md` §14: a curated two-entry allow-list (no free-text model field -- two other
+tried Ollama models are confirmed broken for this graph's tool-calling); a small JSON settings
+store outside the repo checkout, seeded on first deploy with today's actual live setting
+(`ollama`/`qwen2.5:14b-ctx8k`) rather than silently resetting to the documented Sonnet default;
+`get_llm()` gains an additive `provider` kwarg but stays env-var-only by default, preserving the
+existing test hermeticity contract untouched; `GET`/`POST /admin/llm` on `server.py`, applying a
+switch via an in-process, lock-guarded graph rebuild-and-swap that carries the same checkpointer
+and cached MCP tools forward (never a fresh checkpointer, which would silently drop live
+conversation history); auth entirely via a Cloudflare Access login policy (Google IdP) at the
+edge, zero app-level auth code. Sequenced as four feature branches (settings store, admin
+endpoints, frontend, Cloudflare/Mac Mini deploy) following this repo's usual
+one-section-per-branch convention -- this entry will be revised once each lands.
