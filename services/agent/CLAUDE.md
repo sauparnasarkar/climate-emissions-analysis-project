@@ -44,7 +44,11 @@ design changes here, not just this file.
   `test_add_messages_reducer_appends_across_nodes`.
 - **Model: Claude Sonnet 5 (`claude-sonnet-5`) via `langchain-anthropic`**, for every LLM node.
   This is a public-dashboard-facing feature with potentially high query volume; Sonnet is this
-  project's own "production traffic" default.
+  project's own "production traffic" default. An opt-in `LLM_PROVIDER=ollama` seam (`llm.py`)
+  exists for local-model experimentation and is currently running as an active trial on the
+  deployed instance (`qwen2.5:14b-ctx8k`) — see [`OLLAMA_EVALUATION.md`](OLLAMA_EVALUATION.md)
+  for the model comparison, correctness/latency findings, and why this doesn't yet supersede the
+  Sonnet default documented here.
 - **Public endpoint, no app-layer rate limiting.** The Mac Mini's Cloudflare edge already rate-
   limits the whole `/ghg-emissions-analysis` path prefix (50 req/10s per IP) — `services/agent`
   deploys under that same prefix and inherits the protection. Don't add per-app rate-limiting
