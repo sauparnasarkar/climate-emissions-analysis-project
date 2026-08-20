@@ -45,9 +45,16 @@ describe('adminApi', () => {
   });
 
   it('falls back to statusText when the error response has no JSON body', async () => {
-    mockFetchOnce(null, { ok: false, status: 502, statusText: 'Bad Gateway' });
     const response = { ok: false, status: 502, statusText: 'Bad Gateway', json: () => Promise.reject(new Error('no body')) } as unknown as Response;
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response));
     await expect(adminApi.getLlmChoice()).rejects.toMatchObject({ status: 502, message: 'Bad Gateway' });
+  });
+
+  it('falls back to statusText, not a TypeError, when the error response body is a literal null', async () => {
+    // res.json() legally resolves to null for a `null` JSON body -- it doesn't reject, so a
+    // .catch()-only fallback wouldn't cover this; reading .detail off null would throw and mask
+    // the real HTTP error entirely.
+    mockFetchOnce(null, { ok: false, status: 503, statusText: 'Service Unavailable' });
+    await expect(adminApi.getLlmChoice()).rejects.toMatchObject({ status: 503, message: 'Service Unavailable' });
   });
 });

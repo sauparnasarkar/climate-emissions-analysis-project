@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, InlineAlert, SegmentedControl, Spinner } from 'design-system';
 import { adminApi } from './adminClient';
 import type { LlmChoice } from './types';
@@ -20,17 +20,27 @@ function idForChoice(choice: LlmChoice): string | undefined {
 
 export function LlmProviderSection() {
   const current = useAsync(() => adminApi.getLlmChoice(), []);
+  // The choice this section actually treats as "currently applied" -- seeded from the initial
+  // GET, then updated directly from a successful POST's own response. Deliberately NOT derived
+  // from `current.data` on every render: that value is frozen at whatever the one-time GET
+  // returned, so after a successful switch the Apply button would stay enabled against a
+  // choice that's no longer live, letting the admin repeatedly re-POST the same switch.
+  const [appliedChoice, setAppliedChoice] = useState<LlmChoice | null>(null);
   // undefined until the admin actually picks something in this session -- until then the
-  // SegmentedControl just reflects whatever's live, from `current.data`.
+  // SegmentedControl just reflects `appliedChoice`.
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [applying, setApplying] = useState(false);
   const [status, setStatus] = useState<{ variant: 'success' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    if (current.data) setAppliedChoice(current.data);
+  }, [current.data]);
 
   if (current.loading) {
     return <Spinner label="Loading current model…" />;
   }
 
-  if (current.error || !current.data) {
+  if (current.error || !appliedChoice) {
     return (
       <InlineAlert variant="error">
         Could not load the current model — reload the page to try again. If this keeps
@@ -39,15 +49,21 @@ export function LlmProviderSection() {
     );
   }
 
-  const activeId = selectedId ?? idForChoice(current.data);
-  const appliedId = idForChoice(current.data);
+  const appliedId = idForChoice(appliedChoice);
+  // "" (not undefined) when appliedId is unrecognized -- SegmentedControl falls back to its
+  // own internal state (defaulting to the first item) whenever `value` is undefined, which
+  // would silently show Sonnet as selected even though the live choice is something else
+  // entirely. An explicit "" matches no real item, so nothing renders as selected instead.
+  const activeId = selectedId ?? appliedId ?? '';
 
   const handleApply = async () => {
     if (!selectedId || applying) return;
     setApplying(true);
     setStatus(null);
     try {
-      await adminApi.setLlmChoice(selectedId);
+      const updated = await adminApi.setLlmChoice(selectedId);
+      setAppliedChoice(updated);
+      setSelectedId(undefined); // falls back to the freshly-applied choice, Apply goes disabled again
       const label = OPTIONS.find((o) => o.id === selectedId)?.label ?? selectedId;
       setStatus({ variant: 'success', message: `Switched to ${label}.` });
     } catch (err) {
@@ -62,6 +78,12 @@ export function LlmProviderSection() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {appliedId === undefined && (
+        <InlineAlert variant="warning">
+          The live model ({appliedChoice.provider}/{appliedChoice.model}) isn't one of the known
+          options below -- pick one to switch to a recognized state.
+        </InlineAlert>
+      )}
       <SegmentedControl
         items={OPTIONS.map((o) => ({ value: o.id, label: o.label }))}
         value={activeId}

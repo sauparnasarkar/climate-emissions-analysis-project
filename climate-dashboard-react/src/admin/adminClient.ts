@@ -8,8 +8,12 @@ import type { LlmChoice } from './types';
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${import.meta.env.BASE_URL}agent${path}`, init);
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, body.detail ?? res.statusText);
+    // res.json() can legally resolve to null (or any other non-object JSON value) without
+    // rejecting -- e.g. a literal `null` body -- so `.catch()` alone doesn't cover every
+    // shape. Guard the property access itself rather than assuming a parsed body is an object.
+    const body: unknown = await res.json().catch(() => null);
+    const detail = body && typeof body === 'object' && 'detail' in body ? (body as { detail?: unknown }).detail : undefined;
+    throw new ApiError(res.status, typeof detail === 'string' ? detail : res.statusText);
   }
   return res.json() as Promise<T>;
 }

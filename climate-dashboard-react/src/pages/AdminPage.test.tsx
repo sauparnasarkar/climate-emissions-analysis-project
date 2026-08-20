@@ -60,6 +60,39 @@ describe('AdminPage', () => {
     expect(await screen.findByText('Switched to Qwen 2.5 14B (local, 8k ctx).')).toBeInTheDocument();
   });
 
+  it('after a successful apply, the newly-applied option is treated as current -- Apply goes disabled again, not stuck enabled against the stale initial choice', async () => {
+    const user = userEvent.setup();
+    vi.mocked(adminApi.getLlmChoice).mockResolvedValue(SONNET_CHOICE);
+    vi.mocked(adminApi.setLlmChoice).mockResolvedValue(OLLAMA_CHOICE);
+    render(<AdminPage />);
+
+    await user.click(await screen.findByRole('radio', { name: 'Qwen 2.5 14B (local, 8k ctx)' }));
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    await screen.findByText('Switched to Qwen 2.5 14B (local, 8k ctx).');
+
+    expect(screen.getByRole('radio', { name: 'Qwen 2.5 14B (local, 8k ctx)' })).toBeChecked();
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
+
+    // A second apply of the same (now-current) choice must not fire another request.
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    expect(adminApi.setLlmChoice).toHaveBeenCalledTimes(1);
+  });
+
+  it('an unrecognized live provider/model shows a warning and leaves no option pre-selected', async () => {
+    vi.mocked(adminApi.getLlmChoice).mockResolvedValue({
+      provider: 'openai',
+      model: 'gpt-5',
+      label: 'Unknown',
+      updated_at: '2026-01-01T00:00:00+00:00',
+    });
+    render(<AdminPage />);
+
+    expect(await screen.findByText(/isn't one of the known options/)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Claude Sonnet 5 (Anthropic)' })).not.toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Qwen 2.5 14B (local, 8k ctx)' })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
+  });
+
   it('a failed apply shows the curated error message, not a raw exception', async () => {
     const user = userEvent.setup();
     vi.mocked(adminApi.getLlmChoice).mockResolvedValue(SONNET_CHOICE);
