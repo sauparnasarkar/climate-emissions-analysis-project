@@ -16,7 +16,6 @@ tool-calling with no diagnostic visible in the UI.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import tempfile
@@ -119,10 +118,14 @@ def write_stored_choice(choice: LlmChoice) -> None:
     the next boot."""
     path = _store_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=".llm_choice-", suffix=".tmp")
+    # NamedTemporaryFile (not mkstemp + os.fdopen) so the file object -- and its underlying fd
+    # -- is always closed via the `with` block, even if writing itself raises.
+    with tempfile.NamedTemporaryFile(
+        mode="w", dir=path.parent, prefix=".llm_choice-", suffix=".tmp", delete=False
+    ) as f:
+        tmp_name = f.name
+        f.write(choice.model_dump_json())
     try:
-        with os.fdopen(fd, "w") as f:
-            f.write(choice.model_dump_json())
         os.replace(tmp_name, path)
     finally:
         Path(tmp_name).unlink(missing_ok=True)
