@@ -973,19 +973,23 @@ rebuilding on a pure model swap. `lifespan` captures `app.state.checkpointer` (v
 `POST /admin/llm`'s handler, guarded by a module-level `asyncio.Lock` (serializes two
 near-simultaneous admin writes — last-write-wins, appropriate for a single-admin-user UI with no
 conflict-resolution UX needed): builds a new graph with the new LLM but the **same** cached
-`mcp_tools` and **same** `checkpointer` instance, and swaps `app.state.graph` in only after the
-build succeeds.
+`mcp_tools` and **same** `checkpointer` instance, then persists the choice, and only swaps
+`app.state.graph`/`app.state.llm_choice` in after **both** succeed — build → persist → swap, not
+build → swap → persist. A swap-then-persist order would let a store-write failure (disk full,
+permissions) leave the process running the new model while the store file still names the old
+one, silently diverging runtime state from what the next restart would resolve to, with no
+signal to the admin that the two had split.
 
 **Carrying the same checkpointer instance forward is the load-bearing correctness requirement
 here** — a rebuild that defaulted to a fresh checkpointer would silently drop every live
 conversation's `messages`/`tool_cache` (§9) on a model switch, with no error surfaced to anyone.
-Build-before-swap means a failed rebuild (unreachable Ollama URL, unknown model) leaves
-`app.state.graph` untouched — the endpoint returns a curated error and the previous model keeps
-serving requests, matching this document's existing "never leak raw exception text to a public
-endpoint" convention ("Corrections applied" #19's `stream_query` precedent). In-flight requests
-need no special handling: `get_graph(request)` (`server.py`) already resolves
-`request.app.state.graph` fresh per request, so a swap only changes which graph *new* requests
-see.
+A failure at either step (unreachable Ollama URL, unknown model, or a failed store write) leaves
+`app.state.graph`/`app.state.llm_choice` untouched — the endpoint returns a curated error naming
+the still-running model and the previous model keeps serving requests, matching this document's
+existing "never leak raw exception text to a public endpoint" convention ("Corrections applied"
+#19's `stream_query` precedent). In-flight requests need no special handling: `get_graph(request)`
+(`server.py`) already resolves `request.app.state.graph` fresh per request, so a swap only
+changes which graph *new* requests see.
 
 ### 14.6 Frontend
 

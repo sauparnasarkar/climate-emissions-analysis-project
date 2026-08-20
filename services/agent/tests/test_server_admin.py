@@ -70,7 +70,10 @@ def test_post_llm_choice_rejects_unknown_id(admin_state):
 
 
 def test_post_llm_choice_build_failure_leaves_previous_graph_running(admin_state, monkeypatch):
-    previous_graph = app.state.graph
+    # A real sentinel, not the fixture's default None -- otherwise this assertion would pass
+    # even if the code under test wrongly cleared app.state.graph on failure.
+    previous_graph = object()
+    app.state.graph = previous_graph
 
     async def _failing_build_graph(**kwargs):
         raise RuntimeError("services/mcp-server unreachable")
@@ -89,6 +92,32 @@ def test_post_llm_choice_build_failure_leaves_previous_graph_running(admin_state
     assert app.state.graph is previous_graph
     assert app.state.llm_choice.provider == "anthropic"
     assert settings.read_stored_choice() is None  # never persisted a choice that failed to apply
+
+
+def test_post_llm_choice_persist_failure_leaves_previous_state_running(admin_state, monkeypatch):
+    # A real sentinel, same reasoning as the build-failure test above -- proves the swap
+    # genuinely didn't happen, not just that it happened to already be None.
+    previous_graph = object()
+    app.state.graph = previous_graph
+
+    def _failing_write_stored_choice(choice):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(settings, "write_stored_choice", _failing_write_stored_choice)
+
+    client = TestClient(app)
+    response = client.post("/admin/llm", json={"id": "ollama-qwen14b-ctx8k"})
+
+    assert response.status_code == 502
+    detail = response.json()["detail"]
+    assert "Claude Sonnet 5" in detail  # curated message names the still-running model...
+    assert "disk full" not in detail  # ...never the raw exception text
+
+    # The rebuilt graph must never be swapped in if persisting the choice failed -- otherwise
+    # the running process and the store file (and therefore the next restart) would diverge
+    # with no signal to the admin that they had.
+    assert app.state.graph is previous_graph
+    assert app.state.llm_choice.provider == "anthropic"
 
 
 async def test_apply_llm_choice_lock_serializes_concurrent_calls(admin_state, monkeypatch):

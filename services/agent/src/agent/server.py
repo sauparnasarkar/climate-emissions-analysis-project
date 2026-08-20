@@ -158,9 +158,15 @@ async def _apply_llm_choice(app: FastAPI, allowed: settings.AllowedChoice) -> Ll
     """Rebuilds the graph with the new LLM, reusing the *same* cached `mcp_tools` and
     `checkpointer` instance -- a pure model swap needs neither refetched, and reusing the same
     checkpointer is what keeps every live thread's `messages`/`tool_cache` intact across the
-    swap (a fresh checkpointer would silently drop them, SPEC.md §14.5). Build-before-swap: if
-    `build_graph()` raises, `app.state.graph` is left untouched and the previous model keeps
-    serving requests -- the raw exception never reaches the client, matching this module's
+    swap (a fresh checkpointer would silently drop them, SPEC.md §14.5).
+
+    Ordered build -> persist -> swap, not build -> swap -> persist: `app.state` is only mutated
+    after *both* the rebuild and the store write succeed, so a failure at either step leaves
+    runtime state and the persisted file consistent with each other (a swap-then-persist order
+    would let a disk-full/permissions failure on the write leave the process running the new
+    model while the store file -- and therefore the next restart -- still names the old one,
+    with no signal to the admin that the two had diverged). Either failure returns a curated
+    error naming the still-running model, never the raw exception text, matching this module's
     `stream_query` precedent for not leaking internal details to a public endpoint.
     """
     async with _llm_choice_lock:
@@ -175,10 +181,20 @@ async def _apply_llm_choice(app: FastAPI, allowed: settings.AllowedChoice) -> Ll
                 detail=f"Could not switch models -- the new configuration failed to initialize. Still running: {previous_label}.",
             ) from exc
 
-        app.state.graph = new_graph
         updated_at = settings.now_iso()
+        stored_choice = settings.LlmChoice(provider=allowed.provider, model=allowed.model, updated_at=updated_at)
+        try:
+            settings.write_stored_choice(stored_choice)
+        except OSError as exc:
+            previous_label = app.state.llm_choice.label
+            logger.exception("failed to persist LLM choice %s", allowed.id)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Could not switch models -- the new choice could not be saved. Still running: {previous_label}.",
+            ) from exc
+
+        app.state.graph = new_graph
         app.state.llm_choice = _llm_choice_response(allowed, updated_at)
-        settings.write_stored_choice(settings.LlmChoice(provider=allowed.provider, model=allowed.model, updated_at=updated_at))
         return app.state.llm_choice
 
 
