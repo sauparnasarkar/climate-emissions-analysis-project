@@ -45,6 +45,47 @@ settable per-model the way `num_ctx` is via `ollama create` — confirmed empiri
 Increasing it was deliberately not pursued: expected usage is one interactive user at a time, and
 raising parallel slots roughly doubles KV-cache memory per slot on an already-tight 16GB host.
 
+## Ollama's automatic prompt caching (vs. Anthropic's explicit `cache_control`)
+
+Prompted by an Anthropic Console billing alert about low prompt-cache hit rate on the
+Anthropic path (which already marks `agent_node`'s system+tools prefix with `cache_control` —
+see `graph.py`'s `_timed_node`/`agent_node` comments), the natural follow-up question was
+whether Ollama has anything equivalent. It does, but the mechanism and guarantees are
+different, confirmed by reading `~/.ollama/logs/server.log` on the Mac Mini directly rather
+than assumed from documentation:
+
+- **Automatic, not explicit.** Ollama's runner (`llama-server`) keeps up to 32 "context
+  checkpoints" and matches each new prompt against them by longest-common-prefix similarity —
+  `context checkpoints enabled, max = 32, min spacing = 8192`. There is no `cache_control`-style
+  flag to mark something as cacheable; it's opportunistic based on whatever's still resident.
+- **Confirmed real, with a measured before/after pair from live traffic:**
+
+  | | Total prompt | Tokens actually re-evaluated | Wall time |
+  |---|---|---|---|
+  | Cache **miss** | ~4,117 tokens | ~3,983 (nearly all) | 36.8s |
+  | Cache **hit** (`f_keep = 0.987`) | 5,975 tokens | 1,969 (only the new part) | 20.7s |
+
+  Reprocessing that second prompt's full 5,975 tokens from scratch at the same ~10ms/token rate
+  would have cost roughly 63s instead of the 20.7s it actually took — a genuine ~40s saving on
+  that one call. Repeated hits in the 90-99% keep range (`0.914`, `0.917`, `0.926`, `0.962`,
+  `0.996`, `0.999`) turned up in the same log, alongside plenty of near-zero misses
+  (`f_keep = 0.001-0.049`) — a real, recurring effect, not a one-off.
+- **Inconsistent by nature, not guaranteed.** Whether a given call benefits depends on whether
+  something similar enough is still one of the 7 (at the time of checking) stored checkpoints
+  when it arrives — unlike Anthropic's `cache_control`, which deterministically caches a marked
+  block for its TTL.
+- **No visibility from the API.** There's no field analogous to Anthropic's
+  `cache_read_input_tokens`/`cache_creation_input_tokens` — confirmed via Ollama's own open
+  GitHub issue ([ollama/ollama#8008](https://github.com/ollama/ollama/issues/8008)) requesting
+  exactly this. The only way to observe it is reading the raw runner log directly, as done here.
+- **Real memory cost.** The prompt cache itself was observed holding 3-5GB (capped at 8GB via
+  `--cache-ram`) on top of `qwen2.5:14b-ctx8k`'s own ~9-10GB resident footprint, on a 16GB host.
+  Worth monitoring; no memory pressure or crashes observed so far.
+
+No action taken or needed — this runs automatically and is already a real, if inconsistent,
+contributor to why some LLM calls in the timing logs (`src/agent/tracing.py`, see below) are
+markedly faster than others of similar prompt size.
+
 ## Follow-on fixes that came out of this testing
 
 All merged to `main`:
