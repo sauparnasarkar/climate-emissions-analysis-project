@@ -452,3 +452,76 @@ async def test_partial_tool_failure_adds_a_distinct_partial_data_note(running_mc
     # verbatim and AGENT_SYSTEM_PROMPT forbids ever naming a tool/function to the user.
     assert any("partial data" in note and "China's emissions profile" in note for note in result["scope_notes"])
     assert not any("get_country_profile" in note for note in result["scope_notes"])
+
+
+async def test_node_execution_logs_timing(caplog):
+    import logging
+
+    tool = await _make_methodology_tool()
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_methodology_notes", {}, "call-1")]),
+            AIMessage(content="done"),
+            {"response_text": "ok"},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool])
+    with caplog.at_level(logging.INFO, logger="agent.graph"):
+        await graph.ainvoke({"current_query": "how does the forecast model work?"}, config=THREAD_CONFIG)
+
+    node_lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("node=")]
+    for expected_node in ("node=guardrail_router", "node=agent", "node=tools", "node=compose_response"):
+        matches = [line for line in node_lines if line.startswith(expected_node + " ")]
+        assert matches, f"no log line for {expected_node!r} -- got {node_lines}"
+        assert "status=ok" in matches[0]
+        assert "elapsed=" in matches[0]
+
+
+async def test_tool_call_logs_cache_hit_and_miss(caplog):
+    import logging
+
+    tool = await _make_counter_tool()
+    same_args = _tool_call("get_methodology_notes", {"n": 1}, "call-a")
+    same_args_again = _tool_call("get_methodology_notes", {"n": 1}, "call-b")
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[same_args]),
+            AIMessage(content="", tool_calls=[same_args_again]),
+            AIMessage(content="done"),
+            {"response_text": "ok"},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool])
+    with caplog.at_level(logging.INFO, logger="agent.graph"):
+        await graph.ainvoke({"current_query": "call it twice"}, config=THREAD_CONFIG)
+
+    tool_call_lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("tool_call ")]
+    assert any("cache=miss" in line and "get_methodology_notes" in line for line in tool_call_lines)
+    assert any("cache=hit" in line and "elapsed=0.000s" in line for line in tool_call_lines)
+
+
+async def test_ui_selection_llm_call_logs_timing(caplog):
+    import logging
+
+    async def _run(country: str = "China") -> dict:
+        return {"country": country}
+
+    tool = StructuredTool.from_function(coroutine=_run, name="get_country_profile", description="fake")
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_country_profile", {"country": "China"}, "call-1")]),
+            AIMessage(content="done"),
+            {"include_chart": True},
+            {"response_text": "ok"},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool])
+    with caplog.at_level(logging.INFO, logger="agent.graph"):
+        result = await graph.ainvoke({"current_query": "what's China's emissions profile?"}, config=THREAD_CONFIG)
+
+    assert len(result["widgets"]) == 2  # card + chart, since include_chart=True was scripted
+    llm_call_lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("llm_call ")]
+    assert any("node=ui_selection" in line and "elapsed=" in line for line in llm_call_lines)

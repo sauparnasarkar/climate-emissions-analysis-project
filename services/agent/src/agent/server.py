@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -20,7 +21,9 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from .graph import build_graph
+from .tracing import configure_logging, new_trace_id, trace_id_var
 
+configure_logging()
 logger = logging.getLogger(__name__)
 
 # Generic, non-identifying message for stream_query's catch-all -- SPEC.md "Corrections applied"
@@ -149,7 +152,7 @@ def _progress_percent(event_count: int) -> int:
     return min(PROGRESS_PERCENT_CAP, PROGRESS_PERCENT_STEP * event_count)
 
 
-async def stream_query(graph: CompiledStateGraph, query: str, thread_id: str) -> AsyncIterator[dict[str, Any]]:
+async def stream_query(graph: CompiledStateGraph, query: str, thread_id: str, trace_id: str) -> AsyncIterator[dict[str, Any]]:
     """Streams SPEC.md §5's progress events, then one final `result` event, over one SSE
     channel. Progress labels come from `tools_node`'s per-superstep update (each `ToolCallRecord`
     already carries its own `progress_label`) via `stream_mode="updates"` -- diffed against what's
@@ -157,7 +160,20 @@ async def stream_query(graph: CompiledStateGraph, query: str, thread_id: str) ->
     (no reducer on that field), not just the newest entries. The final payload is read via
     `graph.aget_state()` after the stream reaches `END`, rather than hand-accumulating partial
     updates -- the checkpointer already has the authoritative final state.
+
+    `trace_id_var` is set as this generator's own first statement, not by the `/query` handler
+    before handing this generator to `EventSourceResponse` -- an async generator doesn't get its
+    own private context, it runs in the context of whatever task actually drives its `__anext__`,
+    so setting the contextvar here (rather than earlier, in the handler) guarantees every node's
+    log line downstream sees the right value regardless of how sse_starlette schedules generator
+    consumption relative to the request-handling task. Reset in the `finally` below so it can't
+    leak into whatever runs next in that task/context.
     """
+    token = trace_id_var.set(trace_id)
+    start = time.monotonic()
+    status = "ok"
+    logger.info("query received")
+
     config = {"configurable": {"thread_id": thread_id}}
     seen_tool_call_count = 0
     event_count = 0
@@ -183,6 +199,7 @@ async def stream_query(graph: CompiledStateGraph, query: str, thread_id: str) ->
             "data": json.dumps(
                 {
                     "thread_id": thread_id,
+                    "trace_id": trace_id,
                     "widgets": [widget.model_dump() for widget in final_state.get("widgets", [])],
                     "response_text": final_state.get("response_text", ""),
                     "scope_notes": final_state.get("scope_notes", []),
@@ -195,9 +212,15 @@ async def stream_query(graph: CompiledStateGraph, query: str, thread_id: str) ->
         # Full exception (including internal details like an MCP connection failure's own
         # 127.0.0.1:8765 address, or a LangChain/Anthropic SDK error string) stays server-side
         # only -- this endpoint is public and unauthenticated, so `str(exc)` must never reach the
-        # client directly. See QUERY_STREAM_ERROR_MESSAGE's own comment.
+        # client directly. See QUERY_STREAM_ERROR_MESSAGE's own comment. `trace_id` is an opaque
+        # id, not exception content, so including it doesn't reopen that leak -- it lets a
+        # user-reported failure be matched to this same `logger.exception` call's server-side line.
+        status = "error"
         logger.exception("stream_query failed mid-stream")
-        yield {"event": "error", "data": json.dumps({"message": QUERY_STREAM_ERROR_MESSAGE})}
+        yield {"event": "error", "data": json.dumps({"message": QUERY_STREAM_ERROR_MESSAGE, "trace_id": trace_id})}
+    finally:
+        logger.info("query complete status=%s total_elapsed=%.3fs", status, time.monotonic() - start)
+        trace_id_var.reset(token)
 
 
 def get_graph(request: Request) -> CompiledStateGraph:
@@ -212,4 +235,5 @@ def get_graph(request: Request) -> CompiledStateGraph:
 @app.post("/query")
 async def query(body: QueryRequest, graph: CompiledStateGraph = Depends(get_graph)):
     thread_id = _validate_and_register_thread_id(body.thread_id)
-    return EventSourceResponse(stream_query(graph, body.query, thread_id))
+    trace_id = new_trace_id()  # per-query, distinct from thread_id (which spans a whole conversation)
+    return EventSourceResponse(stream_query(graph, body.query, thread_id, trace_id))

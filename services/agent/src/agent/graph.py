@@ -30,6 +30,7 @@ from __future__ import annotations
 import functools
 import json
 import logging
+import time
 from typing import Any, Literal
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -62,6 +63,31 @@ from .ui_selection import build_country_profile_widgets, build_widget, is_error_
 logger = logging.getLogger(__name__)
 
 MAX_TOOL_CALLS_PER_TURN = 6  # SPEC.md §10 -- generous headroom, tune after real usage
+
+
+def _model_name(llm: Any) -> str:
+    # `.model` first, not `.model_name` -- ChatAnthropic only has `.model`; ChatOpenAI has both
+    # (confirmed empirically), so checking `.model` first works uniformly across both providers.
+    return getattr(llm, "model", None) or getattr(llm, "model_name", None) or type(llm).__name__
+
+
+def _timed_node(name: str, fn, *, model: str | None = None):
+    # Wraps an already-`functools.partial`-bound node callable (LangGraph invokes nodes with just
+    # `state`), so this only ever needs to accept `state` itself -- node functions and their own
+    # direct-call unit tests stay untouched. Logs one line per node execution; see tracing.py's
+    # module docstring for how `trace_id` reaches this line with no code here referencing it.
+    async def _wrapper(state):
+        start = time.monotonic()
+        status = "ok"
+        try:
+            return await fn(state)
+        except Exception:
+            status = "error"
+            raise
+        finally:
+            logger.info("node=%s model=%s status=%s elapsed=%.3fs", name, model or "-", status, time.monotonic() - start)
+
+    return _wrapper
 
 
 class _Classification(BaseModel):
@@ -282,6 +308,11 @@ async def tools_node(
             new_messages.append(
                 ToolMessage(content=content, tool_call_id=call["id"], status="error" if is_error else "success")
             )
+            logger.info(
+                "tool_call name=%s cache=hit status=%s elapsed=0.000s",
+                call["name"],
+                "error" if is_error else "success",
+            )
         else:
             tool = tools_by_name.get(call["name"])
             label = progress_label(call["name"], call["args"])
@@ -293,10 +324,14 @@ async def tools_node(
                 )
                 new_messages.append(ToolMessage(content=error_text, tool_call_id=call["id"], status="error"))
             else:
+                start = time.monotonic()
                 tool_message: ToolMessage = await tool.ainvoke(call)
+                elapsed = time.monotonic() - start
                 result = _tool_result_from_message(tool_message)
-                if is_error_result(result):
+                status = "error" if is_error_result(result) else "success"
+                if status == "error":
                     logger.warning("tools_node: %s failed: %s", call["name"], result.get("error"))
+                logger.info("tool_call name=%s cache=miss status=%s elapsed=%.3fs", call["name"], status, elapsed)
                 record = ToolCallRecord(tool_name=call["name"], args=call["args"], result=result, progress_label=label)
                 new_messages.append(tool_message)
             tool_cache[key] = record
@@ -319,9 +354,11 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
             continue  # no widget from a failed call, and no point spending an LLM call on it
         if record.tool_name == "get_country_profile":
             structured = llm.with_structured_output(_CountryProfileSelection)
+            start = time.monotonic()
             selection = await structured.ainvoke(
                 [SystemMessage(content=UI_SELECTION_COUNTRY_PROFILE_PROMPT), HumanMessage(content=state.current_query)]
             )
+            logger.info("llm_call node=ui_selection elapsed=%.3fs", time.monotonic() - start)
             widgets.extend(build_country_profile_widgets(record, include_chart=selection.include_chart))
         else:
             widget = build_widget(record, state.current_query)
@@ -461,15 +498,16 @@ async def build_graph(
         mcp_tools = await get_mcp_tools()
 
     graph: StateGraph[AgentState] = StateGraph(AgentState)
-    graph.add_node("guardrail_router", functools.partial(guardrail_router_node, llm=llm))
+    model = _model_name(llm)
+    graph.add_node("guardrail_router", _timed_node("guardrail_router", functools.partial(guardrail_router_node, llm=llm), model=model))
     graph.add_node("off_topic", off_topic_node)
-    graph.add_node("opinion", functools.partial(opinion_node, llm=llm, mcp_tools=mcp_tools))
-    graph.add_node("general_climate", functools.partial(general_climate_node, llm=llm))
-    graph.add_node("agent", functools.partial(agent_node, llm=llm, mcp_tools=mcp_tools))
-    graph.add_node("tools", functools.partial(tools_node, mcp_tools=mcp_tools))
+    graph.add_node("opinion", _timed_node("opinion", functools.partial(opinion_node, llm=llm, mcp_tools=mcp_tools), model=model))
+    graph.add_node("general_climate", _timed_node("general_climate", functools.partial(general_climate_node, llm=llm), model=model))
+    graph.add_node("agent", _timed_node("agent", functools.partial(agent_node, llm=llm, mcp_tools=mcp_tools), model=model))
+    graph.add_node("tools", _timed_node("tools", functools.partial(tools_node, mcp_tools=mcp_tools)))
     graph.add_node("call_cap_notice", call_cap_notice_node)
-    graph.add_node("ui_selection", functools.partial(ui_selection_node, llm=llm))
-    graph.add_node("compose_response", functools.partial(compose_response_node, llm=llm))
+    graph.add_node("ui_selection", _timed_node("ui_selection", functools.partial(ui_selection_node, llm=llm), model=model))
+    graph.add_node("compose_response", _timed_node("compose_response", functools.partial(compose_response_node, llm=llm), model=model))
     graph.add_node("finalize", finalize_node)
 
     graph.set_entry_point("guardrail_router")
