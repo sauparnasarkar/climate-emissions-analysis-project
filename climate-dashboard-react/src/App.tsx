@@ -10,6 +10,7 @@ import ForecastsPage from './pages/ForecastsPage';
 import ScenarioComparisonPage from './pages/ScenarioComparisonPage';
 import DataExplorerPage from './pages/DataExplorerPage';
 import AboutPage from './pages/AboutPage';
+import AdminPage from './pages/AdminPage';
 import { AgentPage } from './pages/AgentPage';
 
 // `group` is omitted for About, which is meta-content pinned to the sidebar's existing
@@ -223,6 +224,11 @@ function App() {
             <Route path="/scenarios" element={<ScenarioComparisonPage />} />
             <Route path="/data-explorer" element={<DataExplorerPage />} />
             <Route path="/about" element={<AboutPage />} />
+            {/* Unlisted -- absent from NAV_ITEMS and SidebarNav.persistentAction, deliberately
+                reachable by URL only (root ARCHITECTURE.md §8's admin capability, gated at the
+                Cloudflare edge, not here). Same "route with no nav-surface presence" precedent
+                '/ask' already sets, just with no persistentAction wiring at all. */}
+            <Route path="/admin" element={<AdminPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
