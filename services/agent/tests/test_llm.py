@@ -33,3 +33,12 @@ def test_unknown_provider_raises(monkeypatch):
     monkeypatch.setenv("LLM_PROVIDER", "not-a-real-provider")
     with pytest.raises(ValueError, match="Unknown LLM_PROVIDER"):
         get_llm()
+
+
+def test_explicit_provider_kwarg_works_with_no_env_at_all(monkeypatch):
+    # The admin-panel settings path (SPEC.md §14) calls get_llm() this way -- proves the
+    # explicit kwarg is sufficient on its own, independent of LLM_PROVIDER being set.
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    llm = get_llm("qwen2.5:14b-ctx8k", provider="ollama")
+    assert llm.model_name == "qwen2.5:14b-ctx8k"
+    assert llm.request_timeout == OLLAMA_REQUEST_TIMEOUT_SECONDS
