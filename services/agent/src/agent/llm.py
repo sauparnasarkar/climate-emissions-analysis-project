@@ -52,8 +52,14 @@ DEFAULT_OLLAMA_MODEL = "llama3.1:8b"
 OLLAMA_REQUEST_TIMEOUT_SECONDS = 150
 
 
-def get_llm(model: str | None = None) -> BaseChatModel:
-    provider = os.environ.get("LLM_PROVIDER", "anthropic").lower()
+def get_llm(model: str | None = None, *, provider: str | None = None) -> BaseChatModel:
+    """`provider` is an additive override for the admin-panel settings path (SPEC.md §14) --
+    called with no arguments this is byte-for-byte the same as before that feature existed.
+    Deliberately still env-var-only otherwise: the settings-store lookup lives in the admin
+    code path, never here, so this stays free of any dependency on machine-local state and the
+    existing test/hermeticity contract (module docstring above) is unaffected.
+    """
+    provider = (provider or os.environ.get("LLM_PROVIDER", "anthropic")).lower()
 
     if provider == "ollama":
         from langchain_openai import ChatOpenAI
