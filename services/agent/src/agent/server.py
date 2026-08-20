@@ -5,6 +5,7 @@ Run via `uvicorn agent.server:app` (matches `api/main.py`'s own run convention).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -20,7 +21,10 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
-from .graph import build_graph
+from . import settings
+from .graph import _default_checkpointer, build_graph
+from .llm import get_llm
+from .mcp_client import get_mcp_tools
 from .tracing import configure_logging, new_trace_id, trace_id_var
 
 configure_logging()
@@ -103,6 +107,21 @@ def _validate_and_register_thread_id(thread_id: str | None) -> str:
     return thread_id
 
 
+class LlmChoiceResponse(BaseModel):
+    provider: str
+    model: str
+    label: str
+    updated_at: str
+
+
+class LlmChoiceRequest(BaseModel):
+    id: str
+
+
+def _llm_choice_response(allowed: settings.AllowedChoice, updated_at: str) -> LlmChoiceResponse:
+    return LlmChoiceResponse(provider=allowed.provider, model=allowed.model, label=allowed.label, updated_at=updated_at)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Built once at startup, reused across every request -- fetching MCP tools and constructing
@@ -112,8 +131,71 @@ async def lifespan(app: FastAPI):
     # concurrent requests). If services/mcp-server is unreachable at startup this raises and the
     # process exits loudly -- this service has no reason to exist without it, matching
     # services/mcp-server's own "no retry/backoff" posture toward api/.
-    app.state.graph = await build_graph()
+    #
+    # checkpointer/mcp_tools are captured on app.state (not just closed over locally) so
+    # SPEC.md §14's admin-triggered graph rebuild can reuse both -- a pure model swap needs
+    # neither refetched, and reusing the *same* checkpointer instance is what keeps live
+    # conversations' history intact across a swap (see _apply_llm_choice below).
+    checkpointer = _default_checkpointer()
+    mcp_tools = await get_mcp_tools()
+    allowed = settings.resolve_active_choice()
+    llm = get_llm(allowed.model, provider=allowed.provider)
+
+    app.state.checkpointer = checkpointer
+    app.state.mcp_tools = mcp_tools
+    app.state.llm_choice = _llm_choice_response(allowed, settings.now_iso())
+    app.state.graph = await build_graph(llm=llm, mcp_tools=mcp_tools, checkpointer=checkpointer)
     yield
+
+
+# Serializes two near-simultaneous admin writes -- last-write-wins, which is fine for a
+# single-admin-user UI with no conflict-resolution UX needed. One process-wide lock, not
+# per-app, since this service only ever runs one app instance.
+_llm_choice_lock = asyncio.Lock()
+
+
+async def _apply_llm_choice(app: FastAPI, allowed: settings.AllowedChoice) -> LlmChoiceResponse:
+    """Rebuilds the graph with the new LLM, reusing the *same* cached `mcp_tools` and
+    `checkpointer` instance -- a pure model swap needs neither refetched, and reusing the same
+    checkpointer is what keeps every live thread's `messages`/`tool_cache` intact across the
+    swap (a fresh checkpointer would silently drop them, SPEC.md §14.5).
+
+    Ordered build -> persist -> swap, not build -> swap -> persist: `app.state` is only mutated
+    after *both* the rebuild and the store write succeed, so a failure at either step leaves
+    runtime state and the persisted file consistent with each other (a swap-then-persist order
+    would let a disk-full/permissions failure on the write leave the process running the new
+    model while the store file -- and therefore the next restart -- still names the old one,
+    with no signal to the admin that the two had diverged). Either failure returns a curated
+    error naming the still-running model, never the raw exception text, matching this module's
+    `stream_query` precedent for not leaking internal details to a public endpoint.
+    """
+    async with _llm_choice_lock:
+        llm = get_llm(allowed.model, provider=allowed.provider)
+        try:
+            new_graph = await build_graph(llm=llm, mcp_tools=app.state.mcp_tools, checkpointer=app.state.checkpointer)
+        except Exception as exc:
+            previous_label = app.state.llm_choice.label
+            logger.exception("failed to rebuild graph for LLM choice %s", allowed.id)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Could not switch models -- the new configuration failed to initialize. Still running: {previous_label}.",
+            ) from exc
+
+        updated_at = settings.now_iso()
+        stored_choice = settings.LlmChoice(provider=allowed.provider, model=allowed.model, updated_at=updated_at)
+        try:
+            settings.write_stored_choice(stored_choice)
+        except OSError as exc:
+            previous_label = app.state.llm_choice.label
+            logger.exception("failed to persist LLM choice %s", allowed.id)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Could not switch models -- the new choice could not be saved. Still running: {previous_label}.",
+            ) from exc
+
+        app.state.graph = new_graph
+        app.state.llm_choice = _llm_choice_response(allowed, updated_at)
+        return app.state.llm_choice
 
 
 app = FastAPI(
@@ -132,6 +214,22 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+@app.get("/admin/llm", response_model=LlmChoiceResponse)
+def get_llm_choice(request: Request) -> LlmChoiceResponse:
+    # Reports the live in-memory choice, not the store file -- the two can diverge (a
+    # hand-edited file, or a process older than the file), and the live value is the useful
+    # answer for an admin UI.
+    return request.app.state.llm_choice
+
+
+@app.post("/admin/llm", response_model=LlmChoiceResponse)
+async def set_llm_choice(body: LlmChoiceRequest, request: Request) -> LlmChoiceResponse:
+    allowed = settings.choice_by_id(body.id)
+    if allowed is None:
+        raise HTTPException(status_code=422, detail=f"Unknown LLM choice id {body.id!r}.")
+    return await _apply_llm_choice(request.app, allowed)
 
 
 class HealthResponse(BaseModel):
