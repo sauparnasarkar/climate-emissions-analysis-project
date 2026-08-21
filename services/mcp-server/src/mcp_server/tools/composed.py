@@ -76,7 +76,11 @@ async def get_forecast_comparison(countries: list[str] | None = None, scope: str
     IMPORTANT: each entry in `countries` must be a real country's common English name (e.g.
     "China", "United States", "United Kingdom"), never an ISO code or abbreviation ("CHN",
     "USA") -- the resolution guard fuzzy-matches against full names and will reject or badly
-    mismatch a code.
+    mismatch a code. Sovereign countries only -- supranational blocs and regions ("European
+    Union", "Middle East", "Sub-Saharan Africa") are out of scope and will also fail
+    resolution. If you're not certain a name is real and in scope, call list_countries first
+    and pick from its `sovereign` list rather than guessing -- a failed resolution here costs
+    a full extra round trip the user waits through; list_countries doesn't.
     """
     if scope not in ("featured", "expanded"):
         raise ValueError(f"scope must be 'featured' or 'expanded' for forecasts, got '{scope}'")
