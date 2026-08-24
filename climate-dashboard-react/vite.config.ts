@@ -146,7 +146,21 @@ export default defineConfig({
         // a query string like `?cachebust=1` was appended to the same .pptx URL) -- the trailing
         // `(\?.*)?` tolerates an optional query string so a cache-busting or tracking param
         // doesn't silently resurrect the redirect bug.
-        navigateFallbackDenylist: [/\.[a-zA-Z0-9]{2,5}(\?.*)?$/],
+        //
+        // /admin is also denylisted, for an unrelated reason: it's the only route gated by
+        // Cloudflare Access (root ARCHITECTURE.md §8). Reproduced live 2026-08-24: with /admin
+        // left out of this list, Workbox's default NavigationRoute served the precached
+        // index.html shell for every reload instead of hitting the network -- so an expired
+        // Access session went undetected (the page appeared to load normally) until a same-page
+        // fetch() to the admin API tried to follow Access's redirect-to-Google-login and failed
+        // with an opaque CORS error, since fetch (unlike a real navigation) can't complete a
+        // cross-origin redirect chain with no CORS headers. Denylisting /admin forces every load
+        // of it to be a genuine network navigation, so an expired session redirects to Google
+        // login the normal way instead of silently serving stale cached UI.
+        navigateFallbackDenylist: [
+          /\.[a-zA-Z0-9]{2,5}(\?.*)?$/,
+          new RegExp(`^${escapeRegExp(base)}admin(/[^?]*)?(\\?.*)?$`),
+        ],
         // Data freshness matters more than offline access for a live emissions
         // dashboard — go to the network first for API calls (short timeout
         // before falling back to any cached copy), and let Workbox's default
