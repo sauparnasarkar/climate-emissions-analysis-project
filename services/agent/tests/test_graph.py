@@ -164,6 +164,33 @@ async def test_general_climate_routing():
     assert llm.exhausted
 
 
+async def test_general_climate_unwraps_list_content():
+    # Claude Sonnet 5 runs adaptive thinking by default (llm.py's ChatAnthropic construction sets
+    # no thinking= override) and returns content as a list of blocks -- a 'thinking' block plus a
+    # 'text' block -- rather than a plain string. Reproduced live 2026-08-24: this shape reached
+    # AgentState.response_text (a bare str field) unwrapped and crashed finalize with a pydantic
+    # ValidationError. general_climate_node must unwrap it the same way ui_selection_node already
+    # does via _text_from_content_blocks.
+    llm = ScriptedChatModel(
+        [
+            {"classification": "general_climate"},
+            AIMessage(
+                content=[
+                    {"type": "thinking", "thinking": "The user is asking a general question.", "signature": "sig"},
+                    {"type": "text", "text": "CO2 is a greenhouse gas that traps heat in the atmosphere."},
+                ]
+            ),
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[])
+    result = await graph.ainvoke({"current_query": "what is CO2?"}, config=THREAD_CONFIG)
+    assert result["classification"] == "general_climate"
+    assert result["response_text"] == "CO2 is a greenhouse gas that traps heat in the atmosphere."
+    assert len(result["widgets"]) == 1
+    assert result["widgets"][0].props["text"] == "CO2 is a greenhouse gas that traps heat in the atmosphere."
+    assert llm.exhausted
+
+
 async def test_data_query_single_tool_call():
     tool = await _make_methodology_tool()
     llm = ScriptedChatModel(

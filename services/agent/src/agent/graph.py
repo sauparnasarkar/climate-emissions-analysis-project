@@ -184,8 +184,17 @@ async def opinion_node(state: AgentState, *, llm: BaseChatModel, mcp_tools: list
 async def general_climate_node(state: AgentState, *, llm: BaseChatModel) -> dict[str, Any]:
     messages = [SystemMessage(content=GENERAL_CLIMATE_SYSTEM_PROMPT), *state.messages]
     response = await llm.ainvoke(messages)
-    widget = WidgetSpec(intent="text", title="Climate context", source_tool_call="general_climate", props={"text": response.content})
-    return {"response_text": response.content, "widgets": [widget]}
+    content = response.content
+    # Same unwrap ui_selection_node already does (see _text_from_content_blocks) -- missing here
+    # meant AgentState's plain-str response_text field rejected Claude Sonnet 5's real content
+    # shape, since Sonnet 5 runs adaptive thinking by default and returns a list of content
+    # blocks (a 'thinking' block plus a 'text' block) rather than a plain string whenever thinking
+    # isn't explicitly configured off. Reproduced live 2026-08-24: a general_climate_node response
+    # crashed finalize with a pydantic ValidationError on response_text.
+    text = _text_from_content_blocks(content) if isinstance(content, list) else content
+    text = text or "(no response text)"
+    widget = WidgetSpec(intent="text", title="Climate context", source_tool_call="general_climate", props={"text": text})
+    return {"response_text": text, "widgets": [widget]}
 
 
 async def agent_node(state: AgentState, *, llm: BaseChatModel, mcp_tools: list[BaseTool]) -> dict[str, Any]:
