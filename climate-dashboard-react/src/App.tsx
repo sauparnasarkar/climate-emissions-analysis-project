@@ -180,18 +180,6 @@ function App() {
               >
                 🌍 GHG Emissions Analysis
               </span>
-              <span
-                style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 400,
-                  color: 'var(--__s9cmpx-static-text-weak)',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                IDEAS TIH Summer Internship 2026
-              </span>
             </span>
           }
           centerActions={
@@ -201,7 +189,7 @@ function App() {
               value={theme}
               onChange={(v) => setTheme(v as AppTheme)}
               items={[
-                { value: 'analytics-bright-signal-tidewater', label: 'Bright' },
+                { value: 'analytics-bright-signal-tidewater', label: 'Light' },
                 { value: 'analytics', label: 'Dark' },
               ]}
             />
@@ -275,7 +263,7 @@ function App() {
         {/* Footer's default `links` renders a "Policies" placeholder pointing at
             href="#" — this app has no policies page, so suppress it rather than
             ship a dead link. */}
-        <Footer copyright="IDEAS TIH Summer Internship 2026 · Mentor: Sauparna Sarkar" links={[]} />
+        <Footer copyright="Greenhouse Gas Emissions Analytics Platform · Sauparna Sarkar" links={[]} />
         {/* Page-agnostic (SPEC.md §5.20), unlike JumpLinks -- wired once here rather than per page.
             targetId reuses the same #main-content landmark the route-change effect above already
             focuses on in-app navigation, so a back-to-top click lands focus in the same place.
