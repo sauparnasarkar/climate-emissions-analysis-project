@@ -2,8 +2,8 @@
 // which can't resolve CSS custom properties (`var(...)`) at all -- it silently renders black
 // rather than falling back. Callers that need a sentiment color inside a Plotly series must
 // resolve the CSS variable to its actual computed hex first, against whichever theme is
-// currently active on the document (this app forces `data-theme="analytics"`, but this stays
-// correct even if a theme toggle is added later).
+// currently active on the document -- App.tsx's Bright/Dark toggle changes `data-theme` at
+// runtime, so this reads the live value rather than assuming a fixed theme.
 const FALLBACK_HEX: Record<'positive' | 'negative', string> = {
   positive: '#187254',
   negative: '#8d1a2a',
@@ -16,9 +16,9 @@ const VAR_NAME: Record<'positive' | 'negative', string> = {
 
 export function resolveSentimentColorHex(direction: 'positive' | 'negative'): string {
   if (typeof document === 'undefined') return FALLBACK_HEX[direction];
-  // App.tsx sets `data-theme="analytics"` on its own `.app-shell` root div, not on
-  // `<html>` -- resolving against `document.documentElement` would silently read the
-  // un-themed (light) default values instead, since that attribute scopes the CSS
+  // App.tsx sets `data-theme` (whichever of Bright/Dark is active) on its own `.app-shell`
+  // root div, not on `<html>` -- resolving against `document.documentElement` would silently
+  // read the un-themed (light) default values instead, since that attribute scopes the CSS
   // custom property overrides to its own subtree.
   const themedRoot = document.querySelector('[data-theme]') ?? document.documentElement;
   const resolved = getComputedStyle(themedRoot).getPropertyValue(VAR_NAME[direction]).trim();

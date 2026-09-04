@@ -22,10 +22,13 @@ export const GAS_COLUMNS: Record<string, string> = {
   nitrous_oxide: 'Nitrous Oxide (N₂O)',
 };
 
-// SCENARIO_COLORS moved to lib/theme.ts as a per-AppTheme map -- a flat hex here would be
-// wrong the moment the Bright/Dark toggle is on a non-default theme (see that file's own
-// comment for why this is a plain constant map rather than a CSS-var resolution, same as
-// resolveThemeColorHex.ts's approach below).
+// The design handoff for the Bright/Dark toggle flagged a prior SCENARIO_COLORS hex map as a
+// theme risk, but that map's per-scenario colors were never actually consumed by any chart --
+// ScenarioComparisonPage.tsx renders one panel per scenario, each colored by *country* via
+// SyChart's own default categorical palette, which already resolves correctly per theme. Only
+// the scenario names themselves are needed elsewhere (panel titles, radio labels), so this
+// stays a plain, theme-independent list rather than dead per-theme hex values.
+export const SCENARIO_PANELS = ['BAU', 'Moderate', 'Aggressive'] as const;
 
 // Shared increase/decrease convention: a decrease in emissions is good (green), an increase
 // is bad (crimson) — used wherever a value's direction maps to an emissions outcome, as

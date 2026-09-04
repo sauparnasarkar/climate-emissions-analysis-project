@@ -40,12 +40,23 @@ function App() {
   // never sees a Bright flash on first paint. Defaults to Bright -- "what a first-time
   // visitor lands on" -- for anyone with nothing stored yet, no prefers-color-scheme
   // detection (an explicit toggle exists; a media-query default would just contradict it).
+  // Guarded: localStorage access can throw (Safari private browsing, an extension/policy
+  // blocking storage), which would otherwise crash the app before it ever renders.
   const [theme, setTheme] = useState<AppTheme>(() => {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    return stored === 'analytics' || stored === 'analytics-bright-signal-tidewater' ? stored : 'analytics-bright-signal-tidewater';
+    try {
+      const stored = localStorage.getItem(THEME_STORAGE_KEY);
+      return stored === 'analytics' || stored === 'analytics-bright-signal-tidewater' ? stored : 'analytics-bright-signal-tidewater';
+    } catch {
+      return 'analytics-bright-signal-tidewater';
+    }
   });
   useEffect(() => {
-    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Storage blocked -- the toggle still works for this session, it just won't persist
+      // across reloads.
+    }
   }, [theme]);
 
   const toItem = ({ path, group, ...item }: (typeof NAV_ITEMS)[number]): SidebarNavItem => ({
