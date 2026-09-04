@@ -22,11 +22,10 @@ export const GAS_COLUMNS: Record<string, string> = {
   nitrous_oxide: 'Nitrous Oxide (N₂O)',
 };
 
-export const SCENARIO_COLORS: Record<string, string> = {
-  BAU: '#3950c4',
-  Moderate: '#d19e27',
-  Aggressive: '#87ca65',
-};
+// SCENARIO_COLORS moved to lib/theme.ts as a per-AppTheme map -- a flat hex here would be
+// wrong the moment the Bright/Dark toggle is on a non-default theme (see that file's own
+// comment for why this is a plain constant map rather than a CSS-var resolution, same as
+// resolveThemeColorHex.ts's approach below).
 
 // Shared increase/decrease convention: a decrease in emissions is good (green), an increase
 // is bad (crimson) — used wherever a value's direction maps to an emissions outcome, as

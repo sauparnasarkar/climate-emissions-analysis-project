@@ -11,3 +11,68 @@
      "United Kingdom", "South Africa". */
   line-height: var(--__s9cmpx-web-label-2-line-height);
 }
+
+/* Overview's map card gets the brand color as its own accent top rule, pairing with the two
+   accent-secondary/-tertiary rules OverviewPage.tsx applies to the hero row's other two cards --
+   the map reads as the "primary" of the three metric groups. Falls back to transparent on themes
+   that don't lean on this pattern (e.g. Dark analytics), same as the other two rules. */
+/* border-radius here overrides the vendor's own hardcoded 3px (.__s9cmpx-card{border-radius:3px}
+   in sy-design-system.min.css -- a literal value, not theme-driven) so this card's corners match
+   the 8px the other two hero-row cards use directly in their own inline styles. */
+.overview-map-card.__s9cmpx-card {
+  border-top: 3px solid var(--__s9cmpx-color-brand-500, transparent);
+  border-radius: 8px;
+}
+
+/* SidebarNav's own desktop-mode inline style sets height:'100%', but its flex-row parent in
+   App.tsx has no explicit height (only flex:1) -- percentage heights can't resolve against a
+   parent whose own height is itself flex-content-derived, so it silently falls through to the
+   component's minHeight:480 floor. On any page taller than ~480px of nav content (i.e. almost
+   every page), the sidebar's own card-colored background stops there while <main>'s real content
+   keeps going, leaving a visible gap of bare page-canvas below it -- confirmed live via
+   getBoundingClientRect (nav measured exactly 480px tall against a 1610px-tall <main> sibling).
+
+   Fixed with position:sticky + a viewport-relative height (100dvh, not a percentage -- sidesteps
+   the "no definite parent height" problem entirely) rather than restructuring the app shell into
+   an internally-scrolling <main>: BackToTop (design-system/src/components/BackToTop/BackToTop.tsx)
+   hardcodes window.scrollY/document.documentElement.scrollHeight/window.scrollTo, so switching
+   the whole page off window-level scrolling would silently break it everywhere it's used,
+   including the India Allocation Monitor's identical app-shell pattern. This keeps today's
+   whole-page scroll model completely intact -- only the sidebar's own painted position changes.
+
+   Desktop only, mirroring SidebarNav's own MOBILE_QUERY breakpoint (768px) -- the mobile drawer
+   already gets a correct position:fixed/height:100vh via inline style for its own layout, which
+   wins over these rules regardless, so this scoping is defensive rather than strictly required. */
+@media (min-width: 769px) {
+  /* Header pinned too (direct request: header stays visible, only the content below it
+     scrolls) -- same sticky technique, still zero change to the window-scroll model itself.
+     App.tsx sets Header's own minHeight to 68px, so the sidebar below sticks at that same
+     offset rather than 0, landing it flush under the pinned header instead of overlapping it.
+     z-index built on the vendor's own --__s9cmpx-z-index-sticky scale (sidebar already sits at
+     that + 10) so the header stays above the sidebar rather than a magic number. */
+  .app-header.__s9cmpx-header {
+    position: sticky;
+    top: 0;
+    z-index: calc(var(--__s9cmpx-z-index-sticky) + 20);
+  }
+  .app-sidebar-nav.__s9cmpx-sidebar-nav {
+    position: sticky;
+    top: 68px;
+    align-self: flex-start;
+    height: calc(100vh - 68px) !important;
+    height: calc(100dvh - 68px) !important;
+  }
+
+  /* With the header pinned, any scrollIntoView({block:'start'}) call (BackToTop's targetId,
+     every JumpLinks section anchor, a direct #hash page load) aligns its target's top edge to
+     the literal viewport top -- which now sits *behind* the sticky header, hiding whatever just
+     scrolled there (reported directly: clicking BackToTop landed the page title under the
+     header). scroll-margin-top is exactly what scrollIntoView (and native hash-anchor scrolling)
+     already reads to offset that alignment -- no JS changes needed. Applied to every id'd element
+     rather than enumerating each known jump target (#main-content, ScenarioComparisonPage's
+     #reduction-map/#country-comparison/#cumulative-impact, etc.), so a future anchor doesn't
+     silently reintroduce this. */
+  [id] {
+    scroll-margin-top: 68px;
+  }
+}

@@ -123,7 +123,11 @@ function animatedTierRow(
 // arrives. CountUpText (below) stays reserved for values that only ever change once, on load.
 function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
   return (
-    <div style={{ border: '1px solid var(--__s9cmpx-static-divider-weak)', borderRadius: 8, overflow: 'hidden' }}>
+    // accent-tertiary top rule (falls back to transparent on themes that don't publish it, e.g.
+    // Dark analytics -- these tokens are Bright/Signal-family only, per the design handoff's
+    // "apply per metric, never per sentiment" guidance). Pairs with OverviewHeadline's
+    // accent-secondary rule below -- the two hero-row cards read as distinct metric groups.
+    <div style={{ background: 'var(--__s9cmpx-static-background-standard)', border: '1px solid var(--__s9cmpx-static-divider-weak)', borderTop: '3px solid var(--__s9cmpx-accent-tertiary, transparent)', borderRadius: 8, overflow: 'hidden' }}>
       {rows.map((row, i) => (
         <div
           key={row.tier}
@@ -165,7 +169,9 @@ function OverviewHeadline({ headlineMovers, scope }: { headlineMovers: MoverRow[
   const segments = buildHeadlineSentence(headlineMovers, scope);
   if (!segments) return null;
   return (
-    <div style={{ padding: '12px 16px', border: '1px solid var(--__s9cmpx-static-divider-weak)', borderRadius: 8 }}>
+    // accent-secondary top rule -- see TierSummaryPanel's own comment for the fallback/pairing
+    // rationale.
+    <div style={{ background: 'var(--__s9cmpx-static-background-standard)', padding: '12px 16px', border: '1px solid var(--__s9cmpx-static-divider-weak)', borderTop: '3px solid var(--__s9cmpx-accent-secondary, transparent)', borderRadius: 8 }}>
       <span className="__s9cmpx-label3" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Since 1990</span>
       <p className="__s9cmpx-body2" style={{ margin: '4px 0 0' }}>
         {segments.map((seg, i) => {
@@ -252,7 +258,7 @@ function AnimatedWorldMap({
 
   return (
     <>
-      <ChartCard id="map" title={`CO₂ Emissions by Country (${currentYear})`} headingLevel={2} expandable>
+      <ChartCard id="map" className="overview-map-card" title={`CO₂ Emissions by Country (${currentYear})`} headingLevel={2} expandable>
         {/* flexWrap + a shrinkable slider track: Slider carries its own 220px min-width,
             which together with the Play/Pause button floored this row (and therefore the
             whole card, and therefore the page) at ~330px -- wider than a 320px phone like

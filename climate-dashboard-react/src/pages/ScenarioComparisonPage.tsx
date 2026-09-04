@@ -6,10 +6,14 @@ import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
-import { SCENARIO_COLORS, MAX_SELECTED_COUNTRIES } from '../constants';
+import { MAX_SELECTED_COUNTRIES } from '../constants';
+import { SCENARIO_COLORS } from '../lib/theme';
 import type { ScenarioCumulativeRow } from '../api/types';
 
-const SCENARIO_PANELS = Object.keys(SCENARIO_COLORS);
+// Panel names are structurally identical across every AppTheme in SCENARIO_COLORS (only the
+// hex values differ), so any one theme's keys are a theme-independent source for this list --
+// no useTheme() dependency needed here since nothing in this file consumes the color values.
+const SCENARIO_PANELS = Object.keys(SCENARIO_COLORS.analytics) as Array<keyof typeof SCENARIO_COLORS.analytics>;
 
 // Stable labels (SPEC.md §5.19). "Country Comparison" anchors the shared <h2> above the
 // per-scenario ChartCard loop below (one card per SCENARIO_PANELS entry) -- there's no single
