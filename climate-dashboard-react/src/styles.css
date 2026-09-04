@@ -43,16 +43,37 @@
    Desktop only, mirroring SidebarNav's own MOBILE_QUERY breakpoint (768px) -- the mobile drawer
    already gets a correct position:fixed/height:100vh via inline style for its own layout, which
    wins over these rules regardless, so this scoping is defensive rather than strictly required. */
+/* Header pinned at ALL widths (direct request: header stays visible, only the content below it
+   scrolls -- confirmed to also apply on a phone viewport, not just desktop). Same sticky
+   technique, still zero change to the window-scroll model itself. App.tsx sets Header's own
+   minHeight to 68px, so the sidebar below sticks at that same offset rather than 0, landing it
+   flush under the pinned header instead of overlapping it. z-index is set per-breakpoint below:
+   mobile needs a lower value than desktop so the sticky header doesn't paint over SidebarNav's
+   own fixed mobile-drawer layer (menu toggle, "Ask the Agent" button, drawer + backdrop). */
+.app-header.__s9cmpx-header {
+  position: sticky;
+  top: 0;
+}
+
+/* With the header pinned, any scrollIntoView({block:'start'}) call (BackToTop's targetId,
+   every JumpLinks section anchor, a direct #hash page load) aligns its target's top edge to
+   the literal viewport top -- which now sits *behind* the sticky header, hiding whatever just
+   scrolled there (reported directly: clicking BackToTop landed the page title under the
+   header). scroll-margin-top is exactly what scrollIntoView (and native hash-anchor scrolling)
+   already reads to offset that alignment -- no JS changes needed. Applied to every id'd element
+   rather than enumerating each known jump target (#main-content, ScenarioComparisonPage's
+   #reduction-map/#country-comparison/#cumulative-impact, etc.), so a future anchor doesn't
+   silently reintroduce this. Unconditional (not just desktop) for the same reason the header's
+   own sticky rule above is unconditional -- the header pins on mobile too now. */
+[id] {
+  scroll-margin-top: 68px;
+}
+
 @media (min-width: 769px) {
-  /* Header pinned too (direct request: header stays visible, only the content below it
-     scrolls) -- same sticky technique, still zero change to the window-scroll model itself.
-     App.tsx sets Header's own minHeight to 68px, so the sidebar below sticks at that same
-     offset rather than 0, landing it flush under the pinned header instead of overlapping it.
-     z-index built on the vendor's own --__s9cmpx-z-index-sticky scale (sidebar already sits at
-     that + 10) so the header stays above the sidebar rather than a magic number. */
+  /* z-index built on the vendor's own --__s9cmpx-z-index-sticky scale (sidebar already sits at
+     that + 10) so the header stays above the sidebar rather than a magic number. Desktop-only:
+     SidebarNav has no fixed/floating layers at this width to stay under, unlike mobile below. */
   .app-header.__s9cmpx-header {
-    position: sticky;
-    top: 0;
     z-index: calc(var(--__s9cmpx-z-index-sticky) + 20);
   }
   .app-sidebar-nav.__s9cmpx-sidebar-nav {
@@ -62,17 +83,30 @@
     height: calc(100vh - 68px) !important;
     height: calc(100dvh - 68px) !important;
   }
+}
 
-  /* With the header pinned, any scrollIntoView({block:'start'}) call (BackToTop's targetId,
-     every JumpLinks section anchor, a direct #hash page load) aligns its target's top edge to
-     the literal viewport top -- which now sits *behind* the sticky header, hiding whatever just
-     scrolled there (reported directly: clicking BackToTop landed the page title under the
-     header). scroll-margin-top is exactly what scrollIntoView (and native hash-anchor scrolling)
-     already reads to offset that alignment -- no JS changes needed. Applied to every id'd element
-     rather than enumerating each known jump target (#main-content, ScenarioComparisonPage's
-     #reduction-map/#country-comparison/#cumulative-impact, etc.), so a future anchor doesn't
-     silently reintroduce this. */
-  [id] {
-    scroll-margin-top: 68px;
+/* Mobile only -- exact complement of the min-width:769px query above (SidebarNav's own
+   MOBILE_QUERY, design-system/src/components/SidebarNav/SidebarNav.tsx, is 768px), so exactly
+   one of the header's two z-index rules is ever active. */
+@media (max-width: 768px) {
+  .app-header.__s9cmpx-header {
+    /* NOT the desktop formula above (that resolves to 320). On mobile, SidebarNav renders its
+       own fixed layers that must always stay above the header: the menu-toggle + persistent
+       "Ask the Agent" button (z-index:40, drawer closed), and the drawer's backdrop (z-index:24)
+       plus the drawer <nav> itself (z-index:25, drawer open). 320 would bury all of them under
+       the now-sticky header. 10 is a literal, mobile-only value chosen only to lift the header
+       above ordinary in-flow page content (the default z-index:auto <main> renders in) while
+       staying comfortably below all three of those SidebarNav mobile z-indices.
+       padding-right reserves the same right-edge footprint SidebarNav's fixed mobile toggle +
+       "Ask the Agent" button occupy over the header (96px = 32px action button + 12px gap + 40px
+       toggle + 12px inset, plus 16px breathing room = 112px) -- App.tsx's logo span already
+       reserves this exact footprint via its own maxWidth calc, but only for the logo (left side
+       of the header). centerActions (the theme toggle, in the header's own "center" grid-area
+       track) has no equivalent reservation, so on a narrow phone it could render underneath the
+       floating buttons. Shrinking the header's own content box on the right, rather than solving
+       exactly how Header's 3-column grid-template-columns redistributes width, means nothing
+       inside the header can render into the reserved zone. */
+    z-index: 10;
+    padding-right: 112px;
   }
 }
