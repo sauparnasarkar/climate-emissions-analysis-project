@@ -6,10 +6,8 @@ import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
-import { SCENARIO_COLORS, MAX_SELECTED_COUNTRIES } from '../constants';
+import { MAX_SELECTED_COUNTRIES, SCENARIO_PANELS } from '../constants';
 import type { ScenarioCumulativeRow } from '../api/types';
-
-const SCENARIO_PANELS = Object.keys(SCENARIO_COLORS);
 
 // Stable labels (SPEC.md §5.19). "Country Comparison" anchors the shared <h2> above the
 // per-scenario ChartCard loop below (one card per SCENARIO_PANELS entry) -- there's no single
