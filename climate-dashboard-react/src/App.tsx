@@ -178,7 +178,7 @@ function App() {
                   textOverflow: 'ellipsis',
                 }}
               >
-                🌍 GHG Emissions Analysis
+                🌍 GHG Emissions Analytics Platform
               </span>
             </span>
           }
