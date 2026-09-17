@@ -55,11 +55,15 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
     : [];
 
   const treemapValues = cumulative.data?.rows.map((r) => r.values.BAU ?? 0) ?? [];
-  // Signed delta: the selected scenario's single 2040 level minus the country's current
-  // level -- green (down) means that scenario has this country's emissions falling below
-  // today's by 2040, red (up) means still rising. Uses SyChart's own default green/lightgrey/
-  // crimson scale (no colorScale override) rather than a one-off scale, the same diverging
-  // convention already standardized on Overview's % Change chart.
+  // Signed delta: the selected scenario's single 2040 level minus the country's current level
+  // -- negative means that scenario has this country's emissions falling below today's by
+  // 2040, positive means still rising. Deliberately no colorScale override here: SyChart's own
+  // default is now the theme's published diverging scale (brown/teal, colorblind-safe --
+  // Claude Design theme-adherence review, A6/C5), not a one-off. Red/green was ruled out for
+  // this exact reason -- it's a CVD failure for an above/below encoding carried by hue alone,
+  // and this app already reserves red/green for its sentiment convention elsewhere (Overview's
+  // % Change chart), which this deliberately does NOT share -- a rising/falling emissions
+  // scenario isn't the same kind of judgment as a historical increase/decrease.
   const treemapColors = cumulative.data?.rows.map((r) => {
     const level2040 = r.year_2040[treemapScenario];
     const current = r.current_level;
@@ -87,8 +91,9 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
 
       <h2 id="reduction-map" className="__s9cmpx-headline6">Reduction Scenarios by Country</h2>
       <p className="__s9cmpx-body2" style={{ marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
-        Tile size is each country&apos;s cumulative BAU emissions, 2025–2040; color is whether the
-        selected scenario&apos;s 2040 level is above (red) or below (green) the country&apos;s current level.
+        Tile size is each country&apos;s cumulative BAU emissions, 2025–2040; color (see the
+        colorbar) shows whether the selected scenario&apos;s 2040 level is above or below the
+        country&apos;s current level.
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 8 }}>
         {SCENARIO_PANELS.map((scenario) => (

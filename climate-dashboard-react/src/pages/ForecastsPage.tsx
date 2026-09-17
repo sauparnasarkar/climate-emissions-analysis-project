@@ -8,6 +8,15 @@ import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { EtsParameterRow, ForecastSummaryRow } from '../api/types';
+import { resolveCategoricalColorHex } from '../lib/resolveThemeColorHex';
+import { useThemeColorHex } from '../hooks/useThemeColorHex';
+
+// A forecast is a series, not a verdict -- pure green (the previous hardcoded '#008000')
+// carries sentiment meaning elsewhere in this app and also fell short of the 3:1 non-text
+// minimum on the dark chart panel in both themes (Claude Design theme-adherence review, C3).
+// Slot 5 of the categorical palette reads cleanly on every theme and needs no theme-specific
+// literal here.
+const FORECAST_COLOR_FALLBACK = '#fed26a';
 
 const SUMMARY_COLUMNS: ColDef<ForecastSummaryRow>[] = [
   { field: 'country', headerName: 'Country' },
@@ -51,6 +60,11 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
   // opening it first would land on nothing.
   const [openAccordionIds, setOpenAccordionIds] = useState<string[]>([]);
   const reduceMotion = useReducedMotion();
+  // Resolved once per render, not per data point -- same reasoning as CountryProfilePage's
+  // identical pattern for its YoY sentiment colors. Goes through useThemeColorHex (not a bare
+  // call) because calling the resolver directly in a render body races the Bright/Dark
+  // toggle's own commit -- see that hook's comment.
+  const forecastColorHex = useThemeColorHex(() => resolveCategoricalColorHex(5, FORECAST_COLOR_FALLBACK));
 
   const forecast = useAsync(() => api.forecast(country), [country]);
   const summary = useAsync(() => api.forecastSummary('expanded'), []);
@@ -172,8 +186,8 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
               series={[
                 { name: 'Historical (1990–2018)', x: forecast.data.hist_years, y: forecast.data.hist_co2, kind: 'line', color: 'steelblue' },
                 { name: 'Holdout actuals (2019–2023)', x: forecast.data.holdout_years, y: forecast.data.holdout_co2, kind: 'line', color: 'darkorange' },
-                { name: '95% CI', x: forecast.data.forecast_years, y: forecast.data.ci_upper, yLower: forecast.data.ci_lower, kind: 'band', color: '#008000', fillOpacity: 0.12 },
-                { name: 'ETS Forecast', x: forecast.data.forecast_years, y: forecast.data.forecast_mean, kind: 'line', color: '#008000' },
+                { name: '95% CI', x: forecast.data.forecast_years, y: forecast.data.ci_upper, yLower: forecast.data.ci_lower, kind: 'band', color: forecastColorHex, fillOpacity: 0.12 },
+                { name: 'ETS Forecast', x: forecast.data.forecast_years, y: forecast.data.forecast_mean, kind: 'line', color: forecastColorHex },
               ]}
             />
           </ChartCard>
