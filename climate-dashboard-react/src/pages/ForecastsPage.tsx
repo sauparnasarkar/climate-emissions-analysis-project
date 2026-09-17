@@ -10,6 +10,7 @@ import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { EtsParameterRow, ForecastSummaryRow } from '../api/types';
 import { resolveCategoricalColorHex } from '../lib/resolveThemeColorHex';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
+import { humanize } from '../lib/humanize';
 
 // A forecast is a series, not a verdict -- pure green (the previous hardcoded '#008000')
 // carries sentiment meaning elsewhere in this app and also fell short of the 3:1 non-text
@@ -41,10 +42,6 @@ const PANEL_TO_ACCORDION_ID: Record<string, string> = {
   'ets-params-accordion-panel': 'ets-params',
   'feature-importance-accordion-panel': 'feature-importance',
 };
-
-function humanize(field: string): string {
-  return field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 function countryCount(n: number): string {
   return `${n} ${n === 1 ? 'Country' : 'Countries'}`;
