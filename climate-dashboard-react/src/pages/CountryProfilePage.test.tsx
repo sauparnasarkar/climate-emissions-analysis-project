@@ -24,17 +24,21 @@ vi.mock('../api/client', () => ({ api: { countryProfile: vi.fn(), listCountries:
 // concern, stubbed here so this page's data-wiring is what's under test. Also surfaces the
 // YoY bar series' own `pointColors` (as JSON in a data attribute) so a test can assert those
 // come from the resolved theme pair, not a hardcoded/stale value (Copilot review, PR #182 —
-// the resolver/hook unit tests alone don't protect this page's own wiring from regressing).
+// the resolver/hook unit tests alone don't protect this page's own wiring from regressing),
+// and the line series' own `color` so a test can assert the CO2/per-capita charts stay pinned
+// to a fixed literal rather than resolving back to SyChart's theme-varying categorical default
+// (Claude Design theme-adherence review round 2).
 vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    SyChart: (props: { ariaLabel?: string; height?: number; series: Array<{ kind?: string; pointColors?: string[] }> }) => (
+    SyChart: (props: { ariaLabel?: string; height?: number; series: Array<{ kind?: string; pointColors?: string[]; color?: string }> }) => (
       <div
         data-testid="sychart"
         aria-label={props.ariaLabel}
         data-height={props.height}
         data-point-colors={JSON.stringify(props.series.find((s) => s.kind === 'bar')?.pointColors)}
+        data-line-color={props.series.find((s) => s.kind === 'line')?.color}
       />
     ),
   };
@@ -76,6 +80,23 @@ describe('CountryProfilePage', () => {
 
     expect(await screen.findByText('CO₂ Emissions — China')).toBeInTheDocument();
     expect(vi.mocked(api.countryProfile)).toHaveBeenCalledWith('China');
+  });
+
+  it('pins the CO2 Emissions and per-capita line charts to a fixed color, not the theme-varying categorical default (Claude Design theme-adherence review round 2)', async () => {
+    // No CSS var is set here at all -- proving the line color is a fixed literal (SINGLE_LINE_COLOR
+    // in CountryProfilePage.tsx), not resolved from a theme token the way every other chart color
+    // in this app is. Round 1 left this chart on SyChart's own per-theme categorical-default-01,
+    // which happens to be near-white on Dark but yellow-green on Light -- an unintended divergence
+    // since both themes render this chart on the same dark chart panel.
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
+    render(<CountryProfilePage />);
+    await screen.findByText('CO₂ Emissions — China');
+
+    // Grid order: CO₂ Emissions (0), CO₂ per Capita (1) -- both line charts, both pinned.
+    const charts = screen.getAllByTestId('sychart');
+    expect(charts[0]).toHaveAttribute('data-line-color', '#ecf0f6');
+    expect(charts[1]).toHaveAttribute('data-line-color', '#ecf0f6');
   });
 
   it('renders a Jump To nav under the h1 linking to all four sections', async () => {
