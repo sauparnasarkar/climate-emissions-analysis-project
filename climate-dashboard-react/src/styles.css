@@ -97,16 +97,18 @@
        the now-sticky header. 10 is a literal, mobile-only value chosen only to lift the header
        above ordinary in-flow page content (the default z-index:auto <main> renders in) while
        staying comfortably below all three of those SidebarNav mobile z-indices.
-       padding-right reserves the same right-edge footprint SidebarNav's fixed mobile toggle +
-       "Ask the Agent" button occupy over the header (96px = 32px action button + 12px gap + 40px
-       toggle + 12px inset, plus 16px breathing room = 112px) -- App.tsx's logo span already
-       reserves this exact footprint via its own maxWidth calc, but only for the logo (left side
-       of the header). centerActions (the theme toggle, in the header's own "center" grid-area
-       track) has no equivalent reservation, so on a narrow phone it could render underneath the
-       floating buttons. Shrinking the header's own content box on the right, rather than solving
-       exactly how Header's 3-column grid-template-columns redistributes width, means nothing
-       inside the header can render into the reserved zone. */
+
+       This block used to also carry `padding-right: 112px`, reserving the same right-edge
+       footprint SidebarNav's floating buttons occupy -- confirmed live (getComputedStyle) that
+       it doesn't work: padding only shrinks the *grid track* centerActions (the theme toggle)
+       renders in, down to 0px at this width, but the toggle itself doesn't shrink to match --
+       it overflows past the track, unclipped, landing right back in the "reserved" zone anyway
+       (measured: toggle x=256-338 vs. the floating "Ask the Agent" button x=282-314, direct
+       overlap). Removed rather than left in place once App.tsx stopped rendering centerActions
+       in the header on mobile at all (design-system PR #77's SidebarNav.mobileOnlyContent gives
+       it a reachable home in the drawer instead) -- nothing renders in this zone any more, so
+       the reservation is moot, and dead CSS that reads as a fix for a bug it doesn't actually
+       fix is worse than no comment at all. */
     z-index: 10;
-    padding-right: 112px;
   }
 }
