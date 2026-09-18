@@ -37,8 +37,9 @@ const ANIMATION_STOP_MS = 1200;
 const NO_DATA_COLOR = 'var(--__s9cmpx-chart-surface-text-weak, #6b7280)';
 
 // Sequential pale-yellow -> orange -> deep-maroon magnitude scale for the world map, distinct
-// from both the % Change chart's green/crimson delta pair and Scenario Comparison's green-only
-// reduction-upside scale -- three visually distinct conventions, each used for one concept.
+// from the % Change chart's and Scenario Comparison's shared brown/teal diverging convention
+// below it (A6 -- Claude Design theme-adherence review) -- two visually distinct conventions,
+// sequential magnitude vs. diverging above/below, each used for one concept.
 // 9 stops (ColorBrewer's YlOrRd), not 3 -- colorRange is pinned across the whole 1990-2024
 // animation (SPEC.md §5.17.2) and most countries, most years, sit in the same middle band of
 // that fixed range, where a coarse 3-stop scale interpolates almost linearly and reads as
@@ -472,7 +473,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
                 xTitle="Country"
                 yTitle={`% Change in CO₂ (1990→${data.selected.latest_year})`}
                 showLegend={false}
-                ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${data.selected.latest_year} for ${moverCountries.length} countries, colored on a gradient from green (decrease) to crimson (increase)`}
+                ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${data.selected.latest_year} for ${moverCountries.length} countries, colored on a diverging scale from decrease at one end to increase at the other`}
                 series={[{
                   name: '% Change',
                   x: moverCountries,

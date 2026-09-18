@@ -77,10 +77,12 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
   // 2040, positive means still rising. Deliberately no colorScale override here: SyChart's own
   // default is now the theme's published diverging scale (brown/teal, colorblind-safe --
   // Claude Design theme-adherence review, A6/C5), not a one-off. Red/green was ruled out for
-  // this exact reason -- it's a CVD failure for an above/below encoding carried by hue alone,
-  // and this app already reserves red/green for its sentiment convention elsewhere (Overview's
-  // % Change chart), which this deliberately does NOT share -- a rising/falling emissions
-  // scenario isn't the same kind of judgment as a historical increase/decrease.
+  // this exact reason -- it's a CVD failure for an above/below encoding carried by hue alone.
+  // Every other colorValues-without-colorScale chart in this app (e.g. Overview's % Change bar
+  // chart) shares this same default, so this isn't a one-off departure from an existing red/
+  // green convention -- the only chart still genuinely red/green-family is Country Profile's
+  // YoY bars, which resolve discrete positive/negative pointColors rather than going through
+  // this continuous-scale mechanism at all.
   const treemapColors = cumulative.data?.rows.map((r) => {
     const level2040 = r.year_2040[treemapScenario];
     const current = r.current_level;

@@ -90,10 +90,13 @@ const CUMULATIVE: ScenarioCumulativeResponse = {
 };
 
 // Exercises the "Other" grouping (Claude Design theme-adherence review, C7): China and India
-// each clear the 1% threshold and stay individual tiles; Vietnam and Fiji (50 each, 0.5% of
-// the 10,000 total) fall under it and are grouped. Deltas are chosen so the weighted-average
-// color math is unambiguous: (20*50 + -10*50) / (50+50) = 5, not the unweighted mean of 5 --
-// picked apart only to prove it's not a coincidence, both landing on the same value.
+// each clear the 1% threshold and stay individual tiles; Vietnam and Fiji (0.3%/0.7% of the
+// 10,000 total) fall under it and are grouped. Deliberately UNEQUAL weights (30 vs. 70), not
+// the 50/50 this fixture used before Copilot review, PR #182 caught that a 50/50 split can't
+// distinguish weighted from unweighted averaging -- both produce 5 when the weights are equal.
+// Here the weighted average is (20*30 + -10*70) / (30+70) = -1, while the plain (unweighted)
+// mean of the same two deltas is (20 + -10) / 2 = 5 -- a regression to an unweighted mean
+// would assert -1 and get 5, and fail.
 const CUMULATIVE_WITH_LONG_TAIL: ScenarioCumulativeResponse = {
   sort_by: 'BAU',
   order: ['China', 'India', 'Vietnam', 'Fiji'],
@@ -101,8 +104,8 @@ const CUMULATIVE_WITH_LONG_TAIL: ScenarioCumulativeResponse = {
   rows: [
     { country: 'China', values: { BAU: 8000 }, year_2040: { BAU: 16000 }, current_level: 11000 },
     { country: 'India', values: { BAU: 1900 }, year_2040: { BAU: 2500 }, current_level: 2000 },
-    { country: 'Vietnam', values: { BAU: 50 }, year_2040: { BAU: 120 }, current_level: 100 },
-    { country: 'Fiji', values: { BAU: 50 }, year_2040: { BAU: 90 }, current_level: 100 },
+    { country: 'Vietnam', values: { BAU: 30 }, year_2040: { BAU: 120 }, current_level: 100 },
+    { country: 'Fiji', values: { BAU: 70 }, year_2040: { BAU: 90 }, current_level: 100 },
   ],
 };
 
@@ -287,13 +290,15 @@ describe('ScenarioComparisonPage', () => {
     render(<ScenarioComparisonPage />);
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 4 Expanded Countries');
 
-    // China and India clear the 1% threshold and stay individual; Vietnam and Fiji (0.5% each)
-    // are grouped into one trailing "Other" tile -- exactly 3 tiles, not 4.
+    // China and India clear the 1% threshold and stay individual; Vietnam and Fiji (0.3%/0.7%)
+    // are grouped into one trailing "Other" tile -- exactly 3 tiles, not 4. colorValues[2] is
+    // -1 (the weighted average), not 5 (the unweighted mean of the same two deltas) -- see the
+    // fixture's own comment for why the two are deliberately different here.
     const seriesData = JSON.parse(screen.getByTestId('treemap-series-data').textContent!);
     expect(seriesData).toEqual({
       labels: ['China', 'India', 'Other'],
       values: [8000, 1900, 100],
-      colorValues: [5000, 500, 5],
+      colorValues: [5000, 500, -1],
     });
 
     // Tapping the "Other" tile (the mocked SyChart exposes one tap button per emitted label)
@@ -305,7 +310,7 @@ describe('ScenarioComparisonPage', () => {
     const detailPanel = () => screen.getByRole('button', { name: 'Dismiss country detail' }).closest('div')!;
     expect(await within(detailPanel()).findByText('Other (2 countries)')).toBeInTheDocument();
     expect(within(detailPanel()).getByText(/Cumulative BAU: 100 MtCO/)).toBeInTheDocument();
-    expect(within(detailPanel()).getByText(/BAU 2040 vs\. Current \(weighted avg\.\): \+5 MtCO/)).toBeInTheDocument();
+    expect(within(detailPanel()).getByText(/BAU 2040 vs\. Current \(weighted avg\.\): -1 MtCO/)).toBeInTheDocument();
 
     // Tapping an individual (non-grouped) tile still shows the plain, ungrouped wording.
     await user.click(screen.getByRole('button', { name: 'Simulate tap: India' }));
