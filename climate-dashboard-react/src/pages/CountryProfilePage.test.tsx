@@ -21,13 +21,21 @@ function mockReducedMotion(matches: boolean) {
 vi.mock('../api/client', () => ({ api: { countryProfile: vi.fn(), listCountries: vi.fn() } }));
 
 // See OverviewPage.test.tsx — SyChart's Plotly rendering is design-system's own
-// concern, stubbed here so this page's data-wiring is what's under test.
+// concern, stubbed here so this page's data-wiring is what's under test. Also surfaces the
+// YoY bar series' own `pointColors` (as JSON in a data attribute) so a test can assert those
+// come from the resolved theme pair, not a hardcoded/stale value (Copilot review, PR #182 —
+// the resolver/hook unit tests alone don't protect this page's own wiring from regressing).
 vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    SyChart: (props: { ariaLabel?: string; height?: number }) => (
-      <div data-testid="sychart" aria-label={props.ariaLabel} data-height={props.height} />
+    SyChart: (props: { ariaLabel?: string; height?: number; series: Array<{ kind?: string; pointColors?: string[] }> }) => (
+      <div
+        data-testid="sychart"
+        aria-label={props.ariaLabel}
+        data-height={props.height}
+        data-point-colors={JSON.stringify(props.series.find((s) => s.kind === 'bar')?.pointColors)}
+      />
     ),
   };
 });
@@ -57,6 +65,7 @@ afterEach(() => {
   // it), breaking every test after the first. beforeEach already re-stubs matchMedia fresh
   // before each test, so there's nothing stale left for this to clean up anyway.
   vi.clearAllMocks();
+  document.documentElement.removeAttribute('style');
 });
 
 describe('CountryProfilePage', () => {
@@ -121,6 +130,27 @@ describe('CountryProfilePage', () => {
 
     // The CO₂ per Capita chart is unaffected by this one chart's toggle.
     expect(screen.getAllByTestId('sychart')[1]).toHaveAttribute('data-height', '280');
+  });
+
+  it('maps YoY bar colors to the live-resolved on-panel sentiment pair, not a hardcoded value (Claude Design theme-adherence review, C1)', async () => {
+    // Set directly on documentElement (resolveThemeColorHex.ts's own fallback target when no
+    // [data-theme] element exists, which is the case here -- this test renders the page in
+    // isolation, not inside App.tsx's themed shell) so the resolved pair is provably NOT the
+    // hardcoded fallback hex, proving live theme resolution actually wires through to this
+    // page's pointColors rather than only being covered in isolation by the resolver's/hook's
+    // own unit tests.
+    document.documentElement.style.setProperty('--__s9cmpx-chart-sentiment-positive', '#111111');
+    document.documentElement.style.setProperty('--__s9cmpx-chart-sentiment-negative', '#222222');
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.countryProfile).mockResolvedValue({ ...RESPONSE, yoy_years: [2020, 2021], yoy_values: [10.5, -3.2] });
+    render(<CountryProfilePage />);
+    await screen.findByText('CO₂ Emissions — China');
+
+    // Grid order: CO₂ Emissions (0), CO₂ per Capita (1), YoY Change (2) -- same ordering the
+    // expand/restore test above relies on. 10.5 (not negative) -> negative-direction color
+    // (increase is bad); -3.2 (negative) -> positive-direction color (decrease is good).
+    const yoyChart = screen.getAllByTestId('sychart')[2];
+    expect(JSON.parse(yoyChart.getAttribute('data-point-colors')!)).toEqual(['#222222', '#111111']);
   });
 
   it('renders an inline error instead of crashing when the profile API call fails', async () => {

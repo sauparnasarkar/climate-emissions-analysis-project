@@ -12,10 +12,22 @@ vi.mock('../api/client', () => ({ api: { listCountries: vi.fn(), overview: vi.fn
 // SyChart's Plotly rendering is design-system's own concern (covered by its own
 // test suite) — stubbed here so this page's tests exercise its own data-wiring
 // logic, not Plotly's DOM lifecycle in jsdom (which has no real canvas/rAF timing
-// and throws internally if a chart unmounts mid-redraw).
+// and throws internally if a chart unmounts mid-redraw). Also surfaces the choropleth
+// series' own `noDataColor` prop so a test can assert it's the live-resolved theme color,
+// not `var(...)` or the removed hardcoded value (Copilot review, PR #182 — the resolver's
+// own unit tests don't protect this page's wiring).
 vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
-  return { ...actual, SyChart: (props: { ariaLabel?: string }) => <div data-testid="sychart" aria-label={props.ariaLabel} /> };
+  return {
+    ...actual,
+    SyChart: (props: { ariaLabel?: string; series?: Array<{ kind?: string; noDataColor?: string }> }) => (
+      <div
+        data-testid="sychart"
+        aria-label={props.ariaLabel}
+        data-no-data-color={props.series?.find((s) => s.kind === 'choropleth')?.noDataColor}
+      />
+    ),
+  };
 });
 
 // useCountUp's animation is a UI-polish concern (real timing covered by manual/visual
@@ -133,6 +145,7 @@ afterEach(() => {
   // it), breaking every test after the first. beforeEach already re-stubs matchMedia fresh
   // before each test, so there's nothing stale left for this to clean up anyway.
   vi.clearAllMocks();
+  document.documentElement.removeAttribute('style');
 });
 
 describe('OverviewPage', () => {
@@ -165,6 +178,22 @@ describe('OverviewPage', () => {
     expect(screen.getByText('+76.5%')).toBeInTheDocument();
     expect(screen.getByText('Top Movers Since 1990 (10 Selected Countries)')).toBeInTheDocument();
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(FEATURED);
+  });
+
+  it("gives the map's no-data color the live-resolved theme value, not a hardcoded literal (Claude Design theme-adherence review, C4)", async () => {
+    // Set directly on documentElement (resolveThemeColorHex.ts's own fallback target when no
+    // [data-theme] element exists, the case here) so the resolved color is provably not the
+    // hardcoded fallback -- proving live theme resolution actually wires through to this
+    // page's chart props, not just covered in isolation by the resolver's own unit tests.
+    document.documentElement.style.setProperty('--__s9cmpx-chart-surface-text-weak', '#abcdef');
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    render(<OverviewPage />);
+    await screen.findByText('Selected');
+
+    const mapChart = screen.getAllByTestId('sychart').find((el) => el.hasAttribute('data-no-data-color'));
+    expect(mapChart).toHaveAttribute('data-no-data-color', '#abcdef');
   });
 
   it('renders the headline sentence (with its "Since 1990" eyebrow), bolding country names and coloring increase/decrease values', async () => {

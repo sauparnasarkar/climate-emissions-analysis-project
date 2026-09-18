@@ -6,9 +6,9 @@ import { createContext, useContext } from 'react';
 // app's own THEME_STORAGE_KEY.
 export const THEME_STORAGE_KEY = 'ghg-emissions-analysis-theme';
 
-export type AppTheme = 'analytics-bright-signal-tidewater' | 'analytics';
+export type AppTheme = 'analytics-bright-tidewater' | 'analytics';
 
-export const ThemeContext = createContext<AppTheme>('analytics-bright-signal-tidewater');
+export const ThemeContext = createContext<AppTheme>('analytics-bright-tidewater');
 
 export function useTheme(): AppTheme {
   return useContext(ThemeContext);

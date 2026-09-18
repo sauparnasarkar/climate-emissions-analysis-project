@@ -9,6 +9,23 @@ import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { MAX_SELECTED_COUNTRIES, SCENARIO_PANELS } from '../constants';
 import type { ScenarioCumulativeRow } from '../api/types';
 
+// Countries whose cumulative BAU emissions fall below this share of the total are grouped
+// into a single "Other" tile rather than rendered individually -- at the treemap's default
+// height the long tail's tiles are too small to hold even a short country name without the
+// label overflowing or truncating mid-word (Claude Design theme-adherence review, C7).
+// Grouping (rather than suppressing the label on an otherwise-still-tiny unlabeled tile)
+// keeps every rendered tile both legible and tap-able. Keyed off BAU value alone, not the
+// selected scenario's color, so which countries are grouped stays stable across a scenario
+// switch -- only the tiles' colors change.
+const OTHER_TREEMAP_SHARE_THRESHOLD = 0.01;
+
+interface TreemapTile {
+  label: string;
+  value: number;
+  color: number | null;
+  countryCount: number;
+}
+
 // Stable labels (SPEC.md §5.19). "Country Comparison" anchors the shared <h2> above the
 // per-scenario ChartCard loop below (one card per SCENARIO_PANELS entry) -- there's no single
 // stable per-card target otherwise.
@@ -55,16 +72,46 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
     : [];
 
   const treemapValues = cumulative.data?.rows.map((r) => r.values.BAU ?? 0) ?? [];
-  // Signed delta: the selected scenario's single 2040 level minus the country's current
-  // level -- green (down) means that scenario has this country's emissions falling below
-  // today's by 2040, red (up) means still rising. Uses SyChart's own default green/lightgrey/
-  // crimson scale (no colorScale override) rather than a one-off scale, the same diverging
-  // convention already standardized on Overview's % Change chart.
+  // Signed delta: the selected scenario's single 2040 level minus the country's current level
+  // -- negative means that scenario has this country's emissions falling below today's by
+  // 2040, positive means still rising. Deliberately no colorScale override here: SyChart's own
+  // default is now the theme's published diverging scale (brown/teal, colorblind-safe --
+  // Claude Design theme-adherence review, A6/C5), not a one-off. Red/green was ruled out for
+  // this exact reason -- it's a CVD failure for an above/below encoding carried by hue alone.
+  // Every other colorValues-without-colorScale chart in this app (e.g. Overview's % Change bar
+  // chart) shares this same default, so this isn't a one-off departure from an existing red/
+  // green convention -- the only chart still genuinely red/green-family is Country Profile's
+  // YoY bars, which resolve discrete positive/negative pointColors rather than going through
+  // this continuous-scale mechanism at all.
   const treemapColors = cumulative.data?.rows.map((r) => {
     const level2040 = r.year_2040[treemapScenario];
     const current = r.current_level;
     return level2040 != null && current != null ? level2040 - current : null;
   }) ?? [];
+
+  const treemapRows = cumulative.data?.rows ?? [];
+  const totalTreemapValue = treemapValues.reduce((sum, v) => sum + v, 0);
+  const bigIndices: number[] = [];
+  const groupedIndices: number[] = [];
+  treemapValues.forEach((v, i) => {
+    (totalTreemapValue > 0 && v / totalTreemapValue < OTHER_TREEMAP_SHARE_THRESHOLD ? groupedIndices : bigIndices).push(i);
+  });
+  const otherTile: TreemapTile | null =
+    groupedIndices.length > 0
+      ? (() => {
+          const value = groupedIndices.reduce((sum, i) => sum + treemapValues[i], 0);
+          // Value-weighted average delta, not a plain mean -- otherwise one large outlier
+          // among many near-zero small countries gets diluted into an unrepresentative color.
+          const withColor = groupedIndices.filter((i) => treemapColors[i] != null);
+          const weightSum = withColor.reduce((sum, i) => sum + treemapValues[i], 0);
+          const color = weightSum > 0 ? withColor.reduce((sum, i) => sum + treemapColors[i]! * treemapValues[i], 0) / weightSum : null;
+          return { label: 'Other', value, color, countryCount: groupedIndices.length };
+        })()
+      : null;
+  const treemapTiles: TreemapTile[] = [
+    ...bigIndices.map((i): TreemapTile => ({ label: treemapRows[i].country, value: treemapValues[i], color: treemapColors[i], countryCount: 1 })),
+    ...(otherTile ? [otherTile] : []),
+  ];
 
   const panelValues = SCENARIO_PANELS.flatMap(
     (scenario) => (compare.data?.scenarios[scenario] ?? []).flatMap((series) => series.values),
@@ -87,8 +134,10 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
 
       <h2 id="reduction-map" className="__s9cmpx-headline6">Reduction Scenarios by Country</h2>
       <p className="__s9cmpx-body2" style={{ marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
-        Tile size is each country&apos;s cumulative BAU emissions, 2025–2040; color is whether the
-        selected scenario&apos;s 2040 level is above (red) or below (green) the country&apos;s current level.
+        Tile size is each country&apos;s cumulative BAU emissions, 2025–2040 (the smallest
+        emitters grouped into a single &quot;Other&quot; tile); color (see the colorbar) shows
+        whether the selected scenario&apos;s 2040 level is above or below the country&apos;s
+        current level.
       </p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 8 }}>
         {SCENARIO_PANELS.map((scenario) => (
@@ -116,23 +165,23 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
               <SyChart
                 height={isExpanded ? 640 : 360}
                 showLegend={false}
-                ariaLabel={`Treemap of ${cumulative.data!.rows.length} countries, sized by cumulative BAU emissions 2025 to 2040 and colored by whether ${treemapScenario}'s 2040 level is above or below each country's current level`}
+                ariaLabel={`Treemap of ${cumulative.data!.rows.length} countries (the smallest grouped into one "Other" tile), sized by cumulative BAU emissions 2025 to 2040 and colored by whether ${treemapScenario}'s 2040 level is above or below each country's current level`}
                 series={[{
                   name: treemapScenario,
                   x: [],
                   y: [],
                   kind: 'treemap',
-                  labels: cumulative.data!.rows.map((r) => r.country),
-                  parents: cumulative.data!.rows.map(() => ''),
-                  values: treemapValues,
+                  labels: treemapTiles.map((t) => t.label),
+                  parents: treemapTiles.map(() => ''),
+                  values: treemapTiles.map((t) => t.value),
                   valueLabel: 'Cumulative BAU',
-                  colorValues: treemapColors,
+                  colorValues: treemapTiles.map((t) => t.color),
                   colorbarTitle: `${treemapScenario} 2040 vs. Current`,
                   hoverUnit: 'MtCO₂',
                   onTileClick: (pointNumber) => setTappedTileIndex(pointNumber),
                 }]}
               />
-              {tappedTileIndex != null && cumulative.data!.rows[tappedTileIndex] && (
+              {tappedTileIndex != null && treemapTiles[tappedTileIndex] && (
                 <div
                   className="__s9cmpx-body2"
                   style={{
@@ -147,13 +196,16 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
                   }}
                 >
                   <div>
-                    <strong>{cumulative.data!.rows[tappedTileIndex].country}</strong>
+                    <strong>
+                      {treemapTiles[tappedTileIndex].label}
+                      {treemapTiles[tappedTileIndex].countryCount > 1 ? ` (${treemapTiles[tappedTileIndex].countryCount} countries)` : ''}
+                    </strong>
                     {' — '}
-                    Cumulative BAU: {treemapValues[tappedTileIndex].toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂
+                    Cumulative BAU: {treemapTiles[tappedTileIndex].value.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂
                     {', '}
-                    {treemapScenario} 2040 vs. Current:{' '}
-                    {treemapColors[tappedTileIndex] != null
-                      ? `${treemapColors[tappedTileIndex]! >= 0 ? '+' : ''}${treemapColors[tappedTileIndex]!.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                    {treemapScenario} 2040 vs. Current{treemapTiles[tappedTileIndex].countryCount > 1 ? ' (weighted avg.)' : ''}:{' '}
+                    {treemapTiles[tappedTileIndex].color != null
+                      ? `${treemapTiles[tappedTileIndex].color! >= 0 ? '+' : ''}${treemapTiles[tappedTileIndex].color!.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
                       : '—'}{' '}
                     MtCO₂
                   </div>

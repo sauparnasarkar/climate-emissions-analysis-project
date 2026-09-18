@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveSentimentColorHex } from './resolveThemeColorHex';
+import { resolveCategoricalColorHex, resolveNoDataColorHex, resolveSentimentColorHex } from './resolveThemeColorHex';
 
-const POSITIVE_VAR = '--__s9cmpx-static-text-sentiment-positive';
-const NEGATIVE_VAR = '--__s9cmpx-static-text-sentiment-negative';
-const FALLBACK_POSITIVE = '#187254';
-const FALLBACK_NEGATIVE = '#8d1a2a';
+const POSITIVE_VAR = '--__s9cmpx-chart-sentiment-positive';
+const NEGATIVE_VAR = '--__s9cmpx-chart-sentiment-negative';
+const FALLBACK_POSITIVE = '#4FD69B';
+const FALLBACK_NEGATIVE = '#EA5B62';
 
 afterEach(() => {
   document.documentElement.removeAttribute('style');
@@ -43,5 +43,29 @@ describe('resolveSentimentColorHex', () => {
 
     expect(resolveSentimentColorHex('positive')).toBe('#111111');
     expect(resolveSentimentColorHex('negative')).toBe('#222222');
+  });
+});
+
+describe('resolveCategoricalColorHex', () => {
+  it('reads the slot-numbered categorical token', () => {
+    document.documentElement.style.setProperty('--__s9cmpx-chart-categorical-default-05', '#abcdef');
+
+    expect(resolveCategoricalColorHex(5, '#000000')).toBe('#abcdef');
+  });
+
+  it('falls back when the token resolves empty', () => {
+    expect(resolveCategoricalColorHex(5, '#123456')).toBe('#123456');
+  });
+});
+
+describe('resolveNoDataColorHex', () => {
+  it('reads --__s9cmpx-chart-surface-text-weak', () => {
+    document.documentElement.style.setProperty('--__s9cmpx-chart-surface-text-weak', '#94b4c0');
+
+    expect(resolveNoDataColorHex('#000000')).toBe('#94b4c0');
+  });
+
+  it('falls back when the token resolves empty', () => {
+    expect(resolveNoDataColorHex('#6b7280')).toBe('#6b7280');
   });
 });

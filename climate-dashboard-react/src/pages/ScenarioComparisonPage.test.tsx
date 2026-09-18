@@ -26,16 +26,40 @@ vi.mock('../api/client', () => ({
 // The treemap's onTileClick (SPEC.md §5.10) is real page-level logic, not SyChart's own
 // concern, so the stub exposes a button that simulates a tap on the first tile -- this
 // exercises ScenarioComparisonPage's own state wiring without needing a real Plotly click.
+// Also surfaces the treemap series' own labels/values/colorValues verbatim (as JSON in a
+// hidden node) and one tap button per label, so a test can assert the emitted "Other"
+// grouping directly rather than only inferring it from the detail panel's rendered text
+// (Copilot review, PR #182 — the 1% partition/aggregation had no coverage at all before this).
 vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    SyChart: (props: { ariaLabel?: string; height?: number; series: Array<{ kind?: string; onTileClick?: (i: number, label: string) => void }> }) => {
+    SyChart: (props: {
+      ariaLabel?: string;
+      height?: number;
+      series: Array<{
+        kind?: string;
+        labels?: string[];
+        values?: number[];
+        colorValues?: Array<number | null>;
+        onTileClick?: (i: number, label: string) => void;
+      }>;
+    }) => {
       const treemapSeries = props.series.find((s) => s.kind === 'treemap');
       return (
         <div data-testid="sychart" aria-label={props.ariaLabel} data-height={props.height}>
           {treemapSeries?.onTileClick && (
-            <button onClick={() => treemapSeries.onTileClick!(0, 'China')}>Simulate tile tap</button>
+            <>
+              <button onClick={() => treemapSeries.onTileClick!(0, 'China')}>Simulate tile tap</button>
+              {treemapSeries.labels?.map((label, i) => (
+                <button key={label} onClick={() => treemapSeries.onTileClick!(i, label)}>
+                  {`Simulate tap: ${label}`}
+                </button>
+              ))}
+              <div data-testid="treemap-series-data" style={{ display: 'none' }}>
+                {JSON.stringify({ labels: treemapSeries.labels, values: treemapSeries.values, colorValues: treemapSeries.colorValues })}
+              </div>
+            </>
           )}
         </div>
       );
@@ -62,6 +86,26 @@ const CUMULATIVE: ScenarioCumulativeResponse = {
       year_2040: { BAU: 3800, Moderate: 3500, Aggressive: 3000 },
       current_level: 4700,
     },
+  ],
+};
+
+// Exercises the "Other" grouping (Claude Design theme-adherence review, C7): China and India
+// each clear the 1% threshold and stay individual tiles; Vietnam and Fiji (0.3%/0.7% of the
+// 10,000 total) fall under it and are grouped. Deliberately UNEQUAL weights (30 vs. 70), not
+// the 50/50 this fixture used before Copilot review, PR #182 caught that a 50/50 split can't
+// distinguish weighted from unweighted averaging -- both produce 5 when the weights are equal.
+// Here the weighted average is (20*30 + -10*70) / (30+70) = -1, while the plain (unweighted)
+// mean of the same two deltas is (20 + -10) / 2 = 5 -- a regression to an unweighted mean
+// would assert -1 and get 5, and fail.
+const CUMULATIVE_WITH_LONG_TAIL: ScenarioCumulativeResponse = {
+  sort_by: 'BAU',
+  order: ['China', 'India', 'Vietnam', 'Fiji'],
+  scenarios: ['BAU', 'Moderate', 'Aggressive'],
+  rows: [
+    { country: 'China', values: { BAU: 8000 }, year_2040: { BAU: 16000 }, current_level: 11000 },
+    { country: 'India', values: { BAU: 1900 }, year_2040: { BAU: 2500 }, current_level: 2000 },
+    { country: 'Vietnam', values: { BAU: 30 }, year_2040: { BAU: 120 }, current_level: 100 },
+    { country: 'Fiji', values: { BAU: 70 }, year_2040: { BAU: 90 }, current_level: 100 },
   ],
 };
 
@@ -235,6 +279,44 @@ describe('ScenarioComparisonPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Dismiss country detail' }));
     expect(screen.queryByText(/Cumulative BAU: 1[,   ]000 MtCO/)).not.toBeInTheDocument();
+  });
+
+  it('groups countries below 1% of total BAU into a single "Other" tile with a value-weighted average color (SPEC.md §5.10, Claude Design C7)', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE_WITH_LONG_TAIL);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    render(<ScenarioComparisonPage />);
+    await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 4 Expanded Countries');
+
+    // China and India clear the 1% threshold and stay individual; Vietnam and Fiji (0.3%/0.7%)
+    // are grouped into one trailing "Other" tile -- exactly 3 tiles, not 4. colorValues[2] is
+    // -1 (the weighted average), not 5 (the unweighted mean of the same two deltas) -- see the
+    // fixture's own comment for why the two are deliberately different here.
+    const seriesData = JSON.parse(screen.getByTestId('treemap-series-data').textContent!);
+    expect(seriesData).toEqual({
+      labels: ['China', 'India', 'Other'],
+      values: [8000, 1900, 100],
+      colorValues: [5000, 500, -1],
+    });
+
+    // Tapping the "Other" tile (the mocked SyChart exposes one tap button per emitted label)
+    // shows the aggregate, not a single country, and the weighted-average wording --
+    // distinguishing this from the single-country detail panel checked below. Scoped to the
+    // detail panel itself (via its dismiss button's container), not the whole document --
+    // "India" and "China" also appear as ordinary rows in the Cumulative Impact table below.
+    await user.click(screen.getByRole('button', { name: 'Simulate tap: Other' }));
+    const detailPanel = () => screen.getByRole('button', { name: 'Dismiss country detail' }).closest('div')!;
+    expect(await within(detailPanel()).findByText('Other (2 countries)')).toBeInTheDocument();
+    expect(within(detailPanel()).getByText(/Cumulative BAU: 100 MtCO/)).toBeInTheDocument();
+    expect(within(detailPanel()).getByText(/BAU 2040 vs\. Current \(weighted avg\.\): -1 MtCO/)).toBeInTheDocument();
+
+    // Tapping an individual (non-grouped) tile still shows the plain, ungrouped wording.
+    await user.click(screen.getByRole('button', { name: 'Simulate tap: India' }));
+    expect(await within(detailPanel()).findByText('India')).toBeInTheDocument();
+    expect(within(detailPanel()).queryByText(/countries\)/)).not.toBeInTheDocument();
+    expect(within(detailPanel()).getByText(/BAU 2040 vs\. Current: \+500 MtCO/)).toBeInTheDocument();
   });
 
   it('renders an inline error instead of crashing when the compare call fails', async () => {

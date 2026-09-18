@@ -22,10 +22,22 @@ vi.mock('../api/client', () => ({
   },
 }));
 
-// See OverviewPage.test.tsx — SyChart's Plotly rendering is design-system's own concern.
+// See OverviewPage.test.tsx — SyChart's Plotly rendering is design-system's own concern. Also
+// surfaces each series' own `name`/`color` (as JSON in a data attribute, keyed by name) so a
+// test can assert the CI band and ETS line get the resolved theme color, not a hardcoded/stale
+// value (Copilot review, PR #182 — the resolver's own unit tests don't protect this page's wiring).
 vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
-  return { ...actual, SyChart: (props: { ariaLabel?: string }) => <div data-testid="sychart" aria-label={props.ariaLabel} /> };
+  return {
+    ...actual,
+    SyChart: (props: { ariaLabel?: string; series?: Array<{ name?: string; color?: string }> }) => (
+      <div
+        data-testid="sychart"
+        aria-label={props.ariaLabel}
+        data-series-colors={JSON.stringify(Object.fromEntries((props.series ?? []).map((s) => [s.name, s.color])))}
+      />
+    ),
+  };
 });
 
 const COUNTRIES: CountriesResponse = { featured: ['China'], expanded: ['China', 'Vietnam'] };
@@ -79,6 +91,7 @@ afterEach(() => {
   // before each test, so there's nothing stale left for this to clean up anyway.
   vi.clearAllMocks();
   window.location.hash = '';
+  document.documentElement.removeAttribute('style');
 });
 
 describe('ForecastsPage', () => {
@@ -97,6 +110,26 @@ describe('ForecastsPage', () => {
     expect(vi.mocked(api.modelComparison)).toHaveBeenCalled();
     expect(vi.mocked(api.etsParameters)).toHaveBeenCalled();
     expect(vi.mocked(api.featureImportance)).toHaveBeenCalled();
+  });
+
+  it('gives the CI band and ETS line the live-resolved categorical color, not a hardcoded value (Claude Design theme-adherence review, C3)', async () => {
+    // Set directly on documentElement (resolveThemeColorHex.ts's own fallback target when no
+    // [data-theme] element exists, the case here) so the resolved color is provably not the
+    // hardcoded fallback -- proving live theme resolution actually wires through to this
+    // page's chart props, not just covered in isolation by the resolver's own unit tests.
+    document.documentElement.style.setProperty('--__s9cmpx-chart-categorical-default-05', '#abcdef');
+    mockAllResolved();
+    render(<ForecastsPage />);
+    await screen.findByText('ETS(A,Ad,N) Forecast — China');
+
+    const forecastChart = screen.getAllByTestId('sychart')[0];
+    const colors = JSON.parse(forecastChart.getAttribute('data-series-colors')!);
+    expect(colors['95% CI']).toBe('#abcdef');
+    expect(colors['ETS Forecast']).toBe('#abcdef');
+    // Historical/holdout lines are deliberately untouched by this fix -- still their own
+    // fixed colors, not the theme palette.
+    expect(colors['Historical (1990–2018)']).toBe('steelblue');
+    expect(colors['Holdout actuals (2019–2023)']).toBe('darkorange');
   });
 
   it('only renders accordion sections whose data has actually loaded', async () => {

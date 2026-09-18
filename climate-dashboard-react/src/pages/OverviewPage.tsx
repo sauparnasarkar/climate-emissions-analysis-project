@@ -8,6 +8,8 @@ import { useCountUp } from '../hooks/useCountUp';
 import { useYearAnimation } from '../hooks/useYearAnimation';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { buildHeadlineSentence } from '../lib/overviewHeadline';
+import { resolveNoDataColorHex } from '../lib/resolveThemeColorHex';
+import { useThemeColorHex } from '../hooks/useThemeColorHex';
 import { MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR } from '../constants';
 import type { MoverRow, OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
 
@@ -27,12 +29,17 @@ const JUMP_ITEMS: JumpLinkItem[] = [
 const ANIMATION_STOP_MS = 1200;
 
 // A muted neutral clearly outside MAGNITUDE_SCALE's pale-yellow-to-deep-maroon ramp, so a
-// no-data country never gets mistaken for a real (if low) value.
-const NO_DATA_COLOR = '#4a4a4a';
+// no-data country never gets mistaken for a real (if low) value. The old hardcoded '#4a4a4a'
+// measured ~1.9:1 against either theme's dark chart panel -- functionally invisible against
+// the ocean (Claude Design theme-adherence review, C4). This legend swatch is a plain DOM
+// `style` prop, so it can resolve the var() directly; the map itself needs an actual resolved
+// hex (see AnimatedWorldMap's noDataColorHex -- Plotly can't parse var(...) at all).
+const NO_DATA_COLOR = 'var(--__s9cmpx-chart-surface-text-weak, #6b7280)';
 
 // Sequential pale-yellow -> orange -> deep-maroon magnitude scale for the world map, distinct
-// from both the % Change chart's green/crimson delta pair and Scenario Comparison's green-only
-// reduction-upside scale -- three visually distinct conventions, each used for one concept.
+// from the % Change chart's and Scenario Comparison's shared brown/teal diverging convention
+// below it (A6 -- Claude Design theme-adherence review) -- two visually distinct conventions,
+// sequential magnitude vs. diverging above/below, each used for one concept.
 // 9 stops (ColorBrewer's YlOrRd), not 3 -- colorRange is pinned across the whole 1990-2024
 // animation (SPEC.md §5.17.2) and most countries, most years, sit in the same middle band of
 // that fixed range, where a coarse 3-stop scale interpolates almost linearly and reads as
@@ -208,6 +215,13 @@ function AnimatedWorldMap({
 }) {
   const minYear = worldMapSeries.years[0];
   const maxYear = worldMapSeries.years[worldMapSeries.years.length - 1];
+  // SyChart's noDataColor prop feeds Plotly's colorscale directly, which can't resolve a CSS
+  // var() -- useThemeColorHex (not a bare resolveNoDataColorHex() call) re-resolves this on
+  // every Bright/Dark toggle correctly; a bare call in this render body would race the
+  // toggle's own DOM commit and freeze on whichever value it read first (see that hook's
+  // comment). noDataColorHex is itself in the memo's deps below, not `theme`, so the memo
+  // recomputes exactly when the hook's corrective re-render actually changes the value.
+  const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
   const { currentYear, isPlaying, toggle, seek, reducedMotion } = useYearAnimation({
     minYear,
     maxYear,
@@ -230,13 +244,13 @@ function AnimatedWorldMap({
         zLog: true,
         colorValues: worldMapSeries.values[0],
         colorRange: worldMapSeries.value_range,
-        noDataColor: NO_DATA_COLOR,
+        noDataColor: noDataColorHex,
         colorScale: MAGNITUDE_SCALE,
         colorbarTitle: 'CO₂ (MtCO₂)',
         hoverUnit: 'MtCO₂',
       },
     ],
-    [worldMapSeries],
+    [worldMapSeries, noDataColorHex],
   );
 
   // Selected's per-year total isn't server-provided (co2_by_year is only populated for All
@@ -459,7 +473,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
                 xTitle="Country"
                 yTitle={`% Change in CO₂ (1990→${data.selected.latest_year})`}
                 showLegend={false}
-                ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${data.selected.latest_year} for ${moverCountries.length} countries, colored on a gradient from green (decrease) to crimson (increase)`}
+                ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${data.selected.latest_year} for ${moverCountries.length} countries, colored on a diverging scale from decrease at one end to increase at the other`}
                 series={[{
                   name: '% Change',
                   x: moverCountries,

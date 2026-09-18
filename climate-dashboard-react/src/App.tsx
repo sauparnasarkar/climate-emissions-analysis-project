@@ -45,9 +45,9 @@ function App() {
   const [theme, setTheme] = useState<AppTheme>(() => {
     try {
       const stored = localStorage.getItem(THEME_STORAGE_KEY);
-      return stored === 'analytics' || stored === 'analytics-bright-signal-tidewater' ? stored : 'analytics-bright-signal-tidewater';
+      return stored === 'analytics' || stored === 'analytics-bright-tidewater' ? stored : 'analytics-bright-tidewater';
     } catch {
-      return 'analytics-bright-signal-tidewater';
+      return 'analytics-bright-tidewater';
     }
   });
   useEffect(() => {
@@ -189,7 +189,7 @@ function App() {
               value={theme}
               onChange={(v) => setTheme(v as AppTheme)}
               items={[
-                { value: 'analytics-bright-signal-tidewater', label: 'Light' },
+                { value: 'analytics-bright-tidewater', label: 'Light' },
                 { value: 'analytics', label: 'Dark' },
               ]}
             />

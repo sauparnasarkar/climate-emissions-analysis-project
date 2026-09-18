@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { ExplorerMetaResponse } from '../api/types';
+import { humanize } from '../lib/humanize';
 
 const DEFAULT_COLUMNS = ['country', 'year', 'co2', 'co2_per_capita', 'population', 'gdp', 'total_ghg'];
 const PAGE_SIZE = 50;
@@ -16,10 +17,6 @@ const JUMP_ITEMS: JumpLinkItem[] = [
   { id: 'dataset-preview', label: 'Dataset Preview', href: '#dataset-preview' },
   { id: 'summary-stats', label: 'Summary Statistics', href: '#summary-stats' },
 ];
-
-function humanize(field: string): string {
-  return field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 // Split out so the data/summary fetches only ever start once `meta` (and the default
 // column selection / year range derived from it) are already known — avoiding a wasted
