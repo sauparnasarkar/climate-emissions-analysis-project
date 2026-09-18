@@ -2,6 +2,7 @@ import type { ComponentProps, ReactElement } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { Card, CardHeader, ChartCard, DataTable, InlineAlert, KpiStat, SyChart } from 'design-system';
 import { MAX_CHART_SERIES } from '../constants';
+import { humanize } from '../lib/humanize';
 import { MarkdownText } from './MarkdownText';
 import { toolNameFromSourceTaggedCall } from './types';
 import type { WidgetSpec } from './types';
@@ -18,10 +19,6 @@ import type { WidgetSpec } from './types';
 // inline series literals and let SyChart's own prop type check them structurally). Derived via
 // ComponentProps rather than adding a design-system export for a single-app frontend PR.
 type SyChartSeries = ComponentProps<typeof SyChart>['series'][number];
-
-function humanize(field: string): string {
-  return field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 function genericColumns(rows: Record<string, unknown>[]): ColDef<Record<string, unknown>>[] {
   const keys = rows.length > 0 ? Object.keys(rows[0]) : [];
