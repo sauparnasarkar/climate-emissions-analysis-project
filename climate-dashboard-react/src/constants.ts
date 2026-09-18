@@ -30,15 +30,19 @@ export const GAS_COLUMNS: Record<string, string> = {
 // stays a plain, theme-independent list rather than dead per-theme hex values.
 export const SCENARIO_PANELS = ['BAU', 'Moderate', 'Aggressive'] as const;
 
-// Shared increase/decrease convention: a decrease in emissions is good (green), an increase
-// is bad (crimson) — used wherever a value's direction maps to an emissions outcome, as
-// opposed to a plain positive/negative-number convention.
+// Shared increase/decrease convention: a decrease in emissions is good, an increase is bad --
+// used wherever a value's direction maps to an emissions outcome, as opposed to a plain
+// positive/negative-number convention. Colored via the same colorblind-safe brown/teal
+// diverging pair every CO2-direction chart in this app uses (Claude Design theme-adherence
+// review round 2) -- `--__s9cmpx-static-text-sentiment-diverging-positive/-negative` is that
+// pair's light-background-text-tuned counterpart, published specifically because the dark-
+// panel `--__s9cmpx-chart-diverging-low/-high` hexes (see `resolveDivergingEndpointHex`/
+// `resolveDivergingScaleReversedHex` in `lib/resolveThemeColorHex.ts`, used by every chart)
+// read too pale against a light card to use directly here.
 //
-// For plain DOM/CSS `style` props (theme-aware, resolved by the browser). Chart color props
-// (SyChart's `color`/`pointColors`) can't resolve `var(...)` at all, and no chart in this app
-// actually uses this literal red/green pair anymore -- see `lib/resolveThemeColorHex.ts`'s
-// `resolveDivergingEndpointHex`/`resolveDivergingScaleReversedHex` (the colorblind-safe
-// brown/teal pair every CO2-direction chart uses instead) for that case, since a hardcoded hex
-// here would also be wrong the moment a non-default theme (or a future theme toggle) is active.
-export const POSITIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-positive, #187254)';
-export const NEGATIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-negative, #8d1a2a)';
+// For plain DOM/CSS `style` props (theme-aware, resolved by the browser) -- these two usages
+// (TierSummaryPanel's % Chg. column, OverviewHeadline's narrative sentence) are plain text on
+// a light card, not Plotly chart props, so `var(...)` resolves live in CSS with no JS-side
+// getComputedStyle step needed.
+export const POSITIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-diverging-positive, #1D726B)';
+export const NEGATIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-diverging-negative, #7D5B12)';

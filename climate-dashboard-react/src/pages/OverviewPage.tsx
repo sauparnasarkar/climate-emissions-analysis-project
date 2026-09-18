@@ -464,12 +464,18 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, margin: '12px 0 16px' }}>
+              {/* deltaColor overrides KpiStat's own internal red/green good/bad lookup with the
+                  same brown/teal pair the % Change chart below and the narrative panel above use
+                  (Claude Design theme-adherence review round 2) -- deltaDirection is kept as-is
+                  alongside it purely for the glyph (warning/check), the redundant non-color cue
+                  this pair needs given its low (~1.2:1) mutual contrast. */}
               <KpiStat
                 card
                 label={`Fastest Growth — ${data.fastest_growth.country}`}
                 value={<CountUpText value={data.fastest_growth.pct_change ?? 0} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />}
                 delta={`${(data.fastest_growth.absolute_change ?? 0) >= 0 ? '+' : ''}${(data.fastest_growth.absolute_change ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
                 deltaDirection="bad"
+                deltaColor={NEGATIVE_COLOR}
               />
               <KpiStat
                 card
@@ -477,6 +483,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
                 value={<CountUpText value={data.largest_reduction.pct_change ?? 0} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />}
                 delta={`${(data.largest_reduction.absolute_change ?? 0) >= 0 ? '+' : ''}${(data.largest_reduction.absolute_change ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
                 deltaDirection="good"
+                deltaColor={POSITIVE_COLOR}
               />
             </div>
 
