@@ -245,6 +245,7 @@ function AnimatedWorldMap({
         y: [],
         kind: 'choropleth' as const,
         locations: worldMapSeries.iso_codes,
+        locationNames: worldMapSeries.countries,
         zLog: true,
         colorValues: worldMapSeries.values[0],
         colorRange: worldMapSeries.value_range,
