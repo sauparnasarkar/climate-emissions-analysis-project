@@ -30,6 +30,9 @@ vi.mock('../api/client', () => ({
 // hidden node) and one tap button per label, so a test can assert the emitted "Other"
 // grouping directly rather than only inferring it from the detail panel's rendered text
 // (Copilot review, PR #182 — the 1% partition/aggregation had no coverage at all before this).
+// Also surfaces colorScale/colorRange so a test can assert the diverging scale's stop order
+// is reversed (increase reads as the negative/bad end), the same fix as Overview's % Change
+// bar chart -- see OverviewPage.test.tsx's equivalent test for the shared rationale.
 vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
@@ -42,12 +45,20 @@ vi.mock('design-system', async (importOriginal) => {
         labels?: string[];
         values?: number[];
         colorValues?: Array<number | null>;
+        colorScale?: Array<[number, string]>;
+        colorRange?: [number, number];
         onTileClick?: (i: number, label: string) => void;
       }>;
     }) => {
       const treemapSeries = props.series.find((s) => s.kind === 'treemap');
       return (
-        <div data-testid="sychart" aria-label={props.ariaLabel} data-height={props.height}>
+        <div
+          data-testid="sychart"
+          aria-label={props.ariaLabel}
+          data-height={props.height}
+          data-color-scale={treemapSeries?.colorScale ? JSON.stringify(treemapSeries.colorScale) : undefined}
+          data-color-range={treemapSeries?.colorRange ? JSON.stringify(treemapSeries.colorRange) : undefined}
+        >
           {treemapSeries?.onTileClick && (
             <>
               <button onClick={() => treemapSeries.onTileClick!(0, 'China')}>Simulate tile tap</button>
@@ -128,6 +139,7 @@ afterEach(() => {
   // it), breaking every test after the first. beforeEach already re-stubs matchMedia fresh
   // before each test, so there's nothing stale left for this to clean up anyway.
   vi.clearAllMocks();
+  document.documentElement.removeAttribute('style');
 });
 
 describe('ScenarioComparisonPage', () => {
@@ -142,6 +154,34 @@ describe('ScenarioComparisonPage', () => {
     expect(screen.getByRole('heading', { name: 'Moderate' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Aggressive' })).toBeInTheDocument();
     expect(vi.mocked(api.scenarioCompare)).toHaveBeenCalledWith(['China']);
+  });
+
+  it('colors the treemap so a country whose emissions are still rising under BAU reads as the negative/bad end of the diverging scale, not the positive end', async () => {
+    // Live-resolved (not the hardcoded fallback), same rationale as OverviewPage.test.tsx's
+    // equivalent test. China's BAU 2040 level (16000) is above its current level (11000) --
+    // a delta of +5000, still rising/bad -- so it must land on `low`/brown, not `high`/teal.
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-low', '#111111');
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-mid', '#222222');
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-high', '#333333');
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    render(<ScenarioComparisonPage />);
+    await screen.findByRole('heading', { name: 'BAU' });
+
+    const treemapChart = screen.getAllByTestId('sychart')[0];
+    expect(treemapChart).toHaveAttribute(
+      'data-color-scale',
+      JSON.stringify([
+        [0, '#333333'],
+        [0.5, '#222222'],
+        [1, '#111111'],
+      ]),
+    );
+    // China: 16000 - 11000 = +5000 (largest magnitude); US: 3800 - 4700 = -900. colorRange
+    // must be symmetric around the larger magnitude so "no change" still lands on the
+    // scale's true midpoint.
+    expect(treemapChart).toHaveAttribute('data-color-range', JSON.stringify([-5000, 5000]));
   });
 
   it('renders a Jump To nav under the h1 linking to all three sections, always present regardless of selection', async () => {

@@ -14,19 +14,29 @@ vi.mock('../api/client', () => ({ api: { listCountries: vi.fn(), overview: vi.fn
 // logic, not Plotly's DOM lifecycle in jsdom (which has no real canvas/rAF timing
 // and throws internally if a chart unmounts mid-redraw). Also surfaces the choropleth
 // series' own `noDataColor` prop so a test can assert it's the live-resolved theme color,
-// not `var(...)` or the removed hardcoded value (Copilot review, PR #182 — the resolver's
-// own unit tests don't protect this page's wiring).
+// not `var(...)` or the removed hardcoded value (Copilot review, PR #182), and the % Change
+// bar series' `colorScale`/`colorRange` so a test can assert the diverging scale's stop
+// order is reversed (increase reads as the negative/bad end) rather than SyChart's own
+// default order — the resolver's own unit tests don't protect this page's wiring.
 vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    SyChart: (props: { ariaLabel?: string; series?: Array<{ kind?: string; noDataColor?: string }> }) => (
-      <div
-        data-testid="sychart"
-        aria-label={props.ariaLabel}
-        data-no-data-color={props.series?.find((s) => s.kind === 'choropleth')?.noDataColor}
-      />
-    ),
+    SyChart: (props: {
+      ariaLabel?: string;
+      series?: Array<{ kind?: string; noDataColor?: string; colorScale?: Array<[number, string]>; colorRange?: [number, number] }>;
+    }) => {
+      const barSeries = props.series?.find((s) => s.kind === 'bar');
+      return (
+        <div
+          data-testid="sychart"
+          aria-label={props.ariaLabel}
+          data-no-data-color={props.series?.find((s) => s.kind === 'choropleth')?.noDataColor}
+          data-bar-color-scale={barSeries?.colorScale ? JSON.stringify(barSeries.colorScale) : undefined}
+          data-bar-color-range={barSeries?.colorRange ? JSON.stringify(barSeries.colorRange) : undefined}
+        />
+      );
+    },
   };
 });
 
@@ -194,6 +204,35 @@ describe('OverviewPage', () => {
 
     const mapChart = screen.getAllByTestId('sychart').find((el) => el.hasAttribute('data-no-data-color'));
     expect(mapChart).toHaveAttribute('data-no-data-color', '#abcdef');
+  });
+
+  it('colors the % Change bar chart so an increase in emissions reads as the negative/bad end of the diverging scale, not the positive end', async () => {
+    // Live-resolved (not the hardcoded fallback) to prove this page's wiring, same rationale
+    // as the no-data-color test above -- SyChart's default stop order would put `high` (teal,
+    // the "high value" end) on this chart's largest positive pct_change (China's +412.4%,
+    // an increase/bad reading), which reads backwards; resolveDivergingScaleReversedHex swaps
+    // the order so the increase end gets `low`/brown instead.
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-low', '#111111');
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-mid', '#222222');
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-high', '#333333');
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    render(<OverviewPage />);
+    await screen.findByText('Selected');
+
+    const barChart = screen.getAllByTestId('sychart').find((el) => el.hasAttribute('data-bar-color-scale'));
+    expect(barChart).toHaveAttribute(
+      'data-bar-color-scale',
+      JSON.stringify([
+        [0, '#333333'],
+        [0.5, '#222222'],
+        [1, '#111111'],
+      ]),
+    );
+    // top_movers' largest-magnitude pct_change is India's 452.6 -- colorRange must be
+    // symmetric around it so 0% change (no change) still lands on the scale's true midpoint.
+    expect(barChart).toHaveAttribute('data-bar-color-range', JSON.stringify([-452.6, 452.6]));
   });
 
   it('renders the headline sentence (with its "Since 1990" eyebrow), bolding country names and coloring increase/decrease values', async () => {
