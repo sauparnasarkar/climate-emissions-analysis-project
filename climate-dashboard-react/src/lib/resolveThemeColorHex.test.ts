@@ -39,20 +39,31 @@ describe('resolveNoDataColorHex', () => {
 describe('resolveDivergingScaleReversedHex', () => {
   it('puts the diverging-high token at stop 0 and the diverging-low token at stop 1 -- reversed from SyChart\'s own low/mid/high stop order', () => {
     document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-low', '#d8b365');
-    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-mid', '#e5e5e5');
     document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-high', '#5ab4ac');
+    // Mid deliberately does NOT come from --__s9cmpx-chart-diverging-mid (round 2: that token
+    // is the panel background itself, which is why near-zero values were reading as "empty").
+    document.documentElement.style.setProperty('--__s9cmpx-color-brand-100', '#133544');
 
     expect(resolveDivergingScaleReversedHex()).toEqual([
       [0, '#5ab4ac'],
-      [0.5, '#e5e5e5'],
+      [0.5, '#133544'],
       [1, '#d8b365'],
     ]);
   });
 
-  it('falls back to the literal BrBG triple, still reversed, when no token resolves', () => {
+  it('ignores --__s9cmpx-chart-diverging-mid entirely, even when it resolves', () => {
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-low', '#d8b365');
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-high', '#5ab4ac');
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-mid', '#e5e5e5');
+    document.documentElement.style.setProperty('--__s9cmpx-color-brand-100', '#263a5e');
+
+    expect(resolveDivergingScaleReversedHex()[1]).toEqual([0.5, '#263a5e']);
+  });
+
+  it('falls back to the literal BrBG endpoints and the brand-100 fallback, still reversed, when no token resolves', () => {
     expect(resolveDivergingScaleReversedHex()).toEqual([
       [0, '#5AB4AC'],
-      [0.5, '#E5E5E5'],
+      [0.5, '#133544'],
       [1, '#D8B365'],
     ]);
   });

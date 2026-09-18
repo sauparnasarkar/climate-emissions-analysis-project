@@ -161,8 +161,10 @@ describe('ScenarioComparisonPage', () => {
     // equivalent test. China's BAU 2040 level (16000) is above its current level (11000) --
     // a delta of +5000, still rising/bad -- so it must land on `low`/brown, not `high`/teal.
     document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-low', '#111111');
-    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-mid', '#222222');
     document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-high', '#333333');
+    // Mid comes from --__s9cmpx-color-brand-100, not --__s9cmpx-chart-diverging-mid (round 2:
+    // the latter is the panel background itself, which read as "empty" at near-zero values).
+    document.documentElement.style.setProperty('--__s9cmpx-color-brand-100', '#222222');
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);

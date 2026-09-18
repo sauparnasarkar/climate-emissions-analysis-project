@@ -31,12 +31,48 @@ export function resolveNoDataColorHex(fallback: string): string {
   return resolveThemeVarHex('--__s9cmpx-chart-surface-text-weak', fallback);
 }
 
-// SyChart's own `DEFAULT_CONTINUOUS_SCALE` (ColorBrewer "BrBG" brown/grey/teal, A6) -- kept
-// byte-for-byte in sync with design-system's SyChart.tsx since this resolves the *same*
-// published `--__s9cmpx-chart-diverging-low/-mid/-high` tokens, just re-ordered below.
+// SyChart's own `DEFAULT_CONTINUOUS_SCALE` (ColorBrewer "BrBG" brown/grey/teal, A6) -- the
+// low/high fallbacks are kept byte-for-byte in sync with design-system's SyChart.tsx since
+// this resolves the *same* published `--__s9cmpx-chart-diverging-low/-high` tokens, just
+// re-ordered below. The mid stop deliberately does NOT mirror SyChart's own
+// `--__s9cmpx-chart-diverging-mid` (which resolves to `--__s9cmpx-chart-surface`, the panel
+// background itself) -- see DIVERGING_MID_VAR's own comment for why.
+//
+// Contrast, corrected (Claude Design theme-adherence review round 2): round 1 verified these
+// two endpoints against `--__s9cmpx-chart-surface: #061E28`, assuming both themes shared it.
+// They don't -- `analytics.css` resolves `--__s9cmpx-chart-surface` to
+// `--__s9cmpx-static-background-weak`, a real literal of `#121e35`, not `#061E28`. Recomputed
+// against the correct per-theme panel: brown 8.62:1 (Light, #061E28) / 8.36:1 (Dark, #121e35);
+// teal 6.99:1 (Light) / 6.78:1 (Dark). Both endpoints clear WCAG AA (3:1 graphics, 4.5:1 text)
+// in both themes either way -- the round-1 conclusion holds, only the cited Dark hex was wrong.
 const DIVERGING_LOW_FALLBACK_HEX = '#D8B365';
-const DIVERGING_MID_FALLBACK_HEX = '#E5E5E5';
 const DIVERGING_HIGH_FALLBACK_HEX = '#5AB4AC';
+
+// SyChart's default mid stop (`--__s9cmpx-chart-diverging-mid`) resolves to
+// `--__s9cmpx-chart-surface` -- the panel background itself -- so a near-zero value in a
+// continuous colorscale renders as literally the same color as the empty panel behind it
+// (Claude Design theme-adherence review round 2). `--__s9cmpx-color-brand-100` is already
+// published per theme and already used by SyChart itself for gridlines (one step lighter than
+// the panel in both themes, still neutral/desaturated, not shifted toward either endpoint) --
+// reusing it here lifts the midpoint off the panel without moving the contrast-verified
+// low/high endpoints at all, and without needing any new design-system token. Contrast against
+// each theme's own panel: 1.32:1 (Light, #133544 vs #061E28) / 1.46:1 (Dark, #263a5e vs
+// #121e35) -- deliberately NOT held to the 3:1/4.5:1 bar the endpoints above are: this is a
+// decorative "not literally invisible" separation from the panel for a near-zero value, not a
+// data-carrying element that needs to be independently readable the way the endpoints do.
+// NOTE for whoever picks the round-2 treemap tile-border token (item 4, design-system): a
+// border meant to separate a near-zero tile from the panel must now contrast against THIS mid
+// fill, not the panel hex directly -- a border token close to brand-100 itself (e.g.
+// `--__s9cmpx-static-divider-weak`, Dark `#263757`, is nearly identical to Dark's `#263a5e`
+// here) would be invisible exactly where item 4 needs it most.
+const DIVERGING_MID_VAR = '--__s9cmpx-color-brand-100';
+// Reasonable single fallback for the rare case no theme CSS resolves at all (the app's default
+// theme's own brand-100 value) -- not meant to be theme-perfect, since low/high's fallbacks
+// above are theme-INDEPENDENT literals and this one genuinely isn't. NOTE: both theme CSS
+// files' own comments describe `--__s9cmpx-color-brand-100` as "hijacked" for SyChart's
+// gridline color -- this is now a SECOND consumer of that same token. If it's ever retuned for
+// gridline-contrast reasons, this midpoint moves too, silently.
+const DIVERGING_MID_FALLBACK_HEX = '#133544';
 
 /**
  * SyChart's default diverging scale positions "low" at the bottom of the *value* range and
@@ -50,11 +86,13 @@ const DIVERGING_HIGH_FALLBACK_HEX = '#5AB4AC';
  * as calm/positive to most viewers and brown as dull/negative, backwards from "an increase in
  * emissions should be a negative signal." This reverses the stop order (high, mid, low) so
  * brown lands on increase/bad and teal lands on decrease/good instead -- the exact same
- * colorblind-safe BrBG hues C5/A6 chose, not a reintroduction of red/green.
+ * colorblind-safe BrBG hues C5/A6 chose, not a reintroduction of red/green. The mid stop is
+ * also NOT SyChart's own default (the panel background itself) -- see DIVERGING_MID_VAR's
+ * comment.
  */
 export function resolveDivergingScaleReversedHex(): Array<[number, string]> {
   const low = resolveThemeVarHex('--__s9cmpx-chart-diverging-low', DIVERGING_LOW_FALLBACK_HEX);
-  const mid = resolveThemeVarHex('--__s9cmpx-chart-diverging-mid', DIVERGING_MID_FALLBACK_HEX);
+  const mid = resolveThemeVarHex(DIVERGING_MID_VAR, DIVERGING_MID_FALLBACK_HEX);
   const high = resolveThemeVarHex('--__s9cmpx-chart-diverging-high', DIVERGING_HIGH_FALLBACK_HEX);
   return [
     [0, high],

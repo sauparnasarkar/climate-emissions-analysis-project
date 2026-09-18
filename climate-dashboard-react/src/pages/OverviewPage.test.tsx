@@ -213,8 +213,10 @@ describe('OverviewPage', () => {
     // an increase/bad reading), which reads backwards; resolveDivergingScaleReversedHex swaps
     // the order so the increase end gets `low`/brown instead.
     document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-low', '#111111');
-    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-mid', '#222222');
     document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-high', '#333333');
+    // Mid comes from --__s9cmpx-color-brand-100, not --__s9cmpx-chart-diverging-mid (round 2:
+    // the latter is the panel background itself, which read as "empty" at near-zero values).
+    document.documentElement.style.setProperty('--__s9cmpx-color-brand-100', '#222222');
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);

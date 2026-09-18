@@ -10,6 +10,22 @@ import type { CountryProfileTableRow } from '../api/types';
 import { resolveDivergingEndpointHex } from '../lib/resolveThemeColorHex';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
 
+// The CO2 Emissions and CO2 per Capita line charts below pass no explicit `color`, so each
+// fell back to SyChart's default single-series categorical color -- theme-specific
+// `--__s9cmpx-chart-categorical-default-01`, which happens to be a near-white on Dark
+// (#ecf0f6) but a yellow-green on Light (#D7E740) -- an unintended divergence (Claude Design
+// theme-adherence review round 2): both themes render this chart on the SAME dark chart panel
+// (`--__s9cmpx-chart-surface`), so there's no reason the line's own color should switch with
+// the app's Light/Dark toggle the way a page's surrounding chrome does. Pinning both series to
+// one fixed literal (rather than resolving a per-theme token, the pattern used everywhere else
+// in this app) is deliberately the right tool here -- `SyChartSeries.color` exists specifically
+// to override the theme-varying categorical default with "any CSS color" for exactly this case.
+// Reused Dark's own existing near-white value rather than inventing a new one: manually
+// verified contrast against both panel backgrounds (Light #061E28, Dark #121e35 -- see
+// resolveThemeColorHex.ts's DIVERGING_MID_VAR comment for how the panel hexes differ per
+// theme) comes out to 15.0:1 and 14.54:1, both comfortably AAA.
+const SINGLE_LINE_COLOR = '#ecf0f6';
+
 const COLUMNS: ColDef<CountryProfileTableRow>[] = [
   { field: 'year', headerName: 'Year' },
   { field: 'co2', headerName: 'CO₂ (MtCO₂)' },
@@ -73,12 +89,12 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 16, margin: '16px 0' }}>
             <ChartCard id="emissions" title={`CO₂ Emissions — ${country}`} headingLevel={2} expandable>
               {(isExpanded) => (
-                <SyChart height={isExpanded ? 560 : 280} xTitle="Year" yTitle="CO₂ (MtCO₂)" showLegend={false} ariaLabel={`Line chart of total CO₂ emissions for ${country} from ${data.years[0]} to ${data.years[data.years.length - 1]}`} series={[{ name: 'CO₂', x: data.years, y: data.co2, kind: 'line' }]} />
+                <SyChart height={isExpanded ? 560 : 280} xTitle="Year" yTitle="CO₂ (MtCO₂)" showLegend={false} ariaLabel={`Line chart of total CO₂ emissions for ${country} from ${data.years[0]} to ${data.years[data.years.length - 1]}`} series={[{ name: 'CO₂', x: data.years, y: data.co2, kind: 'line', color: SINGLE_LINE_COLOR }]} />
               )}
             </ChartCard>
             <ChartCard id="per-capita" title={`CO₂ per Capita — ${country}`} headingLevel={2} expandable>
               {(isExpanded) => (
-                <SyChart height={isExpanded ? 560 : 280} xTitle="Year" yTitle="tCO₂/person" showLegend={false} ariaLabel={`Line chart of CO₂ emissions per capita for ${country} from ${data.years[0]} to ${data.years[data.years.length - 1]}`} series={[{ name: 'CO₂ per Capita', x: data.years, y: data.co2_per_capita, kind: 'line' }]} />
+                <SyChart height={isExpanded ? 560 : 280} xTitle="Year" yTitle="tCO₂/person" showLegend={false} ariaLabel={`Line chart of CO₂ emissions per capita for ${country} from ${data.years[0]} to ${data.years[data.years.length - 1]}`} series={[{ name: 'CO₂ per Capita', x: data.years, y: data.co2_per_capita, kind: 'line', color: SINGLE_LINE_COLOR }]} />
               )}
             </ChartCard>
           </div>
