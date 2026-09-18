@@ -19,7 +19,21 @@ import type { ScenarioCumulativeRow } from '../api/types';
 // keeps every rendered tile both legible and tap-able. Keyed off BAU value alone, not the
 // selected scenario's color, so which countries are grouped stays stable across a scenario
 // switch -- only the tiles' colors change.
-const OTHER_TREEMAP_SHARE_THRESHOLD = 0.01;
+//
+// Raised from 0.01 to 0.0125 (round 2): design-system's SyChart now sets
+// `uniformtext: { minsize: 10, mode: 'hide' }` on the treemap (Claude Design theme-adherence
+// review round 2, item 7 -- see design-system PR #76) so a label that can't fit at 10px is
+// hidden rather than shrunk illegibly, which is the right fix for THAT problem, but collided
+// with this one: South Africa (1.223% at the 40-country Expanded view, individually rendered
+// under the old 1% cutoff) landed in a narrow squarified-layout slot in the Moderate scenario
+// and lost its label entirely -- an unlabeled-but-individually-rendered tile, exactly what C7
+// exists to prevent. Squarified treemap layout doesn't allocate tile width as a strictly
+// monotonic function of value share (Vietnam at 1.209% and Mexico at 1.272%, both close
+// neighbors of South Africa's 1.223%, kept legible labels in the same layout), so this
+// threshold is a heuristic margin against that non-monotonicity, not a hard guarantee -- if a
+// similar hidden-label tile turns up again at a share above this cutoff, raise it further
+// rather than assume this fully closes the class of bug.
+const OTHER_TREEMAP_SHARE_THRESHOLD = 0.0125;
 
 interface TreemapTile {
   label: string;

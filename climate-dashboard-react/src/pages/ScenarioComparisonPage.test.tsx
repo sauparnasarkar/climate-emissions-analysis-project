@@ -120,6 +120,22 @@ const CUMULATIVE_WITH_LONG_TAIL: ScenarioCumulativeResponse = {
   ],
 };
 
+// Exercises the exact boundary OTHER_TREEMAP_SHARE_THRESHOLD sits at (Copilot review, PR #185
+// -- the long-tail fixture above only exercises 0.3%/0.7% shares, both comfortably below
+// either the old 1% or current 1.25% cutoff, so a regression back to 0.01 wouldn't fail that
+// test). Qatar sits at exactly 1.1% of the 10,000 total -- above the OLD 1% cutoff (would have
+// rendered as its own tile) but below the CURRENT 1.25% cutoff (must be grouped into "Other").
+const CUMULATIVE_AT_THRESHOLD_BOUNDARY: ScenarioCumulativeResponse = {
+  sort_by: 'BAU',
+  order: ['China', 'India', 'Qatar'],
+  scenarios: ['BAU', 'Moderate', 'Aggressive'],
+  rows: [
+    { country: 'China', values: { BAU: 8000 }, year_2040: { BAU: 16000 }, current_level: 11000 },
+    { country: 'India', values: { BAU: 1890 }, year_2040: { BAU: 2390 }, current_level: 1890 },
+    { country: 'Qatar', values: { BAU: 110 }, year_2040: { BAU: 120 }, current_level: 100 },
+  ],
+};
+
 const COMPARE: ScenarioCompareResponse = {
   countries: ['China'],
   scenarios: {
@@ -359,6 +375,24 @@ describe('ScenarioComparisonPage', () => {
     expect(await within(detailPanel()).findByText('India')).toBeInTheDocument();
     expect(within(detailPanel()).queryByText(/countries\)/)).not.toBeInTheDocument();
     expect(within(detailPanel()).getByText(/BAU 2040 vs\. Current: \+500 MtCO/)).toBeInTheDocument();
+  });
+
+  it('groups a tile whose share sits between the old 1% and current 1.25% threshold into "Other" (Copilot review, PR #185 -- regression guard for the threshold value itself, not just the grouping mechanism)', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE_AT_THRESHOLD_BOUNDARY);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    render(<ScenarioComparisonPage />);
+    await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 3 Expanded Countries');
+
+    // Qatar (110/10000 = 1.1%) clears the OLD 1% cutoff but falls under the CURRENT 1.25% one
+    // -- grouped into "Other" alone. If OTHER_TREEMAP_SHARE_THRESHOLD ever regresses to 0.01,
+    // Qatar would render as its own tile instead and this assertion would fail.
+    const seriesData = JSON.parse(screen.getByTestId('treemap-series-data').textContent!);
+    expect(seriesData).toEqual({
+      labels: ['China', 'India', 'Other'],
+      values: [8000, 1890, 110],
+      colorValues: [5000, 500, 20],
+    });
   });
 
   it('renders an inline error instead of crashing when the compare call fails', async () => {

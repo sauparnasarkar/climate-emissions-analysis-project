@@ -266,6 +266,21 @@ describe('OverviewPage', () => {
     expect(screen.queryByText(/since 1990/i, { selector: 'p' })).not.toBeInTheDocument();
   });
 
+  it('colors the Fastest Growth / Largest Reduction KPI cards with the same brown/teal pair as the narrative panel and % Change chart, via KpiStat\'s deltaColor override (Claude Design theme-adherence review round 2)', async () => {
+    // KpiStat is the real design-system component here (unlike SyChart, it isn't mocked in this
+    // file), so this exercises the actual rendered `color` style, not a stubbed prop passthrough.
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    render(<OverviewPage />);
+    await screen.findByText('Since 1990');
+
+    // Fastest Growth: absolute_change 10000 (bad/increase) -> NEGATIVE_COLOR.
+    expect(screen.getByText('+10,000 MtCO₂')).toHaveStyle({ color: NEGATIVE_COLOR });
+    // Largest Reduction: absolute_change -300 (good/decrease) -> POSITIVE_COLOR.
+    expect(screen.getByText('-300 MtCO₂')).toHaveStyle({ color: POSITIVE_COLOR });
+  });
+
   it('fetches world-map-series exactly once, regardless of how many times the selection changes', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
