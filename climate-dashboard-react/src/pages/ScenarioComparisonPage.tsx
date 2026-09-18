@@ -6,6 +6,8 @@ import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
+import { useThemeColorHex } from '../hooks/useThemeColorHex';
+import { resolveDivergingScaleReversedHex } from '../lib/resolveThemeColorHex';
 import { MAX_SELECTED_COUNTRIES, SCENARIO_PANELS } from '../constants';
 import type { ScenarioCumulativeRow } from '../api/types';
 
@@ -74,20 +76,22 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
   const treemapValues = cumulative.data?.rows.map((r) => r.values.BAU ?? 0) ?? [];
   // Signed delta: the selected scenario's single 2040 level minus the country's current level
   // -- negative means that scenario has this country's emissions falling below today's by
-  // 2040, positive means still rising. Deliberately no colorScale override here: SyChart's own
-  // default is now the theme's published diverging scale (brown/teal, colorblind-safe --
-  // Claude Design theme-adherence review, A6/C5), not a one-off. Red/green was ruled out for
-  // this exact reason -- it's a CVD failure for an above/below encoding carried by hue alone.
-  // Every other colorValues-without-colorScale chart in this app (e.g. Overview's % Change bar
-  // chart) shares this same default, so this isn't a one-off departure from an existing red/
-  // green convention -- the only chart still genuinely red/green-family is Country Profile's
-  // YoY bars, which resolve discrete positive/negative pointColors rather than going through
-  // this continuous-scale mechanism at all.
+  // 2040 (good), positive means still rising (bad). Colored via `treemapColorScale` below
+  // rather than SyChart's own default diverging scale -- brown/teal (colorblind-safe, ruling
+  // out red/green for exactly this above/below encoding -- Claude Design theme-adherence
+  // review, A6/C5) stays the pair, but SyChart's default stop order reads backwards for a
+  // signed delta like this one: it puts brown (perceived negative) on decrease/good and teal
+  // (perceived positive) on increase/bad. `resolveDivergingScaleReversedHex` swaps the stop
+  // order so brown lands on increase/bad and teal on decrease/good, matching "an increase in
+  // emissions should be a negative signal" -- see that function's own comment. Country
+  // Profile's YoY bars are the one chart that still resolves genuinely red/green-family
+  // discrete positive/negative pointColors rather than going through a continuous scale at all.
   const treemapColors = cumulative.data?.rows.map((r) => {
     const level2040 = r.year_2040[treemapScenario];
     const current = r.current_level;
     return level2040 != null && current != null ? level2040 - current : null;
   }) ?? [];
+  const treemapColorScale = useThemeColorHex(() => resolveDivergingScaleReversedHex());
 
   const treemapRows = cumulative.data?.rows ?? [];
   const totalTreemapValue = treemapValues.reduce((sum, v) => sum + v, 0);
@@ -112,6 +116,12 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
     ...bigIndices.map((i): TreemapTile => ({ label: treemapRows[i].country, value: treemapValues[i], color: treemapColors[i], countryCount: 1 })),
     ...(otherTile ? [otherTile] : []),
   ];
+  // Symmetric around zero so "2040 level equals current level" always lands on
+  // `treemapColorScale`'s true midpoint stop -- required once an explicit colorScale is passed,
+  // since SyChart's own `cmid: 0` zero-centering only applies to its own default scale (see the
+  // series prop below). The `1` floor guards the degenerate all-zero case (a real Plotly
+  // colorRange can't span [0, 0]).
+  const treemapColorMaxAbs = Math.max(1, ...treemapTiles.map((t) => Math.abs(t.color ?? 0)));
 
   const panelValues = SCENARIO_PANELS.flatMap(
     (scenario) => (compare.data?.scenarios[scenario] ?? []).flatMap((series) => series.values),
@@ -165,7 +175,7 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
               <SyChart
                 height={isExpanded ? 640 : 360}
                 showLegend={false}
-                ariaLabel={`Treemap of ${cumulative.data!.rows.length} countries (the smallest grouped into one "Other" tile), sized by cumulative BAU emissions 2025 to 2040 and colored by whether ${treemapScenario}'s 2040 level is above or below each country's current level`}
+                ariaLabel={`Treemap of ${cumulative.data!.rows.length} countries (the smallest grouped into one "Other" tile), sized by cumulative BAU emissions 2025 to 2040 and colored on a diverging scale from below current level (favorable) to above current level (unfavorable) under ${treemapScenario}`}
                 series={[{
                   name: treemapScenario,
                   x: [],
@@ -176,6 +186,8 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
                   values: treemapTiles.map((t) => t.value),
                   valueLabel: 'Cumulative BAU',
                   colorValues: treemapTiles.map((t) => t.color),
+                  colorScale: treemapColorScale,
+                  colorRange: [-treemapColorMaxAbs, treemapColorMaxAbs],
                   colorbarTitle: `${treemapScenario} 2040 vs. Current`,
                   hoverUnit: 'MtCO₂',
                   onTileClick: (pointNumber) => setTappedTileIndex(pointNumber),

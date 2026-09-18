@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveCategoricalColorHex, resolveNoDataColorHex, resolveSentimentColorHex } from './resolveThemeColorHex';
+import {
+  resolveCategoricalColorHex,
+  resolveDivergingScaleReversedHex,
+  resolveNoDataColorHex,
+  resolveSentimentColorHex,
+} from './resolveThemeColorHex';
 
 const POSITIVE_VAR = '--__s9cmpx-chart-sentiment-positive';
 const NEGATIVE_VAR = '--__s9cmpx-chart-sentiment-negative';
@@ -67,5 +72,27 @@ describe('resolveNoDataColorHex', () => {
 
   it('falls back when the token resolves empty', () => {
     expect(resolveNoDataColorHex('#6b7280')).toBe('#6b7280');
+  });
+});
+
+describe('resolveDivergingScaleReversedHex', () => {
+  it('puts the diverging-high token at stop 0 and the diverging-low token at stop 1 -- reversed from SyChart\'s own low/mid/high stop order', () => {
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-low', '#d8b365');
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-mid', '#e5e5e5');
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-high', '#5ab4ac');
+
+    expect(resolveDivergingScaleReversedHex()).toEqual([
+      [0, '#5ab4ac'],
+      [0.5, '#e5e5e5'],
+      [1, '#d8b365'],
+    ]);
+  });
+
+  it('falls back to the literal BrBG triple, still reversed, when no token resolves', () => {
+    expect(resolveDivergingScaleReversedHex()).toEqual([
+      [0, '#5AB4AC'],
+      [0.5, '#E5E5E5'],
+      [1, '#D8B365'],
+    ]);
   });
 });

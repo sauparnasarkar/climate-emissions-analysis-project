@@ -8,7 +8,7 @@ import { useCountUp } from '../hooks/useCountUp';
 import { useYearAnimation } from '../hooks/useYearAnimation';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { buildHeadlineSentence } from '../lib/overviewHeadline';
-import { resolveNoDataColorHex } from '../lib/resolveThemeColorHex';
+import { resolveNoDataColorHex, resolveDivergingScaleReversedHex } from '../lib/resolveThemeColorHex';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
 import { MAX_SELECTED_COUNTRIES, POSITIVE_COLOR, NEGATIVE_COLOR } from '../constants';
 import type { MoverRow, OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
@@ -356,6 +356,10 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // regardless of how many times `selected` changes (SPEC.md §5.17.1).
   const { data: worldMapSeries, error: worldMapError, loading: worldMapLoading } = useAsync(() => api.worldMapSeries(), []);
   const reduceMotion = useReducedMotion();
+  // Called here (unconditionally, ahead of the early returns below) rather than at the % Change
+  // chart's render site — Rules of Hooks. See resolveDivergingScaleReversedHex's own comment for
+  // why this chart needs a reversed stop order instead of SyChart's default diverging scale.
+  const moverColorScale = useThemeColorHex(() => resolveDivergingScaleReversedHex());
   // Handles a bookmarked/shared #anchor already in the URL (SPEC.md §5.19) -- called
   // unconditionally (before the early returns below) per the Rules of Hooks; the hook itself
   // only actually jumps once `data`/`worldMapSeries` (and therefore the jump targets) exist.
@@ -373,6 +377,11 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
 
   const moverCountries = data.top_movers.map((m) => m.country);
   const moverPct = data.top_movers.map((m) => m.pct_change ?? 0);
+  // Symmetric around zero so 0% change always lands on the reversed scale's true midpoint
+  // (mid-tone) stop -- required once an explicit colorScale is passed, since SyChart's own
+  // `cmid: 0` zero-centering only applies to its own default scale (see the series prop below).
+  // The `1` floor guards the degenerate all-zero case (a real Plotly colorRange can't span [0, 0]).
+  const moverPctMaxAbs = Math.max(1, ...moverPct.map((v) => Math.abs(v)));
 
   return (
     <div>
@@ -473,13 +482,15 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
                 xTitle="Country"
                 yTitle={`% Change in CO₂ (1990→${data.selected.latest_year})`}
                 showLegend={false}
-                ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${data.selected.latest_year} for ${moverCountries.length} countries, colored on a diverging scale from decrease at one end to increase at the other`}
+                ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${data.selected.latest_year} for ${moverCountries.length} countries, colored on a diverging scale from a decrease (favorable) at one end to an increase (unfavorable) at the other`}
                 series={[{
                   name: '% Change',
                   x: moverCountries,
                   y: moverPct,
                   kind: 'bar',
                   colorValues: moverPct,
+                  colorScale: moverColorScale,
+                  colorRange: [-moverPctMaxAbs, moverPctMaxAbs],
                   colorbarTitle: `% Change in CO₂ (1990→${data.selected.latest_year})`,
                 }]}
               />

@@ -50,3 +50,35 @@ export function resolveCategoricalColorHex(slot: number, fallback: string): stri
 export function resolveNoDataColorHex(fallback: string): string {
   return resolveThemeVarHex('--__s9cmpx-chart-surface-text-weak', fallback);
 }
+
+// SyChart's own `DEFAULT_CONTINUOUS_SCALE` (ColorBrewer "BrBG" brown/grey/teal, A6) -- kept
+// byte-for-byte in sync with design-system's SyChart.tsx since this resolves the *same*
+// published `--__s9cmpx-chart-diverging-low/-mid/-high` tokens, just re-ordered below.
+const DIVERGING_LOW_FALLBACK_HEX = '#D8B365';
+const DIVERGING_MID_FALLBACK_HEX = '#E5E5E5';
+const DIVERGING_HIGH_FALLBACK_HEX = '#5AB4AC';
+
+/**
+ * SyChart's default diverging scale positions "low" at the bottom of the *value* range and
+ * "high" at the top -- correct for a scale with no inherent sentiment, but Overview's %
+ * Change-by-country bars and the Scenario Comparison treemap both feed it signed deltas where
+ * positive means "emissions rose" (bad) and negative means "emissions fell" (good). Left at
+ * SyChart's default stop order, brown (index 0) lands on decrease and teal (index 1) lands on
+ * increase -- the same slot positions the old literal green/crimson scale used (green=low=
+ * decrease, crimson=high=increase), so nothing about *which value goes where* changed when A6
+ * swapped in this CVD-safe hue pair. But the swap flipped the *intuitive* reading: teal reads
+ * as calm/positive to most viewers and brown as dull/negative, backwards from "an increase in
+ * emissions should be a negative signal." This reverses the stop order (high, mid, low) so
+ * brown lands on increase/bad and teal lands on decrease/good instead -- the exact same
+ * colorblind-safe BrBG hues C5/A6 chose, not a reintroduction of red/green.
+ */
+export function resolveDivergingScaleReversedHex(): Array<[number, string]> {
+  const low = resolveThemeVarHex('--__s9cmpx-chart-diverging-low', DIVERGING_LOW_FALLBACK_HEX);
+  const mid = resolveThemeVarHex('--__s9cmpx-chart-diverging-mid', DIVERGING_MID_FALLBACK_HEX);
+  const high = resolveThemeVarHex('--__s9cmpx-chart-diverging-high', DIVERGING_HIGH_FALLBACK_HEX);
+  return [
+    [0, high],
+    [0.5, mid],
+    [1, low],
+  ];
+}
