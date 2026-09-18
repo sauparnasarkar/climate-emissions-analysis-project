@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Header, SidebarNav, Footer, BackToTop, SegmentedControl } from 'design-system';
+import { Header, SidebarNav, Footer, BackToTop, SegmentedControl, useIsMobile } from 'design-system';
 import type { SidebarNavItem, SidebarNavGroup } from 'design-system/components/SidebarNav/SidebarNav';
 
 import { ThemeContext, THEME_STORAGE_KEY, type AppTheme } from './lib/theme';
@@ -35,6 +35,10 @@ function App() {
   const navigate = useNavigate();
   const mainRef = useRef<HTMLElement>(null);
   const isFirstRender = useRef(true);
+  // Same 768px breakpoint SidebarNav itself switches on (design-system's own useIsMobile,
+  // not a second hardcoded query) -- used below to stop rendering the theme toggle in the
+  // header on mobile, where its grid track collapses and it has nowhere to render.
+  const isMobile = useIsMobile();
 
   // Read from localStorage in the initializer (not a useEffect) so a returning Dark user
   // never sees a Bright flash on first paint. Defaults to Bright -- "what a first-time
@@ -69,6 +73,22 @@ function App() {
     items: NAV_ITEMS.filter((item) => item.group === label).map(toItem),
   }));
   const footerItems: SidebarNavItem[] = NAV_ITEMS.filter((item) => !item.group).map(toItem);
+
+  // Shared between Header's centerActions (desktop) and SidebarNav's mobileOnlyContent (mobile
+  // drawer) -- exactly one of the two ever actually renders it, gated by the same isMobile check
+  // above, so there's only ever one theme toggle live in the DOM at a time.
+  const themeToggle = (
+    <SegmentedControl
+      name="theme"
+      size="small"
+      value={theme}
+      onChange={(v) => setTheme(v as AppTheme)}
+      items={[
+        { value: 'analytics-bright-tidewater', label: 'Light' },
+        { value: 'analytics', label: 'Dark' },
+      ]}
+    />
+  );
 
   // Route changes were previously silent and untitled: document.title never changed, no
   // focus moved, and nothing was announced -- a screen-reader user got no signal the page
@@ -182,18 +202,13 @@ function App() {
               </span>
             </span>
           }
-          centerActions={
-            <SegmentedControl
-              name="theme"
-              size="small"
-              value={theme}
-              onChange={(v) => setTheme(v as AppTheme)}
-              items={[
-                { value: 'analytics-bright-tidewater', label: 'Light' },
-                { value: 'analytics', label: 'Dark' },
-              ]}
-            />
-          }
+          // Never rendered on mobile: below 768px, Header's own grid columns collapse the
+          // center track carrying this control to 0px, and the control doesn't shrink to fit
+          // -- it just overflows into the floating "Ask the Agent"/menu buttons' space instead
+          // (confirmed live: measured a direct pixel overlap). Rather than trying to reserve
+          // or shrink around that, it's simply not rendered in the header at this width --
+          // SidebarNav's mobileOnlyContent below is its reachable home on a phone instead.
+          centerActions={isMobile ? undefined : themeToggle}
           searchPlaceholder=""
           showNotifications={false}
           showAppSwitcher={false}
@@ -216,6 +231,7 @@ function App() {
               onClick: () => navigate('/ask'),
               active: location.pathname === '/ask',
             }}
+            mobileOnlyContent={themeToggle}
           />
           <main
             id="main-content"
