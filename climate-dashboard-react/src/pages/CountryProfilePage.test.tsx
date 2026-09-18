@@ -132,15 +132,15 @@ describe('CountryProfilePage', () => {
     expect(screen.getAllByTestId('sychart')[1]).toHaveAttribute('data-height', '280');
   });
 
-  it('maps YoY bar colors to the live-resolved on-panel sentiment pair, not a hardcoded value (Claude Design theme-adherence review, C1)', async () => {
+  it('maps YoY bar colors to the live-resolved diverging pair, not a hardcoded value (same brown/teal pair Overview\'s % Change chart and the Scenario Comparison treemap use)', async () => {
     // Set directly on documentElement (resolveThemeColorHex.ts's own fallback target when no
     // [data-theme] element exists, which is the case here -- this test renders the page in
     // isolation, not inside App.tsx's themed shell) so the resolved pair is provably NOT the
     // hardcoded fallback hex, proving live theme resolution actually wires through to this
     // page's pointColors rather than only being covered in isolation by the resolver's/hook's
     // own unit tests.
-    document.documentElement.style.setProperty('--__s9cmpx-chart-sentiment-positive', '#111111');
-    document.documentElement.style.setProperty('--__s9cmpx-chart-sentiment-negative', '#222222');
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-high', '#111111');
+    document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-low', '#222222');
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.countryProfile).mockResolvedValue({ ...RESPONSE, yoy_years: [2020, 2021], yoy_values: [10.5, -3.2] });
     render(<CountryProfilePage />);

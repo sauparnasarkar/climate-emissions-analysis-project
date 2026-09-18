@@ -35,9 +35,10 @@ export const SCENARIO_PANELS = ['BAU', 'Moderate', 'Aggressive'] as const;
 // opposed to a plain positive/negative-number convention.
 //
 // For plain DOM/CSS `style` props (theme-aware, resolved by the browser). Chart color props
-// (SyChart's `color`/`pointColors`) can't resolve `var(...)` at all -- see
-// `lib/resolveThemeColorHex.ts`'s `resolveSentimentColorHex` for that case instead of using
-// these directly, since a hardcoded hex here would be wrong the moment a non-default theme
-// (or a future theme toggle) is active.
+// (SyChart's `color`/`pointColors`) can't resolve `var(...)` at all, and no chart in this app
+// actually uses this literal red/green pair anymore -- see `lib/resolveThemeColorHex.ts`'s
+// `resolveDivergingEndpointHex`/`resolveDivergingScaleReversedHex` (the colorblind-safe
+// brown/teal pair every CO2-direction chart uses instead) for that case, since a hardcoded hex
+// here would also be wrong the moment a non-default theme (or a future theme toggle) is active.
 export const POSITIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-positive, #187254)';
 export const NEGATIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-negative, #8d1a2a)';

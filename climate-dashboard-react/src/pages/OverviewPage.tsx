@@ -39,7 +39,11 @@ const NO_DATA_COLOR = 'var(--__s9cmpx-chart-surface-text-weak, #6b7280)';
 // Sequential pale-yellow -> orange -> deep-maroon magnitude scale for the world map, distinct
 // from the % Change chart's and Scenario Comparison's shared brown/teal diverging convention
 // below it (A6 -- Claude Design theme-adherence review) -- two visually distinct conventions,
-// sequential magnitude vs. diverging above/below, each used for one concept.
+// sequential magnitude vs. diverging above/below, each used for one concept. Those two diverging
+// charts don't use SyChart's own default stop order, though -- both pass an explicit colorScale
+// from resolveDivergingScaleReversedHex, which swaps low/high so an increase (bad) lands on
+// brown and a decrease (good) lands on teal; see that function's comment for why. A future
+// diverging-scale chart added here should decide deliberately, not copy SyChart's default.
 // 9 stops (ColorBrewer's YlOrRd), not 3 -- colorRange is pinned across the whole 1990-2024
 // animation (SPEC.md §5.17.2) and most countries, most years, sit in the same middle band of
 // that fixed range, where a coarse 3-stop scale interpolates almost linearly and reads as

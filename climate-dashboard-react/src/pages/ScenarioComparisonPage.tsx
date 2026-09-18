@@ -84,8 +84,9 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
   // (perceived positive) on increase/bad. `resolveDivergingScaleReversedHex` swaps the stop
   // order so brown lands on increase/bad and teal on decrease/good, matching "an increase in
   // emissions should be a negative signal" -- see that function's own comment. Country
-  // Profile's YoY bars are the one chart that still resolves genuinely red/green-family
-  // discrete positive/negative pointColors rather than going through a continuous scale at all.
+  // Profile's YoY bars use the same brown/teal pair (via `resolveDivergingEndpointHex`) but as
+  // discrete positive/negative pointColors rather than a continuous colorValues scale -- no
+  // chart in this app uses the separate literal red/green sentiment tokens anymore.
   const treemapColors = cumulative.data?.rows.map((r) => {
     const level2040 = r.year_2040[treemapScenario];
     const current = r.current_level;

@@ -15,26 +15,6 @@ function resolveThemeVarHex(varName: string, fallback: string): string {
   return resolved || fallback;
 }
 
-// Every sentiment-colored value in this app is drawn INSIDE a chart's dark panel (YoY bars,
-// forecast/scenario series), never as plain card text -- `--__s9cmpx-static-text-sentiment-*`
-// is tuned for the light card instead and fails contrast there (Claude Design theme-adherence
-// review, C1). `--__s9cmpx-chart-sentiment-positive/-negative` is the on-panel counterpart
-// published for exactly this case; on `analytics` (whose whole canvas is already dark) it
-// aliases straight back to the static pair, so this reads correctly on both themes.
-const SENTIMENT_FALLBACK_HEX: Record<'positive' | 'negative', string> = {
-  positive: '#4FD69B',
-  negative: '#EA5B62',
-};
-
-const SENTIMENT_VAR_NAME: Record<'positive' | 'negative', string> = {
-  positive: '--__s9cmpx-chart-sentiment-positive',
-  negative: '--__s9cmpx-chart-sentiment-negative',
-};
-
-export function resolveSentimentColorHex(direction: 'positive' | 'negative'): string {
-  return resolveThemeVarHex(SENTIMENT_VAR_NAME[direction], SENTIMENT_FALLBACK_HEX[direction]);
-}
-
 // `slot` is 1-9, matching SyChart's own `--__s9cmpx-chart-categorical-default-0N` tokens --
 // use this instead of a hardcoded literal so a chart color tracks the active theme's series
 // palette (Claude Design theme-adherence review, C3).
@@ -81,4 +61,21 @@ export function resolveDivergingScaleReversedHex(): Array<[number, string]> {
     [0.5, mid],
     [1, low],
   ];
+}
+
+/**
+ * The same reversed-diverging pair as `resolveDivergingScaleReversedHex`, but as two bare
+ * hex endpoints rather than a 3-stop colorScale array -- for a chart that colors discrete
+ * `pointColors` off the sign of each value (Country Profile's YoY bars) instead of feeding a
+ * continuous `colorValues` gradient. Kept as the *same* brown/teal pair as the other two
+ * diverging charts (not the separate literal red/green `--__s9cmpx-chart-sentiment-*` tokens)
+ * so all three CO2-direction charts in this app agree visually, not just directionally.
+ * 'positive' here means the *emissions* direction is favorable (a decrease -- teal), 'negative'
+ * unfavorable (an increase -- brown), matching every other diverging-direction convention in
+ * this file, not a bare positive/negative-number convention.
+ */
+export function resolveDivergingEndpointHex(direction: 'positive' | 'negative'): string {
+  return direction === 'positive'
+    ? resolveThemeVarHex('--__s9cmpx-chart-diverging-high', DIVERGING_HIGH_FALLBACK_HEX)
+    : resolveThemeVarHex('--__s9cmpx-chart-diverging-low', DIVERGING_LOW_FALLBACK_HEX);
 }

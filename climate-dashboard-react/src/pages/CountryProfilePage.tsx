@@ -7,7 +7,7 @@ import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { CountryProfileTableRow } from '../api/types';
-import { resolveSentimentColorHex } from '../lib/resolveThemeColorHex';
+import { resolveDivergingEndpointHex } from '../lib/resolveThemeColorHex';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
 
 const COLUMNS: ColDef<CountryProfileTableRow>[] = [
@@ -40,12 +40,14 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
   useJumpToHashOnLoad(Boolean(data), reduceMotion);
   // Resolved once per render rather than once per YoY data point (Copilot review, PR #157) --
   // the underlying computed style can't change mid-render, so mapping every value through
-  // resolveSentimentColorHex() individually was N redundant DOM/getComputedStyle calls for
+  // resolveDivergingEndpointHex() individually was N redundant DOM/getComputedStyle calls for
   // what's really just 2 distinct colors. Goes through useThemeColorHex (not a bare call)
   // because calling the resolver directly in a render body races the Bright/Dark toggle's
-  // own commit -- see that hook's comment.
-  const positiveColorHex = useThemeColorHex(() => resolveSentimentColorHex('positive'));
-  const negativeColorHex = useThemeColorHex(() => resolveSentimentColorHex('negative'));
+  // own commit -- see that hook's comment. Uses the same brown/teal diverging pair as
+  // Overview's % Change chart and the Scenario Comparison treemap (not the separate literal
+  // red/green sentiment tokens) so all three CO2-direction charts agree visually.
+  const positiveColorHex = useThemeColorHex(() => resolveDivergingEndpointHex('positive'));
+  const negativeColorHex = useThemeColorHex(() => resolveDivergingEndpointHex('negative'));
 
   return (
     <div>
@@ -87,7 +89,7 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
               xTitle="Year"
               yTitle="YoY % Change"
               showLegend={false}
-              ariaLabel={`Bar chart of year-over-year percent change in CO₂ emissions for ${country}, colored green for decreases and crimson for increases`}
+              ariaLabel={`Bar chart of year-over-year percent change in CO₂ emissions for ${country}, colored on a diverging scale from a decrease (favorable) to an increase (unfavorable)`}
               series={[{
                 name: 'YoY % Change',
                 x: data.yoy_years,
