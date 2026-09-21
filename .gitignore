@@ -23,6 +23,7 @@ data/*.csv
 # Weekly data-refresh artefacts — local backups + validation status marker
 data/*.bak-*
 data/.refresh_status
+data/.refresh_row_diff
 
 # macOS
 .DS_Store
