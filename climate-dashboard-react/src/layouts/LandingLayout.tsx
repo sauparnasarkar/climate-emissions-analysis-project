@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { Footer, BackToTop, Icon, useIsMobile } from 'design-system';
 
 import type { AppTheme } from '../lib/theme';
+import { AskAgentLink } from '../components/AskAgentLink';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
 import { NAV_ITEMS } from '../navigation';
@@ -31,15 +32,8 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
   const navLinks = NAV_ITEMS.map((item) => (
     <Link key={item.id} to={item.path} style={linkStyle}>{item.label}</Link>
   ));
-  const askLink = (
-    <Link
-      to="/ask"
-      style={{ ...linkStyle, display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 16px', border: '1px solid var(--__s9cmpx-static-divider-standard)', borderRadius: 8 }}
-    >
-      <Icon name="sparkle" size={16} />
-      Ask the Agent
-    </Link>
-  );
+  const askLink = <AskAgentLink />;
+
 
   return (
     <div

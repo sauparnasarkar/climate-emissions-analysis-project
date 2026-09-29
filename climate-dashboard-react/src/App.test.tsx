@@ -126,3 +126,31 @@ describe('Landing layout on a phone (< 768px)', () => {
     expect(screen.queryByRole('button', { name: 'Menu' })).not.toBeInTheDocument();
   });
 });
+
+describe('Dashboard header actions (same place as the landing header)', () => {
+  it('desktop: the theme toggle and Ask the Agent sit together in the header, and the sidebar no longer duplicates Ask', () => {
+    renderAt('/about');
+    const header = screen.getByRole('banner');
+    expect(within(header).getByRole('radio', { name: 'Dark' })).toBeInTheDocument();
+    expect(within(header).getByRole('link', { name: 'Ask the Agent' })).toHaveAttribute('href', '/ask');
+    // The persistent-action button is phone-only now.
+    expect(screen.queryByRole('button', { name: 'Ask the Agent' })).not.toBeInTheDocument();
+  });
+
+  it('marks Ask the Agent as the current page on /ask', () => {
+    renderAt('/ask');
+    expect(within(screen.getByRole('banner')).getByRole('link', { name: 'Ask the Agent' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('phone: the header carries neither action; Ask stays the sidebar\'s floating action and the toggle moves to the drawer', () => {
+    mobile = true;
+    renderAt('/about');
+    const header = screen.getByRole('banner');
+    expect(within(header).queryByRole('link', { name: 'Ask the Agent' })).not.toBeInTheDocument();
+    expect(within(header).queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ask the Agent' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /menu/i }));
+    expect(screen.getAllByRole('radio', { name: 'Dark' })).toHaveLength(1); // exactly one toggle live, in the drawer
+  });
+});
+
