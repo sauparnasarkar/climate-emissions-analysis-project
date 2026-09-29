@@ -3374,7 +3374,7 @@ lands.
 
 ## Release 20 — Landing Page, Emissions Globe, Overview Restyle, and Dedicated Sub-Domain
 
-**Status: In progress — PRs 1–3 merged (globe, routing/shell, landing page); PR 4 (Overview restyle + URL params, split into three) in progress; PR 5 (cutover) not started.**
+**Status: In progress — PRs 1–4 merged (globe, routing/shell, landing page, Overview restyle + URL params + header actions); PR 5 (cutover) — code side open as #194, Cloudflare/Mac Mini steps pending (runbook below).**
 
 A Claude Design pass (2026-09-29, seven boards: landing page in dark/light desktop, tablet 768
 and phone 390; restyled Overview in dark/light; standalone globe) proposes three things, plus a
@@ -3480,6 +3480,29 @@ before the first deploy:
   references the old host — update separately.
 - **Docs** with old-host references: `ARCHITECTURE.md` §§6–9 (updated on ship, not now — that
   file describes current state), `services/mcp-server/*`, `services/agent/*`, `CLAUDE.md`.
+
+### Cutover runbook (values read from the Mac Mini's `~/Library/LaunchAgents/com.ghgemissions.*.plist`, 2026-09-29)
+
+Code side: **PR #194** (additive — accepts the new host in api/agent CORS and MCP `allowed_hosts`/`allowed_origins`; service-worker denylist for `/api` `/mcp` `/agent`). It can merge and deploy *before* anything below. The services already handle a root base; the cutover is **env + Cloudflare only**.
+
+| LaunchAgent | Today | After the cutover |
+|---|---|---|
+| `uvicorn` (`api`, :8081) | `DEPLOY_BASE_PATH=/ghg-emissions-analysis/` | `DEPLOY_BASE_PATH=/` |
+| `mcpserver` (:8765) | `DEPLOY_BASE_PATH=/ghg-emissions-analysis/` → path `/ghg-emissions-analysis/mcp` | `DEPLOY_BASE_PATH=/` → path `/mcp` |
+| `agent` (:8766) | `DEPLOY_BASE_PATH=/ghg-emissions-analysis/agent/`; `MCP_SERVER_URL=http://127.0.0.1:8765/ghg-emissions-analysis/mcp` | `DEPLOY_BASE_PATH=/agent/` (**not `/`** — the agent's routes are bare `/query`, `/admin/llm`, and the middleware strips exactly this prefix); `MCP_SERVER_URL=http://127.0.0.1:8765/mcp` |
+| `vitepreview` (:4173) | built with `DEPLOY_BASE_PATH=/ghg-emissions-analysis/` | rebuilt with `DEPLOY_BASE_PATH=/` |
+
+**Order matters — Access before traffic:**
+
+1. **Merge PR #194** and pull it (and `design-system`, `git merge --ff-only`) on the Mac Mini. Nothing changes for users.
+2. **Cloudflare Access — create for the new host *before* any route goes live:** the login application with path rules `climate-analytics.syena.io/admin` and `/agent/admin`; the MCP Service Auth application on `climate-analytics.syena.io/mcp` (recreate the named Service Tokens' policy — tokens themselves can be reused). If routes go live first, `/agent/admin` is briefly reachable **ungated**.
+3. **Cloudflare Tunnel:** add public hostname `climate-analytics.syena.io` with, in order: `^/api` → `http://localhost:8081`, `^/mcp` → `http://localhost:8765`, `^/agent` → `http://localhost:8766`, then an empty path → `http://localhost:4173` (optionally tighten to `^/api(/|$)` etc.). Harmless until step 4: the services still speak the old prefix, so the new host just 404s.
+4. **Edge rules for the new host:** re-key the rate-limit rule (today it matches the `/ghg-emissions-analysis` prefix), and copy the response-header/CSP rules (`connect-src` needs `*.cloudflareaccess.com` and `cdn.plot.ly`) and the `sw.js` cache-control rule.
+5. **Flip the Mac Mini** (this is the point of no return — the old URLs stop working, as decided): edit the four plists per the table; `DEPLOY_BASE_PATH=/ npm run build` in `climate-dashboard-react/`; then `launchctl kickstart -k gui/$(id -u)/com.ghgemissions.{uvicorn,mcpserver,agent,vitepreview}`. Confirm the fresh bundle by its `assets/index-<hash>.js` name.
+6. **Verify from outside the Mac Mini:** `/` (landing), `/overview`, `/api/health` (200), `/api/overview`, `/mcp` (403 with no Service Token — Access enforcing), `/agent/health`, `/admin` and `/agent/admin` (redirect to Google login — *not* 200), an agent query end-to-end from `/ask`, a hard reload on `/overview#pct-change`, and a PWA install/launch on the new origin.
+7. **Then clean up:** delete the four old `labs.syena.io/ghg-emissions-analysis…` tunnel routes and the old Access applications; update Claude Desktop's `mcp-remote` config to `https://climate-analytics.syena.io/mcp`; update `syena-traffic-check` and the other Mac Mini toolkit scripts to the new host; open a follow-up PR removing `labs.syena.io` from the allow-lists; refresh `ARCHITECTURE.md` §§6–9 and the sub-project docs (they describe the old host).
+
+Rollback (if step 6 fails badly): put the four plists' env back and rebuild with the old base — the old tunnel routes are still in place until step 7.
 
 ### Implementation sequence (one PR each; mentor reviews, then merge; visual preview before merge)
 
