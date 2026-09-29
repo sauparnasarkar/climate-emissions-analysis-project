@@ -3374,7 +3374,7 @@ lands.
 
 ## Release 20 — Landing Page, Emissions Globe, Overview Restyle, and Dedicated Sub-Domain
 
-**Status: Docs-first stage (design accepted; implementation not yet started).**
+**Status: In progress — PR 1 (globe) merged; PR 2 (routing/shell) open; PRs 3–5 not started.**
 
 A Claude Design pass (2026-09-29, seven boards: landing page in dark/light desktop, tablet 768
 and phone 390; restyled Overview in dark/light; standalone globe) proposes three things, plus a
@@ -3499,5 +3499,19 @@ before the first deploy:
    3. Add the new-host tunnel rules and Access applications (checklist above), verify, then
       delete the old routes/Access apps.
    4. Update `ARCHITECTURE.md`, service docs and MCP client configs.
+
+### Progress
+
+- **PR 1 — `design-system` `Globe`: merged** (`design-system#94`). Canvas globe, ISO-3 keyed, `SyChart`-style
+  `colorScale`/`colorRange`/`zLog`, controlled `yearIndex`, keyboard + Table view, reduced-motion support; geometry is a
+  self-hosted, trimmed copy of the Plotly/Natural Earth 110m atlas the flat map already uses (same borders and ids).
+  Adds `d3-geo`. Two pre-existing `design-system` test failures on `main` (unrelated) were left alone.
+- **PR 2 — routing and shell: open** (`#189`). `/` → `LandingLayout` + placeholder `LandingPage`; dashboard pages incl.
+  `/overview` under an extracted `DashboardLayout`; unlabeled Home item in the sidebar; `App.test.tsx`. Findings worth
+  keeping: (1) app `vite`/`vitest` configs needed `server.fs.allow` for design-system's directory once its `Globe`
+  imported a `?url` asset (`Denied ID` otherwise); (2) **`preview.allowedHosts` was `undefined` for a root base** — it would
+  have 403'd the tunnel's Host header at cutover, so it now always lists `climate-analytics.syena.io`; (3) Overview uses the
+  `expand` glyph because `home` now means Home (a dedicated icon is a design-system follow-up). **Do not deploy PR 2 on its
+  own** — the landing page is still a placeholder.
 
 Revised again once each step ships.
