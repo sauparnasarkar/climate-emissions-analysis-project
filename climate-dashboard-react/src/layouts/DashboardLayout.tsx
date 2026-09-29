@@ -4,6 +4,7 @@ import { Header, SidebarNav, Footer, BackToTop, useIsMobile } from 'design-syste
 import type { SidebarNavItem, SidebarNavGroup } from 'design-system/components/SidebarNav/SidebarNav';
 
 import type { AppTheme } from '../lib/theme';
+import { AskAgentLink } from '../components/AskAgentLink';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
 import { HOME_ITEM, NAV_ITEMS } from '../navigation';
@@ -35,7 +36,7 @@ export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme
   ];
   const footerItems: SidebarNavItem[] = NAV_ITEMS.filter((item) => !item.group).map(toItem);
 
-  // Shared between Header's centerActions (desktop) and SidebarNav's mobileOnlyContent (mobile
+  // Shared between Header's rightActions (desktop) and SidebarNav's mobileOnlyContent (mobile
   // drawer) -- exactly one of the two ever actually renders it, gated by the same isMobile check
   // above, so there's only ever one theme toggle live in the DOM at a time.
   const themeToggle = <ThemeToggle theme={theme} setTheme={setTheme} />;
@@ -133,13 +134,16 @@ export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme
             </span>
           </span>
         }
-        // Never rendered on mobile: below 768px, Header's own grid columns collapse the
-        // center track carrying this control to 0px, and the control doesn't shrink to fit
-        // -- it just overflows into the floating "Ask the Agent"/menu buttons' space instead
-        // (confirmed live: measured a direct pixel overlap). Rather than trying to reserve
-        // or shrink around that, it's simply not rendered in the header at this width --
-        // SidebarNav's mobileOnlyContent below is its reachable home on a phone instead.
-        centerActions={isMobile ? undefined : themeToggle}
+        // Theme toggle + "Ask the Agent" sit flush right, matching the landing header. Never rendered
+        // on mobile: below 768px SidebarNav's floating menu toggle and Ask action are
+        // `position: fixed` over the header's top-right, so there's no room -- there the toggle
+        // lives in SidebarNav's mobileOnlyContent drawer and Ask stays the floating action.
+        rightActions={isMobile ? undefined : (
+          <>
+            {themeToggle}
+            <AskAgentLink />
+          </>
+        )}
         searchPlaceholder=""
         showNotifications={false}
         showAppSwitcher={false}
@@ -156,12 +160,14 @@ export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme
             const target = [HOME_ITEM, ...NAV_ITEMS].find((item) => item.id === id);
             if (target) navigate(target.path);
           }}
-          persistentAction={{
-            icon: 'sparkle',
-            label: 'Ask the Agent',
-            onClick: () => navigate('/ask'),
-            active: location.pathname === '/ask',
-          }}
+          // Desktop: "Ask the Agent" lives in the header (rightActions above), in the same place as on
+          // the landing page. Phone: the header has no room, so it stays SidebarNav's floating action
+          // beside the menu toggle, exactly as before.
+          persistentAction={
+            isMobile
+              ? { icon: 'sparkle', label: 'Ask the Agent', onClick: () => navigate('/ask'), active: location.pathname === '/ask' }
+              : undefined
+          }
           mobileOnlyContent={themeToggle}
         />
         <main
