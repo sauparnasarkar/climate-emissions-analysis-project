@@ -3,6 +3,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
+// The landing page's data never resolves here: routing tests only need its static shell (headline, CTA).
+vi.mock('./api/client', () => ({ api: { overview: () => new Promise(() => {}), worldMapSeries: () => new Promise(() => {}) } }));
+
 // Page bodies are covered by their own suites -- this file only tests routing and the two layouts.
 vi.mock('./pages/OverviewPage', () => ({ default: () => <div>Overview page stub</div> }));
 vi.mock('./pages/HistoricalTrendsPage', () => ({ default: () => <div>Historical page stub</div> }));

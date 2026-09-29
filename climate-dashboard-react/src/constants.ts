@@ -46,3 +46,10 @@ export const SCENARIO_PANELS = ['BAU', 'Moderate', 'Aggressive'] as const;
 // getComputedStyle step needed.
 export const POSITIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-diverging-positive, #1D726B)';
 export const NEGATIVE_COLOR = 'var(--__s9cmpx-static-text-sentiment-diverging-negative, #7D5B12)';
+
+// Last projected year of each forecast/scenario family (notebook/constants.py's FORECAST_END for the
+// ETS/RF forecasts; the last year in data/scenario_projections.csv for scenarios). Stated in user-facing copy (landing
+// page) -- keep in sync if the notebooks' horizons ever move.
+export const FORECAST_END_YEAR = 2043;
+export const SCENARIO_START_YEAR = 2025;
+export const SCENARIO_END_YEAR = 2040;
