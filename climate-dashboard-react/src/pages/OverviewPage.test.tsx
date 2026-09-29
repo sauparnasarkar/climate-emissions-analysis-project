@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import { useYearAnimation } from '../hooks/useYearAnimation';
@@ -163,7 +164,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     expect(await screen.findByText(/for 40 major countries/)).toBeInTheDocument();
     // Both the map and the Selected-tier bar chart share this exact title when their years
@@ -199,7 +200,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByText('Selected');
 
     const mapChart = screen.getAllByTestId('sychart').find((el) => el.hasAttribute('data-no-data-color'));
@@ -220,7 +221,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByText('Selected');
 
     const barChart = screen.getAllByTestId('sychart').find((el) => el.hasAttribute('data-bar-color-scale'));
@@ -241,7 +242,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     expect(await screen.findByText('Since 1990')).toBeInTheDocument();
     // The sentence now renders as multiple child nodes (bolded country names, colored values),
@@ -272,7 +273,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByText('Since 1990');
 
     // Fastest Growth: absolute_change 10000 (bad/increase) -> NEGATIVE_COLOR.
@@ -287,7 +288,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByText('Selected');
 
     vi.mocked(api.overview).mockResolvedValue({ ...RESPONSE, selected_country_list: ['Vietnam'] });
@@ -302,7 +303,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     const playButton = await screen.findByRole('button', { name: 'Play' });
     expect(playButton).not.toBeDisabled();
@@ -318,7 +319,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     await user.click(await screen.findByRole('button', { name: 'Play' }));
     expect(DEFAULT_ANIMATION.toggle).toHaveBeenCalledTimes(1);
@@ -329,7 +330,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     expect(await screen.findByRole('button', { name: 'Play' })).toBeDisabled();
     expect(screen.getByRole('slider')).not.toHaveAttribute('aria-disabled', 'true');
@@ -340,7 +341,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     await screen.findByText('Selected');
     // All Countries, Expanded, and Selected each suppress their own pct-change row.
@@ -354,7 +355,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByText('Selected');
 
     await user.click(screen.getByLabelText('Select countries (up to 10/11)'));
@@ -371,7 +372,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByText('Selected');
 
     const updated: OverviewResponse = {
@@ -405,7 +406,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByText('Selected');
 
     const removeButtons = screen.getAllByRole('button', { name: /remove|×|clear/i });
@@ -437,7 +438,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     const nav = await screen.findByRole('navigation', { name: 'Jump links' });
     const links = within(nav).getAllByRole('link');
@@ -452,7 +453,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByText('Selected');
 
     const removeButtons = screen.getAllByRole('button', { name: /remove|×|clear/i });
@@ -473,7 +474,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockRejectedValue(new Error('Failed to load data.'));
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
   });
@@ -482,16 +483,30 @@ describe('OverviewPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockRejectedValue(new ApiError(503, 'Failed to load map data.'));
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     expect(await screen.findByText('Failed to load map data.')).toBeInTheDocument();
   });
 
   it('renders an inline error instead of crashing when listCountries fails', async () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
-    render(<OverviewPage />);
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
     expect(vi.mocked(api.overview)).not.toHaveBeenCalled();
+  });
+
+  it('opens with the countries named in ?countries= as its Selected tier, keeping an explicit empty selection empty', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    const { unmount } = render(<MemoryRouter initialEntries={['/overview?countries=vietnam&countries=Atlantis']}><OverviewPage /></MemoryRouter>);
+    await screen.findByText('All Countries');
+    expect(vi.mocked(api.overview)).toHaveBeenCalledWith(['Vietnam']);
+    unmount();
+    vi.mocked(api.overview).mockClear();
+    render(<MemoryRouter initialEntries={['/overview?countries=']}><OverviewPage /></MemoryRouter>);
+    await screen.findByText('All Countries');
+    expect(await screen.findAllByText('Select at least one country.')).not.toHaveLength(0);
   });
 });

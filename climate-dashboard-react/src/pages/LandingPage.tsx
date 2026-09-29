@@ -141,10 +141,14 @@ function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTime
   );
 }
 
-const STORY_COPY: Record<Story['kind'], { kicker: string; text: (n: number, since: number) => string; cta: string; to: string }> = {
-  'largest-rise': { kicker: 'largest absolute rise', text: (n, since) => `MtCO₂ added since ${since}, the largest increase of any top-${n} emitter.`, cta: 'Open Country Profile', to: '/country-profile' },
-  'fastest-growth': { kicker: 'fastest growth', text: (n, since) => `The fastest percentage growth among the top-${n} emitters since ${since}.`, cta: 'Compare in Historical Trends', to: '/historical' },
-  'steepest-decline': { kicker: 'steepest decline', text: (n, since) => `The steepest cut among the top-${n} emitters since ${since}.`, cta: 'See % change on the Overview', to: '/overview#pct-change' },
+// `to`/`cta` take the story's country: the first two links deep-link (?country= / ?countries=, see
+// useCountrySelection) so the card's promise -- "Open China's profile" -- is what actually opens.
+// The last has no country parameter: the Overview's % Change chart covers the *selected* countries,
+// and one country isn't a comparison.
+const STORY_COPY: Record<Story['kind'], { kicker: string; text: (n: number, since: number) => string; cta: (c: string) => string; to: (c: string) => string }> = {
+  'largest-rise': { kicker: 'largest absolute rise', text: (n, since) => `MtCO₂ added since ${since}, the largest increase of any top-${n} emitter.`, cta: (c) => `Open ${c}’s profile`, to: (c) => `/country-profile?country=${encodeURIComponent(c)}` },
+  'fastest-growth': { kicker: 'fastest growth', text: (n, since) => `The fastest percentage growth among the top-${n} emitters since ${since}.`, cta: (c) => `See ${c} in Historical Trends`, to: (c) => `/historical?countries=${encodeURIComponent(c)}` },
+  'steepest-decline': { kicker: 'steepest decline', text: (n, since) => `The steepest cut among the top-${n} emitters since ${since}.`, cta: () => 'See % change on the Overview', to: () => '/overview#pct-change' },
 };
 
 function StoryCard({ story, topN, firstYear, lastYear }: { story: Story; topN: number; firstYear: number; lastYear: number }) {
@@ -169,7 +173,7 @@ function StoryCard({ story, topN, firstYear, lastYear }: { story: Story; topN: n
           <span>{lastYear} · {fmtInt(story.to)}</span>
         </div>
       )}
-      <Link to={copy.to} style={{ fontWeight: 600, color: 'var(--__s9cmpx-static-text-accent, inherit)' }}>{copy.cta} →</Link>
+      <Link to={copy.to(story.country)} style={{ fontWeight: 600, color: 'var(--__s9cmpx-static-text-accent, inherit)' }}>{copy.cta(story.country)} →</Link>
     </article>
   );
 }

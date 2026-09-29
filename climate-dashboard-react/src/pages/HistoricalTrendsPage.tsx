@@ -4,6 +4,7 @@ import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks'
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
+import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
 
@@ -23,7 +24,8 @@ const JUMP_ITEMS: JumpLinkItem[] = [
 function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   // Defaults to the full 10 featured countries, matching Overview's Selected tier default
   // (previously just the first 5 here — inconsistent with the rest of the app).
-  const [selectedCountries, setSelectedCountries] = useState<string[]>(featured);
+  // URL-backed (?countries=…, SPEC.md §5.25) so links can open with a chosen selection.
+  const [selectedCountries, setSelectedCountries] = useSelectedCountries(featured, expanded);
   const [gas, setGas] = useState('co2');
 
   const timeseries = useAsync(

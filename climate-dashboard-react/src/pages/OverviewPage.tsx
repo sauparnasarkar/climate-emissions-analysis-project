@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
@@ -7,6 +7,7 @@ import { useCountries } from '../hooks/useCountries';
 import { useCountUp } from '../hooks/useCountUp';
 import { useYearAnimation } from '../hooks/useYearAnimation';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
+import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { buildHeadlineSentence } from '../lib/overviewHeadline';
 import { resolveNoDataColorHex, resolveDivergingScaleReversedHex } from '../lib/resolveThemeColorHex';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
@@ -323,7 +324,8 @@ function AnimatedWorldMap({
 // featured-default seed) are already known — avoiding a wasted initial fetch before
 // GET /api/countries resolves.
 function OverviewContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
-  const [selected, setSelected] = useState<string[]>(featured);
+  // URL-backed (?countries=…, SPEC.md §5.25) so links can open with a chosen selection.
+  const [selected, setSelected] = useSelectedCountries(featured, expanded);
   // Still fires even when selected is empty (client.ts omits the query param, server
   // defaults to FEATURED_COUNTRIES) — matches HistoricalTrendsPage's exact precedent. The
   // Selected tier/charts/movers below are gated on the *local* selected.length, not on

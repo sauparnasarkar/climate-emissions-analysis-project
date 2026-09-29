@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import type { CountriesResponse, HistoricalDecadeCompositionResponse, HistoricalTimeseriesResponse } from '../api/types';
@@ -69,7 +70,7 @@ describe('HistoricalTrendsPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
-    render(<HistoricalTrendsPage />);
+    render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
 
     expect(await screen.findByText('CO₂ Emissions by Country')).toBeInTheDocument();
     expect(screen.getByText('GHG Composition by Decade — 10 Countries (% share)')).toBeInTheDocument();
@@ -84,7 +85,7 @@ describe('HistoricalTrendsPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
-    render(<HistoricalTrendsPage />);
+    render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
 
     const nav = await screen.findByRole('navigation', { name: 'Jump links' });
     const links = within(nav).getAllByRole('link');
@@ -102,7 +103,7 @@ describe('HistoricalTrendsPage', () => {
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<HistoricalTrendsPage />);
+    render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
 
     await screen.findByText('CO₂ Emissions by Country');
     // MultiSelect's own interaction pattern is design-system's concern (already
@@ -123,7 +124,7 @@ describe('HistoricalTrendsPage', () => {
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<HistoricalTrendsPage />);
+    render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
     await screen.findByText('CO₂ Emissions by Country');
 
     // All 10 featured countries are preselected by default, already at maxSelected=10.
@@ -146,7 +147,7 @@ describe('HistoricalTrendsPage', () => {
     vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<HistoricalTrendsPage />);
+    render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
     await screen.findByText('CO₂ Emissions by Country');
 
     const removeButtons = screen.getAllByRole('button', { name: /remove|×|clear/i });
@@ -165,9 +166,23 @@ describe('HistoricalTrendsPage', () => {
 
   it('renders an inline error instead of crashing when listCountries fails', async () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
-    render(<HistoricalTrendsPage />);
+    render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
 
     expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
     expect(vi.mocked(api.historicalTimeseries)).not.toHaveBeenCalled();
+  });
+
+  it('opens with the countries named in ?countries= (validated), and falls back to the defaults for junk', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+    vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    const { unmount } = render(<MemoryRouter initialEntries={['/historical?countries=vietnam&countries=Atlantis']}><HistoricalTrendsPage /></MemoryRouter>);
+    await screen.findByText('CO₂ Emissions by Country');
+    expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(['Vietnam'], 'co2');
+    unmount();
+    vi.mocked(api.historicalTimeseries).mockClear();
+    render(<MemoryRouter initialEntries={['/historical?countries=Atlantis']}><HistoricalTrendsPage /></MemoryRouter>);
+    await screen.findByText('CO₂ Emissions by Country');
+    expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(FEATURED, 'co2');
   });
 });
