@@ -210,7 +210,8 @@ app.add_middleware(
     # surface. Protected by the existing Cloudflare edge rate-limit rule on the whole
     # /ghg-emissions-analysis path prefix (SPEC.md "Corrections applied" #5), not app-layer
     # auth -- this is a public feature, matching the rest of the dashboard.
-    allow_origins=["http://localhost:5173", "https://labs.syena.io"],
+    # labs.syena.io stays listed until the Release 20 cutover is finished (root SPEC.md §5.25).
+    allow_origins=["http://localhost:5173", "https://labs.syena.io", "https://climate-analytics.syena.io"],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

@@ -71,10 +71,14 @@ def _streamable_http_settings(deploy_base_path: str | None) -> tuple[str, Transp
         TransportSecuritySettings(
             allowed_hosts=[
                 "labs.syena.io",
+                # Release 20 (root SPEC.md §5.25): the dashboard/agent/MCP endpoint moves to its own
+                # sub-domain, served from the host root. labs.syena.io stays until the old host is
+                # retired.
+                "climate-analytics.syena.io",
                 f"127.0.0.1:{DEFAULT_STREAMABLE_HTTP_PORT}",
                 f"localhost:{DEFAULT_STREAMABLE_HTTP_PORT}",
             ],
-            allowed_origins=["https://labs.syena.io"],
+            allowed_origins=["https://labs.syena.io", "https://climate-analytics.syena.io"],
         )
         if is_deployed
         else None
