@@ -207,15 +207,21 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: { ...apiProxyEntry, ...agentProxyEntry },
+    // design-system is aliased in from outside this project's root (see resolve.alias above), and
+    // Vite's dev server / Vitest refuse to serve or transform files outside `fs.allow` -- fine for
+    // plain source imports, but design-system's Globe imports a bundled TopoJSON asset via `?url`,
+    // which is denied ("Denied ID ...") unless its directory is explicitly allowed.
+    fs: { allow: [path.resolve(__dirname, '..'), path.resolve(__dirname, '../../design-system')] },
   },
   preview: {
     port: 4173,
     proxy: { ...apiProxyEntry, ...agentProxyEntry },
     // Vite blocks unrecognized Host headers by default (DNS-rebinding protection) —
     // the Cloudflare Tunnel forwards requests with Host: labs.syena.io, which needs
-    // an explicit allow. Gated on the *normalized* base (not the raw env var) so
-    // e.g. DEPLOY_BASE_PATH=/ (which normalizes to root) doesn't unexpectedly
-    // restrict preview access even though it isn't really a prefixed deploy.
-    allowedHosts: isPrefixed ? ['labs.syena.io'] : undefined,
+    // an explicit allow. Release 20 (SPEC.md §5.25) moves the deploy to its own sub-domain served
+    // from the root (DEPLOY_BASE_PATH=/), so the new host is allowed too -- and, unlike before,
+    // *not* gated on the base being prefixed: a root-base deploy is now the real production case,
+    // and leaving `allowedHosts` undefined there would 403 the tunnel's Host header outright.
+    allowedHosts: ['labs.syena.io', 'climate-analytics.syena.io'],
   },
 })

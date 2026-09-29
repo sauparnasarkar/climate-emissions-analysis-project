@@ -25,6 +25,9 @@ export default defineConfig({
     // regardless of which node_modules it was found under.
     dedupe: ['react', 'react-dom'],
   },
+  // design-system sits outside this project's root; its Globe imports a bundled TopoJSON via
+  // `?url`, which Vite refuses to load ("Denied ID") unless the directory is in fs.allow.
+  server: { fs: { allow: [path.resolve(dirname, '..'), path.resolve(dirname, '../../design-system')] } },
   test: {
     environment: 'jsdom',
     globals: true,
