@@ -5,7 +5,7 @@ import type { MoverRow } from '../api/types';
 // distinction rather than a genuine standout (SPEC.md §5.18.1).
 const MIN_SELECTION_FOR_STABLE_CLAUSE = 4;
 
-interface HeadlineRow {
+export interface HeadlineRow {
   country: string;
   absoluteChange: number;
   pctChange: number;
@@ -60,6 +60,42 @@ function formatPct(value: number): string {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
 }
 
+export interface HeadlineFacts {
+  rows: HeadlineRow[];
+  absGrower: HeadlineRow;
+  pctGrower: HeadlineRow;
+  mostStable: HeadlineRow;
+  /** Up to two countries with the steepest declines, steepest first (empty if none declined). */
+  decliners: HeadlineRow[];
+}
+
+/**
+ * The selection rules behind the headline sentence, extracted so every surface that names "who grew
+ * the most / fastest / declined most" (this sentence, the landing page's story cards) derives them
+ * identically -- same null filtering, same tie-breaking -- and can never name different countries
+ * for the same claim. Null when no row has both figures.
+ */
+export function pickHeadlineFacts(headlineMovers: MoverRow[]): HeadlineFacts | null {
+  const rows: HeadlineRow[] = headlineMovers
+    .filter((m): m is MoverRow & { absolute_change: number; pct_change: number } =>
+      m.absolute_change != null && m.pct_change != null,
+    )
+    .map((m) => ({ country: m.country, absoluteChange: m.absolute_change, pctChange: m.pct_change }));
+
+  if (rows.length === 0) return null;
+
+  return {
+    rows,
+    absGrower: maxBy(rows, (r) => r.absoluteChange),
+    pctGrower: maxBy(rows, (r) => r.pctChange),
+    mostStable: minBy(rows, (r) => Math.abs(r.pctChange)),
+    decliners: rows
+      .filter((r) => r.pctChange < 0)
+      .sort((a, b) => a.pctChange - b.pctChange)
+      .slice(0, 2),
+  };
+}
+
 /**
  * Builds the Overview page's deterministic "Since 1990" headline sentence from
  * `headline_movers`, as a sequence of tagged segments (see `HeadlineSegment`). Returns `null`
@@ -75,21 +111,9 @@ function formatPct(value: number): string {
  * so a `headlineMovers[0]` shortcut would silently break if that contract ever changed.
  */
 export function buildHeadlineSentence(headlineMovers: MoverRow[], scope: string): HeadlineSegment[] | null {
-  const rows: HeadlineRow[] = headlineMovers
-    .filter((m): m is MoverRow & { absolute_change: number; pct_change: number } =>
-      m.absolute_change != null && m.pct_change != null,
-    )
-    .map((m) => ({ country: m.country, absoluteChange: m.absolute_change, pctChange: m.pct_change }));
-
-  if (rows.length === 0) return null;
-
-  const absGrower = maxBy(rows, (r) => r.absoluteChange);
-  const pctGrower = maxBy(rows, (r) => r.pctChange);
-  const mostStable = minBy(rows, (r) => Math.abs(r.pctChange));
-  const decliners = rows
-    .filter((r) => r.pctChange < 0)
-    .sort((a, b) => a.pctChange - b.pctChange)
-    .slice(0, 2);
+  const facts = pickHeadlineFacts(headlineMovers);
+  if (!facts) return null;
+  const { rows, absGrower, pctGrower, mostStable, decliners } = facts;
 
   // First sentence: who grew the most (absolute vs. rate), collapsed to one clause when the
   // same country tops both. Doesn't repeat "since 1990" inline -- the caller's "Since 1990"
