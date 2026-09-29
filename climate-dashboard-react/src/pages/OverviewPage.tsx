@@ -420,7 +420,11 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Overview</h1>
-      <JumpLinks items={JUMP_ITEMS} />
+      {/* Breathing room below the jump links: the active link's underline used to sit flush against the
+          map card's accent top rule (and its shadow), reading as one muddled line. */}
+      <div style={{ marginBottom: 16 }}>
+        <JumpLinks items={JUMP_ITEMS} />
+      </div>
 
       {/* 1400px, not the original 900px -- covers both reported iPad orientations (portrait
           1024, landscape 1366): at either width, the 2fr column left the choropleth too
