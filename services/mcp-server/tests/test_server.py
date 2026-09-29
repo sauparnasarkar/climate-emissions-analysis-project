@@ -38,8 +38,8 @@ def test_streamable_http_settings_set_locks_to_the_tunnel_hostname():
     path, security = _streamable_http_settings("/ghg-emissions-analysis/")
     assert path == "/ghg-emissions-analysis/mcp"
     assert security is not None
-    assert security.allowed_hosts == ["labs.syena.io", "127.0.0.1:8765", "localhost:8765"]
-    assert security.allowed_origins == ["https://labs.syena.io"]
+    assert security.allowed_hosts == ["labs.syena.io", "climate-analytics.syena.io", "127.0.0.1:8765", "localhost:8765"]
+    assert security.allowed_origins == ["https://labs.syena.io", "https://climate-analytics.syena.io"]
 
 
 def test_streamable_http_settings_allows_the_colocated_agent_over_loopback():
@@ -52,6 +52,16 @@ def test_streamable_http_settings_allows_the_colocated_agent_over_loopback():
     assert "localhost:8765" in security.allowed_hosts
 
 
+def test_streamable_http_settings_at_root_serves_the_release_20_subdomain():
+    # Release 20 (root SPEC.md §5.25): DEPLOY_BASE_PATH="/" on climate-analytics.syena.io means the
+    # endpoint is /mcp, and that Host/Origin must be accepted -- otherwise every external client gets
+    # 421 the moment the tunnel forwards the new host's traffic.
+    path, security = _streamable_http_settings("/")
+    assert path == "/mcp"
+    assert "climate-analytics.syena.io" in security.allowed_hosts
+    assert "https://climate-analytics.syena.io" in security.allowed_origins
+
+
 def test_streamable_http_settings_deployed_at_root_still_enables_security():
     # DEPLOY_BASE_PATH="/" is a legitimate "deployed at root" value -- it normalizes to an
     # empty, falsy prefix (matching api/main.py's own _normalize_deploy_prefix("/") == ""),
@@ -61,7 +71,7 @@ def test_streamable_http_settings_deployed_at_root_still_enables_security():
     path, security = _streamable_http_settings("/")
     assert path == "/mcp"
     assert security is not None
-    assert security.allowed_hosts == ["labs.syena.io", "127.0.0.1:8765", "localhost:8765"]
+    assert security.allowed_hosts == ["labs.syena.io", "climate-analytics.syena.io", "127.0.0.1:8765", "localhost:8765"]
 
 
 def test_timestamp_uvicorn_logs_prefixes_access_and_default_formats():

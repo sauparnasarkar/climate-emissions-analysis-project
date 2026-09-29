@@ -76,3 +76,20 @@ def test_normalize_deploy_prefix():
     assert server._normalize_deploy_prefix("/") == ""
     assert server._normalize_deploy_prefix("ghg-emissions-analysis/agent") == "/ghg-emissions-analysis/agent"
     assert server._normalize_deploy_prefix("/ghg-emissions-analysis/agent/") == "/ghg-emissions-analysis/agent"
+
+
+def test_normalize_deploy_prefix_for_the_release_20_root_deploy():
+    # Release 20 (root SPEC.md §5.25): on climate-analytics.syena.io the tunnel forwards /agent/...
+    # with no stripping, so the agent's DEPLOY_BASE_PATH becomes "/agent/" (was
+    # "/ghg-emissions-analysis/agent/") and must strip exactly that one segment.
+    assert server._normalize_deploy_prefix("/agent/") == "/agent"
+
+
+def test_cors_allows_the_release_20_subdomain_and_rejects_strangers():
+    from fastapi.testclient import TestClient
+
+    client = TestClient(server.app)
+    ok = client.get("/health", headers={"Origin": "https://climate-analytics.syena.io"})
+    assert ok.headers.get("access-control-allow-origin") == "https://climate-analytics.syena.io"
+    bad = client.get("/health", headers={"Origin": "https://evil.example.com"})
+    assert "access-control-allow-origin" not in bad.headers

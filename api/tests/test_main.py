@@ -34,6 +34,13 @@ def test_cors_headers_present_for_production_origin(client):
     assert resp.headers.get("access-control-allow-origin") == "https://labs.syena.io"
 
 
+def test_cors_headers_present_for_the_release_20_subdomain(client):
+    # climate-analytics.syena.io (SPEC.md §5.25) -- the dashboard's new home, served from the host
+    # root; allowed explicitly for the same reason as the labs.syena.io entry above.
+    resp = client.get("/api/health", headers={"Origin": "https://climate-analytics.syena.io"})
+    assert resp.headers.get("access-control-allow-origin") == "https://climate-analytics.syena.io"
+
+
 def test_cors_headers_absent_for_unlisted_origin(client):
     resp = client.get("/api/health", headers={"Origin": "https://evil.example.com"})
     assert "access-control-allow-origin" not in resp.headers

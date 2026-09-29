@@ -4,13 +4,14 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { stripTrailingSlash } from './src/lib/basePath.js'
+import { escapeRegExp, navigateFallbackDenylist, stripTrailingSlash } from './src/lib/basePath.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// Set DEPLOY_BASE_PATH=/ghg-emissions-analysis/ when building/previewing for the
-// Cloudflare Tunnel deployment (labs.syena.io/ghg-emissions-analysis). Defaults to
-// root so local `npm run dev` / `npm run build` behavior is unchanged. Normalized so a
+// The production deploy (climate-analytics.syena.io, Release 20 / SPEC.md §5.25) is served from the
+// host root, so DEPLOY_BASE_PATH=/ (or unset) is now the real production value. It can still be set
+// to a prefix (the old labs.syena.io/ghg-emissions-analysis/ deploy used one) when the app has to
+// live under a path. Defaults to root so local `npm run dev` / `npm run build` behavior is unchanged. Normalized so a
 // value given without leading/trailing slashes (or with only one, or nothing but
 // slashes) can't produce a malformed base/proxy key downstream.
 function normalizeBase(raw: string | undefined): string {
@@ -89,10 +90,6 @@ const agentProxy = {
 
 const agentProxyEntry = { [agentProxyPrefix]: agentProxy }
 
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 // PWA manifest colors match the app shell's own background tokens
 // (App.tsx's --sy-static-background-weak) — not redeclared here since the
 // theme CSS isn't parsed at build time, so keep these two in sync by hand if
@@ -157,10 +154,12 @@ export default defineConfig({
         // cross-origin redirect chain with no CORS headers. Denylisting /admin forces every load
         // of it to be a genuine network navigation, so an expired session redirects to Google
         // login the normal way instead of silently serving stale cached UI.
-        navigateFallbackDenylist: [
-          /\.[a-zA-Z0-9]{2,5}(\?.*)?$/,
-          new RegExp(`^${escapeRegExp(base)}admin(/[^?]*)?(\\?.*)?$`),
-        ],
+        //
+        // The backend prefixes (api/mcp/agent) are denylisted for a related reason: at the root base
+        // of climate-analytics.syena.io (Release 20, SPEC.md §5.25) this worker's scope is the whole
+        // origin, so a top-level navigation to one of them must reach the tunnel's backend route,
+        // not be answered with the SPA shell. The list is built (and unit-tested) in lib/basePath.ts.
+        navigateFallbackDenylist: navigateFallbackDenylist(base),
         // Data freshness matters more than offline access for a live emissions
         // dashboard — go to the network first for API calls (short timeout
         // before falling back to any cached copy), and let Workbox's default
