@@ -3437,7 +3437,7 @@ scope — same category as the rest of `SPEC.md` §5 (`SPEC.md` §5.25 is the du
 8. **Existing tests.** `OverviewPage.test.tsx` and the nav/route tests will need rewriting for the
    new route, Home item and picker layout; the new landing page and globe need their own suites.
 
-### Sub-domain cutover checklist (operational — none of it decided or done yet)
+### Sub-domain cutover checklist (operational — routing and old-URL decisions settled above; nothing done yet)
 
 Moving hosts touches infrastructure well beyond this repo. Each item needs a decision or action
 before the first deploy:
