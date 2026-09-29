@@ -62,3 +62,22 @@ def test_streamable_http_settings_deployed_at_root_still_enables_security():
     assert path == "/mcp"
     assert security is not None
     assert security.allowed_hosts == ["labs.syena.io", "127.0.0.1:8765", "localhost:8765"]
+
+
+def test_timestamp_uvicorn_logs_prefixes_access_and_default_formats():
+    import copy
+
+    from uvicorn.config import LOGGING_CONFIG
+
+    from mcp_server.server import _timestamp_uvicorn_logs
+
+    original = copy.deepcopy(LOGGING_CONFIG)
+    try:
+        _timestamp_uvicorn_logs()
+        for name in ("default", "access"):
+            formatter = LOGGING_CONFIG["formatters"][name]
+            assert formatter["fmt"].startswith("%(asctime)s ")
+            assert formatter["datefmt"] == "%Y-%m-%dT%H:%M:%S%z"
+    finally:
+        LOGGING_CONFIG.clear()
+        LOGGING_CONFIG.update(original)

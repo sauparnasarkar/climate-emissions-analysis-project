@@ -126,11 +126,30 @@ async def list_countries() -> dict:
 from .tools import composed, countries, forecasts, historical, scenarios  # noqa: E402, F401
 
 
+def _timestamp_uvicorn_logs() -> None:
+    """Prefix uvicorn's access and default log lines with a timestamp.
+
+    uvicorn's stock formats carry none, so an access-log line ("POST /mcp 200") can't be
+    matched against cloudflared's timestamped "stream N canceled" errors. MCPServer builds its
+    own uvicorn.Config internally with no log_config hook, and uvicorn.Config's `log_config`
+    default is this very LOGGING_CONFIG dict, so mutating it in place before mcp.run() is the
+    only seam. Local time with UTC offset (%z), so lines line up with cloudflared's UTC (Z)
+    timestamps without guessing the host's timezone.
+    """
+    from uvicorn.config import LOGGING_CONFIG
+
+    for name in ("default", "access"):
+        formatter = LOGGING_CONFIG["formatters"][name]
+        formatter["fmt"] = "%(asctime)s " + formatter["fmt"]
+        formatter["datefmt"] = "%Y-%m-%dT%H:%M:%S%z"
+
+
 def main() -> None:
     transport = os.environ.get("MCP_TRANSPORT", "streamable-http")
     if transport == "streamable-http":
         port = int(os.environ.get("MCP_SERVER_PORT", DEFAULT_STREAMABLE_HTTP_PORT))
         streamable_http_path, transport_security = _streamable_http_settings(os.environ.get("DEPLOY_BASE_PATH"))
+        _timestamp_uvicorn_logs()
         mcp.run(
             transport="streamable-http",
             host="127.0.0.1",
