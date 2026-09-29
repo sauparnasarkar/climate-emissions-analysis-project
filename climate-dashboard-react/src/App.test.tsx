@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import App from './App';
 
 // Page bodies are covered by their own suites -- this file only tests routing and the two layouts.
@@ -15,13 +15,15 @@ vi.mock('./pages/AdminPage', () => ({ default: () => <div>Admin page stub</div> 
 vi.mock('./pages/AgentPage', () => ({ AgentPage: () => <div>Agent page stub</div> }));
 
 // jsdom has no matchMedia; design-system's useIsMobile/useReducedMotion call it during render.
-// Desktop viewport, no reduced-motion preference.
+// Desktop viewport by default (only `(max-width: 768px)` flips with `mobile`); never reduced-motion.
+let mobile = false;
 beforeAll(() => {
   vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {},
+    matches: mobile && query === '(max-width: 768px)', media: query, addEventListener: () => {}, removeEventListener: () => {},
     addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false, onchange: null,
   }));
 });
+afterEach(() => { mobile = false; });
 
 const renderAt = (path: string) => render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
 
@@ -74,5 +76,50 @@ describe('App routing (Release 20)', () => {
   it('redirects an unknown path to the landing page', () => {
     renderAt('/no-such-page');
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂/i })).toBeInTheDocument();
+  });
+
+  it('renders the landing CTA as one link, not a button nested inside a link', () => {
+    renderAt('/');
+    const cta = screen.getByRole('link', { name: 'Explore the data' });
+    expect(cta).toHaveAttribute('href', '/overview');
+    expect(within(cta).queryByRole('button')).not.toBeInTheDocument();
+    expect(cta.closest('a')?.querySelector('button')).toBeNull();
+  });
+});
+
+describe('Landing layout on a phone (< 768px)', () => {
+  it('hides the inline nav behind a Menu button that discloses nav, theme toggle and Ask the Agent', () => {
+    mobile = true;
+    renderAt('/');
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).not.toBeInTheDocument();
+    const menu = screen.getByRole('button', { name: 'Menu' });
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(menu);
+    expect(menu).toHaveAttribute('aria-expanded', 'true');
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    for (const label of ['Overview', 'Historical Trends', 'Country Profile', 'Data Explorer', 'Forecasts', 'Scenario Comparison', 'About']) {
+      expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument();
+    }
+    expect(within(nav).getByRole('link', { name: 'Ask the Agent' })).toHaveAttribute('href', '/ask');
+    expect(within(nav).getByRole('radio', { name: 'Dark' })).toBeInTheDocument();
+  });
+
+  it('closes on Escape and on following a link', () => {
+    mobile = true;
+    renderAt('/');
+    const menu = screen.getByRole('button', { name: 'Menu' });
+
+    fireEvent.click(menu);
+    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).not.toBeInTheDocument();
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(menu);
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'About' }));
+    // Navigated to a dashboard page, which is a different layout entirely.
+    expect(screen.getByText('About page stub')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Menu' })).not.toBeInTheDocument();
   });
 });
