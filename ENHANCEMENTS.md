@@ -3368,3 +3368,115 @@ capability, LLM provider/model switching for `services/agent`. Full feature desi
 entry exists because the SPA route itself is a root-tracked `climate-dashboard-react/` change.
 Will be revised once the frontend branch (Section 4 of the implementation sequence) actually
 lands.
+
+
+---
+
+## Release 20 — Landing Page, Emissions Globe, Overview Restyle, and Dedicated Sub-Domain
+
+**Status: Docs-first stage (design accepted; implementation not yet started).**
+
+A Claude Design pass (2026-09-29, seven boards: landing page in dark/light desktop, tablet 768
+and phone 390; restyled Overview in dark/light; standalone globe) proposes three things, plus a
+hosting decision made by the mentor alongside it. Not a curriculum change and not internship
+scope — same category as the rest of `SPEC.md` §5 (`SPEC.md` §5.25 is the durable reference).
+
+### Decisions (settled)
+
+| # | Decision |
+|---|---|
+| 1 | **New sub-domain `climate-analytics.syena.io`**, serving the dashboard from the host root (`DEPLOY_BASE_PATH=/`) instead of `labs.syena.io/ghg-emissions-analysis/`. |
+| 2 | **Landing page becomes `/`; the Overview moves to `/overview`.** `path="*"` continues to redirect to `/` (now the landing page). |
+| 3 | **Overview sections stay anchor-based** (`#map`, `#by-country`, `#pct-change`, `JumpLinks`, `useJumpToHashOnLoad` — `SPEC.md` §5.19). The design's Map / By Country / % Change *tab strip* is **not** adopted: tabs would hide two of the three sections at a time and break bookmarked `#anchor` URLs. The restyle keeps `JumpLinks`, and its visual treatment can follow the mock's underline-tab look. |
+| 4 | The Overview keeps the §5.7 three-tier model (All Countries / Expanded / Selected) and the ≤10-country picker — the first design draft dropped both; the revised design restores them, and this release keeps them. |
+
+### What the design adds
+
+- **Landing page (`/`)** — its own layout (top nav, no sidebar): hero with headline and three KPIs
+  (All Countries total, % change since 1990, Expanded-set count) beside the globe; three "story"
+  cards (`headline_movers`-derived: largest absolute rise, fastest growth, steepest decline among
+  the 10 largest emitters of the latest year) with real 35-point sparklines; a ranking race of the
+  real top 10 for every year 1990–2024 (heading percentage computed per year); feature cards
+  using the app's exact nav labels; a "Built on" strip (Linear Regression, Random Forest,
+  ETS(A,Ad,N)); forecasts stated to **2043**, scenarios to **2040**. Tablet and phone layouts
+  are specified (menu button on small viewports).
+- **Emissions globe** — an orthographic globe of CO₂ by country, one rotation per step, sharing
+  the live map's YlOrRd log scale and `value_range`; drag/arrow-key rotate, +/− zoom, Reset view,
+  Table view listing every country, Gray = no data; reduced-motion users get no auto-play or spin
+  (Play steps years without colour blending); 5-year steps to match `useYearAnimation`
+  (≈35 s per full pass); pauses when scrolled offscreen or tab hidden; countries keyed by **ISO
+  code** and shapes self-hosted (removes the `cdn.plot.ly` CSP dependency for this component).
+- **Overview restyle (`/overview`)** — same content, new visual language (cards, Selected-country
+  outline on the flat map, bars in brand blue, % Change in the brown = increase / teal = decrease
+  pair with a legend). The sidebar gains a **Home** item (→ `/`) and "Ask the Agent" sits at the
+  top of the sidebar body.
+
+### Open items carried from the design review
+
+1. **Headline sentence.** The mock's copy ("…United States has stayed comparatively flat…") does
+   not match what `buildHeadlineSentence` produces. The implementation keeps that function as the
+   source of truth; the design copy is illustrative.
+2. **Story-card links** pass `?country=` / `?countries=`, which no page reads yet. Historical
+   Trends, Country Profile and Overview each need small query-parameter support (validated
+   against the expanded list, capped at 10 — the same rule as the picker), or the links drop the
+   parameters.
+3. **Light-theme bar colour.** The design uses the dark theme's blue for bars on the light theme
+   because the light brand blue (`#0A6E8C`) reads too dark on the light chart panel. That is a
+   `design-system` token decision, made in that repo — not patched in this app.
+4. **Overview at tablet/phone** was not redrawn; the assumption is the existing 1400px/768px
+   collapse rules still apply. Verify at 768 and 390 during the preview step.
+5. **Landing header on dark** uses a navy slightly off-theme; use the theme's own surface token.
+6. **Globe** is SVG in the mock; the app implementation should draw on canvas. It becomes a new
+   `design-system` component (needs `d3-geo` as a dependency and a self-hosted ISO-keyed
+   geometry file), not app-local code.
+7. **Ranking race data** needs no new endpoint — top-10-per-year is computable client-side from
+   `worldMapSeries` (already loaded by the Overview). Revisit only if landing-page payload
+   size becomes a concern.
+8. **Existing tests.** `OverviewPage.test.tsx` and the nav/route tests will need rewriting for the
+   new route, Home item and picker layout; the new landing page and globe need their own suites.
+
+### Sub-domain cutover checklist (operational — none of it decided or done yet)
+
+Moving hosts touches infrastructure well beyond this repo. Each item needs a decision or action
+before the first deploy:
+
+- **Old URL.** What `labs.syena.io/ghg-emissions-analysis/*` does afterwards (recommended: keep
+  it alive briefly, then 301 to the new host, preserving path — note `/` and `/#map`-style links
+  land on the landing page, not the Overview, on the new host).
+- **Cloudflare Tunnel.** New hostname ingress on the existing `cloudflared` route to
+  `vitepreview` / `uvicorn` / `mcpserver` / `agent`; the new host needs path-based routing to
+  `/api`, `/mcp`, `/agent` without a prefix.
+- **Base path in code.** Every service currently takes `DEPLOY_BASE_PATH=/ghg-emissions-analysis/`
+  (`api/main.py`, `services/mcp-server`, `services/agent`, `vite.config.ts`, `src/api/client.ts`,
+  `src/lib/theme.ts`, `App.tsx`); `/` must work as a first-class value, with tests.
+- **Cloudflare Access.** Recreate the login application (`/admin`, `/agent/admin` path rules) and
+  the MCP Service Auth application for the new host; existing Service Tokens/policies are
+  host-scoped.
+- **CORS** (`SPEC.md` §5.24): add `https://climate-analytics.syena.io` to `allow_origins`
+  (test both allowed and unlisted-origin cases, as before).
+- **Edge config per host.** CSP (`connect-src` for `*.cloudflareaccess.com`, plus `cdn.plot.ly`
+  for the Plotly map), response-header rules, rate-limit rule (currently keyed on the
+  `/ghg-emissions-analysis` prefix — must be re-keyed to the new host), `sw.js` cache-control rule.
+- **PWA.** New origin means a fresh service worker and manifest scope/start URL; the
+  `navigateFallbackDenylist` (must still cover `/admin` and any future gated route) is re-checked.
+  Installed PWAs on the old origin do not migrate.
+- **MCP clients.** Claude Desktop's `mcp-remote` config and any external tester use the old
+  `…/ghg-emissions-analysis/mcp` URL — update, and reissue nothing unless policies are recreated.
+- **Mac Mini tooling** outside the repo (`syena-traffic-check`, tailscale/baseline checks)
+  references the old host — update separately.
+- **Docs** with old-host references: `ARCHITECTURE.md` §§6–9 (updated on ship, not now — that
+  file describes current state), `services/mcp-server/*`, `services/agent/*`, `CLAUDE.md`.
+
+### Implementation sequence (one PR each; mentor reviews, then merge; visual preview before merge)
+
+1. **`design-system`:** globe component (canvas, keyboard, table view, reduced-motion, ISO
+   geometry asset) — plus any new tokens the design needs.
+2. **This repo — routing and shell:** `/` landing route with its own layout, Overview to
+   `/overview`, Home nav item, redirect/fallback updates, test updates. Behind the new base-path
+   support if it lands first.
+3. **This repo — landing page:** hero, stories, ranking race, feature cards, tablet/phone layouts.
+4. **This repo — Overview restyle** (anchors kept), query-parameter support on target pages.
+5. **Cutover:** base-path-as-`/` support across services, CORS, then the operational checklist
+   above and deploy (build is the point of no return — `npm run build` flips prod live).
+
+Revised again once each step ships.

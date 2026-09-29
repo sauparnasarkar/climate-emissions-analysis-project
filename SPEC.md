@@ -453,6 +453,7 @@ Sections to include:
 | v50 | Aug 2026 | §5.23 (`climate-emissions-analysis-project` PR #139, **Shipped**): three new fields on `GET /historical/timeseries` — `per_capita` (all three gases), `yoy_pct_change`/`per_gdp` (CO2-only, `None`-filled otherwise) — straight passthroughs of existing `data/owid-co2-data.csv` columns, closing a real multi-country data gap surfaced by MCP server testing. Explicitly distinct from `ghg_features.csv`'s `ghg_intensity`/`co2_yoy_pct_change` (numerically confirmed different metrics, similar names). Verified: 115/115 tests pass (2 new, confirmed to fail against pre-change code), live-smoke-tested against real data pre- and post-deploy. Not an internship requirement change. |
 | v51 | Aug 2026 | §5.24 (`climate-emissions-analysis-project` PR #140, **Shipped**): `api/main.py`'s `CORSMiddleware.allow_origins` gained the production origin (`https://labs.syena.io`) explicitly — the one `api/`-side prerequisite for the AuthZ architecture designed in `services/mcp-server/SPEC.md` §8 (a separate sub-project's spec, cross-referenced rather than duplicated here). `/api/*` itself stays unauthenticated by design; see that document for the full four-trust-boundary rationale and the Cloudflare Access design for the MCP server's own external clients, still pending the Cloudflare/Mac Mini deploy steps as of this writing. Verified: two new tests, 117/117 `api/tests` pass. Not an internship requirement change. |
 | v52 | Aug 2026 | `climate-dashboard-react/` gained a new `/ask` nav item (`AgentPage`) — the UI surface for `services/agent`, Stage 2 of the conversational-agent project `services/mcp-server` (Stage 1) began. Full design, node catalog, and release history live in [`services/agent/SPEC.md`](services/agent/SPEC.md) and [`services/agent/ENHANCEMENTS.md`](services/agent/ENHANCEMENTS.md) (a separate sub-project's docs, cross-referenced rather than duplicated here, same convention as v51's `services/mcp-server` reference). `vite.config.ts` gained a second dev/preview proxy entry (`services/agent`'s port 8766) alongside the existing `api/` one. Not an internship requirement change — see root `CLAUDE.md`'s scope note. |
+| v53 | Sep 2026 | Added §5.25 (Release 20, `ENHANCEMENTS.md`, **docs-first stage**): a Claude Design–derived landing page at `/`, a new emissions-globe component, and a restyled Overview moved to `/overview`, alongside a move to a dedicated sub-domain `climate-analytics.syena.io` served from the host root. Overview sections stay anchor-based (§5.19 unchanged). Not an internship requirement change. |
 
 ---
 
@@ -1909,6 +1910,26 @@ that actually owns `api/main.py`.
 | Testing | Two new `api/tests/test_main.py` cases: the production origin gets `access-control-allow-origin` echoed back; an unlisted origin (`https://evil.example.com`) gets no such header. 117/117 `api/tests` pass. |
 | Explicitly not part of this change | `/api/*` stays otherwise fully unauthenticated — see `services/mcp-server/SPEC.md` §8.1/§8.2 for why (a browser can't hold a secret, so application-layer auth isn't the right tool for the browser-facing leg; the existing Cloudflare rate-limit and response-header rules already cover the realistic abuse surface). The actual new auth surface in that design is the MCP server's external clients, gated by Cloudflare Access (§8.3–§8.4 of that document, itself still pending the Cloudflare dashboard + Mac Mini `launchd` steps as of this writing — operational, not code). Restricting `/api/*` reads more substantially — should that ever be wanted — is tracked as that same document's §8.5 ("Phase 2"), confirmed in scope but not designed yet. |
 | Not a curriculum scope change | Internship Weeks 1–5 and §§1–4 are unaffected; this is `api/`-only, same category as the rest of §5. |
+
+---
+
+### 5.25 Landing Page, Emissions Globe, Overview Restyle, and Dedicated Sub-Domain (Release 20, Docs-first)
+
+**Status: docs-first stage — design accepted, implementation not started.** Tracked in
+`ENHANCEMENTS.md` Release 20 (which also holds the review's open items and the full sub-domain
+cutover checklist); not a curriculum change, same category as the rest of §5.
+
+| Aspect | Detail |
+|---|---|
+| Hosting | New sub-domain `climate-analytics.syena.io`, dashboard served from the host root (`DEPLOY_BASE_PATH=/`) rather than `labs.syena.io/ghg-emissions-analysis/`. Touches the Cloudflare Tunnel, Access applications, CORS (§5.24), edge CSP/rate-limit/header rules, PWA scope and MCP client configs — operational items listed in `ENHANCEMENTS.md`, none decided yet beyond the host name itself |
+| Routes | `/` becomes the landing page (own layout, no sidebar); the Overview moves to `/overview`; `*` still redirects to `/`. Sidebar gains a **Home** item (→ `/`) |
+| Landing page | Hero + globe + KPIs (All Countries total, % since 1990, Expanded count); three `headline_movers`-derived story cards with real per-year sparklines; a ranking race of the real top 10 per year 1990–2024; feature cards using the app's exact nav labels; forecasts stated to 2043 and scenarios to 2040. Tablet (768) and phone (390) layouts specified in the design |
+| Globe | New `design-system` component: orthographic globe on the live map's log YlOrRd scale and `value_range`, countries keyed by ISO code, self-hosted shapes, keyboard rotate/zoom, Table view, reduced-motion support, 5-year steps matching `useYearAnimation`, canvas-rendered, pauses offscreen |
+| Overview restyle | Keeps the §5.7 three-tier summary, the ≤10-country picker and every chart; visual restyle only. **Sections stay anchor-based** — `JumpLinks`/`useJumpToHashOnLoad` (§5.19) are unchanged; the design's tab strip was rejected because tabs hide two of three sections and break bookmarked `#anchor` URLs |
+| Data | No new endpoint planned: the landing page and race derive from `/overview` and `worldMapSeries`. The headline sentence stays `buildHeadlineSentence`'s output, not the mock's copy |
+| Not a curriculum scope change | Internship Weeks 1–5 and §§1–4 are unaffected; React/deploy only, same category as the rest of §5 |
+
+---
 
 ---
 
