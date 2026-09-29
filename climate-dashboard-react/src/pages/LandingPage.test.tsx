@@ -122,7 +122,7 @@ describe('LandingPage', () => {
     expect(globe).toHaveAttribute('data-iso', 'AAA,BBB,CCC,DDD');
     expect(globe).toHaveAttribute('data-range', '[1,300]');
     expect(globe).toHaveAttribute('data-year-index', '1'); // currentYear 2023 - first year 2022
-    expect(globe).toHaveAttribute('data-rotation-ms', '5000');
+    expect(globe).toHaveAttribute('data-rotation-ms', '7000');
     expect(globe).toHaveAttribute('data-auto-rotate', 'true');
   });
 

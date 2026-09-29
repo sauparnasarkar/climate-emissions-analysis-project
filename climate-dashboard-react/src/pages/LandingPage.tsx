@@ -19,8 +19,9 @@ import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 // own responses (/overview, /overview/world-map-series) -- nothing is typed in -- so a weekly data
 // refresh that moves the latest year or country counts updates the page with no code change.
 
-// One globe rotation per year-step, matching useYearAnimation's 5-year stops (~35s for a full pass).
-const GLOBE_STEP_MS = 5000;
+// One globe rotation per year-step, matching useYearAnimation's 5-year stops (~49s for a full pass).
+// Slowed from 5s after review: at 5s the spin was too quick to read the countries as they passed.
+const GLOBE_STEP_MS = 7000;
 
 // Same starter the agent page offers, so this card promises something the agent demonstrably does.
 const AGENT_EXAMPLE = 'How has India’s emissions grown compared to other countries?';
