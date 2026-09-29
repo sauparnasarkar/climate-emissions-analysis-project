@@ -6,6 +6,7 @@ import { APP_TITLE, HOME_ITEM, LANDING_TITLE, NAV_ITEMS } from '../navigation';
 // mounts, so a per-layout "first render" flag would wrongly skip focus on the very first
 // navigation *between* them. Only the app's genuine first paint should skip it.
 let initialLoadDone = false;
+let lastHandledPathname: string | null = null;
 
 /** Route changes were previously silent and untitled: document.title never changed, no focus
  * moved, and nothing was announced -- a screen-reader user got no signal the page changed
@@ -19,6 +20,9 @@ export function useRouteAnnouncements(mainRef: RefObject<HTMLElement | null>) {
   const hashRef = useRef(hash);
   hashRef.current = hash;
   useEffect(() => {
+    if (pathname === lastHandledPathname) return;
+    lastHandledPathname = pathname;
+
     if (pathname === HOME_ITEM.path) {
       document.title = LANDING_TITLE;
     } else {

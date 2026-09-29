@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { StrictMode, useRef } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { Link, MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,8 +35,11 @@ describe('useRouteAnnouncements', () => {
       fresh.useRouteAnnouncements(ref);
       return <main ref={ref} tabIndex={-1} />;
     }
-    render(<MemoryRouter><FreshPage /></MemoryRouter>);
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+    render(<StrictMode><MemoryRouter><FreshPage /></MemoryRouter></StrictMode>);
     expect(scrollTo).not.toHaveBeenCalled();
+    expect(focus).not.toHaveBeenCalled();
+    focus.mockRestore();
   });
 
   it('scrolls to the top and focuses main (without scrolling) on an in-app navigation', () => {
