@@ -3389,6 +3389,8 @@ scope — same category as the rest of `SPEC.md` §5 (`SPEC.md` §5.25 is the du
 | 2 | **Landing page becomes `/`; the Overview moves to `/overview`.** `path="*"` continues to redirect to `/` (now the landing page). |
 | 3 | **Overview sections stay anchor-based** (`#map`, `#by-country`, `#pct-change`, `JumpLinks`, `useJumpToHashOnLoad` — `SPEC.md` §5.19). The design's Map / By Country / % Change *tab strip* is **not** adopted: tabs would hide two of the three sections at a time and break bookmarked `#anchor` URLs. The restyle keeps `JumpLinks`, and its visual treatment can follow the mock's underline-tab look. |
 | 4 | The Overview keeps the §5.7 three-tier model (All Countries / Expanded / Selected) and the ≤10-country picker — the first design draft dropped both; the revised design restores them, and this release keeps them. |
+| 5 | **The old `labs.syena.io/ghg-emissions-analysis/*` URLs are not preserved** — no external users, so no redirect period and no 301. They stop working when the new build goes live. |
+| 6 | **`DEPLOY_BASE_PATH=/` does not affect the other apps on the shared tunnel.** It is an environment variable on this project's own processes only; routing is matched in Cloudflare by hostname, then path, so rules for `climate-analytics.syena.io` don't interact with the `labs.syena.io` rules for `global-funds-india-allocation-monitor` (8082/4174) or `india-ipo-intelligence` (8083/4175). |
 
 ### What the design adds
 
@@ -3440,12 +3442,24 @@ scope — same category as the rest of `SPEC.md` §5 (`SPEC.md` §5.25 is the du
 Moving hosts touches infrastructure well beyond this repo. Each item needs a decision or action
 before the first deploy:
 
-- **Old URL.** What `labs.syena.io/ghg-emissions-analysis/*` does afterwards (recommended: keep
-  it alive briefly, then 301 to the new host, preserving path — note `/` and `/#map`-style links
-  land on the landing page, not the Overview, on the new host).
-- **Cloudflare Tunnel.** New hostname ingress on the existing `cloudflared` route to
-  `vitepreview` / `uvicorn` / `mcpserver` / `agent`; the new host needs path-based routing to
-  `/api`, `/mcp`, `/agent` without a prefix.
+- **Old URL.** Not preserved (decision 5). The four `labs.syena.io/ghg-emissions-analysis…`
+  tunnel routes and their Access applications are deleted *after* the new host is verified live.
+- **Cloudflare Tunnel** (shared with other apps — only this project's rules change). Add a
+  public hostname `climate-analytics.syena.io` (Cloudflare normally creates the DNS CNAME
+  itself) with these rules, matched top to bottom, catch-all last:
+
+  | Order | Path | Service |
+  |---|---|---|
+  | 1 | `^/api` | `http://localhost:8081` (`uvicorn`) |
+  | 2 | `^/mcp` | `http://localhost:8765` (`mcpserver`) |
+  | 3 | `^/agent` | `http://localhost:8766` (`agent`) |
+  | 4 | *(empty — matches everything)* | `http://localhost:4173` (`vitepreview`) |
+
+  Optionally tighten to `^/api(/|$)` etc. so `/apixyz` doesn't match (the existing rules don't).
+  Checked: no SPA client route (`/ask`, `/historical`, `/country-profile`, `/forecasts`,
+  `/scenarios`, `/data-explorer`, `/about`, `/admin`, `/overview`) collides with `/api`, `/mcp`
+  or `/agent`. Then delete the four old rules (`labs.syena.io/^/ghg-emissions-analysis/api|mcp|agent`
+  and `labs.syena.io/ghg-emissions-analysis`).
 - **Base path in code.** Every service currently takes `DEPLOY_BASE_PATH=/ghg-emissions-analysis/`
   (`api/main.py`, `services/mcp-server`, `services/agent`, `vite.config.ts`, `src/api/client.ts`,
   `src/lib/theme.ts`, `App.tsx`); `/` must work as a first-class value, with tests.
@@ -3476,7 +3490,14 @@ before the first deploy:
    support if it lands first.
 3. **This repo — landing page:** hero, stories, ranking race, feature cards, tablet/phone layouts.
 4. **This repo — Overview restyle** (anchors kept), query-parameter support on target pages.
-5. **Cutover:** base-path-as-`/` support across services, CORS, then the operational checklist
-   above and deploy (build is the point of no return — `npm run build` flips prod live).
+5. **Cutover**, in this order:
+   1. Code: `/` as a first-class base path across services + CORS (with tests), merged first.
+   2. Rebuild the frontend with `DEPLOY_BASE_PATH=/` and restart `uvicorn`, `vitepreview`,
+      `mcpserver` and `agent` with the new environment. One build serves one base path, so the
+      old URLs stop working the moment the new build is live (accepted — decision 5); the build
+      itself is the point of no return.
+   3. Add the new-host tunnel rules and Access applications (checklist above), verify, then
+      delete the old routes/Access apps.
+   4. Update `ARCHITECTURE.md`, service docs and MCP client configs.
 
 Revised again once each step ships.
