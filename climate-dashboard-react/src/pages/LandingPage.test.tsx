@@ -74,12 +74,12 @@ function overview(over: Partial<OverviewResponse> = {}, expanded = 12): Overview
   };
 }
 
-const ANIMATION = { currentYear: 2023, isPlaying: false, play: vi.fn(), pause: vi.fn(), toggle: vi.fn(), seek: vi.fn(), reducedMotion: false };
+const ANIMATION = { currentYear: 2023, isPlaying: true, play: vi.fn(), pause: vi.fn(), toggle: vi.fn(), seek: vi.fn(), reducedMotion: false };
 
-function mount(o: OverviewResponse = overview(), m: WorldMapTimeSeries = MAP) {
+function mount(o: OverviewResponse = overview(), m: WorldMapTimeSeries = MAP, anim: typeof ANIMATION = ANIMATION) {
   vi.mocked(api.overview).mockResolvedValue(o);
   vi.mocked(api.worldMapSeries).mockResolvedValue(m);
-  vi.mocked(useYearAnimation).mockReturnValue(ANIMATION);
+  vi.mocked(useYearAnimation).mockReturnValue(anim);
   return render(<MemoryRouter><LandingPage /></MemoryRouter>);
 }
 
@@ -113,7 +113,9 @@ describe('LandingPage', () => {
     expect(screen.getByText('+70.8%')).toBeInTheDocument(); // (427-250)/250
     expect(screen.getByText('Change since 2022')).toBeInTheDocument();
     expect(screen.getByText('Countries in the Expanded set').previousElementSibling).toHaveTextContent('12');
-    expect(screen.getByText(new RegExp(`forecasts to ${FORECAST_END_YEAR}.*pathways to ${SCENARIO_END_YEAR}`))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`ETS\\(A,Ad,N\\) forecasts to ${FORECAST_END_YEAR}.*pathways to ${SCENARIO_END_YEAR}`))).toBeInTheDocument();
+    // Only ETS carries 2043 forecasts in the UI -- the lede must not credit regression/RF with them.
+    expect(screen.getByText(/regression and Random Forest models, ETS/)).toBeInTheDocument();
   });
 
   it('feeds the globe the map series, its own value range, and the animation year', async () => {
@@ -124,6 +126,23 @@ describe('LandingPage', () => {
     expect(globe).toHaveAttribute('data-year-index', '1'); // currentYear 2023 - first year 2022
     expect(globe).toHaveAttribute('data-rotation-ms', '8000');
     expect(globe).toHaveAttribute('data-auto-rotate', 'true');
+  });
+
+  it('stops the globe spinning when the year animation is paused, and never spins under reduced motion', async () => {
+    const { unmount } = mount();
+    expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'true');
+    unmount();
+    const paused = mount(overview(), MAP, { ...ANIMATION, isPlaying: false });
+    expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'false');
+    paused.unmount();
+    mount(overview(), MAP, { ...ANIMATION, isPlaying: true, reducedMotion: true });
+    expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'false');
+  });
+
+  it('describes only ETS as the source of the 2043 forecasts in the feature card', async () => {
+    mount();
+    expect(await screen.findByText(/^ETS\(A,Ad,N\) forecasts to 2043 for all 12 Expanded countries, with 95% confidence bands, benchmarked against Linear Regression and Random Forest\.$/)).toBeInTheDocument();
+    expect(screen.queryByText(/Random Forest and ETS/)).not.toBeInTheDocument();
   });
 
   it('picks the three stories from the headline movers, with their figures and honest links', async () => {

@@ -15,14 +15,18 @@ const MAP: WorldMapTimeSeries = {
 const WORLD = [160, 200, 410];
 
 let reduced = false;
+let mqlListeners: Array<(e: { matches: boolean }) => void> = [];
 let ioCallback: ((entries: Array<{ isIntersecting: boolean }>) => void) | null = null;
 
 beforeEach(() => {
   vi.useFakeTimers();
   reduced = false;
   ioCallback = null;
+  mqlListeners = [];
   vi.stubGlobal('matchMedia', (q: string) => ({
-    matches: reduced && q === '(prefers-reduced-motion: reduce)', media: q, addEventListener: () => {}, removeEventListener: () => {},
+    matches: reduced && q === '(prefers-reduced-motion: reduce)', media: q,
+    addEventListener: (_: string, cb: (e: { matches: boolean }) => void) => { mqlListeners.push(cb); },
+    removeEventListener: (_: string, cb: (e: { matches: boolean }) => void) => { mqlListeners = mqlListeners.filter((l) => l !== cb); },
     addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false, onchange: null,
   }));
   vi.stubGlobal('IntersectionObserver', class {
@@ -80,5 +84,31 @@ describe('RankRace', () => {
     const slider = screen.getByRole('slider');
     fireEvent.keyDown(slider, { key: 'Home' });
     expect(ranking()).toEqual(['Alpha: 100', 'Beta: 50', 'Gamma: 10']);
+  });
+
+  it('stops autoplay and snaps to the final year if reduced motion turns on mid-race', () => {
+    mount();
+    act(() => ioCallback!([{ isIntersecting: true }]));
+    act(() => { vi.advanceTimersByTime(550); });
+    expect(ranking()[1]).toBe('Beta: 90'); // 2001, still racing
+    reduced = true;
+    act(() => { mqlListeners.forEach((l) => l({ matches: true })); });
+    expect(ranking()).toEqual(['Beta: 300', 'Alpha: 100', 'Gamma: 10']); // snapped to 2002
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(ranking()).toEqual(['Beta: 300', 'Alpha: 100', 'Gamma: 10']); // and stays put
+    expect(screen.queryByRole('button', { name: /Play|Pause|Replay/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('slider')).toBeInTheDocument();
+  });
+
+  it('gives the reduced-motion slider real years (aria min/max/now), not row indices', () => {
+    reduced = true;
+    mount();
+    const slider = screen.getByRole('slider');
+    expect(slider).toHaveAttribute('aria-valuemin', '2000');
+    expect(slider).toHaveAttribute('aria-valuemax', '2002');
+    expect(slider).toHaveAttribute('aria-valuenow', '2002');
+    fireEvent.keyDown(slider, { key: 'ArrowLeft' });
+    expect(slider).toHaveAttribute('aria-valuenow', '2001');
+    expect(ranking()).toEqual(['Alpha: 100', 'Beta: 90', 'Gamma: 10']); // 2001's ranking
   });
 });

@@ -88,7 +88,7 @@ function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTime
           Where the world’s CO₂ comes from — and where it’s heading.
         </h1>
         <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
-          {map.years.length} years of emissions for {all.countries_count} countries, Linear Regression, Random Forest and ETS(A,Ad,N) forecasts to {FORECAST_END_YEAR}, and scenario pathways to {SCENARIO_END_YEAR} — with an AI agent that answers questions from the same data.
+          {map.years.length} years of emissions for {all.countries_count} countries, regression and Random Forest models, ETS(A,Ad,N) forecasts to {FORECAST_END_YEAR}, and scenario pathways to {SCENARIO_END_YEAR} — with an AI agent that answers questions from the same data.
         </p>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <Link to="/overview" className={ctaClass('primary')} style={{ textDecoration: 'none' }}>
@@ -118,7 +118,9 @@ function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTime
           legendTitle="CO₂ (MtCO₂)"
           noDataLabel="Gray = no data"
           ariaLabel={`Globe of CO₂ emissions by country, ${minYear} to ${maxYear}, log-scaled colour from light (lowest) to deep red (highest)`}
-          autoRotate={!reducedMotion}
+          // Rotation follows the same play/pause as the year animation, so Pause (or a manual seek, which
+          // pauses) stops the whole hero -- not just the year.
+          autoRotate={isPlaying && !reducedMotion}
           rotationPeriodMs={GLOBE_STEP_MS}
           maxSize={600}
           title={
@@ -204,7 +206,7 @@ function featureText(id: string, overview: OverviewResponse, map: WorldMapTimeSe
     case 'historical': return `Compare up to ${MAX_SELECTED_COUNTRIES} countries across ${first}–${last}, with gas composition by decade.`;
     case 'country-profile': return 'Total, per-capita and year-on-year CO₂ for one country, with key statistics.';
     case 'data-explorer': return 'Browse and filter the underlying dataset, with summary statistics.';
-    case 'forecasts': return `Random Forest and ETS(A,Ad,N) forecasts to ${FORECAST_END_YEAR} for all ${expanded} Expanded countries, with 95% confidence bands.`;
+    case 'forecasts': return `ETS(A,Ad,N) forecasts to ${FORECAST_END_YEAR} for all ${expanded} Expanded countries, with 95% confidence bands, benchmarked against Linear Regression and Random Forest.`;
     case 'scenarios': return `BAU, Moderate and Aggressive pathways to ${SCENARIO_END_YEAR}, with cumulative ${SCENARIO_START_YEAR}–${SCENARIO_END_YEAR} totals.`;
     default: return '';
   }

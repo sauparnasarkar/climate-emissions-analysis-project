@@ -36,6 +36,12 @@ export function RankRace({ series, worldTotals, expandedCount }: { series: World
     return () => window.clearInterval(id);
   }, [playing, last]);
 
+  // useReducedMotion is live-subscribed: if the preference turns on mid-race, stop and snap to the
+  // static final-year state instead of letting the timer keep advancing.
+  useEffect(() => {
+    if (reduced) { setPlaying(false); setYearIdx(last); }
+  }, [reduced, last]);
+
   // First time the section scrolls into view, play from the start (never under reduced motion).
   useEffect(() => {
     const el = sectionRef.current;
@@ -71,7 +77,16 @@ export function RankRace({ series, worldTotals, expandedCount }: { series: World
           The {RACE_SIZE} largest emitters each year, {model.years[0]} → {model.years[last]}. Watch the ranking reshuffle as the largest growers rise.
         </p>
         {reduced ? (
-          <Slider label="Year" min={0} max={last} step={1} value={yearIdx} onChange={setYearIdx} showValue={false} />
+          // The slider speaks in real years (its aria-valuenow/min/max are read out), not row indices.
+          <Slider
+            label="Year"
+            min={model.years[0]}
+            max={model.years[last]}
+            step={1}
+            value={model.years[yearIdx]}
+            onChange={(year) => setYearIdx(Math.max(0, Math.min(last, year - model.years[0])))}
+            showValue={false}
+          />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button type="button" onClick={togglePlay} className="__s9cmpx-button __s9cmpx-button--secondary __s9cmpx-button--m">
