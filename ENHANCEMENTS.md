@@ -3374,7 +3374,7 @@ lands.
 
 ## Release 20 — Landing Page, Emissions Globe, Overview Restyle, and Dedicated Sub-Domain
 
-**Status: In progress — PR 1 (globe) merged; PR 2 (routing/shell) open; PRs 3–5 not started.**
+**Status: In progress — PRs 1–3 merged (globe, routing/shell, landing page); PR 4 (Overview restyle + URL params, split into three) in progress; PR 5 (cutover) not started.**
 
 A Claude Design pass (2026-09-29, seven boards: landing page in dark/light desktop, tablet 768
 and phone 390; restyled Overview in dark/light; standalone globe) proposes three things, plus a
@@ -3506,12 +3506,30 @@ before the first deploy:
   `colorScale`/`colorRange`/`zLog`, controlled `yearIndex`, keyboard + Table view, reduced-motion support; geometry is a
   self-hosted, trimmed copy of the Plotly/Natural Earth 110m atlas the flat map already uses (same borders and ids).
   Adds `d3-geo`. Two pre-existing `design-system` test failures on `main` (unrelated) were left alone.
-- **PR 2 — routing and shell: open** (`#189`). `/` → `LandingLayout` + placeholder `LandingPage`; dashboard pages incl.
-  `/overview` under an extracted `DashboardLayout`; unlabeled Home item in the sidebar; `App.test.tsx`. Findings worth
-  keeping: (1) app `vite`/`vitest` configs needed `server.fs.allow` for design-system's directory once its `Globe`
-  imported a `?url` asset (`Denied ID` otherwise); (2) **`preview.allowedHosts` was `undefined` for a root base** — it would
-  have 403'd the tunnel's Host header at cutover, so it now always lists `climate-analytics.syena.io`; (3) Overview uses the
-  `expand` glyph because `home` now means Home (a dedicated icon is a design-system follow-up). **Do not deploy PR 2 on its
-  own** — the landing page is still a placeholder.
+- **PR 2 — routing and shell: merged** (`#189`). `/` → `LandingLayout`; dashboard pages incl. `/overview` under an
+  extracted `DashboardLayout`; unlabeled Home item in the sidebar; `App.test.tsx` (incl. the phone menu, after Copilot
+  review). Findings worth keeping: (1) app `vite`/`vitest` configs needed `server.fs.allow` for design-system's directory
+  once its `Globe` imported a `?url` asset (`Denied ID` otherwise); (2) **`preview.allowedHosts` was `undefined` for a root
+  base** — it would have 403'd the tunnel's Host header at cutover, so it now always lists `climate-analytics.syena.io`;
+  (3) Overview uses the `expand` glyph because `home` now means Home (a globe icon in design-system would let Overview
+  take `home` back — planned in PR 4a); (4) clicking Home did nothing until a test caught that Home wasn't in the
+  `onItemClick` lookup.
+- **PR 3 — landing page: merged** (`#190`, plus `design-system#95`). Every number/year/count is computed from `/overview`
+  and `/overview/world-map-series`. Findings worth keeping: (1) `pickHeadlineFacts` was extracted from
+  `buildHeadlineSentence` so the story cards and the Overview headline sentence can never name different countries;
+  (2) the Globe's panel overflowed a narrow parent by 24px (`content-box` + padding) — fixed in `design-system#95`, its new
+  `NarrowContainer` story fails without it; (3) **only ETS carries 2043 forecasts and bands in the UI** — the mockup's
+  "Linear Regression, Random Forest and ETS forecasts" wording was wrong and was corrected after Copilot review (RF is
+  feature importance; LR/RF are model-comparison benchmarks); (4) the globe now spins only while the year animation plays
+  (Pause / a manual seek stops both), one rotation per step at **8 s** (≈56 s for a full 1990→2024 pass; originally 5 s —
+  slowed after review); (5) the race world-total (`co2_by_year`) equals the sum of the map series each year, so its
+  "x% of the world's CO₂" is right; (6) the page indexes by `year − firstYear`, the same contiguous-years assumption the
+  Overview makes.
+- **PR 4 — Overview restyle + URL params (in progress), split three ways:** **4a** `design-system` (outline selected
+  countries on the choropleth as its own prop so `series` stays reference-stable and the user's zoom survives; zoom ±;
+  globe icon), **4b** `?country=` / `?countries=` support (validated against the expanded list, deduped, capped at
+  `MAX_SELECTED_COUNTRIES`, URL kept in sync) and story links that honour it, **4c** the Overview restyle itself (anchors
+  `#map`/`#by-country`/`#pct-change` and the `MultiSelect` picker kept; map Table view; Top Movers beside the By Country
+  chart; SyChart stays — the mockup's hand-drawn SVG map/bars are a design-tool artifact, not a requirement).
 
 Revised again once each step ships.
