@@ -145,7 +145,7 @@ describe('LandingPage', () => {
     expect(screen.queryByText(/Random Forest and ETS/)).not.toBeInTheDocument();
   });
 
-  it('picks the three stories from the headline movers, with their figures and honest links', async () => {
+  it('picks the three stories from the headline movers, with their figures and deep links', async () => {
     mount();
     const stories = await screen.findByRole('heading', { name: /three stories in 3 years of data/i });
     const section = stories.closest('section')!;
@@ -158,7 +158,8 @@ describe('LandingPage', () => {
     expect(within(cards[1]).getByText('+500.0%')).toBeInTheDocument();
     expect(within(cards[2]).getByText('Delta · steepest decline')).toBeInTheDocument();
     expect(within(cards[2]).getByText('−83.3%')).toBeInTheDocument();
-    expect(within(cards[0]).getByRole('link', { name: /Open Country Profile/ })).toHaveAttribute('href', '/country-profile');
+    expect(within(cards[0]).getByRole('link', { name: 'Open Beta’s profile →' })).toHaveAttribute('href', '/country-profile?country=Beta');
+    expect(within(cards[1]).getByRole('link', { name: 'See Beta in Historical Trends →' })).toHaveAttribute('href', '/historical?countries=Beta');
     expect(within(cards[2]).getByRole('link', { name: /See % change on the Overview/ })).toHaveAttribute('href', '/overview#pct-change');
   });
 

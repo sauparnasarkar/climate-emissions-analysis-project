@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import type { CountriesResponse, CountryProfileResponse } from '../api/types';
@@ -76,7 +77,7 @@ describe('CountryProfilePage', () => {
   it('renders the profile for the default (featured[0]) country', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
-    render(<CountryProfilePage />);
+    render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
 
     expect(await screen.findByText('CO₂ Emissions — China')).toBeInTheDocument();
     expect(vi.mocked(api.countryProfile)).toHaveBeenCalledWith('China');
@@ -90,7 +91,7 @@ describe('CountryProfilePage', () => {
     // since both themes render this chart on the same dark chart panel.
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
-    render(<CountryProfilePage />);
+    render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
     await screen.findByText('CO₂ Emissions — China');
 
     // Grid order: CO₂ Emissions (0), CO₂ per Capita (1) -- both line charts, both pinned.
@@ -102,7 +103,7 @@ describe('CountryProfilePage', () => {
   it('renders a Jump To nav under the h1 linking to all four sections', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
-    render(<CountryProfilePage />);
+    render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
     await screen.findByText('CO₂ Emissions — China');
 
     const nav = await screen.findByRole('navigation', { name: 'Jump links' });
@@ -118,7 +119,7 @@ describe('CountryProfilePage', () => {
     vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<CountryProfilePage />);
+    render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
     await screen.findByText('CO₂ Emissions — China');
 
     vi.mocked(api.countryProfile).mockResolvedValue({ ...RESPONSE, country: 'Vietnam' });
@@ -134,7 +135,7 @@ describe('CountryProfilePage', () => {
     vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<CountryProfilePage />);
+    render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
     await screen.findByText('CO₂ Emissions — China');
 
     // Grid order: CO₂ Emissions (index 0), CO₂ per Capita (index 1), then the already
@@ -164,7 +165,7 @@ describe('CountryProfilePage', () => {
     document.documentElement.style.setProperty('--__s9cmpx-chart-diverging-low', '#222222');
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.countryProfile).mockResolvedValue({ ...RESPONSE, yoy_years: [2020, 2021], yoy_values: [10.5, -3.2] });
-    render(<CountryProfilePage />);
+    render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
     await screen.findByText('CO₂ Emissions — China');
 
     // Grid order: CO₂ Emissions (0), CO₂ per Capita (1), YoY Change (2) -- same ordering the
@@ -177,16 +178,29 @@ describe('CountryProfilePage', () => {
   it('renders an inline error instead of crashing when the profile API call fails', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.countryProfile).mockRejectedValue(new Error('Failed to load data.'));
-    render(<CountryProfilePage />);
+    render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
 
     expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
   });
 
   it('renders an inline error instead of crashing when listCountries fails', async () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
-    render(<CountryProfilePage />);
+    render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
 
     expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
     expect(vi.mocked(api.countryProfile)).not.toHaveBeenCalled();
+  });
+
+  it('opens the country named in ?country= and falls back to the first featured country otherwise', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
+    const { unmount } = render(<MemoryRouter initialEntries={['/country-profile?country=india']}><CountryProfilePage /></MemoryRouter>);
+    await screen.findByText(/CO₂ Emissions — India/);
+    expect(vi.mocked(api.countryProfile)).toHaveBeenCalledWith('India');
+    unmount();
+    vi.mocked(api.countryProfile).mockClear();
+    render(<MemoryRouter initialEntries={['/country-profile?country=Atlantis']}><CountryProfilePage /></MemoryRouter>);
+    await screen.findByText(/CO₂ Emissions — China/);
+    expect(vi.mocked(api.countryProfile)).toHaveBeenCalledWith('China');
   });
 });

@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
 import { ChartCard, SyChart, Select, DataTable, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
+import { useSelectedCountry } from '../hooks/useCountrySelection';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { CountryProfileTableRow } from '../api/types';
 import { resolveDivergingEndpointHex } from '../lib/resolveThemeColorHex';
@@ -50,7 +50,8 @@ const JUMP_ITEMS: JumpLinkItem[] = [
 // (and its featured-default seed) are already known — avoiding a wasted initial fetch for
 // an undefined country before GET /api/countries resolves.
 function CountryProfileContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
-  const [country, setCountry] = useState<string>(featured[0]);
+  // URL-backed (?country=…, SPEC.md §5.25) so links can open a specific country's profile.
+  const [country, setCountry] = useSelectedCountry(featured[0], expanded);
   const { data, error, loading } = useAsync(() => api.countryProfile(country), [country]);
   const reduceMotion = useReducedMotion();
   useJumpToHashOnLoad(Boolean(data), reduceMotion);
