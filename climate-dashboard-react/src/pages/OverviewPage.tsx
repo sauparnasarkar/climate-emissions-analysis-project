@@ -1,5 +1,5 @@
-import { useMemo, type CSSProperties } from 'react';
-import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, useReducedMotion } from 'design-system';
+import { useMemo, useState, type CSSProperties } from 'react';
+import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, Table, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
@@ -36,6 +36,14 @@ const ANIMATION_STOP_MS = 1200;
 // the ocean (Claude Design theme-adherence review, C4). This legend swatch is a plain DOM
 // `style` prop, so it can resolve the var() directly; the map itself needs an actual resolved
 // hex (see AnimatedWorldMap's noDataColorHex -- Plotly can't parse var(...) at all).
+// Card surface for the picker panel -- same tokens TierSummaryPanel/OverviewHeadline use.
+const panelStyle: CSSProperties = {
+  background: 'var(--__s9cmpx-static-background-standard)',
+  border: '1px solid var(--__s9cmpx-static-divider-weak)',
+  borderRadius: 8,
+  padding: '12px 16px',
+};
+
 const NO_DATA_COLOR = 'var(--__s9cmpx-chart-surface-text-weak, #6b7280)';
 
 // Standard clip-based visually-hidden technique -- design-system has no existing utility
@@ -206,6 +214,8 @@ function AnimatedWorldMap({
     intervalMs: ANIMATION_STOP_MS,
   });
   const yearIdx = currentYear - minYear;
+  // Table view: an accessible, sortable alternative to the map (all countries, current year).
+  const [tableView, setTableView] = useState(false);
 
   // Memoized to worldMapSeries alone (fetched once, stable for the page's lifetime) -- must
   // never change reference as currentYear advances, or SyChart's main effect re-runs on every
@@ -249,6 +259,21 @@ function AnimatedWorldMap({
     [worldMapSeries, selectedIndices],
   );
 
+  // ISO codes of the picker's selection, outlined on the map. Its own memo (and a separate SyChart
+  // prop) so a selection change restyles just the outline and never resets the user's zoom; it
+  // only changes when the selection does, not per animation tick.
+  const outlineLocations = useMemo(() => selectedIndices.map((i) => worldMapSeries.iso_codes[i]), [selectedIndices, worldMapSeries]);
+
+  // Every country's value for the current year, largest first, no-data last -- the Table view.
+  const tableRows = useMemo(() => {
+    if (!tableView) return [];
+    const row = worldMapSeries.values[yearIdx] ?? [];
+    return worldMapSeries.countries
+      .map((country, i) => ({ country, v: row[i] ?? null }))
+      .sort((a, b) => (b.v ?? -1) - (a.v ?? -1))
+      .map(({ country, v }) => ({ country, value: v == null ? 'No data' : v.toLocaleString(undefined, { maximumFractionDigits: v < 10 ? 2 : 0 }) }));
+  }, [tableView, worldMapSeries, yearIdx]);
+
   return (
     <>
       <ChartCard id="map" className="overview-map-card" title={`CO₂ Emissions by Country (${currentYear})`} headingLevel={2} expandable>
@@ -278,22 +303,51 @@ function AnimatedWorldMap({
               showThumbValue
             />
           </div>
+          <Button variant="ghost-blue" onClick={() => setTableView((v) => !v)} aria-pressed={tableView}>
+            {tableView ? 'Map view' : 'Table view'}
+          </Button>
         </div>
         {/* No explicit height here, expanded or not -- the choropleth's own ResizeObserver
             already recomputes height from container width alone (SPEC.md §5.10), so widening
             the container on expand is sufficient. Coexists with SyChart's own internal
             "Reset view" control (a different button, in a different location). */}
+        {/* Hidden, not unmounted, in Table view: remounting would throw away the user's map zoom and
+            re-run the whole choropleth draw. SyChart's own ResizeObserver resizes it on return. */}
+        <div style={{ display: tableView ? 'none' : undefined }}>
         <SyChart
           showLegend={false}
           ariaLabel={`Animated world map choropleth of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, log-scaled color from light (lowest) to deep red (highest)`}
           series={series}
           animationFrame={{ colorValues: worldMapSeries.values[yearIdx] }}
+          outlineLocations={outlineLocations}
         />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
-          <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: NO_DATA_COLOR, display: 'inline-block' }} />
-          <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
-            Gray = no CO₂ data reported for that country in {currentYear}
+        </div>
+        {tableView && (
+          <div style={{ maxHeight: 420, overflow: 'auto' }} tabIndex={0} role="region" aria-label={`CO₂ by country, ${currentYear}, table view`}>
+            <Table
+              size="small"
+              caption={`CO₂ by country, ${currentYear} (MtCO₂) — all ${worldMapSeries.countries.length} countries`}
+              columns={[
+                { key: 'country', header: 'Country', sortable: true },
+                { key: 'value', header: 'MtCO₂', align: 'right' },
+              ]}
+              rows={tableRows}
+            />
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 16px', marginTop: 8 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: NO_DATA_COLOR, display: 'inline-block' }} />
+            <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+              Gray = no CO₂ data reported for that country in {currentYear}
+            </span>
           </span>
+          {outlineLocations.length > 0 && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, border: '2px solid var(--__s9cmpx-color-brand-500)', boxSizing: 'border-box', display: 'inline-block' }} />
+              <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Outlined = your selected countries</span>
+            </span>
+          )}
         </div>
       </ChartCard>
 
@@ -365,12 +419,8 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
 
   return (
     <div>
-      <h1 className="__s9cmpx-headline2" style={{ margin: 0 }}>GHG Emissions Trend Analysis and Forecasting</h1>
+      <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Overview</h1>
       <JumpLinks items={JUMP_ITEMS} />
-      <p className="__s9cmpx-body1" style={{ margin: '4px 0 16px', color: 'var(--__s9cmpx-static-text-weak)' }}>
-        An end-to-end analysis of greenhouse gas emissions for {data.expanded_countries.countries_count} major countries using the OWID CO₂ dataset,
-        regression models, and ETS(A,Ad,N) forecasting.
-      </p>
 
       {/* 1400px, not the original 900px -- covers both reported iPad orientations (portrait
           1024, landscape 1366): at either width, the 2fr column left the choropleth too
@@ -393,53 +443,61 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           target, confirmed live: the dropdown a user needs to change their selection wasn't
           visible after following the link. Anchoring the wrapping row instead means the picker
           is the first thing on screen, exactly what "By Country" should feel like it jumps to. */}
-      <div id="by-country" className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 12 }}>
-        <MultiSelect
-          label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
-          options={expanded.map((c) => ({ value: c, label: c }))}
-          value={selected}
-          onChange={setSelected}
-          maxSelected={MAX_SELECTED_COUNTRIES}
-        />
-        <Button variant="ghost-blue" onClick={() => setSelected(featured)}>Reset to default</Button>
-      </div>
-
-      {/* Heading lives outside the selected.length gate (matching HistoricalTrendsPage's own
-          pattern) -- previously this whole block was one InlineAlert-or-fragment ternary with no
-          persistent element to anchor to when deselected to 0. #pct-change (below) is unaffected
-          by this change, still real and jumpable the same way (SPEC.md §5.19). */}
-      <h2 className="__s9cmpx-headline6" style={{ marginTop: 24 }}>By Country</h2>
-      {selected.length === 0 ? (
-        <InlineAlert variant="warning">Select at least one country.</InlineAlert>
-      ) : (
-        <ChartCard title={`CO₂ Emissions by Country (${data.selected.latest_year})`} headingLevel={3}>
-          <SyChart
-            height={320}
-            xTitle="Country"
-            yTitle="CO₂ (MtCO₂)"
-            showLegend={false}
-            ariaLabel={`Bar chart of total CO₂ emissions in ${data.selected.latest_year} for ${barSeries.length} countries, ranging from ${Math.min(...barValues).toLocaleString()} to ${Math.max(...barValues).toLocaleString()} MtCO₂`}
-            // Explicit brand color -- a single-series bar chart would otherwise default to
-            // the categorical palette's index-0 token, which Release 7 (SPEC.md §5.12)
-            // deliberately made near-white for multi-line chart hierarchies. That reads as a
-            // washed-out, colorless bar rather than a real color, so this chart gets the
-            // app's own brand blue instead.
-            series={[{ name: 'CO₂', x: barSeries, y: barValues, kind: 'bar', color: 'var(--__s9cmpx-color-brand-500)' }]}
+      <section id="by-country" aria-labelledby="picker-heading" style={{ ...panelStyle, marginBottom: 16 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 12px', marginBottom: 12 }}>
+          <h2 id="picker-heading" className="__s9cmpx-headline6" style={{ margin: 0 }}>Selected countries</h2>
+          <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+            {selected.length} of {MAX_SELECTED_COUNTRIES} max · from the {expanded.length} Expanded countries · drives the Selected tier and every chart below
+          </span>
+        </div>
+        <div className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12 }}>
+          <MultiSelect
+            label={`Select countries (up to ${MAX_SELECTED_COUNTRIES}/${expanded.length})`}
+            options={expanded.map((c) => ({ value: c, label: c }))}
+            value={selected}
+            onChange={setSelected}
+            maxSelected={MAX_SELECTED_COUNTRIES}
           />
-        </ChartCard>
-      )}
+          <Button variant="ghost-blue" onClick={() => setSelected(featured)}>Reset to default</Button>
+        </div>
+      </section>
 
-      <div id="pct-change" style={{ marginTop: 24 }}>
-        <h2 className="__s9cmpx-headline6">Top Movers Since 1990 ({data.selected_country_list.length} Selected Countries)</h2>
-        {selected.length === 0 ? (
-          <InlineAlert variant="warning">Select at least one country.</InlineAlert>
-        ) : (
-          <>
-            <p className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+      {/* By Country and Top Movers side by side, both driven by the selection. Heading lives outside
+          the selected.length gate (matching HistoricalTrendsPage's own pattern) -- previously this
+          whole block was one InlineAlert-or-fragment ternary with no persistent element to anchor
+          to when deselected to 0. */}
+      <style>{'@media (max-width: 1100px) { .overview-country-grid { grid-template-columns: 1fr !important; } }'}</style>
+      <div className="overview-country-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
+        <div style={{ minWidth: 0 }}>
+          <h2 className="__s9cmpx-headline6" style={{ margin: '8px 0 12px' }}>By Country</h2>
+          {selected.length === 0 ? (
+            <InlineAlert variant="warning">Select at least one country.</InlineAlert>
+          ) : (
+            <ChartCard title={`CO₂ Emissions by Country (${data.selected.latest_year})`} headingLevel={3}>
+              <SyChart
+                height={320}
+                xTitle="Country"
+                yTitle="CO₂ (MtCO₂)"
+                showLegend={false}
+                ariaLabel={`Bar chart of total CO₂ emissions in ${data.selected.latest_year} for ${barSeries.length} countries, ranging from ${Math.min(...barValues).toLocaleString()} to ${Math.max(...barValues).toLocaleString()} MtCO₂`}
+                // Explicit brand color -- a single-series bar chart would otherwise default to
+                // the categorical palette's index-0 token, which Release 7 (SPEC.md §5.12)
+                // deliberately made near-white for multi-line chart hierarchies. That reads as a
+                // washed-out, colorless bar rather than a real color, so this chart gets the
+                // app's own brand blue instead.
+                series={[{ name: 'CO₂', x: barSeries, y: barValues, kind: 'bar', color: 'var(--__s9cmpx-color-brand-500)' }]}
+              />
+            </ChartCard>
+          )}
+        </div>
+
+        {selected.length > 0 && (
+          <section aria-labelledby="movers-heading" style={{ minWidth: 0 }}>
+            <h2 id="movers-heading" className="__s9cmpx-headline6" style={{ margin: '8px 0 4px' }}>Top Movers Since 1990 ({data.selected_country_list.length} Selected Countries)</h2>
+            <p className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)', margin: '0 0 12px' }}>
               Fastest growth and largest reduction in CO₂ emissions, 1990 → {data.selected.latest_year}, among the {data.selected_country_list.length} selected countries.
             </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, margin: '12px 0 16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* deltaColor overrides KpiStat's own internal red/green good/bad lookup with the
                   same brown/teal pair the % Change chart below and the narrative panel above use
                   (Claude Design theme-adherence review round 2) -- deltaDirection is kept as-is
@@ -462,27 +520,45 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
                 deltaColor={POSITIVE_COLOR}
               />
             </div>
+          </section>
+        )}
+      </div>
 
-            <ChartCard title={`CO₂ % Change by Country, 1990–${data.selected.latest_year}`} headingLevel={3}>
-              <SyChart
-                height={320}
-                xTitle="Country"
-                yTitle={`% Change in CO₂ (1990→${data.selected.latest_year})`}
-                showLegend={false}
-                ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${data.selected.latest_year} for ${moverCountries.length} countries, colored on a diverging scale from a decrease (favorable) at one end to an increase (unfavorable) at the other`}
-                series={[{
-                  name: '% Change',
-                  x: moverCountries,
-                  y: moverPct,
-                  kind: 'bar',
-                  colorValues: moverPct,
-                  colorScale: moverColorScale,
-                  colorRange: [-moverPctMaxAbs, moverPctMaxAbs],
-                  colorbarTitle: `% Change in CO₂ (1990→${data.selected.latest_year})`,
-                }]}
-              />
-            </ChartCard>
-          </>
+      {/* Always rendered (even with 0 selected) so #pct-change stays a real jump target (SPEC.md §5.19). */}
+      <div id="pct-change" style={{ marginTop: 24 }}>
+        <h2 className="__s9cmpx-headline6" style={{ margin: '0 0 12px' }}>% Change Since 1990</h2>
+        {selected.length === 0 ? (
+          <InlineAlert variant="warning">Select at least one country.</InlineAlert>
+        ) : (
+          <ChartCard title={`CO₂ % Change by Country, 1990–${data.selected.latest_year}`} headingLevel={3}>
+            {/* Legend for the diverging pair: brown = increase (bad), teal = decrease (good) -- the
+                chart's own colorbar shows the gradient, this names the two ends in words. */}
+            <div className="__s9cmpx-body4" style={{ display: 'flex', gap: 16, marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: NEGATIVE_COLOR, display: 'inline-block' }} /> Increase
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: POSITIVE_COLOR, display: 'inline-block' }} /> Decrease
+              </span>
+            </div>
+            <SyChart
+              height={320}
+              xTitle="Country"
+              yTitle={`% Change in CO₂ (1990→${data.selected.latest_year})`}
+              showLegend={false}
+              ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${data.selected.latest_year} for ${moverCountries.length} countries, colored on a diverging scale from a decrease (favorable) at one end to an increase (unfavorable) at the other`}
+              series={[{
+                name: '% Change',
+                x: moverCountries,
+                y: moverPct,
+                kind: 'bar',
+                colorValues: moverPct,
+                colorScale: moverColorScale,
+                colorRange: [-moverPctMaxAbs, moverPctMaxAbs],
+                colorbarTitle: `% Change in CO₂ (1990→${data.selected.latest_year})`,
+              }]}
+            />
+          </ChartCard>
         )}
       </div>
     </div>

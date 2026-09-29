@@ -26,6 +26,7 @@ vi.mock('design-system', async (importOriginal) => {
     SyChart: (props: {
       ariaLabel?: string;
       series?: Array<{ kind?: string; noDataColor?: string; colorScale?: Array<[number, string]>; colorRange?: [number, number] }>;
+      outlineLocations?: string[];
     }) => {
       const barSeries = props.series?.find((s) => s.kind === 'bar');
       return (
@@ -33,6 +34,7 @@ vi.mock('design-system', async (importOriginal) => {
           data-testid="sychart"
           aria-label={props.ariaLabel}
           data-no-data-color={props.series?.find((s) => s.kind === 'choropleth')?.noDataColor}
+          data-outline={props.outlineLocations ? JSON.stringify(props.outlineLocations) : undefined}
           data-bar-color-scale={barSeries?.colorScale ? JSON.stringify(barSeries.colorScale) : undefined}
           data-bar-color-range={barSeries?.colorRange ? JSON.stringify(barSeries.colorRange) : undefined}
         />
@@ -166,7 +168,9 @@ describe('OverviewPage', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
-    expect(await screen.findByText(/for 40 major countries/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument();
+    // The picker card's hint is computed from the selection and the expanded list, not typed in.
+    expect(screen.getByText('10 of 10 max · from the 11 Expanded countries · drives the Selected tier and every chart below')).toBeInTheDocument();
     // Both the map and the Selected-tier bar chart share this exact title when their years
     // coincide (as in this fixture) -- assert the expected count of 2, not just >0.
     expect(screen.getAllByText('CO₂ Emissions by Country (2024)')).toHaveLength(2);
@@ -508,5 +512,43 @@ describe('OverviewPage', () => {
     render(<MemoryRouter initialEntries={['/overview?countries=']}><OverviewPage /></MemoryRouter>);
     await screen.findByText('All Countries');
     expect(await screen.findAllByText('Select at least one country.')).not.toHaveLength(0);
+  });
+
+  it('outlines the picker\'s selection on the map via its own SyChart prop (ISO codes), following ?countries=', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    const { unmount } = render(<MemoryRouter><OverviewPage /></MemoryRouter>);
+    await screen.findByText('All Countries');
+    const map = () => screen.getAllByTestId('sychart').find((el) => el.hasAttribute('data-outline'))!;
+    // Default selection is the 10 featured; only China is in this 2-country fixture series.
+    expect(map()).toHaveAttribute('data-outline', '["CHN"]');
+    expect(screen.getByText('Outlined = your selected countries')).toBeInTheDocument();
+    unmount();
+    render(<MemoryRouter initialEntries={['/overview?countries=vietnam']}><OverviewPage /></MemoryRouter>);
+    await screen.findByText('All Countries');
+    expect(map()).toHaveAttribute('data-outline', '["VNM"]');
+  });
+
+  it('offers a Table view of every country for the current year (largest first, "No data" included), and back', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue({ ...WORLD_MAP_SERIES, iso_codes: ['CHN', 'VNM', 'XXX'], countries: ['China', 'Vietnam', 'Nowhere'], values: [[14350, 21, null], [25324, 370, null]] });
+    render(<MemoryRouter><OverviewPage /></MemoryRouter>);
+    await screen.findByText('All Countries');
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole('button', { name: 'Table view' });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await user.click(toggle);
+    const table = screen.getByRole('table', { name: /CO₂ by country, 2024 \(MtCO₂\) — all 3 countries/ });
+    const rows = within(table).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell').map((c) => c.textContent));
+    expect(rows).toEqual([['China', '25,324'], ['Vietnam', '370'], ['Nowhere', 'No data']]);
+    expect(screen.getByRole('button', { name: 'Map view' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Map view' }));
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });
