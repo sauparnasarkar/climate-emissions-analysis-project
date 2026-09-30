@@ -3405,8 +3405,8 @@ scope — same category as the rest of `SPEC.md` §5 (`SPEC.md` §5.25 is the du
 - **Emissions globe** — an orthographic globe of CO₂ by country, one rotation per step, sharing
   the live map's YlOrRd log scale and `value_range`; drag/arrow-key rotate, +/− zoom, Reset view,
   Table view listing every country, Gray = no data; reduced-motion users get no auto-play or spin
-  (Play steps years without colour blending); 5-year steps to match `useYearAnimation`
-  (≈35 s per full pass); pauses when scrolled offscreen or tab hidden; countries keyed by **ISO
+  (Play steps years without colour blending); the host picks autoplay stops via `useYearAnimation`'s `stepYears`
+  (Landing: decades, see the post-ship follow-ups; ≈35 s at 5-year steps); pauses when scrolled offscreen or tab hidden; countries keyed by **ISO
   code** and shapes self-hosted (removes the `cdn.plot.ly` CSP dependency for this component).
 - **Overview restyle (`/overview`)** — same content, new visual language (cards, Selected-country
   outline on the flat map, bars in brand blue, % Change in the brown = increase / teal = decrease
@@ -3556,5 +3556,22 @@ Rollback (if step 6 fails badly): put the four plists' env back and rebuild with
   `MAX_SELECTED_COUNTRIES`, URL kept in sync) and story links that honour it, **4c** the Overview restyle itself (anchors
   `#map`/`#by-country`/`#pct-change` and the `MultiSelect` picker kept; map Table view; Top Movers beside the By Country
   chart; SyChart stays — the mockup's hand-drawn SVG map/bars are a design-tool artifact, not a requirement).
+
+### Post-ship follow-ups (2026-09-30, after the cutover)
+
+Three changes requested after Release 20 was live; the first two shipped as one PR each, the theme default went
+straight to `main` by instruction.
+- **Decade steps on the Landing globe** (`#200`). `useYearAnimation` gained an optional `stepYears` (default 5); only the
+  Landing hero passes `10`, so autoplay stops at 1990, 2000, 2010, 2020, then the latest year (2024) — about 40 s for a
+  full pass at the unchanged 8 s dwell. The Overview map keeps 5-year steps; the slider still scrubs any year.
+- **Disputed zones merged into India** (`design-system#101`). `XJK`, `XAC` and `XAP` (J&K, Aksai Chin, Arunachal Pradesh)
+  exist in the shared 110m topology but have no data rows, so both the globe and the Overview choropleth drew them as gray
+  gaps inside India. They are dissolved into `IND` (topojson-client `merge`, rebuilt with topojson-server at 1e4
+  quantization: 199 → 196 features, one MultiPolygon, no internal border). Fixed in the geometry asset rather than by
+  duplicating India's data onto three extra ids, so hover and the Table view never list them as separate entries. The
+  other Natural Earth `X*` ids (e.g. `XHT`, `XBT`, `XIT`) were left alone. Live after the usual `design-system` pull →
+  rebuild; verified by fetching the served topology (196 ids, none of the three).
+- **Default theme is Dark.** `App.tsx`'s initial theme is `analytics` for anyone with nothing stored (or storage
+  blocked); an existing stored Bright/Dark choice still wins, so returning visitors see no change. Confirmed live.
 
 Revised again once each step ships.
