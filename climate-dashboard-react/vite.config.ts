@@ -216,11 +216,10 @@ export default defineConfig({
     port: 4173,
     proxy: { ...apiProxyEntry, ...agentProxyEntry },
     // Vite blocks unrecognized Host headers by default (DNS-rebinding protection) —
-    // the Cloudflare Tunnel forwards requests with Host: labs.syena.io, which needs
-    // an explicit allow. Release 20 (SPEC.md §5.25) moves the deploy to its own sub-domain served
-    // from the root (DEPLOY_BASE_PATH=/), so the new host is allowed too -- and, unlike before,
-    // *not* gated on the base being prefixed: a root-base deploy is now the real production case,
-    // and leaving `allowedHosts` undefined there would 403 the tunnel's Host header outright.
-    allowedHosts: ['labs.syena.io', 'climate-analytics.syena.io'],
+    // the Cloudflare Tunnel forwards requests with Host: climate-analytics.syena.io, which needs
+    // an explicit allow (localhost and IP hosts are always allowed by Vite itself). Not gated on the
+    // base being prefixed: the root-base deploy (Release 20, SPEC.md §5.25) is the real production
+    // case, and leaving `allowedHosts` undefined there would 403 the tunnel's Host header outright.
+    allowedHosts: ['climate-analytics.syena.io'],
   },
 })

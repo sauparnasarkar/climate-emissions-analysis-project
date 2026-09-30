@@ -47,14 +47,14 @@ def _streamable_http_settings(deploy_base_path: str | None) -> tuple[str, Transp
     Set (deployed behind the Tunnel): the deploy-prefixed path (e.g.
     /ghg-emissions-analysis/mcp), and transport_security locked to the one hostname/origin the
     Tunnel actually forwards (SPEC.md §8.3) -- left unset here, every request would 401 with no
-    obvious cause once real traffic arrives carrying Host: labs.syena.io. allowed_hosts also
+    obvious cause once real traffic arrives carrying Host: climate-analytics.syena.io. allowed_hosts also
     carries the co-located loopback host/port this same deploy is reachable on directly
     (127.0.0.1:8765 and localhost:8765, DEFAULT_STREAMABLE_HTTP_PORT below) --
     services/agent's B3 connection (services/agent/CLAUDE.md) never goes through the Tunnel at
-    all, so it always carries a loopback Host header, never labs.syena.io. Confirmed missing
+    all, so it always carries a loopback Host header, never the public hostname. Confirmed missing
     live: a real deploy dry-run got 421 Misdirected Request on this exact request, only fixed by
-    spoofing Host: labs.syena.io -- see SPEC.md §8 for the corrected write-up. allowed_origins
-    stays locked to labs.syena.io only -- Origin is a browser-only header this server-to-server
+    spoofing the public Host header -- see SPEC.md §8 for the corrected write-up. allowed_origins
+    stays locked to the public origin only -- Origin is a browser-only header this server-to-server
     connection never sends, so widening it would add no coverage.
 
     The security toggle is keyed off deploy_base_path itself, not the normalized prefix --
@@ -70,15 +70,13 @@ def _streamable_http_settings(deploy_base_path: str | None) -> tuple[str, Transp
     security = (
         TransportSecuritySettings(
             allowed_hosts=[
-                "labs.syena.io",
-                # Release 20 (root SPEC.md §5.25): the dashboard/agent/MCP endpoint moves to its own
-                # sub-domain, served from the host root. labs.syena.io stays until the old host is
-                # retired.
+                # Release 20 (root SPEC.md §5.25): the dashboard/agent/MCP endpoint lives on its own
+                # sub-domain, served from the host root; labs.syena.io/ghg-emissions-analysis is retired.
                 "climate-analytics.syena.io",
                 f"127.0.0.1:{DEFAULT_STREAMABLE_HTTP_PORT}",
                 f"localhost:{DEFAULT_STREAMABLE_HTTP_PORT}",
             ],
-            allowed_origins=["https://labs.syena.io", "https://climate-analytics.syena.io"],
+            allowed_origins=["https://climate-analytics.syena.io"],
         )
         if is_deployed
         else None

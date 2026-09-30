@@ -38,15 +38,18 @@ def test_streamable_http_settings_set_locks_to_the_tunnel_hostname():
     path, security = _streamable_http_settings("/ghg-emissions-analysis/")
     assert path == "/ghg-emissions-analysis/mcp"
     assert security is not None
-    assert security.allowed_hosts == ["labs.syena.io", "climate-analytics.syena.io", "127.0.0.1:8765", "localhost:8765"]
-    assert security.allowed_origins == ["https://labs.syena.io", "https://climate-analytics.syena.io"]
+    assert security.allowed_hosts == ["climate-analytics.syena.io", "127.0.0.1:8765", "localhost:8765"]
+    assert security.allowed_origins == ["https://climate-analytics.syena.io"]
+    # The retired labs.syena.io host must no longer be accepted.
+    assert "labs.syena.io" not in security.allowed_hosts
+    assert "https://labs.syena.io" not in security.allowed_origins
 
 
 def test_streamable_http_settings_allows_the_colocated_agent_over_loopback():
     # services/agent's MCP connection (SPEC.md §8, services/agent/CLAUDE.md's B3 boundary) never
     # goes through the Cloudflare Tunnel -- it's a direct loopback request, so its Host header is
-    # always 127.0.0.1:8765 or localhost:8765, never labs.syena.io. A real deploy dry-run got
-    # 421 Misdirected Request before this fix (allowed_hosts locked to labs.syena.io only).
+    # always 127.0.0.1:8765 or localhost:8765, never the public hostname. A real deploy dry-run got
+    # 421 Misdirected Request before this fix (allowed_hosts locked to the public hostname only).
     _, security = _streamable_http_settings("/ghg-emissions-analysis/")
     assert "127.0.0.1:8765" in security.allowed_hosts
     assert "localhost:8765" in security.allowed_hosts
@@ -71,7 +74,7 @@ def test_streamable_http_settings_deployed_at_root_still_enables_security():
     path, security = _streamable_http_settings("/")
     assert path == "/mcp"
     assert security is not None
-    assert security.allowed_hosts == ["labs.syena.io", "climate-analytics.syena.io", "127.0.0.1:8765", "localhost:8765"]
+    assert security.allowed_hosts == ["climate-analytics.syena.io", "127.0.0.1:8765", "localhost:8765"]
 
 
 def test_timestamp_uvicorn_logs_prefixes_access_and_default_formats():
