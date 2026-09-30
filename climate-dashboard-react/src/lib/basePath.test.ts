@@ -11,6 +11,15 @@ describe('stripTrailingSlash', () => {
 });
 
 describe('navigateFallbackDenylist', () => {
+  it("never answers Cloudflare's edge paths with the SPA shell -- Access's post-login callback must reach the edge", () => {
+    for (const base of ['/', '/ghg-emissions-analysis/']) {
+      for (const url of ['/cdn-cgi/access/authorized?kid=abc&meta=xyz', '/cdn-cgi/access/logout', '/cdn-cgi/trace', '/.well-known/cloudflare-access-protected-resource/admin']) {
+        expect(denied(base, url)).toBe(true);
+      }
+    }
+    expect(denied('/', '/cdn-cgi-notes')).toBe(false); // look-alike stays an app path
+  });
+
   it('at the root base (Release 20): sends backend prefixes, /admin and static files to the network', () => {
     for (const url of ['/api/health', '/api/overview?countries=China', '/mcp', '/agent/query', '/agent/admin/llm', '/admin', '/admin?x=1', '/about.pptx', '/sw.js?cachebust=1']) {
       expect(denied('/', url)).toBe(true);
