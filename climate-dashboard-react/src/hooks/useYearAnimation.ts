@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useReducedMotion } from 'design-system';
 
 export interface UseYearAnimationOptions {
@@ -6,6 +6,12 @@ export interface UseYearAnimationOptions {
   maxYear: number;
   /** Milliseconds dwelt at each autoplay stop (see computeAutoplayStops -- not one per year). */
   intervalMs?: number;
+  /** When given, autoplay starts the first time this element scrolls into view instead of on mount --
+   * so a globe/map further down a page (or on a phone, below the fold) isn't already several steps
+   * through its animation by the time anyone sees it. Never starts if the user has already pressed
+   * Play/Pause or scrubbed, and never for reduced motion. Falls back to starting on mount where
+   * IntersectionObserver doesn't exist. */
+  startWhenVisible?: RefObject<Element | null>;
 }
 
 /** Autoplay steps every STEP_YEARS years (minYear, minYear+STEP_YEARS, ..., then maxYear). */
@@ -48,11 +54,15 @@ function computeAutoplayStops(minYear: number, maxYear: number): number[] {
  * Consumers still use `reducedMotion` to tone down the *kind* of motion (no globe spin, no colour
  * blending -- years just step).
  */
-export function useYearAnimation({ minYear, maxYear, intervalMs = 1800 }: UseYearAnimationOptions): UseYearAnimationResult {
+export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, startWhenVisible }: UseYearAnimationOptions): UseYearAnimationResult {
   const reducedMotion = useReducedMotion();
   const stops = useMemo(() => computeAutoplayStops(minYear, maxYear), [minYear, maxYear]);
   const [currentYear, setCurrentYear] = useState(reducedMotion ? maxYear : stops[0]);
-  const [isPlaying, setIsPlaying] = useState(!reducedMotion);
+  // Decided once, on first render: wait for the element only if a ref was given AND the browser can tell us.
+  const deferAutoplay = useRef(Boolean(startWhenVisible) && typeof IntersectionObserver !== 'undefined');
+  // Any deliberate Play/Pause/scrub means "the user is driving" -- a late scroll-into-view must not override it.
+  const userDriven = useRef(false);
+  const [isPlaying, setIsPlaying] = useState(!reducedMotion && !deferAutoplay.current);
   // Avoids a stale-closure read of currentYear inside the interval callback below without
   // needing currentYear itself in the effect's dependency array (which would tear down and
   // recreate the interval every single tick).
@@ -88,13 +98,34 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800 }: UseYea
     if (currentYear === stops[stops.length - 1]) setIsPlaying(false);
   }, [currentYear, stops]);
 
+  // First time the element is (mostly) on screen: begin the autoplay from the first stop.
+  useEffect(() => {
+    const el = startWhenVisible?.current;
+    if (!deferAutoplay.current || !el || reducedMotion) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((e) => e.isIntersecting)) return;
+        io.disconnect();
+        if (!userDriven.current) setIsPlaying(true);
+      },
+      { threshold: 0.2 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [startWhenVisible, reducedMotion]);
+
   const play = () => {
+    userDriven.current = true;
     if (currentYearRef.current >= maxYear) setCurrentYear(stops[0]);
     setIsPlaying(true);
   };
-  const pause = () => setIsPlaying(false);
+  const pause = () => {
+    userDriven.current = true;
+    setIsPlaying(false);
+  };
   const toggle = () => (isPlaying ? pause() : play());
   const seek = (year: number) => {
+    userDriven.current = true;
     setIsPlaying(false);
     setCurrentYear(Math.max(minYear, Math.min(maxYear, year)));
   };
