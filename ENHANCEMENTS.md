@@ -3374,7 +3374,7 @@ lands.
 
 ## Release 20 — Landing Page, Emissions Globe, Overview Restyle, and Dedicated Sub-Domain
 
-**Status: In progress — PRs 1–4 merged (globe, routing/shell, landing page, Overview restyle + URL params + header actions); PR 5 (cutover) — code side open as #194, Cloudflare/Mac Mini steps pending (runbook below).**
+**Status: In progress — PRs 1–4 merged (globe, routing/shell, landing page, Overview restyle + URL params + header actions); PR 5 (cutover) — **live on `climate-analytics.syena.io` since 2026-09-29** (runbook steps 1–6 done and verified); step 7 clean-up pending (below).**
 
 A Claude Design pass (2026-09-29, seven boards: landing page in dark/light desktop, tablet 768
 and phone 390; restyled Overview in dark/light; standalone globe) proposes three things, plus a
@@ -3501,6 +3501,8 @@ Code side: **PR #194** (additive — accepts the new host in api/agent CORS and 
 5. **Flip the Mac Mini** (this is the point of no return — the old URLs stop working, as decided): edit the four plists per the table; `DEPLOY_BASE_PATH=/ npm run build` in `climate-dashboard-react/`; then `launchctl kickstart -k gui/$(id -u)/com.ghgemissions.{uvicorn,mcpserver,agent,vitepreview}`. Confirm the fresh bundle by its `assets/index-<hash>.js` name.
 6. **Verify from outside the Mac Mini:** `/` (landing), `/overview`, `/api/health` (200), `/api/overview`, `/mcp` (403 with no Service Token — Access enforcing), `/agent/health`, `/admin` and `/agent/admin` (redirect to Google login — *not* 200), an agent query end-to-end from `/ask`, a hard reload on `/overview#pct-change`, and a PWA install/launch on the new origin.
 7. **Then clean up:** delete the four old `labs.syena.io/ghg-emissions-analysis…` tunnel routes and the old Access applications; update Claude Desktop's `mcp-remote` config to `https://climate-analytics.syena.io/mcp`; update `syena-traffic-check` and the other Mac Mini toolkit scripts to the new host; open a follow-up PR removing `labs.syena.io` from the allow-lists; refresh `ARCHITECTURE.md` §§6–9 and the sub-project docs (they describe the old host).
+
+**Cutover executed 2026-09-29.** Plists backed up to `~/plist-backup-release20/` and the prefixed bundle to `~/dist-prev-release20/` on the Mac Mini. Two things worth remembering: (1) the Access app for `/mcp` was first saved with a typo (`/map`), which left the MCP server ungated on the new host — caught by an outside-in probe (`/mcp` returned 404, not 403) *before* the flip; (2) plist environment edits need `launchctl bootout`+`bootstrap` — `kickstart -k` would have kept the old env. Verified from outside: `/`, `/overview`, `/historical`, `/ask`, `/api/health`, `/api/countries`, `/agent/health` → 200; `/mcp` (+`/mcp/x`, POST) → 403; `/admin` and `/agent/admin/llm` → Access login; a real agent query end-to-end through `/agent/query` (agent → `/mcp` → API → chart widget); service worker active at scope `/`; `/overview#pct-change` loads with the anchor present; the other two labs apps unaffected. **Still open (step 7):** re-key the edge rate-limit rule and copy the CSP/header/`sw.js` rules to the new host; delete the old `labs.syena.io/ghg-emissions-analysis…` routes and Access destinations; point Claude Desktop's `mcp-remote` at `https://climate-analytics.syena.io/mcp`; update the Mac Mini's `syena-traffic-check`/monitor scripts; follow-up PR removing `labs.syena.io` from the api/agent/MCP allow-lists.
 
 Rollback (if step 6 fails badly): put the four plists' env back and rebuild with the old base — the old tunnel routes are still in place until step 7.
 

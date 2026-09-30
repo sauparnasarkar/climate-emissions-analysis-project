@@ -141,11 +141,15 @@ instead of resolving to `index.html`.
 
 ### Deploy-prefix handling
 
-`DEPLOY_BASE_PATH` (e.g. `/ghg-emissions-analysis/`) is read by both `vite.config.ts`
+`DEPLOY_BASE_PATH` is read by both `vite.config.ts`
 (`normalizeBase`, sets Vite's own `base` + rewrites the dev/preview `/api` proxy target)
 and `api/main.py` (`_normalize_deploy_prefix`, §4) from the **same** env var, so the two
 can't drift on what prefix is being stripped. Must be set at *build* time for the
-frontend, not just serve time — the prefix is baked into the built assets.
+frontend, not just serve time — the prefix is baked into the built assets. Production is served
+from the **host root** of `climate-analytics.syena.io` (Release 20, `SPEC.md` §5.25), so its value is
+`/`; a prefix (the retired `labs.syena.io/ghg-emissions-analysis/` deploy used one) still works.
+`services/agent` is the exception among the services: its routes are bare (`/query`,
+`/admin/llm`) and the tunnel forwards `/agent/...` unstripped, so its value is `/agent/`.
 
 ### Tests
 
@@ -161,19 +165,22 @@ hosting. Five `launchd` agents (`~/Library/LaunchAgents/com.ghgemissions.*.plist
 
 | Agent | Runs | Port | Notes |
 |---|---|---|---|
-| `cloudflared` | `cloudflared tunnel run` | — | Publishes `labs.syena.io` → this machine; forwards full prefixed paths with no stripping (`KeepAlive`) |
-| `uvicorn` | `api.main:app` | `127.0.0.1:8081` | `DEPLOY_BASE_PATH=/ghg-emissions-analysis/` |
-| `vitepreview` | `vite preview` (built `climate-dashboard-react/dist`) | `127.0.0.1:4173` | Same `DEPLOY_BASE_PATH`; must be rebuilt (not just restarted) after any change, since the prefix is baked in at build time |
-| `mcpserver` | `python -m mcp_server` (Streamable HTTP) | `127.0.0.1:8765` | `DEPLOY_BASE_PATH=/ghg-emissions-analysis/`, `MCP_TRANSPORT=streamable-http`, `API_BASE_URL=http://127.0.0.1:8081/api` — publicly reachable at `labs.syena.io/ghg-emissions-analysis/mcp`, gated by a Cloudflare Access application (Service Auth policy, named per-client Service Tokens, §7) rather than app-layer code |
+| `cloudflared` | `cloudflared tunnel run` | — | Publishes `climate-analytics.syena.io` (path rules in order: `^/api` → :8081, `^/mcp` → :8765, `^/agent` → :8766, catch-all → :4173) plus `labs.syena.io` for the other apps on this tunnel; forwards full paths with no stripping (`KeepAlive`) |
+| `uvicorn` | `api.main:app` | `127.0.0.1:8081` | `DEPLOY_BASE_PATH=/` |
+| `vitepreview` | `vite preview` (built `climate-dashboard-react/dist`) | `127.0.0.1:4173` | `DEPLOY_BASE_PATH=/`; must be rebuilt (not just restarted) after any change, since the prefix is baked in at build time |
+| `mcpserver` | `python -m mcp_server` (Streamable HTTP) | `127.0.0.1:8765` | `DEPLOY_BASE_PATH=/`, `MCP_TRANSPORT=streamable-http`, `API_BASE_URL=http://127.0.0.1:8081/api` — publicly reachable at `climate-analytics.syena.io/mcp`, gated by a Cloudflare Access application (Service Auth policy, named per-client Service Tokens, §7) rather than app-layer code |
+| `agent` | `ghg-agent-launch.sh` → `agent.server:app` (`services/agent`) | `127.0.0.1:8766` | `DEPLOY_BASE_PATH=/agent/`, `MCP_SERVER_URL=http://127.0.0.1:8765/mcp` (co-located, unauthenticated loopback — §9) |
 | `datarefresh` | `ghg-data-refresh.sh` | — | Weekly, §2 above |
 
 **Deploy sequencing**: `design-system` must be pulled (`git merge --ff-only`) *before*
 `climate-dashboard-react` is rebuilt, since the frontend build reads design-system's
 source directly (§5) — pulling frontend changes without first updating a design-system
 dependency they need fails the build. Standard sequence for a frontend-affecting change:
-pull `design-system` → pull this repo → `DEPLOY_BASE_PATH=/ghg-emissions-analysis/ npm run
-build` in `climate-dashboard-react/` → `launchctl kickstart -k
-gui/$(id -u)/com.ghgemissions.vitepreview`. A Vite content-hash filename
+pull `design-system` (+ `npm install` there if its dependencies changed) → pull this repo →
+`DEPLOY_BASE_PATH=/ npm run build` in `climate-dashboard-react/` → `launchctl kickstart -k
+gui/$(id -u)/com.ghgemissions.{uvicorn,mcpserver,agent,vitepreview}` (all four when Python code
+changed). **Editing a plist's environment needs `launchctl bootout` + `bootstrap`, not `kickstart`** —
+kickstart re-runs the already-loaded job definition and silently keeps the old env. A Vite content-hash filename
 (`assets/index-<hash>.js`) is the reliable way to confirm a fresh build — not a stale
 bundle — is actually what's live.
 
@@ -190,7 +197,7 @@ Independently versioned/deployable from `api/` (own `pyproject.toml`), though in
 still ship from the same repo and the same Mac Mini would host both if this were deployed.
 
 **Deployed and publicly live**, gated at the edge. The `mcpserver` `launchd` agent (§6) is
-running on the Mac Mini; `labs.syena.io/ghg-emissions-analysis/mcp` is a published Cloudflare
+running on the Mac Mini; `climate-analytics.syena.io/mcp` is a published Cloudflare
 Access application with a Service Auth policy (not login-based) and named, individually
 revocable Service Tokens per client — `SPEC.md` §8, settled and shipped 2026-08-13. Verified
 from outside the Mac Mini: the public endpoint returns `403` with no credentials or a wrong
@@ -207,10 +214,10 @@ A single app-wide admin surface, gated by one Cloudflare Access application
 (`ghg-emissions-admin`, a **login** policy — Google as the identity provider, restricted to the
 mentor's own account — distinct from §7's Service Auth policy for machine clients). Two path
 rules exist today under that one application: the SPA hub page
-(`labs.syena.io/ghg-emissions-analysis/admin`, `climate-dashboard-react/src/pages/AdminPage.tsx`,
+(`climate-analytics.syena.io/admin`, `climate-dashboard-react/src/pages/AdminPage.tsx`,
 deliberately absent from §5's `NAV_ITEMS`/nav — reachable by URL only, the same unlisted-route
 precedent `/ask` already sets) and `services/agent`'s admin API
-(`labs.syena.io/ghg-emissions-analysis/agent/admin`). Both paths must be gated, not just the API:
+(`climate-analytics.syena.io/agent/admin`). Both paths must be gated, not just the API:
 a login policy answers an unauthenticated request with a redirect to Google, which only a real
 top-level page navigation can usefully follow — see `services/agent/SPEC.md` for the full
 rationale.
@@ -242,15 +249,16 @@ country-resolution guard and response trimming for free by staying at the MCP la
 boundary `services/mcp-server`→`api/` already uses, not the Cloudflare-Access-gated B4 path §7
 describes for *external* clients. A co-located agent never leaves the machine. Its own public
 endpoint (browser → `services/agent`) is B1/B2-tier, same as `api/` — protected by an existing
-Cloudflare edge rate-limit rule on the whole `/ghg-emissions-analysis` path prefix rather than
+Cloudflare edge rate-limit rule (keyed on the old `/ghg-emissions-analysis` prefix — re-keying it to the
+new host is still pending, `ENHANCEMENTS.md` Release 20 runbook step 4) rather than
 app-layer code, since every request there also costs a real Anthropic API call.
 
 **Status**: Steps 1–5 of 5 (backend scaffold + MCP client, LangGraph graph core, SSE streaming,
 `climate-dashboard-react/`'s `/ask` nav item, security review) shipped, and deployed/running on
 the Mac Mini (`com.ghgemissions.agent`, port 8766) — verified live end-to-end (real MCP tool
-call, real LLM response) 2026-08-14. Only the public Cloudflare Tunnel route
-(`labs.syena.io/ghg-emissions-analysis/agent`) remains — see `services/agent/ENHANCEMENTS.md`
-for release-by-release status.
+call, real LLM response) 2026-08-14. The public route is live at
+`climate-analytics.syena.io/agent` (verified end-to-end through it 2026-09-29) — see
+`services/agent/ENHANCEMENTS.md` for release-by-release status.
 
 ## 10. See also
 
