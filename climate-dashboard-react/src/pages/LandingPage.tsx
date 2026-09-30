@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Globe, Icon, InlineAlert, Slider } from 'design-system';
 import { api } from '../api/client';
@@ -72,7 +72,9 @@ function Kpi({ value, label, color, border }: { value: string; label: string; co
 function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTimeSeries }) {
   const minYear = map.years[0];
   const maxYear = map.years[map.years.length - 1];
-  const { currentYear, isPlaying, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS });
+  // Autoplay begins when the globe scrolls into view, not on page load (e.g. below the fold on a phone).
+  const globeRef = useRef<HTMLDivElement>(null);
+  const { currentYear, isPlaying, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS, startWhenVisible: globeRef });
   const yearIdx = currentYear - minYear;
   const all = overview.all_countries;
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
@@ -103,7 +105,7 @@ function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTime
         </div>
       </div>
 
-      <div className="landing-hero__globe">
+      <div className="landing-hero__globe" ref={globeRef}>
         <Globe
           isoCodes={map.iso_codes}
           locationNames={map.countries}

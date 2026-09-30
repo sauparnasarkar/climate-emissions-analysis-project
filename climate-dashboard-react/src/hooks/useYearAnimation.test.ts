@@ -184,4 +184,60 @@ describe('useYearAnimation', () => {
     act(() => result.current.play());
     expect(result.current.isPlaying).toBe(true);
   });
+
+  describe('startWhenVisible', () => {
+    let ioCallback: ((entries: Array<{ isIntersecting: boolean }>) => void) | null;
+    let disconnected: boolean;
+    beforeEach(() => {
+      ioCallback = null;
+      disconnected = false;
+      vi.stubGlobal('IntersectionObserver', class {
+        constructor(cb: (entries: Array<{ isIntersecting: boolean }>) => void) { ioCallback = cb; }
+        observe() {}
+        disconnect() { disconnected = true; }
+      });
+    });
+    const opts = () => ({ minYear: 1990, maxYear: 2024, intervalMs: 500, startWhenVisible: { current: document.createElement('div') } });
+
+    it('does not autoplay on mount; starts from the first stop the first time the element is in view', () => {
+      mockReducedMotion(false);
+      const { result } = renderHook(() => useYearAnimation(opts()));
+      expect(result.current.isPlaying).toBe(false);
+      act(() => vi.advanceTimersByTime(5000));
+      expect(result.current.currentYear).toBe(1990); // nothing happens off-screen
+
+      act(() => ioCallback!([{ isIntersecting: false }])); // still not visible
+      expect(result.current.isPlaying).toBe(false);
+
+      act(() => ioCallback!([{ isIntersecting: true }]));
+      expect(result.current.isPlaying).toBe(true);
+      expect(disconnected).toBe(true); // one-shot: it never restarts a finished or paused animation later
+      act(() => vi.advanceTimersByTime(500));
+      expect(result.current.currentYear).toBe(1995);
+    });
+
+    it('does not start if the user already drove it (scrubbed / pressed Play or Pause) before it scrolled into view', () => {
+      mockReducedMotion(false);
+      const { result } = renderHook(() => useYearAnimation(opts()));
+      act(() => result.current.seek(2005));
+      act(() => ioCallback!([{ isIntersecting: true }]));
+      expect(result.current.isPlaying).toBe(false);
+      expect(result.current.currentYear).toBe(2005);
+    });
+
+    it('never autostarts under reduced motion (and never even observes)', () => {
+      mockReducedMotion(true);
+      const { result } = renderHook(() => useYearAnimation(opts()));
+      expect(result.current.isPlaying).toBe(false);
+      expect(ioCallback).toBeNull();
+      expect(result.current.currentYear).toBe(2024);
+    });
+
+    it('falls back to autoplaying on mount where IntersectionObserver does not exist', () => {
+      mockReducedMotion(false);
+      vi.stubGlobal('IntersectionObserver', undefined);
+      const { result } = renderHook(() => useYearAnimation(opts()));
+      expect(result.current.isPlaying).toBe(true);
+    });
+  });
 });

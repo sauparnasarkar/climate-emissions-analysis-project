@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useRef, useState, type CSSProperties } from 'react';
 import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, Table, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
@@ -208,10 +208,13 @@ function AnimatedWorldMap({
   // comment). noDataColorHex is itself in the memo's deps below, not `theme`, so the memo
   // recomputes exactly when the hook's corrective re-render actually changes the value.
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
+  // Autoplay begins when the map scrolls into view rather than on page load.
+  const mapRef = useRef<HTMLDivElement>(null);
   const { currentYear, isPlaying, toggle, seek } = useYearAnimation({
     minYear,
     maxYear,
     intervalMs: ANIMATION_STOP_MS,
+    startWhenVisible: mapRef,
   });
   const yearIdx = currentYear - minYear;
   // Table view: an accessible, sortable alternative to the map (all countries, current year).
@@ -313,7 +316,7 @@ function AnimatedWorldMap({
             "Reset view" control (a different button, in a different location). */}
         {/* Hidden, not unmounted, in Table view: remounting would throw away the user's map zoom and
             re-run the whole choropleth draw. SyChart's own ResizeObserver resizes it on return. */}
-        <div style={{ display: tableView ? 'none' : undefined }}>
+        <div ref={mapRef} style={{ display: tableView ? 'none' : undefined }}>
         <SyChart
           showLegend={false}
           ariaLabel={`Animated world map choropleth of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, log-scaled color from light (lowest) to deep red (highest)`}
