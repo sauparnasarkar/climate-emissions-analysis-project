@@ -863,6 +863,21 @@ hypothetical.
    script that does `security find-generic-password -w` before exec'ing `uvicorn`, so the plist
    file never holds the raw value at all. Not designed further than this — revisit only if the
    deploy's threat model actually changes, not preemptively.
+7. **Per-IP rate limiting inside the agent service** (backlog, added 2026-09-30; not designed in detail,
+   not scheduled). Why: every `POST /query` costs a real LLM call, and the only limit in front of it is
+   Cloudflare's Free-plan rate-limit rule on the `syena.io` zone (`rate_limit_10`: one rule for the whole
+   zone, URI Path matching only, **50 requests / 10 s per IP**, 10 s block — root `ENHANCEMENTS.md`
+   Release 20 cutover notes). That stops floods but not a slow trickle: one query every ~10 s from one
+   IP never trips it and still costs an LLM call each time. Sketch: an in-process sliding-window (or
+   token-bucket) limiter on `/query` only, keyed by client IP — e.g. a few queries per minute plus a cap
+   on concurrent in-flight queries per IP — answering `429` with `Retry-After`, and a friendly message in
+   `AgentPage`. In-memory is enough for this single-process deploy (same trade-off as `MAX_LIVE_THREADS`,
+   Corrections #14: resets on restart). Things to decide first: (a) which client IP to trust — behind the
+   tunnel the peer is loopback, so it means reading `CF-Connecting-IP` *only* when the peer is loopback,
+   never from an arbitrary client; (b) the limits (interns share a campus IP, so per-IP is coarse —
+   consider a higher ceiling or a per-thread limit too); (c) whether to exempt the Access-authenticated
+   admin. Not needed while usage is a handful of known users; revisit if real usage or cost data says so
+   (ties in with item 4, the session/cost counter).
 
 ## 13. LLM prompt caching (Anthropic `cache_control`)
 
