@@ -121,9 +121,10 @@ describe('Landing layout on a phone (< 768px)', () => {
 
     fireEvent.click(menu);
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Primary' })).getByRole('link', { name: 'About' }));
-    // Navigated to a dashboard page, which is a different layout entirely.
+    // Navigated to a dashboard page, which is a different layout entirely (its phone header has its own
+    // "Menu" button, but the landing dropdown is gone).
     expect(screen.getByText('About page stub')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Menu' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).not.toBeInTheDocument();
   });
 });
 
@@ -142,15 +143,40 @@ describe('Dashboard header actions (same place as the landing header)', () => {
     expect(within(screen.getByRole('banner')).getByRole('link', { name: 'Ask the Agent' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('phone: the header carries neither action; Ask stays the sidebar\'s floating action and the toggle moves to the drawer', () => {
+  it('phone: the header has the same bordered Menu button as the landing page; Ask and the toggle live in the drawer it opens', () => {
     mobile = true;
     renderAt('/about');
     const header = screen.getByRole('banner');
+    const menu = within(header).getByRole('button', { name: 'Menu' });
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
     expect(within(header).queryByRole('link', { name: 'Ask the Agent' })).not.toBeInTheDocument();
     expect(within(header).queryByRole('radio')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ask the Agent' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /menu/i }));
-    expect(screen.getAllByRole('radio', { name: 'Dark' })).toHaveLength(1); // exactly one toggle live, in the drawer
+    // SidebarNav's own floating menu button and floating Ask action are switched off.
+    expect(screen.queryByRole('button', { name: 'Open menu' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Ask the Agent' })).not.toBeInTheDocument();
+
+    fireEvent.click(menu);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByRole('link', { name: 'Ask the Agent' })).toHaveAttribute('href', '/ask');
+    expect(within(drawer).getAllByRole('radio', { name: 'Dark' })).toHaveLength(1); // exactly one toggle live, in the drawer
+    expect(within(drawer).getByRole('menuitem', { name: 'Overview' })).toBeInTheDocument();
+  });
+
+  it('phone: choosing a page in the drawer closes it and navigates', () => {
+    mobile = true;
+    renderAt('/about');
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('menuitem', { name: 'Overview' }));
+    expect(screen.getByText('Overview page stub')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('phone: the Ask link inside the drawer also closes it on navigation', () => {
+    mobile = true;
+    renderAt('/about');
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('link', { name: 'Ask the Agent' }));
+    expect(screen.getByText('Agent page stub')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
-

@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { Footer, BackToTop, Icon, useIsMobile } from 'design-system';
+import { Footer, BackToTop, useIsMobile } from 'design-system';
 
 import type { AppTheme } from '../lib/theme';
 import { AskAgentLink } from '../components/AskAgentLink';
+import { MobileMenuButton } from '../components/MobileMenuButton';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
 import { NAV_ITEMS } from '../navigation';
@@ -81,16 +82,7 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
         </Link>
         {isMobile ? (
           <div style={{ marginLeft: 'auto' }}>
-            <button
-              type="button"
-              aria-expanded={menuOpen}
-              aria-controls="landing-menu"
-              onClick={() => setMenuOpen((o) => !o)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 12px', background: 'transparent', color: 'inherit', border: '1px solid var(--__s9cmpx-static-divider-standard)', borderRadius: 8, cursor: 'pointer', font: 'inherit' }}
-            >
-              <Icon name={menuOpen ? 'close' : 'menu'} size={18} />
-              Menu
-            </button>
+            <MobileMenuButton open={menuOpen} onClick={() => setMenuOpen((o) => !o)} controls="landing-menu" />
             {menuOpen && (
               <nav
                 id="landing-menu"
