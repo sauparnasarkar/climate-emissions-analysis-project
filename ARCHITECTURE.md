@@ -249,8 +249,9 @@ country-resolution guard and response trimming for free by staying at the MCP la
 boundary `services/mcp-server`→`api/` already uses, not the Cloudflare-Access-gated B4 path §7
 describes for *external* clients. A co-located agent never leaves the machine. Its own public
 endpoint (browser → `services/agent`) is B1/B2-tier, same as `api/` — protected by an existing
-Cloudflare edge rate-limit rule (keyed on the old `/ghg-emissions-analysis` prefix — re-keying it to the
-new host is still pending, `ENHANCEMENTS.md` Release 20 runbook step 4) rather than
+Cloudflare edge rate-limit rule (`rate_limit_10` on the `syena.io` zone, Free plan: the zone's single rule,
+URI-Path matching only, 50 requests / 10 s per IP, Block; it matches `/agent`, `/api`, `/admin`, `mcp` and
+the two other labs apps' path prefixes, so the new host needs no hostname match) rather than
 app-layer code, since every request there also costs a real Anthropic API call.
 
 **Status**: Steps 1–5 of 5 (backend scaffold + MCP client, LangGraph graph core, SSE streaming,
