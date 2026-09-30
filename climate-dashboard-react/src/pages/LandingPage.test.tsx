@@ -26,6 +26,7 @@ vi.mock('design-system', async (importOriginal) => {
         data-rotation-ms={String(props.rotationPeriodMs)}
         data-auto-rotate={String(props.autoRotate)}
         data-allow-spin-reduced={String(props.allowSpinWithReducedMotion)}
+        data-transparent={String(props.transparent)}
         data-no-data-color={String(props.noDataColor)}
         aria-label={String(props.ariaLabel)}
       />
@@ -152,6 +153,15 @@ describe('LandingPage', () => {
     mount();
     expect(await screen.findByText(/^ETS\(A,Ad,N\) forecasts to 2043 for all 12 Expanded countries, with 95% confidence bands, benchmarked against Linear Regression and Random Forest\.$/)).toBeInTheDocument();
     expect(screen.queryByText(/Random Forest and ETS/)).not.toBeInTheDocument();
+  });
+
+  it('draws the globe without its own panel background, and shows the year/total once (the hidden overlay copy lives inside the Globe)', async () => {
+    mount();
+    expect(await screen.findByTestId('globe')).toHaveAttribute('data-transparent', 'true');
+    // The page renders the year + total block above the globe (CSS shows it on phones, hides it on wide screens);
+    // the overlay copy is passed to Globe as `title`, which the stub doesn't render -- so exactly one here.
+    expect(screen.getAllByText('all countries')).toHaveLength(1);
+    expect(screen.getByText('272 MtCO₂')).toBeInTheDocument(); // the animation's current year (2023) total, not the latest
   });
 
   it('picks the three stories from the headline movers, with their figures and deep links', async () => {

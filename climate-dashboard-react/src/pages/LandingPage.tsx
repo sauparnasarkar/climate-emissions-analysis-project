@@ -33,6 +33,7 @@ const STYLES = `
 .landing-hero__text { flex: 0 0 min(540px, 46%); min-width: 0; display: flex; flex-direction: column; gap: 24px; }
 .landing-hero__globe { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .landing-hero__controls { width: 100%; max-width: 624px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.landing-globe-title--block { display: none; width: 100%; max-width: 624px; }
 .landing-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--__s9cmpx-static-divider-weak); margin-top: 8px; }
 .landing-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .landing-race { display: flex; gap: clamp(32px, 5vw, 80px); align-items: flex-start; }
@@ -44,6 +45,8 @@ const STYLES = `
   .landing-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
+  .landing-globe-title--block { display: block; }
+  .landing-globe-title--overlay { display: none; }
   .landing-grid3 { grid-template-columns: 1fr; }
   .landing-kpis { grid-template-columns: 1fr; }
   .landing-kpis > * + * { border-left: 0 !important; padding-left: 0 !important; border-top: 1px solid var(--__s9cmpx-static-divider-weak); }
@@ -79,6 +82,23 @@ function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTime
   const all = overview.all_countries;
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
   const yearTotal = all.co2_by_year[yearIdx];
+  // The current year and world total. On wide screens it overlays the globe's top-left corner; on a phone the globe is
+  // small and centred, so the overlay would sit on the dark disc (dark text on a dark ocean) -- there it is shown
+  // above the globe instead (CSS below swaps which copy is displayed; the hidden one is display:none, so it is not
+  // in the accessibility tree twice).
+  const globeHeading = (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <span style={{ fontSize: 28, fontWeight: 600, lineHeight: 1, fontVariantNumeric: 'tabular-nums', color: 'var(--__s9cmpx-static-text-strong)' }}>{currentYear}</span>
+        {yearTotal != null && (
+          // Two short lines rather than one long one: the overlay sits in the globe box's top-left corner, and
+          // "22,899 MtCO₂ · all countries" at this size ran into the disc's edge.
+          <>
+            <span className="__s9cmpx-body3" style={{ color: 'var(--__s9cmpx-static-text-standard)', fontVariantNumeric: 'tabular-nums' }}>{fmtInt(yearTotal)} MtCO₂</span>
+            <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-standard)' }}>all countries</span>
+          </>
+        )}
+      </div>
+  );
 
   return (
     <section aria-labelledby="landing-title" className="landing-hero">
@@ -106,6 +126,7 @@ function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTime
       </div>
 
       <div className="landing-hero__globe" ref={globeRef}>
+        <div className="landing-globe-title--block">{globeHeading}</div>
         <Globe
           isoCodes={map.iso_codes}
           locationNames={map.countries}
@@ -128,12 +149,8 @@ function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTime
           allowSpinWithReducedMotion
           rotationPeriodMs={GLOBE_STEP_MS}
           maxSize={600}
-          title={
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span style={{ fontSize: 28, fontWeight: 600, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{currentYear}</span>
-              {yearTotal != null && <span className="__s9cmpx-body4">{fmtInt(yearTotal)} MtCO₂ · all countries</span>}
-            </div>
-          }
+          transparent
+          title={<div className="landing-globe-title--overlay">{globeHeading}</div>}
         />
         <div className="landing-hero__controls">
           <Button variant="ghost-blue" onClick={toggle}>{isPlaying ? 'Pause' : 'Play'}</Button>
