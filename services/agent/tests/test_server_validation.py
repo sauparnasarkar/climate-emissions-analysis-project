@@ -93,3 +93,5 @@ def test_cors_allows_the_release_20_subdomain_and_rejects_strangers():
     assert ok.headers.get("access-control-allow-origin") == "https://climate-analytics.syena.io"
     bad = client.get("/health", headers={"Origin": "https://evil.example.com"})
     assert "access-control-allow-origin" not in bad.headers
+    retired = client.get("/health", headers={"Origin": "https://labs.syena.io"})
+    assert "access-control-allow-origin" not in retired.headers

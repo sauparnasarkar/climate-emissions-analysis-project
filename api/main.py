@@ -70,7 +70,7 @@ app.add_middleware(StripDeployPrefixMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    # Production traffic works today without "https://labs.syena.io" listed here too --
+    # Production traffic works today without "https://climate-analytics.syena.io" listed here too --
     # dashboard and API are served same-origin behind the Cloudflare Tunnel, and a same-origin
     # browser request never triggers a CORS check at all. Listed explicitly anyway (see
     # services/mcp-server/SPEC.md §8.2) so the intent ("only our own dashboard's origin may
@@ -78,9 +78,9 @@ app.add_middleware(
     # accident of same-origin deployment -- e.g. a future subdomain or staging environment on a
     # different origin should have to be added here deliberately, not inherit access simply
     # because nothing else was ever listed.
-    # labs.syena.io stays listed until the Release 20 cutover to climate-analytics.syena.io is
-    # finished and the old host is retired (SPEC.md §5.25); a follow-up removes it.
-    allow_origins=["http://localhost:5173", "https://labs.syena.io", "https://climate-analytics.syena.io"],
+    # The dashboard moved from labs.syena.io/ghg-emissions-analysis/ to climate-analytics.syena.io
+    # (Release 20, SPEC.md §5.25); the old origin is retired.
+    allow_origins=["http://localhost:5173", "https://climate-analytics.syena.io"],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
