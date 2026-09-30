@@ -12,9 +12,10 @@ const ROW_HEIGHT = 36;
 
 /** The ten largest emitters, year by year (real per-year values from the world-map series), with
  * rows that re-rank as the years advance. One step per year; CSS handles the movement, not
- * per-frame React updates. Autoplays once when scrolled into view; under prefers-reduced-motion
- * it shows the final year with no autoplay or transitions, and offers a year slider instead so
- * the reshuffle stays reachable. */
+ * per-frame React updates. Autoplays once when scrolled into view. Under prefers-reduced-motion it
+ * shows the final year with no autoplay and no transitions (rows jump between years), but Play
+ * still works -- pressing it is a deliberate user action, and a permanently dead Play button is
+ * not an accommodation -- and a year slider is offered as well. */
 export function RankRace({ series, worldTotals, expandedCount }: { series: WorldMapTimeSeries; worldTotals: number[]; expandedCount: number }) {
   const reduced = useReducedMotion();
   const model = useMemo(() => buildRaceModel(series), [series]);
@@ -76,23 +77,26 @@ export function RankRace({ series, worldTotals, expandedCount }: { series: World
         <p className="__s9cmpx-body1" style={{ margin: 0, color: 'var(--__s9cmpx-static-text-weak)' }}>
           The {RACE_SIZE} largest emitters each year, {model.years[0]} → {model.years[last]}. Watch the ranking reshuffle as the largest growers rise.
         </p>
-        {reduced ? (
-          // The slider speaks in real years (its aria-valuenow/min/max are read out), not row indices.
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button type="button" onClick={togglePlay} className="__s9cmpx-button __s9cmpx-button--secondary __s9cmpx-button--m">
+            {playing ? 'Pause' : yearIdx >= last ? `Replay ${model.years[0]} → ${model.years[last]}` : 'Play'}
+          </button>
+        </div>
+        {reduced && (
+          // Reduced motion: no autoplay, so give the reshuffle a manual route too. The slider speaks in real
+          // years (its aria-valuenow/min/max are read out), not row indices; scrubbing pauses playback.
           <Slider
             label="Year"
             min={model.years[0]}
             max={model.years[last]}
             step={1}
             value={model.years[yearIdx]}
-            onChange={(year) => setYearIdx(Math.max(0, Math.min(last, year - model.years[0])))}
+            onChange={(year) => {
+              setPlaying(false);
+              setYearIdx(Math.max(0, Math.min(last, year - model.years[0])));
+            }}
             showValue={false}
           />
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <button type="button" onClick={togglePlay} className="__s9cmpx-button __s9cmpx-button--secondary __s9cmpx-button--m">
-              {playing ? 'Pause' : yearIdx >= last ? `Replay ${model.years[0]} → ${model.years[last]}` : 'Play'}
-            </button>
-          </div>
         )}
         <div aria-hidden="true" style={{ fontSize: 40, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{frame.year}</div>
         <Link to="/overview" style={{ fontWeight: 600, color: 'var(--__s9cmpx-static-text-accent, inherit)' }}>

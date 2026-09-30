@@ -143,7 +143,7 @@ describe('useYearAnimation', () => {
     expect(result.current.currentYear).toBe(1990);
   });
 
-  it('pins at maxYear with playback disabled when prefers-reduced-motion is set on mount', () => {
+  it('under prefers-reduced-motion: starts pinned at maxYear with NO autoplay, but Play still works (user-initiated)', () => {
     mockReducedMotion(true);
     const { result } = renderHook(() => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500 }));
 
@@ -151,18 +151,23 @@ describe('useYearAnimation', () => {
     expect(result.current.isPlaying).toBe(false);
     expect(result.current.reducedMotion).toBe(true);
 
-    act(() => result.current.play());
-    expect(result.current.isPlaying).toBe(false); // no-op
-
     act(() => vi.advanceTimersByTime(5000));
-    expect(result.current.currentYear).toBe(2024); // no autoplay ticking at all
+    expect(result.current.currentYear).toBe(2024); // nothing moves on its own
 
-    // Manual scrubbing still works even though autoplay is disabled.
-    act(() => result.current.seek(1995));
+    // Pressing Play is deliberate, so it works: restarts from the first stop and steps through.
+    act(() => result.current.play());
+    expect(result.current.isPlaying).toBe(true);
+    expect(result.current.currentYear).toBe(1990);
+    act(() => vi.advanceTimersByTime(500));
     expect(result.current.currentYear).toBe(1995);
+
+    // Scrubbing pauses, as it does without reduced motion.
+    act(() => result.current.seek(2010));
+    expect(result.current.isPlaying).toBe(false);
+    expect(result.current.currentYear).toBe(2010);
   });
 
-  it('stops playback and snaps to maxYear if the OS setting changes to reduced-motion mid-session', () => {
+  it('stops playback (leaving the year where it is) if the OS setting changes to reduced-motion mid-session', () => {
     mockReducedMotion(false);
     const { result } = renderHook(() => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500 }));
     act(() => vi.advanceTimersByTime(500)); // 1995, still playing
@@ -171,6 +176,12 @@ describe('useYearAnimation', () => {
 
     act(() => changeListener?.({ matches: true } as MediaQueryListEvent));
     expect(result.current.isPlaying).toBe(false);
-    expect(result.current.currentYear).toBe(2024);
+    expect(result.current.currentYear).toBe(1995);
+    act(() => vi.advanceTimersByTime(2000));
+    expect(result.current.currentYear).toBe(1995); // and it stays put
+
+    // Play remains available afterwards.
+    act(() => result.current.play());
+    expect(result.current.isPlaying).toBe(true);
   });
 });

@@ -208,7 +208,7 @@ function AnimatedWorldMap({
   // comment). noDataColorHex is itself in the memo's deps below, not `theme`, so the memo
   // recomputes exactly when the hook's corrective re-render actually changes the value.
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
-  const { currentYear, isPlaying, toggle, seek, reducedMotion } = useYearAnimation({
+  const { currentYear, isPlaying, toggle, seek } = useYearAnimation({
     minYear,
     maxYear,
     intervalMs: ANIMATION_STOP_MS,
@@ -283,7 +283,7 @@ function AnimatedWorldMap({
             the Galaxy S9+, forcing horizontal scroll on the entire Overview page. Wrapping
             lets the slider drop to its own line before it has to overflow. */}
         <div style={{ marginBottom: 8, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <Button variant="ghost-blue" onClick={toggle} disabled={reducedMotion}>
+          <Button variant="ghost-blue" onClick={toggle}>
             {isPlaying ? 'Pause' : 'Play'}
           </Button>
           {/* No `minWidth: 0` here on purpose: Slider hardcodes its own 220px min-width, so

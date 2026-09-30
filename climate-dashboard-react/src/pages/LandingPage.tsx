@@ -131,7 +131,7 @@ function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTime
           }
         />
         <div className="landing-hero__controls">
-          <Button variant="ghost-blue" onClick={toggle} disabled={reducedMotion}>{isPlaying ? 'Pause' : 'Play'}</Button>
+          <Button variant="ghost-blue" onClick={toggle}>{isPlaying ? 'Pause' : 'Play'}</Button>
           <div style={{ flex: 1 }}>
             <Slider label="Year" min={minYear} max={maxYear} step={1} value={currentYear} onChange={seek} showValue={false} showRangeLabels />
           </div>

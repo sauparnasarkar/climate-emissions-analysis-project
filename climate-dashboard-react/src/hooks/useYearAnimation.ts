@@ -40,10 +40,13 @@ function computeAutoplayStops(minYear: number, maxYear: number): number[] {
 }
 
 /**
- * Drives the Overview page's animated-choropleth year (SPEC.md §5.17). Autoplays on mount
- * unless the user has `prefers-reduced-motion` set, in which case it's pinned at `maxYear`
- * with playback disabled entirely -- manual scrubbing via `seek` still works either way, since
- * that's a deliberate, user-initiated action rather than an unprompted animation.
+ * Drives the animated-choropleth / globe year (SPEC.md §5.17). Autoplays on mount unless the user
+ * has `prefers-reduced-motion` set, in which case it starts pinned at `maxYear` and does NOT
+ * autoplay -- but Play still works. Reduced motion is about *unrequested* movement: the user
+ * pressing Play (like scrubbing with `seek`) is a deliberate, user-initiated action, and disabling
+ * it left iPhone users with Reduce Motion on (a common setting) with a permanently dead button.
+ * Consumers still use `reducedMotion` to tone down the *kind* of motion (no globe spin, no colour
+ * blending -- years just step).
  */
 export function useYearAnimation({ minYear, maxYear, intervalMs = 1800 }: UseYearAnimationOptions): UseYearAnimationResult {
   const reducedMotion = useReducedMotion();
@@ -56,17 +59,14 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800 }: UseYea
   const currentYearRef = useRef(currentYear);
   currentYearRef.current = currentYear;
 
-  // If the OS setting changes mid-session (useReducedMotion is live-subscribed), stop
-  // playback immediately and snap to the static, fully-scrubbable end state.
+  // If the OS setting turns on mid-session (useReducedMotion is live-subscribed), stop whatever is
+  // playing right away; the year is left where it is (the user can still scrub or press Play).
   useEffect(() => {
-    if (reducedMotion) {
-      setIsPlaying(false);
-      setCurrentYear(maxYear);
-    }
-  }, [reducedMotion, maxYear]);
+    if (reducedMotion) setIsPlaying(false);
+  }, [reducedMotion]);
 
   useEffect(() => {
-    if (!isPlaying || reducedMotion) return;
+    if (!isPlaying) return;
     const id = setInterval(() => {
       setCurrentYear((year) => {
         // The next stop strictly after wherever we currently are -- not "the next index in
@@ -78,7 +78,7 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800 }: UseYea
       });
     }, intervalMs);
     return () => clearInterval(id);
-  }, [isPlaying, reducedMotion, stops, intervalMs]);
+  }, [isPlaying, stops, intervalMs]);
 
   // Stops playback the instant the final stop is reached, rather than waiting one more full
   // dwell period to notice -- the animation has visibly finished; Play/Pause should reflect
@@ -89,7 +89,6 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800 }: UseYea
   }, [currentYear, stops]);
 
   const play = () => {
-    if (reducedMotion) return;
     if (currentYearRef.current >= maxYear) setCurrentYear(stops[0]);
     setIsPlaying(true);
   };

@@ -329,14 +329,14 @@ describe('OverviewPage', () => {
     expect(DEFAULT_ANIMATION.toggle).toHaveBeenCalledTimes(1);
   });
 
-  it('disables Play (but keeps the slider scrubbable) when prefers-reduced-motion is set', async () => {
+  it('keeps Play enabled (and the slider scrubbable) when prefers-reduced-motion is set -- reduced motion stops autoplay, it does not remove the control', async () => {
     vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, isPlaying: false, reducedMotion: true });
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
-    expect(await screen.findByRole('button', { name: 'Play' })).toBeDisabled();
+    expect(await screen.findByRole('button', { name: 'Play' })).toBeEnabled();
     expect(screen.getByRole('slider')).not.toHaveAttribute('aria-disabled', 'true');
   });
 

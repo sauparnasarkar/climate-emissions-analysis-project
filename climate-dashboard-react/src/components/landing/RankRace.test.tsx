@@ -75,15 +75,27 @@ describe('RankRace', () => {
     expect(ranking()[1]).toBe('Beta: 90');
   });
 
-  it('under reduced motion: no autoplay, no play button, a year slider instead', () => {
+  it('under reduced motion: no autoplay, but Play works (user-initiated) and a year slider is offered too', () => {
     reduced = true;
     mount();
-    expect(ioCallback).toBeNull(); // never even observes
-    expect(screen.queryByRole('button', { name: /Play|Pause|Replay/ })).not.toBeInTheDocument();
+    expect(ioCallback).toBeNull(); // never even observes, so nothing autoplays
     expect(ranking()).toEqual(['Beta: 300', 'Alpha: 100', 'Gamma: 10']);
-    const slider = screen.getByRole('slider');
-    fireEvent.keyDown(slider, { key: 'Home' });
-    expect(ranking()).toEqual(['Alpha: 100', 'Beta: 50', 'Gamma: 10']);
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(ranking()).toEqual(['Beta: 300', 'Alpha: 100', 'Gamma: 10']); // static until asked
+
+    // The button is present and enabled; pressing it plays from the first year, one step per tick.
+    const play = screen.getByRole('button', { name: 'Replay 2000 → 2002' });
+    expect(play).toBeEnabled();
+    fireEvent.click(play);
+    expect(ranking()).toEqual(['Alpha: 100', 'Beta: 50', 'Gamma: 10']); // 2000
+    act(() => { vi.advanceTimersByTime(550); });
+    expect(ranking()).toEqual(['Alpha: 100', 'Beta: 90', 'Gamma: 10']); // 2001
+
+    // The slider still scrubs, and scrubbing pauses playback.
+    fireEvent.keyDown(screen.getByRole('slider'), { key: 'Home' });
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(ranking()).toEqual(['Alpha: 100', 'Beta: 50', 'Gamma: 10']); // stayed at 2000
   });
 
   it('stops autoplay and snaps to the final year if reduced motion turns on mid-race', () => {
@@ -96,7 +108,7 @@ describe('RankRace', () => {
     expect(ranking()).toEqual(['Beta: 300', 'Alpha: 100', 'Gamma: 10']); // snapped to 2002
     act(() => { vi.advanceTimersByTime(5000); });
     expect(ranking()).toEqual(['Beta: 300', 'Alpha: 100', 'Gamma: 10']); // and stays put
-    expect(screen.queryByRole('button', { name: /Play|Pause|Replay/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Replay 2000 → 2002' })).toBeEnabled(); // Play remains available
     expect(screen.getByRole('slider')).toBeInTheDocument();
   });
 
