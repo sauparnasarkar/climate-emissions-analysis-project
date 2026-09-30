@@ -20,10 +20,24 @@ export function escapeRegExp(s: string): string {
 export const BACKEND_PATH_SEGMENTS = ['api', 'mcp', 'agent'] as const;
 
 /** Workbox `navigateFallbackDenylist` patterns for a given base (with trailing slash): static files
- * (any path ending in an extension), the Access-gated /admin page, and every backend prefix. Workbox
+ * (any path ending in an extension), the Access-gated /admin page, every backend prefix, and Cloudflare's
+ * root-level edge paths (`/cdn-cgi/`, `/.well-known/`). Workbox
  * tests these against `pathname + search`, hence the optional trailing query. */
 export function navigateFallbackDenylist(base: string): RegExp[] {
   const b = escapeRegExp(base);
   const segment = (name: string) => new RegExp(`^${b}${name}(/[^?]*)?(\\?.*)?$`);
-  return [/\.[a-zA-Z0-9]{2,5}(\?.*)?$/, segment('admin'), ...BACKEND_PATH_SEGMENTS.map(segment)];
+  return [
+    /\.[a-zA-Z0-9]{2,5}(\?.*)?$/,
+    segment('admin'),
+    ...BACKEND_PATH_SEGMENTS.map(segment),
+    // Cloudflare's own edge endpoints live at the origin *root*, whatever `base` is. Critical for Access:
+    // after Google login the browser returns to `/cdn-cgi/access/authorized?...`, a top-level navigation
+    // the edge must see to set the Access cookie. At the root base the service worker's scope covers it,
+    // and without this entry the worker answered it with the cached SPA shell -- so the cookie was never
+    // set, the router saw an unknown path and redirected to the landing page: `/admin` "routed to the
+    // landing page". (Under the old prefixed base the worker's scope never included /cdn-cgi.)
+    // `/.well-known/` (e.g. Access's protected-resource metadata) is edge-served the same way.
+    /^\/cdn-cgi\//,
+    /^\/\.well-known\//,
+  ];
 }
