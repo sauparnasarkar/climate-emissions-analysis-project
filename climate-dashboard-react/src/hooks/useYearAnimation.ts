@@ -6,6 +6,8 @@ export interface UseYearAnimationOptions {
   maxYear: number;
   /** Milliseconds dwelt at each autoplay stop (see computeAutoplayStops -- not one per year). */
   intervalMs?: number;
+  /** Years between autoplay stops (default 5). */
+  stepYears?: number;
   /** When given, autoplay starts the first time this element scrolls into view instead of on mount --
    * so a globe/map further down a page (or on a phone, below the fold) isn't already several steps
    * through its animation by the time anyone sees it. Never starts if the user has already pressed
@@ -14,8 +16,8 @@ export interface UseYearAnimationOptions {
   startWhenVisible?: RefObject<Element | null>;
 }
 
-/** Autoplay steps every STEP_YEARS years (minYear, minYear+STEP_YEARS, ..., then maxYear). */
-const STEP_YEARS = 5;
+/** Default autoplay step: every 5 years (minYear, minYear+5, ..., then maxYear). */
+const DEFAULT_STEP_YEARS = 5;
 
 export interface UseYearAnimationResult {
   currentYear: number;
@@ -30,15 +32,15 @@ export interface UseYearAnimationResult {
 }
 
 /**
- * Autoplay stops: minYear, then every STEP_YEARS-year boundary after it, then maxYear (if
+ * Autoplay stops: minYear, then every `stepYears`-year boundary after it, then maxYear (if
  * maxYear isn't already one of those boundaries). Year-over-year change is gradual enough that
  * stepping through every single year makes the trend hard to notice; jumping every few years
  * makes it obvious at a glance, which is the point of the animation. Manual scrubbing (`seek`)
  * is unaffected -- it always allows any year in [minYear, maxYear], not just these stops.
  */
-function computeAutoplayStops(minYear: number, maxYear: number): number[] {
+function computeAutoplayStops(minYear: number, maxYear: number, stepYears: number): number[] {
   const stops = [minYear];
-  for (let year = Math.ceil((minYear + 1) / STEP_YEARS) * STEP_YEARS; year < maxYear; year += STEP_YEARS) {
+  for (let year = Math.ceil((minYear + 1) / stepYears) * stepYears; year < maxYear; year += stepYears) {
     stops.push(year);
   }
   if (stops[stops.length - 1] !== maxYear) stops.push(maxYear);
@@ -54,9 +56,9 @@ function computeAutoplayStops(minYear: number, maxYear: number): number[] {
  * Consumers still use `reducedMotion` to tone down the *kind* of motion (no globe spin, no colour
  * blending -- years just step).
  */
-export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, startWhenVisible }: UseYearAnimationOptions): UseYearAnimationResult {
+export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYears = DEFAULT_STEP_YEARS, startWhenVisible }: UseYearAnimationOptions): UseYearAnimationResult {
   const reducedMotion = useReducedMotion();
-  const stops = useMemo(() => computeAutoplayStops(minYear, maxYear), [minYear, maxYear]);
+  const stops = useMemo(() => computeAutoplayStops(minYear, maxYear, stepYears), [minYear, maxYear, stepYears]);
   const [currentYear, setCurrentYear] = useState(reducedMotion ? maxYear : stops[0]);
   // Decided once, on first render: wait for the element only if a ref was given AND the browser can tell us.
   const deferAutoplay = useRef(Boolean(startWhenVisible) && typeof IntersectionObserver !== 'undefined');
