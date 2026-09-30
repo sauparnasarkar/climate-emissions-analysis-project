@@ -72,7 +72,7 @@ function Kpi({ value, label, color, border }: { value: string; label: string; co
 function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTimeSeries }) {
   const minYear = map.years[0];
   const maxYear = map.years[map.years.length - 1];
-  const { currentYear, isPlaying, toggle, seek, reducedMotion } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS });
+  const { currentYear, isPlaying, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS });
   const yearIdx = currentYear - minYear;
   const all = overview.all_countries;
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
@@ -120,7 +120,10 @@ function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTime
           ariaLabel={`Globe of CO₂ emissions by country, ${minYear} to ${maxYear}, log-scaled colour from light (lowest) to deep red (highest)`}
           // Rotation follows the same play/pause as the year animation, so Pause (or a manual seek, which
           // pauses) stops the whole hero -- not just the year.
-          autoRotate={isPlaying && !reducedMotion}
+          autoRotate={isPlaying}
+          // With Reduce Motion on there is no autoplay, but the user's own Play press is a request for movement:
+          // the globe spins while it runs (colour blending stays off, years just step).
+          allowSpinWithReducedMotion
           rotationPeriodMs={GLOBE_STEP_MS}
           maxSize={600}
           title={

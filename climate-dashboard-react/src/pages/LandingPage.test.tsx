@@ -25,6 +25,7 @@ vi.mock('design-system', async (importOriginal) => {
         data-range={JSON.stringify(props.colorRange)}
         data-rotation-ms={String(props.rotationPeriodMs)}
         data-auto-rotate={String(props.autoRotate)}
+        data-allow-spin-reduced={String(props.allowSpinWithReducedMotion)}
         data-no-data-color={String(props.noDataColor)}
         aria-label={String(props.ariaLabel)}
       />
@@ -128,15 +129,23 @@ describe('LandingPage', () => {
     expect(globe).toHaveAttribute('data-auto-rotate', 'true');
   });
 
-  it('stops the globe spinning when the year animation is paused, and never spins under reduced motion', async () => {
+  it('spins the globe exactly while Play is running -- also under reduced motion, where Play is the user asking for it', async () => {
     const { unmount } = mount();
     expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'true');
     unmount();
     const paused = mount(overview(), MAP, { ...ANIMATION, isPlaying: false });
     expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'false');
     paused.unmount();
+    // Reduced motion: no autoplay means isPlaying starts false (nothing spins at rest)...
+    const reducedIdle = mount(overview(), MAP, { ...ANIMATION, isPlaying: false, reducedMotion: true });
+    const idle = await screen.findByTestId('globe');
+    expect(idle).toHaveAttribute('data-auto-rotate', 'false');
+    reducedIdle.unmount();
+    // ...but once the user presses Play it spins, and the Globe is told that's allowed.
     mount(overview(), MAP, { ...ANIMATION, isPlaying: true, reducedMotion: true });
-    expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'false');
+    const spinning = await screen.findByTestId('globe');
+    expect(spinning).toHaveAttribute('data-auto-rotate', 'true');
+    expect(spinning).toHaveAttribute('data-allow-spin-reduced', 'true');
   });
 
   it('describes only ETS as the source of the 2043 forecasts in the feature card', async () => {
