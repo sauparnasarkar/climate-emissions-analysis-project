@@ -19,9 +19,11 @@ import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 // own responses (/overview, /overview/world-map-series) -- nothing is typed in -- so a weekly data
 // refresh that moves the latest year or country counts updates the page with no code change.
 
-// One globe rotation per year-step, matching useYearAnimation's 5-year stops (~56s for a full pass).
+// One globe rotation per year-step. The globe jumps by decade (1990, 2000, 2010, 2020, then the latest year),
+// ~40s for a full pass.
 // Slowed from 5s to 8s after review: at 5s the spin was too quick to read the countries as they passed.
 const GLOBE_STEP_MS = 8000;
+const GLOBE_STEP_YEARS = 10;
 
 // Same starter the agent page offers, so this card promises something the agent demonstrably does.
 const AGENT_EXAMPLE = 'How has India’s emissions grown compared to other countries?';
@@ -77,7 +79,7 @@ function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTime
   const maxYear = map.years[map.years.length - 1];
   // Autoplay begins when the globe scrolls into view, not on page load (e.g. below the fold on a phone).
   const globeRef = useRef<HTMLDivElement>(null);
-  const { currentYear, isPlaying, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS, startWhenVisible: globeRef });
+  const { currentYear, isPlaying, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS, stepYears: GLOBE_STEP_YEARS, startWhenVisible: globeRef });
   const yearIdx = currentYear - minYear;
   const all = overview.all_countries;
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
