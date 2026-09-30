@@ -17,7 +17,7 @@ import { AgentPage } from './pages/AgentPage';
 
 function App() {
   // Read from localStorage in the initializer (not a useEffect) so a returning Dark user
-  // never sees a Bright flash on first paint. Defaults to Bright -- "what a first-time
+  // never sees a flash of the other theme on first paint. Defaults to Dark -- "what a first-time
   // visitor lands on" -- for anyone with nothing stored yet, no prefers-color-scheme
   // detection (an explicit toggle exists; a media-query default would just contradict it).
   // Guarded: localStorage access can throw (Safari private browsing, an extension/policy
@@ -25,9 +25,9 @@ function App() {
   const [theme, setTheme] = useState<AppTheme>(() => {
     try {
       const stored = localStorage.getItem(THEME_STORAGE_KEY);
-      return stored === 'analytics' || stored === 'analytics-bright-tidewater' ? stored : 'analytics-bright-tidewater';
+      return stored === 'analytics' || stored === 'analytics-bright-tidewater' ? stored : 'analytics';
     } catch {
-      return 'analytics-bright-tidewater';
+      return 'analytics';
     }
   });
   useEffect(() => {
