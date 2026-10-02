@@ -81,8 +81,12 @@ def build(climate_dir: str, report: RunReport) -> tuple[dict, pd.DataFrame]:
     require_contiguous_years(years, years[0], years[-1], "PRIMAP-hist composition")
 
     cov = prov.get("coverage")
-    if isinstance(cov, list) and len(cov) == 2 and years[-1] > int(cov[1]):
-        report.deviate(f"composition includes year(s) beyond the completeness-tested coverage {cov}: {[y for y in years if y > int(cov[1])]}")
+    if not (isinstance(cov, list) and len(cov) == 2 and all(isinstance(c, int) and not isinstance(c, bool) for c in cov) and cov[0] <= cov[1]):
+        # without the recorded coverage there is no proof that the years passed the completeness test, so nothing is published
+        raise ValueError(f"provenance for {SERIES_ID} has no valid [first, last] coverage ({cov!r}): cannot show that the years passed the completeness test")
+    outside = [y for y in years if not cov[0] <= y <= cov[1]]
+    if outside:
+        report.deviate(f"composition includes year(s) outside the completeness-tested coverage {cov}: {outside}")
 
     rows, per_year = [], []
     for _, r in df.iterrows():
@@ -95,16 +99,18 @@ def build(climate_dir: str, report: RunReport) -> tuple[dict, pd.DataFrame]:
             if bad:
                 report.deviate(f"{year}: no value for {', '.join(bad)}; its composition is computed over the remaining gases ({', '.join(included)})")
         total = sum(vals[g] for g in included)
-        if not included or total <= 0:
-            report.deviate(f"{year}: no usable gas values; no composition published for it")
-            continue
+        if not included or not np.isfinite(total) or total <= 0:
+            # skipping it would leave a gap in a series whose coverage claims to be contiguous
+            raise ValueError(f"{year}: no usable gas values (none present, or the total is not positive)")
         shares = {g: vals[g] / total * 100 for g in included}
         s = sum(shares.values())
         if abs(s - 100) > SHARE_SUM_TOL:
             raise ValueError(f"{year}: shares sum to {s!r}, not 100")
-        national = float(r["total_ghg_mtco2e"]) if pd.notna(r["total_ghg_mtco2e"]) else None
-        resid = (total - national) / national * 100 if national else None
-        if resid is not None and abs(resid) > RESIDUAL_TOL_PCT:
+        national = float(r["total_ghg_mtco2e"]) if pd.notna(r["total_ghg_mtco2e"]) else float("nan")
+        if not np.isfinite(national) or national <= 0:
+            raise ValueError(f"{year}: PRIMAP-hist's national total is missing or not positive ({r['total_ghg_mtco2e']!r}), so the year cannot be reconciled")
+        resid = (total - national) / national * 100
+        if abs(resid) > RESIDUAL_TOL_PCT:
             report.deviate(f"{year}: the gases sum to {total:,.0f} MtCO2e, {resid:+.2f}% from PRIMAP-hist's national total (tolerance ±{RESIDUAL_TOL_PCT}%)")
         for g, _, name in GASES:
             rows.append({"year": year, "gas": g, "gas_name": name, "mtco2e": vals[g], "share_pct": shares.get(g)})
@@ -115,13 +121,13 @@ def build(climate_dir: str, report: RunReport) -> tuple[dict, pd.DataFrame]:
     if first.notna().any() and first.idxmax() != "co2":
         top = first.idxmax()
         name = {g: n for g, _, n in GASES}[top]
-        caveats.append(f"In {per_year[0]['year']} {name} is {first.max():.0f}% of the CO2-equivalent total and CO2 only {first.get('co2', float('nan')):.0f}%: before the "
-                       "industrial era the composition is a reconstruction dominated by methane, because national CO2 excludes land-use change; read the earliest "
+        caveats.append(f"In {per_year[0]['year']} {name} is {first.max():.0f}% of the CO2-equivalent total and CO2 only {first.get('co2', float('nan')):.0f}%: the earliest "
+                       f"composition is a reconstruction dominated by {name}, and national CO2 here excludes land-use change, which understates early CO2; read the earliest "
                        "decades as an estimate, not an observation.")
     fg_missing = sorted(y["year"] for y in per_year if "fgas" not in y["gases_included"])
     if fg_missing:
         report.note(f"F-gases have no value for {len(fg_missing)} year(s) ({fg_missing[0]}-{fg_missing[-1]}); shown as null, shares over the other gases")
-    resids = [abs(y["residual_pct"]) for y in per_year if y["residual_pct"] is not None]
+    resids = [abs(y["residual_pct"]) for y in per_year]  # every published year reconciles (a year without a valid national total raises)
     meta = {**base, "years": per_year, "coverage": [per_year[0]["year"], per_year[-1]["year"]], "n_years": len(per_year), "caveats": caveats,
             "reconciliation": {"max_abs_residual_pct": max(resids) if resids else None, "tolerance_pct": RESIDUAL_TOL_PCT,
                                "note": "components sum vs PRIMAP-hist's own national total, per year (`years[].residual_pct`)"},

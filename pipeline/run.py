@@ -40,7 +40,7 @@ SOURCES = {**ACTIVE_SOURCES, **DERIVED_SOURCES, **INTERNAL_SOURCES}
 # A derived stage that consumes one upstream stage's artifact as a whole must not run when that stage failed in the same run: it would build a
 # fresh-looking result (new generated_at) from the previous run's artifact. `correlate` reads exactly what `harmonize` wrote. (harmonize itself is
 # deliberately NOT gated on the sources: it merges several independent sources, a partial update is normal, and each source's age is in its provenance.)
-DEPENDS_ON = {"correlate": ("harmonize",)}
+DEPENDS_ON = {"correlate": ("harmonize",), "composition": ("primap_hist",)}  # composition reads the primap_hist artifact as a whole
 
 
 def build_notification(summary: dict) -> tuple[str, str, str]:

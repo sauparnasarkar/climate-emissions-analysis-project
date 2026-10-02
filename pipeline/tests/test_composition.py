@@ -102,7 +102,7 @@ def test_the_reconciliation_to_the_national_total_is_published_and_checked(tmp_p
 
 def test_years_beyond_the_completeness_tested_coverage_are_a_deviation(tmp_path):
     rep, _, _ = go(tmp_path, years=range(1990, 2026), prov_extra={"coverage": [1990, 2024]})  # 2025 slipped in
-    assert any("beyond the completeness-tested coverage [1990, 2024]: [2025]" in d for d in rep.deviations)
+    assert any("outside the completeness-tested coverage [1990, 2024]: [2025]" in d for d in rep.deviations)
 
 
 def test_a_gap_in_the_years_is_refused_and_the_output_becomes_explicit_nulls(tmp_path):
@@ -111,7 +111,7 @@ def test_a_gap_in_the_years_is_refused_and_the_output_becomes_explicit_nulls(tmp
     assert any("composition unavailable" in d for d in rep.deviations)
 
 
-def test_early_period_caveat_is_generated_only_when_methane_dominates_the_first_year(tmp_path):
+def test_early_period_caveat_is_generated_only_when_co2_is_not_the_first_year_leader(tmp_path):
     def methane_first(df):
         df.loc[df.year == 1990, ["co2_mt", "ch4_mtco2e", "n2o_mtco2e", "fgas_mtco2e"]] = [10.0, 950.0, 35.0, 5.0]
         df.loc[df.year == 1990, "total_ghg_mtco2e"] = 1000.0
@@ -119,7 +119,7 @@ def test_early_period_caveat_is_generated_only_when_methane_dominates_the_first_
 
     _, meta, _ = go(tmp_path, edit=methane_first)
     text = [c for c in meta["caveats"] if c.startswith("In 1990 ")]
-    assert len(text) == 1 and "CH₄ is 95% of the CO2-equivalent total and CO2 only 1%" in text[0] and "reconstruction dominated by methane" in text[0] and "land-use change" in text[0]
+    assert len(text) == 1 and "CH₄ is 95% of the CO2-equivalent total and CO2 only 1%" in text[0] and "reconstruction dominated by CH₄" in text[0] and "land-use change" in text[0]
     _, meta2, _ = go(tmp_path / "x" if (tmp_path / "x").mkdir() is None else tmp_path)
     assert not any(c.startswith("In 1990 ") for c in meta2["caveats"])  # CO2 is the largest share: nothing to warn about
 
@@ -165,7 +165,7 @@ def test_the_output_is_deterministic_and_the_stage_is_registered(tmp_path):
     for d in (a, b):
         d.pop("generated_at")
     assert a == b and la.equals(lb)
-    assert "composition" in run.DERIVED_SOURCES and "composition" not in run.ACTIVE_SOURCES and "composition" not in run.DEPENDS_ON
+    assert "composition" in run.DERIVED_SOURCES and "composition" not in run.ACTIVE_SOURCES and run.DEPENDS_ON["composition"] == ("primap_hist",)
 
 
 def test_a_share_sum_violation_makes_the_output_unavailable_instead_of_publishing_bad_shares(tmp_path, monkeypatch):
@@ -174,3 +174,81 @@ def test_a_share_sum_violation_makes_the_output_unavailable_instead_of_publishin
     rep, meta, long = go(tmp_path)
     assert meta["years"] == [] and "shares sum to" in meta["unavailable_reason"] and len(long) == 0
     assert any("composition unavailable" in d and "shares sum to" in d for d in rep.deviations)
+
+
+# ---------------------------------------------------------------- Copilot review on #216
+
+
+@pytest.mark.parametrize("coverage", [None, [1990], [1990, 2024, 2030], ["1990", "2024"], [2024, 1990], [True, 2024], "1990-2024", [1990.0, 2024.0]])
+def test_missing_or_malformed_coverage_provenance_publishes_nothing(tmp_path, coverage):
+    def drop_cov(d):
+        p = json.loads((d / "provenance.json").read_text())
+        if coverage is None:
+            p["primap_global_composition_annual"].pop("coverage")
+        else:
+            p["primap_global_composition_annual"]["coverage"] = coverage
+        (d / "provenance.json").write_text(json.dumps(p))
+
+    write(tmp_path)
+    drop_cov(tmp_path)
+    rep = K.run(str(tmp_path))
+    meta = json.loads((tmp_path / "correlation_composition.json").read_text())
+    assert meta["years"] == [] and meta["coverage"] is None and "has no valid [first, last] coverage" in meta["unavailable_reason"]
+    assert len(pd.read_csv(tmp_path / "correlation_composition_annual.csv")) == 0 and any("composition unavailable" in d for d in rep.deviations)
+
+
+def test_a_missing_provenance_entry_publishes_nothing(tmp_path):
+    write(tmp_path)
+    (tmp_path / "provenance.json").write_text(json.dumps({}))
+    rep = K.run(str(tmp_path))
+    assert json.loads((tmp_path / "correlation_composition.json").read_text())["years"] == [] and any("composition unavailable" in d for d in rep.deviations)
+
+
+@pytest.mark.parametrize("cols", [["co2_mt", "ch4_mtco2e", "n2o_mtco2e", "fgas_mtco2e"]])
+def test_a_year_with_no_usable_gas_values_is_invalid_input_not_a_silent_gap(tmp_path, cols):
+    def all_null(df):
+        df.loc[df.year == 2005, cols] = np.nan
+        return df
+
+    rep, meta, long = go(tmp_path, edit=all_null)
+    assert meta["years"] == [] and meta["coverage"] is None and "2005: no usable gas values" in meta["unavailable_reason"] and len(long) == 0  # not a 34-year file claiming 1990-2024
+    assert any("composition unavailable" in d and "2005" in d for d in rep.deviations)
+
+
+def test_a_year_whose_total_is_not_positive_is_invalid_input(tmp_path):
+    def zeros(df):
+        df.loc[df.year == 2005, ["co2_mt", "ch4_mtco2e", "n2o_mtco2e", "fgas_mtco2e"]] = 0.0
+        return df
+
+    _, meta, _ = go(tmp_path, edit=zeros)
+    assert meta["years"] == [] and "2005: no usable gas values" in meta["unavailable_reason"]
+
+
+@pytest.mark.parametrize("bad", [np.nan, 0.0, -5.0, np.inf])
+def test_a_missing_or_invalid_national_total_makes_the_output_unavailable_not_unreconciled(tmp_path, bad):
+    def edit(df):
+        df.loc[df.year == 2005, "total_ghg_mtco2e"] = bad
+        return df
+
+    rep, meta, long = go(tmp_path, edit=edit)
+    assert meta["years"] == [] and "2005: PRIMAP-hist's national total is missing or not positive" in meta["unavailable_reason"] and len(long) == 0
+    assert any("composition unavailable" in d for d in rep.deviations)
+
+
+def test_every_published_year_is_reconciled(tmp_path):
+    _, meta, _ = go(tmp_path)
+    assert all(isinstance(y["residual_pct"], float) and y["national_total_mtco2e"] > 0 for y in meta["years"]) and meta["reconciliation"]["max_abs_residual_pct"] is not None
+
+
+@pytest.mark.parametrize("values,leader,leader_name", [([10.0, 950.0, 35.0, 5.0], "ch4", "CH₄"), ([10.0, 50.0, 900.0, 40.0], "n2o", "N₂O"), ([10.0, 40.0, 50.0, 900.0], "fgas", "Fluorinated gases")])
+def test_the_early_history_caveat_names_the_gas_that_actually_leads(tmp_path, values, leader, leader_name):
+    def first_year(df):
+        df.loc[df.year == 1990, ["co2_mt", "ch4_mtco2e", "n2o_mtco2e", "fgas_mtco2e"]] = values
+        df.loc[df.year == 1990, "total_ghg_mtco2e"] = 1000.0
+        return df
+
+    _, meta, _ = go(tmp_path, edit=first_year)
+    text = [c for c in meta["caveats"] if c.startswith("In 1990 ")][0]
+    assert f"reconstruction dominated by {leader_name}" in text and text.startswith(f"In 1990 {leader_name} is ")
+    assert "methane" not in text.lower() or leader == "ch4"  # never claims methane for another leader
+    assert "land-use change, which understates early CO2" in text and "not an observation" in text

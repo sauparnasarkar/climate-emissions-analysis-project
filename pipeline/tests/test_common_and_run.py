@@ -189,3 +189,26 @@ def test_a_skipped_stage_still_produces_a_notification(tmp_path, monkeypatch):
     assert (tmp_path / "last_run.priority").read_text().strip() == "urgent" and "FAILED" in (tmp_path / "last_run.title").read_text()
     msg = (tmp_path / "last_run.message").read_text()
     assert "FAILED harmonize: RuntimeError: harmonize exploded" in msg and "FAILED correlate: skipped: upstream stage(s) failed in this run: harmonize" in msg
+
+
+def test_composition_is_skipped_when_primap_hist_failed_in_the_same_run(tmp_path, monkeypatch):
+    called = _stub_all(monkeypatch, tmp_path, fail={"primap_hist"})
+    assert run.main(["--source", "all"]) == 1
+    summary = json.loads((tmp_path / "last_run.json").read_text())
+    assert "composition" not in called and "correlate" in called and "harmonize" in called  # only the stage that reads primap_hist's artifact is gated
+    assert summary["failures"]["composition"].startswith("skipped: upstream stage(s) failed in this run: primap_hist") and "composition" not in summary["sources"]
+
+
+def test_composition_runs_when_another_source_failed_and_when_named_alone(tmp_path, monkeypatch):
+    called = _stub_all(monkeypatch, tmp_path, fail={"noaa_gml"})
+    run.main(["--source", "all"])
+    assert "composition" in called
+    called2 = _stub_all(monkeypatch, tmp_path / "b" if (tmp_path / "b").mkdir() is None else tmp_path, fail={"primap_hist"})
+    assert run.main(["--source", "composition"]) == 0 and called2 == ["composition"]  # not gated when named alone
+
+
+def test_each_gated_stage_depends_only_on_its_own_upstream(tmp_path, monkeypatch):
+    assert run.DEPENDS_ON == {"correlate": ("harmonize",), "composition": ("primap_hist",)}
+    called = _stub_all(monkeypatch, tmp_path, fail={"harmonize"})
+    run.main(["--source", "all"])
+    assert "correlate" not in called and "composition" in called  # a failed harmonize does not block composition
