@@ -54,8 +54,10 @@ def parse_summary(text: str) -> pd.DataFrame:
     if not rows:
         raise ValueError("Berkeley summary: no data rows parsed")
     df = pd.DataFrame(rows, columns=["year", "anomaly_1951_1980_c", "uncertainty_95_c"])
-    if df["year"].duplicated().any():
-        raise ValueError("Berkeley summary: duplicate years")
+if int(df["year"].min()) != PREIND_START:
+        raise ValueError(f"Berkeley summary: expected first year {PREIND_START}")
+    if not df["year"].is_monotonic_increasing:
+        raise ValueError("Berkeley summary: years are not ordered")
     require_contiguous_years(df["year"], PREIND_START, int(df["year"].max()), "Berkeley summary")
     return df
 
