@@ -664,7 +664,7 @@ def test_a_blank_nan_or_infinite_value_in_the_share_csv_is_a_503_never_a_500(api
     cl.clear_caches()
     for q in ("", "?year=1900", "?countries=BBB"):  # the whole combination is unusable, whichever view asks for it
         r = api.get(CS + q)
-        assert r.status_code == 503 and "blank, NaN or infinite" in r.json()["detail"], (q, r.status_code)
+        assert r.status_code == 503 and "NaN or infinite" in r.json()["detail"], (q, r.status_code)
     assert api.get(CS + "?source=primap_hist").status_code == 200  # another combination is unaffected
 
 
@@ -676,6 +676,51 @@ def test_a_share_series_whose_file_ends_before_the_published_coverage_is_a_503_n
     r = api.get(CS)
     assert r.status_code == 503 and "spans 1850-1999" in r.json()["detail"] and "publishes coverage 1850-2000" in r.json()["detail"]
     assert api.get(CS + "?source=primap_hist").status_code == 200
+
+
+@pytest.mark.parametrize("col", [4, 5])
+def test_a_non_numeric_token_in_a_numeric_share_column_is_a_503_never_a_500(api, climate, col):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    i = next(k for k, ln in enumerate(lines) if ln.startswith("BBB,1900,owid_co2,co2,"))
+    parts = lines[i].split(",")
+    parts[col] = "abc"
+    lines[i] = ",".join(parts)
+    (climate / "correlation_country_share.csv").write_text("\n".join(lines) + "\n")
+    cl.clear_caches()
+    for q in ("", "?year=1900", "?countries=AAA"):
+        r = api.get(CS + q)
+        assert r.status_code == 503 and "non-numeric" in r.json()["detail"], (q, r.status_code)
+
+
+def test_an_interior_row_missing_while_the_year_bounds_still_match_is_a_503(api, climate):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    i = next(k for k, ln in enumerate(lines) if ln.startswith("AAA,1900,owid_co2,co2,"))
+    del lines[i]  # first/last year are untouched, one country-year is gone
+    (climate / "correlation_country_share.csv").write_text("\n".join(lines) + "\n")
+    cl.clear_caches()
+    for q in ("", "?countries=AAA"):
+        r = api.get(CS + q)
+        assert r.status_code == 503 and "publishes" in r.json()["detail"] and "rows for" in r.json()["detail"], (q, r.text)
+    assert api.get(CS + "?source=primap_hist").status_code == 200
+
+
+def test_a_country_relabelled_onto_another_keeps_the_row_count_but_fails_the_country_count(api, climate):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    out = [ln.replace("DDD,", "AAA,", 1) if ln.startswith("DDD,") and ",owid_co2," in ln else ln for ln in lines]
+    assert len(out) == len(lines) and out != lines
+    (climate / "correlation_country_share.csv").write_text("\n".join(out) + "\n")
+    cl.clear_caches()
+    r = api.get(CS)
+    assert r.status_code == 503 and "3 countries" in r.json()["detail"] and "for 4 countries" in r.json()["detail"]
+
+
+def test_a_country_missing_entirely_is_a_503_via_the_country_count(api, climate):
+    import pandas as pd
+    df = pd.read_csv(climate / "correlation_country_share.csv")
+    df[~((df["source"] == "owid_co2") & (df["country"] == "DDD"))].to_csv(climate / "correlation_country_share.csv", index=False)
+    cl.clear_caches()
+    r = api.get(CS)
+    assert r.status_code == 503 and "countries" in r.json()["detail"]
 
 
 def test_a_share_series_that_starts_after_the_published_coverage_is_a_503(api, climate):
