@@ -208,7 +208,7 @@ def test_composition_runs_when_another_source_failed_and_when_named_alone(tmp_pa
 
 
 def test_each_gated_stage_depends_only_on_its_own_upstream(tmp_path, monkeypatch):
-    assert run.DEPENDS_ON == {"correlate": ("harmonize",), "composition": ("primap_hist",), "country_share": ("owid", "primap_hist"),
+    assert run.DEPENDS_ON == {"correlate": ("harmonize",), "composition": ("primap_hist",), "country_share": ("owid", "primap_hist"), "ets_baseline": ("owid",),
                              "scenario_temperature": ("correlate", "owid", "berkeley_earth")}
     called = _stub_all(monkeypatch, tmp_path, fail={"harmonize"})
     run.main(["--source", "all"])
@@ -237,6 +237,21 @@ def test_both_failing_sources_are_named_in_the_skip_reason(tmp_path, monkeypatch
     run.main(["--source", "all"])
     reason = json.loads((tmp_path / "last_run.json").read_text())["failures"]["country_share"]
     assert "owid" in reason and "primap_hist" in reason
+
+
+def test_ets_baseline_is_skipped_when_owid_failed_in_the_same_run(tmp_path, monkeypatch):
+    called = _stub_all(monkeypatch, tmp_path, fail={"owid"})
+    assert run.main(["--source", "all"]) == 1
+    summary = json.loads((tmp_path / "last_run.json").read_text())
+    assert "ets_baseline" not in called and summary["failures"]["ets_baseline"].startswith("skipped: upstream stage(s) failed in this run: owid")
+
+
+def test_ets_baseline_runs_when_unrelated_sources_fail_and_when_named_alone(tmp_path, monkeypatch):
+    called = _stub_all(monkeypatch, tmp_path, fail={"noaa_gml", "primap_hist", "berkeley_earth"})
+    run.main(["--source", "all"])
+    assert "ets_baseline" in called
+    called2 = _stub_all(monkeypatch, tmp_path / "b" if (tmp_path / "b").mkdir() is None else tmp_path, fail={"owid"})
+    assert run.main(["--source", "ets_baseline"]) == 0 and called2 == ["ets_baseline"]
 
 
 @pytest.mark.parametrize("failed", ["correlate", "owid", "berkeley_earth"])

@@ -1,4 +1,4 @@
-"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|owid|harmonize|correlate|composition|country_share|scenario_temperature|all]`.
+"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|owid|harmonize|correlate|composition|country_share|ets_baseline|scenario_temperature|all]`.
 
 `all` runs the active (publishable) sources, then the derived stages (the harmonized layer), only. Shelved sources (`edgar`) run only when named explicitly
 and write to `data/internal/`, never `data/climate/`.
@@ -17,7 +17,7 @@ import os
 import sys
 import traceback
 
-from . import berkeley_earth, composition, correlation, country_share, edgar, harmonize, noaa_gml, owid, primap_hist, scenario_temperature
+from . import berkeley_earth, composition, correlation, country_share, edgar, ets_baseline, harmonize, noaa_gml, owid, primap_hist, scenario_temperature
 from .common import CLIMATE_DIR, check_reshape_environment, utc_now, write_json_atomic, write_text_atomic
 
 ACTIVE_SOURCES = {
@@ -36,13 +36,14 @@ DERIVED_SOURCES = {
     "correlate": correlation.run,
     "composition": composition.run,
     "country_share": country_share.run,
+    "ets_baseline": ets_baseline.run,
     "scenario_temperature": scenario_temperature.run,
 }
 SOURCES = {**ACTIVE_SOURCES, **DERIVED_SOURCES, **INTERNAL_SOURCES}
 # A derived stage that consumes one upstream stage's artifact as a whole must not run when that stage failed in the same run: it would build a
 # fresh-looking result (new generated_at) from the previous run's artifact. `correlate` reads exactly what `harmonize` wrote. (harmonize itself is
 # deliberately NOT gated on the sources: it merges several independent sources, a partial update is normal, and each source's age is in its provenance.)
-DEPENDS_ON = {"correlate": ("harmonize",), "composition": ("primap_hist",), "country_share": ("owid", "primap_hist"),
+DEPENDS_ON = {"correlate": ("harmonize",), "composition": ("primap_hist",), "country_share": ("owid", "primap_hist"), "ets_baseline": ("owid",),
               "scenario_temperature": ("correlate", "owid", "berkeley_earth")}  # composition reads the primap_hist artifact as a whole
 
 
