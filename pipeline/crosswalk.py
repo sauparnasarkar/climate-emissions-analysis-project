@@ -26,7 +26,12 @@ def build_crosswalk(edgar_names: dict[str, str], owid: pd.DataFrame, expanded: l
     """`edgar_names`: ISO3 -> EDGAR entity name. `owid`: needs columns `country`, `iso_code`.
     `expanded`: OWID country names of the expanded set, used to flag coverage of the countries
     the platform actually analyses."""
-    owid_iso = owid.dropna(subset=["iso_code"]).drop_duplicates("iso_code").set_index("iso_code")["country"].to_dict()
+    coded = owid.dropna(subset=["iso_code"]).drop_duplicates("iso_code")
+    # OWID tags some aggregates/special entities with non-ISO identifiers (e.g. OWID_WRL); those are
+    # not countries and must not enter the crosswalk. Reported via `df.attrs["excluded_owid_codes"]`.
+    is_iso3 = coded["iso_code"].str.fullmatch(r"[A-Z]{3}")
+    excluded = sorted(coded.loc[~is_iso3, "iso_code"])
+    owid_iso = coded[is_iso3].set_index("iso_code")["country"].to_dict()
     owid_names = set(owid["country"].unique())
     rows = []
     for code, ename in edgar_names.items():
@@ -54,7 +59,9 @@ def build_crosswalk(edgar_names: dict[str, str], owid: pd.DataFrame, expanded: l
         if len(parts) >= 2:
             df.at[i, "note"] = f"EDGAR reports one entity covering {', '.join(sorted(parts))}, which OWID reports separately; not directly comparable."
     df = df.assign(expanded=df["owid_name"].isin(expanded or []))
-    return df.sort_values(["match", "iso3"]).reset_index(drop=True)
+    df = df.sort_values(["match", "iso3"]).reset_index(drop=True)
+    df.attrs["excluded_owid_codes"] = excluded
+    return df
 
 
 def expanded_gaps(crosswalk: pd.DataFrame, expanded: list[str]) -> list[str]:

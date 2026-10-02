@@ -260,6 +260,8 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
             if gaps:
                 report.deviate(f"expanded-set countries without an exact ISO3 match in EDGAR: {', '.join(gaps)}")
         report.note(f"crosswalk: {crosswalk['match'].value_counts().to_dict()}")
+        if crosswalk.attrs.get("excluded_owid_codes"):
+            report.note(f"OWID non-ISO3 codes excluded from the crosswalk: {', '.join(crosswalk.attrs['excluded_owid_codes'])}")
     else:
         report.deviate("country crosswalk not built: data/owid-co2-data.csv not found")
 

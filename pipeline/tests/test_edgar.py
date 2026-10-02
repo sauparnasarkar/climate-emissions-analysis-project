@@ -221,6 +221,18 @@ def test_crosswalk_matches_bunkers_and_flags_many_to_one():
     assert "World" not in set(cw["owid_name"].dropna())  # OWID aggregates never enter the crosswalk
 
 
+def test_crosswalk_excludes_owid_non_iso3_aggregate_codes():
+    owid = pd.concat(
+        [owid_df(), pd.DataFrame({"country": ["World", "Kosovo", "Weird"], "iso_code": ["OWID_WRL", "OWID_KOS", "ab1"]})],
+        ignore_index=True,
+    )
+    cw = build_crosswalk({"AAA": "Alpha"}, owid)
+    assert not cw["iso3"].str.startswith("OWID_").any() and "World" not in set(cw["owid_name"].dropna())
+    assert cw.attrs["excluded_owid_codes"] == ["OWID_KOS", "OWID_WRL", "ab1"]
+    # same match counts as without the aggregate rows: nothing inflated
+    assert cw["match"].value_counts().to_dict() == build_crosswalk({"AAA": "Alpha"}, owid_df())["match"].value_counts().to_dict()
+
+
 def test_expanded_gaps_lists_countries_without_exact_match():
     cw = build_crosswalk({"AAA": "Alpha"}, owid_df())
     assert expanded_gaps(cw, ["Alpha", "Gamma", "Nowhere"]) == ["Gamma", "Nowhere"]
