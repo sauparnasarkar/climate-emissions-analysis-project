@@ -306,3 +306,80 @@ def test_a_key_error_inside_a_variant_becomes_a_reason_too(tmp_path, monkeypatch
     rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))
     out = json.loads((tmp_path / "correlation_headline.json").read_text())
     assert out["headline"] is None and "pairing refused" in out["headline_unavailable_reason"] and len(rep.deviations) == 2
+
+
+# ---------------------------------------------------------------- degenerate predictor, malformed catalog entries, last-resort handling (Copilot review #3 on #212)
+
+
+def test_a_constant_predictor_is_a_clear_error_not_an_index_error():
+    with pytest.raises(ValueError, match="no variation over the paired years"):
+        C.fit_line(np.full(50, 5.0e5), np.linspace(0, 1, 50), 4)
+    with pytest.raises(ValueError, match="non-finite"):
+        C.fit_line(np.array([1.0, 2.0, np.nan] * 10), np.linspace(0, 1, 30), 4)
+
+
+def test_the_intercept_is_always_added(tmp_path):
+    x_mt = np.linspace(1e4, 2e6, 60)
+    f = C.fit_line(x_mt, 3.0 + 0.4 * x_mt / 1e6, 4)
+    assert f["intercept"] == pytest.approx(3.0, abs=1e-9) and f["slope"] == pytest.approx(0.4, abs=1e-12)
+
+
+def test_a_degenerate_predictor_makes_only_that_variant_unavailable(tmp_path):
+    def constant_fossil_cumulative(d):
+        p = os.path.join(d, "owid_world_co2_annual.csv")
+        df = pd.read_csv(p)
+        df.assign(cumulative_co2_mt=5.0).to_csv(p, index=False)
+
+    rep, out = stage(tmp_path, edit_inputs=constant_fossil_cumulative)
+    assert out["secondary_fossil_only"] is None and "no variation" in out["secondary_fossil_only_unavailable_reason"]
+    assert out["headline"]["fit"]["slope"] > 0 and any("secondary_fossil_only regression unavailable" in d for d in rep.deviations)
+    assert_full_metadata(out)
+
+
+def mangle_catalog(tmp_path, fn):
+    p = tmp_path / "indicator_catalog.json"
+    doc = json.loads(p.read_text())
+    fn(doc)
+    p.write_text(json.dumps(doc))
+
+
+@pytest.mark.parametrize("field", ["name", "unit", "kind", "scope", "id"])
+def test_a_catalog_entry_missing_a_required_field_is_a_clear_load_error(tmp_path, field):
+    from pipeline.pairing import load_harmonized
+
+    stage(tmp_path)
+    mangle_catalog(tmp_path, lambda d: d["indicators"][3].pop(field))
+    with pytest.raises(ValueError, match=rf"1 malformed indicator entry; first: .* \(missing {field}\)"):
+        load_harmonized(str(tmp_path))
+
+
+def test_a_malformed_catalog_overwrites_the_stale_output_with_nulls_and_does_not_raise(tmp_path):
+    _, good = stage(tmp_path)
+    assert good["headline"] is not None
+    mangle_catalog(tmp_path, lambda d: [e for e in d["indicators"] if e["id"] == "owid_co2_world_cumulative_mt"][0].pop("name"))
+    rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))  # must not raise a KeyError
+    out = json.loads((tmp_path / "correlation_headline.json").read_text())
+    assert out["headline"] is None and out["secondary_fossil_only"] is None
+    assert "malformed indicator entry" in out["headline_unavailable_reason"] and "owid_co2_world_cumulative_mt" in out["headline_unavailable_reason"]
+    assert_full_metadata(out)
+
+
+@pytest.mark.parametrize("doc", [[1, 2, 3], {"schema_version": 1, "indicators": "nope"}, {"schema_version": 1, "indicators": [7]}])
+def test_catalog_json_of_the_wrong_shape_is_handled_not_raised(tmp_path, doc):
+    stage(tmp_path)
+    (tmp_path / "indicator_catalog.json").write_text(json.dumps(doc))
+    rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))
+    out = json.loads((tmp_path / "correlation_headline.json").read_text())
+    assert out["headline"] is None and out["secondary_fossil_only"] is None and len(rep.deviations) == 2
+    assert_full_metadata(out)
+
+
+def test_an_unexpected_exception_in_a_variant_still_rewrites_the_output_with_nulls(tmp_path, monkeypatch, caplog):
+    _, good = stage(tmp_path)
+    monkeypatch.setattr(C, "fit_line", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    with caplog.at_level("ERROR"):
+        rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))  # must not raise
+    out = json.loads((tmp_path / "correlation_headline.json").read_text())
+    assert out["headline"] is None and "unexpected error: RuntimeError: boom" in out["headline_unavailable_reason"] and len(rep.deviations) == 2
+    assert any("unexpected error computing" in r.message for r in caplog.records)  # the traceback is logged, not swallowed silently
+    assert_full_metadata(out)

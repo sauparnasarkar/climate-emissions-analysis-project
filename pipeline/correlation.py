@@ -20,6 +20,7 @@ Statsmodels is imported from its submodules, never `statsmodels.api` (broken by 
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 
@@ -84,7 +85,11 @@ def fit_line(x_mt: np.ndarray, y: np.ndarray, maxlags: int) -> dict:
     """OLS with intercept of y on x (x in Mt CO2, reported per 1,000 GtCO2) with Newey-West HAC errors (Bartlett kernel, normal 95% CI)."""
     x = np.asarray(x_mt, float) / MT_PER_THOUSAND_GT
     y = np.asarray(y, float)
-    X = add_constant(x)
+    if not np.all(np.isfinite(x)) or not np.all(np.isfinite(y)):
+        raise ValueError("non-finite values in the regression inputs")
+    if np.ptp(x) == 0:  # add_constant would silently skip the intercept for a constant column and the slope would not exist
+        raise ValueError("the cumulative-emissions predictor has no variation over the paired years, so a slope is undefined")
+    X = add_constant(x, has_constant="add")
     ols = OLS(y, X).fit()
     hac = OLS(y, X).fit(cov_type="HAC", cov_kwds={"maxlags": maxlags})
     slope, se_hac = float(hac.params[1]), float(hac.bse[1])
@@ -173,7 +178,7 @@ def build(h: Harmonized | None, climate_dir: str, notices_path: str, report: Run
     inputs = {}
     for i in INPUT_IDS:
         e = h.catalog.get(i) if h is not None else None
-        inputs[i] = ({"available": True, "name": e["name"], "unit": e["unit"], "coverage": e["coverage"], "provenance": e.get("provenance")}
+        inputs[i] = ({"available": True, "name": e.get("name"), "unit": e.get("unit"), "coverage": e.get("coverage"), "provenance": e.get("provenance")}
                      if e else {"available": False})
     out = {"schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "note": CAUSATION_NOTE, "ar6_reference": AR6_TCRE,
            "method": "OLS with intercept; Newey-West (HAC) standard errors", "methodology": METHODOLOGY, "definition": "total anthropogenic CO2 since 1850",
@@ -187,8 +192,11 @@ def build(h: Harmonized | None, climate_dir: str, notices_path: str, report: Run
         else:
             try:
                 out[key] = _variant_block(h, spec["x"], spec["label"], scale_luc=spec["scale_luc"])
-            except (ValueError, KeyError) as e:  # too few shared years, an unusable pairing, a table missing a column that slipped past the load check
+            except (ValueError, KeyError) as e:  # too few shared years, an unusable pairing, a degenerate predictor, a column that slipped past the load check
                 reason = f"pairing refused: {e}"
+            except Exception as e:  # noqa: BLE001 -- last resort: whatever the cause, the output is rewritten with explicit nulls, never left stale
+                logging.exception("correlate: unexpected error computing %s", key)
+                reason = f"unexpected error: {type(e).__name__}: {e}"
         if reason:
             out[key] = None
             out[f"{key}_unavailable_reason"] = reason
@@ -223,7 +231,9 @@ def run(climate_dir: str = CLIMATE_DIR, out_dir: str | None = None, notices_path
     h, load_error = None, None
     try:
         h = load_harmonized(climate_dir)
-    except (OSError, ValueError, KeyError) as e:  # missing/invalid catalog or tables
+    except Exception as e:  # noqa: BLE001 -- a missing or invalid catalog/table of ANY kind: explicit nulls and a deviation, never a stale file
+        if not isinstance(e, (OSError, ValueError, KeyError)):
+            logging.exception("correlate: unexpected error loading the harmonized layer")
         load_error = f"{type(e).__name__}: {e}"
     out = build(h, climate_dir, notices_path, report, load_error)
     write_json_atomic(out, os.path.join(out_dir, OUTPUT_NAME))

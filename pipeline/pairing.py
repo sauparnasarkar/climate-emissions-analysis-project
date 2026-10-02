@@ -37,6 +37,7 @@ CAUSATION_NOTE = (
 DEFAULT_MIN_OVERLAP = 20
 SUPPORTED_SCHEMA = 1
 NOT_PAIRABLE_KINDS = ("uncertainty",)
+ENTRY_KEYS = ("id", "name", "unit", "kind", "scope")
 GLOBAL_COLUMNS = ("indicator_id", "year", "value")
 COUNTRY_COLUMNS = ("indicator_id", "iso3", "year", "value")
 
@@ -78,6 +79,14 @@ def load_harmonized(climate_dir: str = CLIMATE_DIR) -> Harmonized:
     doc = json.load(open(path))
     if doc.get("schema_version") != SUPPORTED_SCHEMA:
         raise ValueError(f"indicator_catalog.json has schema_version {doc.get('schema_version')!r}; this code reads {SUPPORTED_SCHEMA}")
+    inds = doc.get("indicators")
+    if not isinstance(inds, list):
+        raise ValueError("indicator_catalog.json: 'indicators' must be a list")
+    bad = [(e.get("id", f"#{i}") if isinstance(e, dict) else f"#{i}", [k for k in ENTRY_KEYS if not isinstance(e, dict) or k not in e]) for i, e in enumerate(inds)
+           if not isinstance(e, dict) or any(k not in e for k in ENTRY_KEYS)]
+    if bad:  # a malformed entry is a clear load error here, not a KeyError somewhere downstream
+        first_id, first_missing = bad[0]
+        raise ValueError(f"indicator_catalog.json: {len(bad)} malformed indicator entr{'y' if len(bad) == 1 else 'ies'}; first: {first_id} (missing {', '.join(first_missing)})")
     glob = pd.read_csv(os.path.join(climate_dir, "harmonized_global_annual.csv"))
     ctry = pd.read_csv(os.path.join(climate_dir, "harmonized_country_annual.csv"))
     for name, df, required in (("harmonized_global_annual.csv", glob, GLOBAL_COLUMNS), ("harmonized_country_annual.csv", ctry, COUNTRY_COLUMNS)):
