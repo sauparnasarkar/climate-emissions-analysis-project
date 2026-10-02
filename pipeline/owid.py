@@ -91,7 +91,12 @@ def assess_trailing(world: pd.Series, countries_wide: pd.DataFrame) -> tuple[int
         yoy = (world[y] / prev - 1) if prev and prev > 0 else np.nan
         c = cov.get(y, np.nan)
         why = []
-        if c < COVERAGE_MIN:
+        if y not in countries_wide.columns:
+            # pivot_table drops a year with no ISO-coded country observations at all; NaN coverage would
+            # then compare as "not below the minimum" and publish an empty-country year as complete.
+            # (NaN coverage for a *present* year means the prior year had nothing to cover: that still passes.)
+            why.append("no country observations")
+        elif c < COVERAGE_MIN:
             why.append(f"country coverage {c:.1%} < {COVERAGE_MIN:.0%}")
         if abs(yoy) > YOY_MAX:
             why.append(f"World CO2 {yoy:+.1%} vs prior year (limit ±{YOY_MAX:.0%})")

@@ -10,7 +10,8 @@ STATE_DIR="$HOME/.ghg-data-refresh"
 LOG_DIR="$STATE_DIR/logs"
 LOG_FILE="$LOG_DIR/$(date +%Y-%m-%d).log"
 NTFY_TOPIC_FILE="$STATE_DIR/ntfy-topic.txt"
-OWID_URL="https://raw.githubusercontent.com/owid/co2-data/master/owid-co2-data.csv"  # must match notebook/constants.py:OWID_URL
+# OWID_URL is read from notebook/constants.py (the single source of truth, also what pipeline/owid.py records as the source in
+# provenance) rather than duplicated here, so the URL downloaded and the URL recorded can never drift apart.
 MIN_BYTES=5000000  # ~5 MB -- current file is ~14 MB
 
 mkdir -p "$LOG_DIR"
@@ -128,6 +129,19 @@ API: restarted $API_LABEL to load the refreshed data."
 log "--- $(date) ---"
 
 cd "$REPO_DIR" || { notify "GHG data refresh: FAILED" "urgent" "Could not cd to $REPO_DIR"; exit 1; }
+
+# >>> owid_url
+OWID_URL=$(sed -n "s/^OWID_URL[[:space:]]*=[[:space:]]*[\"']\([^\"']*\)[\"'].*/\1/p" "$REPO_DIR/notebook/constants.py" | head -n 1)
+case "$OWID_URL" in
+  https://*) ;;
+  *)
+    log "Could not read OWID_URL from notebook/constants.py (got: '$OWID_URL')."
+    notify "GHG data refresh: FAILED -- no download attempted" "urgent" \
+      "Could not read OWID_URL from $REPO_DIR/notebook/constants.py. Nothing was changed. See $LOG_FILE."
+    exit 1
+    ;;
+esac
+# <<< owid_url
 
 # --- Step 1: backup ---
 TODAY_BACKUP="data/owid-co2-data.csv.bak-$(date +%Y%m%d)"

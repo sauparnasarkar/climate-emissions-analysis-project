@@ -56,3 +56,16 @@ def berkeley_text():
         a = -0.4 if y <= 1900 else -0.4 + (y - 1900) * 0.02
         lines.append(f"  {y}      {a:.3f}        0.100              NaN             NaN            {a - 0.1:.3f}        0.100              NaN             NaN")
     return "\n".join(lines) + "\n"
+
+
+@pytest.fixture(autouse=True)
+def _no_real_network(monkeypatch):
+    """Unit tests must never touch the network (a test that did so silently downloaded 73 MB of
+    PRIMAP-hist per run and only passed when the live site happened to be reachable). Tests that
+    exercise `common.fetch` install their own fake `urlopen`, which takes precedence."""
+    import urllib.request
+
+    def blocked(*args, **kwargs):
+        raise RuntimeError("real network access attempted inside a unit test -- stub the source or pass a fake fetcher")
+
+    monkeypatch.setattr(urllib.request, "urlopen", blocked)

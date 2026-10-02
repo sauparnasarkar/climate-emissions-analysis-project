@@ -149,3 +149,13 @@ def test_owid_url_comes_from_constants(tmp_path):
     with pytest.raises(ValueError, match="OWID_URL not found"):
         owid.owid_url(str(tmp_path))
     assert owid.owid_url().startswith("https://")  # the real constants file
+
+
+def test_year_with_no_country_observations_at_all_is_not_published(tmp_path):
+    # 2024 has a World row (and transport) but not a single ISO-coded country row: the pivot drops the year entirely
+    df = make_df()
+    df = df[~((df.year == 2024) & df.country.isin(["Aland", "Bland", "Cland"]))]
+    rep = run(tmp_path, write(tmp_path, df))
+    s = pd.read_csv(tmp_path / "out" / "owid_world_co2_annual.csv")
+    assert s["year"].max() == 2023
+    assert any("excluded incomplete year 2024: no country observations" in n for n in rep.notes)

@@ -91,12 +91,11 @@ def test_require_contiguous_years():
 def test_all_runs_active_sources_only_and_never_the_shelved_edgar(tmp_path, monkeypatch):
     monkeypatch.setattr(run, "CLIMATE_DIR", str(tmp_path))
     called = []
-    monkeypatch.setitem(run.SOURCES, "noaa_gml", lambda: called.append("noaa_gml") or common.RunReport("noaa_gml"))
-    monkeypatch.setitem(run.SOURCES, "berkeley_earth", lambda: called.append("berkeley_earth") or common.RunReport("berkeley_earth"))
-    monkeypatch.setitem(run.SOURCES, "edgar", lambda: called.append("edgar") or common.RunReport("edgar"))
+    for name in run.SOURCES:  # stub EVERY registered source: a source added later must not make this test hit the network/disk
+        monkeypatch.setitem(run.SOURCES, name, lambda n=name: called.append(n) or common.RunReport(n))
     assert run.main(["--source", "all"]) == 0
-    assert sorted(called) == ["berkeley_earth", "noaa_gml"]
-    assert "edgar" in run.INTERNAL_SOURCES and "edgar" not in run.ACTIVE_SOURCES
+    assert sorted(called) == sorted(run.ACTIVE_SOURCES)
+    assert "edgar" in run.INTERNAL_SOURCES and "edgar" not in run.ACTIVE_SOURCES and "edgar" not in called
 
 
 def test_explicit_edgar_run_warns_that_it_is_internal_only(tmp_path, monkeypatch, caplog):

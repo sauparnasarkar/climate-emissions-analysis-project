@@ -163,3 +163,58 @@ def test_restart_only_runs_on_a_validated_successful_refresh():
     assert text.index('if [ -n "$FAILED_WEEK" ]') < call < text.index("# --- Step 5")
     assert "unrecognized status marker" in text  # an unknown marker is not restarted, and says so
     assert text.count("exit 1") >= 4 and all("restart_api" not in blk for blk in re.findall(r'FAILED[^\n]*\n(?:.*\n){0,8}?\s*exit 1', text))
+
+
+# ---------------------------------------------------------------- OWID_URL single source of truth
+
+
+def owid_url_snippet():
+    text = open(SCRIPT).read()
+    m = re.search(r"# >>> owid_url.*?# <<< owid_url", text, re.S)
+    assert m, "owid_url markers not found"
+    return m.group(0)
+
+
+def read_owid_url(tmp_path, constants_text):
+    repo = tmp_path / "repo"
+    (repo / "notebook").mkdir(parents=True)
+    if constants_text is not None:
+        (repo / "notebook" / "constants.py").write_text(constants_text)
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    (bindir / "curl").write_text("#!/bin/bash\nexit 0\n")  # notify() must never reach the real ntfy
+    (bindir / "curl").chmod(0o755)
+    script = f'''
+PATH="{bindir}:$PATH"
+REPO_DIR="{repo}"; LOG_FILE="{tmp_path}/log"
+log() {{ echo "$1" >> "$LOG_FILE"; }}
+notify() {{ echo "NOTIFY: $1 | $2"; }}
+{owid_url_snippet()}
+echo "URL=$OWID_URL"
+'''
+    return subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+
+
+def test_owid_url_is_read_from_the_shared_constants_file(tmp_path):
+    out = read_owid_url(tmp_path, '# c\nOWID_URL = "https://example.test/owid.csv"  # trailing comment\nOTHER = 1\n')
+    assert out.returncode == 0 and "URL=https://example.test/owid.csv" in out.stdout
+    out2 = read_owid_url(tmp_path / "b", "OWID_URL='https://single.quoted/x.csv'\n") if (tmp_path / "b").mkdir() is None else None
+    assert "URL=https://single.quoted/x.csv" in out2.stdout
+
+
+def test_owid_url_missing_or_unreadable_fails_fast_before_any_download(tmp_path):
+    out = read_owid_url(tmp_path, "X = 1\n")
+    assert out.returncode == 1 and "NOTIFY: GHG data refresh: FAILED -- no download attempted | urgent" in out.stdout and "URL=" not in out.stdout
+
+
+def test_script_does_not_duplicate_the_url_and_matches_the_real_constants():
+    from pipeline import owid
+
+    text = open(SCRIPT).read()
+    assert "raw.githubusercontent.com" not in text  # no hardcoded copy left to drift
+    assert text.index("# >>> owid_url") < text.index('curl -fsSL -o "$DATA_FILE" "$OWID_URL"')  # defined before the download uses it
+    # the sed in the script resolves to exactly what pipeline/owid.py records as the source
+    repo_root = os.path.join(os.path.dirname(__file__), "..", "..")
+    script = f'REPO_DIR="{repo_root}"; LOG_FILE=/dev/null; log() {{ :; }}; notify() {{ :; }}\n{owid_url_snippet()}\necho "$OWID_URL"'
+    got = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout.strip()
+    assert got == owid.owid_url()
