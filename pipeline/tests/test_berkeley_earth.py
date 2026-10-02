@@ -53,7 +53,9 @@ def test_run_flags_stale_source_file(tmp_path, berkeley_text):
     assert any("last modified 2025-01-10" in d for d in report.deviations)
     prov = json.loads((tmp_path / "p.json").read_text())["temperature_anomaly_annual"]
     assert prov["preindustrial_offset"]["value_c"] == pytest.approx(-0.4)
-    assert prov["coverage"] == [1850, 2024] and prov["license"].startswith("Berkeley Earth data: CC BY 4.0")
+    assert prov["non_commercial_only"] is True and prov["attribution_required"] is True and "essd-12-3469-2020" in prov["citations"][0]
+    assert "CC BY 4.0" not in prov["license"]  # it is CC BY-NC; a plain CC BY claim here was an error
+    assert prov["coverage"] == [1850, 2024] and prov["license"].startswith("CC BY-NC 4.0") and "berkeleyearth.org" in prov["license"]
 
 
 def test_run_fresh_source_has_no_deviations(tmp_path, berkeley_text):
