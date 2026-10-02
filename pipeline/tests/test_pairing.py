@@ -164,3 +164,35 @@ def test_pairing_does_not_mutate_the_loaded_tables_and_is_repeatable(h):
     f1.loc[:, "co2_concentration_ppm"] = -1.0  # a caller scribbling on the result
     f2, m2 = pairing.align_pair(h, "co2_concentration_ppm", "temperature_anomaly_1850_1900_c")
     assert h.global_long.equals(before) and (f2["co2_concentration_ppm"] > 0).all() and m1["common_range"] == m2["common_range"]
+
+
+# ---------------------------------------------------------------- review follow-ups (remote commits bebf04e, ff15492)
+
+
+def test_result_metadata_cannot_be_used_to_mutate_the_loaded_catalog(h):
+    """The pair's metadata carries copies of the provenance link and caveats, not references into the catalog."""
+    before_caveats = list(h.entry("co2_concentration_ppm")["caveats"])
+    before_prov = json.loads(json.dumps(h.entry("co2_concentration_ppm")["provenance"]))
+    _, m = pairing.align_pair(h, "co2_concentration_ppm", "temperature_anomaly_1850_1900_c")
+    m["a"]["caveats"].append("scribble")
+    m["a"]["caveats"][0] = "changed"
+    m["a"]["provenance"]["license"] = "TAMPERED"
+    m["a"]["provenance"]["source_release"]["x"] = 999
+    assert h.entry("co2_concentration_ppm")["caveats"] == before_caveats
+    assert h.entry("co2_concentration_ppm")["provenance"] == before_prov
+    _, m2 = pairing.align_pair(h, "co2_concentration_ppm", "temperature_anomaly_1850_1900_c")
+    assert m2["a"]["provenance"]["license"] != "TAMPERED" and "scribble" not in m2["a"]["caveats"]
+
+
+def test_a_pair_whose_provenance_is_missing_still_works_with_a_null_link(tmp_path):
+    h = build(tmp_path, drop=("co2_concentration_annual",))  # no provenance entry for the source series
+    _, m = pairing.align_pair(h, "co2_concentration_ppm", "temperature_anomaly_1850_1900_c")
+    assert m["a"]["provenance"] is None and m["b"]["provenance"] is not None
+
+
+@pytest.mark.parametrize("bad", [0, -1, -20])
+def test_min_overlap_below_one_is_rejected_up_front(h, bad):
+    with pytest.raises(ValueError, match="min_overlap must be at least 1"):
+        pairing.align_pair(h, "co2_concentration_ppm", "temperature_anomaly_1850_1900_c", min_overlap=bad)  # 175 shared years: still refused
+    f, _ = pairing.align_pair(h, "co2_concentration_ppm", "temperature_anomaly_1850_1900_c", min_overlap=1)
+    assert len(f) == 175
