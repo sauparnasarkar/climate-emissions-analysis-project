@@ -64,11 +64,36 @@ is no explicit invalidation path.
 
 **Weekly automated refresh** (`ghg-data-refresh` skill, `com.ghgemissions.datarefresh`
 launchd agent, Sundays 03:30 local on the Mac Mini): re-downloads `owid-co2-data.csv` and
-re-runs the full notebook pipeline non-interactively (`run_notebooks.sh`, `jupyter
-nbconvert --execute --inplace`, stopping at the first failure), then restarts the
-`uvicorn`/`vitepreview` services so the API/frontend pick up the new CSVs. Validates the
-new country count against a drift threshold (see `SPEC.md` §6.1) rather than blindly
-trusting upstream data.
+re-runs the full notebook pipeline non-interactively (`jupyter nbconvert --execute
+--inplace`, stopping at the first failure), validating the new download against the previous
+backup inside `week1_eda.ipynb` (hard-fail / soft-flag thresholds, see `SPEC.md` §6.1) and
+restoring the backup on failure; it ends with an ntfy notification. **The job itself does not
+restart `uvicorn`/`vitepreview`**: the API's `@lru_cache` loaders keep serving the previous
+CSVs until the process restarts (an open item — `ENHANCEMENTS.md` Release 21, open item 8).
+
+### Area 2 climate-context pipeline (`pipeline/`)
+
+Separate from the notebooks (which are intern curriculum): one versioned ingestion module per
+source, run by `python -m pipeline.run`, writing a normalized store to `data/climate/`
+(gitignored) that the future `/api/correlation/*` domain will read.
+
+```
+NOAA GML Mauna Loa + Law Dome ice core ─▶ co2_concentration_{annual,monthly_mlo}.csv
+Berkeley Earth Land/Ocean              ─▶ temperature_anomaly_annual.csv  (+ computed 1850–1900 offset)
+PRIMAP-hist (Zenodo, latest release)   ─▶ primap_{country_annual,global_composition_annual}.csv, country_crosswalk.csv
+OWID (the file the refresh job downloaded; registered, not re-downloaded)
+                                       ─▶ owid_world_co2_annual.csv
+        every series ─▶ provenance.json (source, release, checksums, coverage, licence, citations)
+        every run    ─▶ last_run.json + last_run.{priority,title,message}  (→ the refresh job's ntfy push)
+EDGAR (shelved: IEA CC BY-NC-ND fuel-combustion CO₂) ─▶ data/internal/edgar/ only, never data/climate/
+```
+
+Each source validates before publishing (missing years raise, source checksums verified,
+trailing incomplete years excluded rather than extrapolated) and reports *deviations from
+norm* (stale source, licence change, completeness exclusions, reconciliation gaps) that the
+refresh job turns into alerts. The monthly schedule and the `pipeline_stage` of the refresh
+script are versioned in `pipeline/ops/` (deployment to the Mac Mini is a separate step). Design
+and decisions: `ENHANCEMENTS.md` Release 21, `SPEC.md` §5.26.
 
 ## 3. The two/three-tier country pattern
 
