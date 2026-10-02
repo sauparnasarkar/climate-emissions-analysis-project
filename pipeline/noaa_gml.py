@@ -89,6 +89,8 @@ def validate_monthly(df: pd.DataFrame) -> None:
     if (int(first["year"]), int(first["month"])) != (1958, 3):
         raise ValueError("monthly series does not start at 1958-03")
     idx = df["year"] * 12 + (df["month"] - 1)
+    if not idx.is_monotonic_increasing or idx.duplicated().any():
+        raise ValueError("monthly series has duplicate or unordered months")
     missing = set(range(int(idx.min()), int(idx.max()) + 1)) - set(idx)
     if missing:
         first = sorted(missing)[0]
