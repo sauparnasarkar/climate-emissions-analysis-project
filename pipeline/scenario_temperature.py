@@ -41,6 +41,7 @@ SCENARIO_PATH = os.path.join(ROOT, "data", "scenario_projections.csv")
 MT_PER_THOUSAND_GT = 1e6
 LUC_FLAT_WINDOW = 5
 ANCHOR_WINDOW = 5
+READING_NOTE_MIN_RATIO = 1.25  # the note explains a small temperature gap despite large emissions divergence: it is only true (and only generated) above this ratio
 BASELINE_CSV = "ets_baseline_full_data.csv"
 BASELINE_JSON = "ets_baseline_full_data.json"
 BASELINE_TOL_MT = 0.01  # both files round to 3 decimals, so the same fit on the same data agrees to well within this per country-year
@@ -83,6 +84,47 @@ def translate(proj: pd.DataFrame, t0: int, covered_t0: float, world_t0: float, l
             rows.append(row)
         out[sc] = rows
     return {"rest_of_world_share": row_share, "scenarios": out}
+
+
+def _spread(scenarios: dict, t0: int, anchor: float, n_years_observed: int) -> tuple[dict, str | None]:
+    """Per-year spread across scenarios (max - min of annual global emissions and of the implied headline level) and, when the premise holds, the generated reading note
+    (decision 43). Every figure in the note comes from `scenarios`, so the UI, the agent and the docs quote identical numbers."""
+    names = sorted(scenarios)
+    years = [r["year"] for r in scenarios[names[0]]]
+    per_year = []
+    for i, y in enumerate(years):
+        em = {sc: scenarios[sc][i]["global_fossil_mt"] for sc in names}
+        row = {"year": y, "emissions_max_mt": max(em.values()), "emissions_min_mt": min(em.values()), "emissions_ratio": max(em.values()) / min(em.values())}
+        lv = {sc: scenarios[sc][i]["headline"]["level_c"] for sc in names if scenarios[sc][i]["headline"] is not None}
+        row["level_gap_c"] = (max(lv.values()) - min(lv.values())) if len(lv) == len(names) else None
+        per_year.append(row)
+    last = scenarios[names[0]][-1]["year"]
+    out = {"per_year": per_year, "min_ratio_for_reading_note": READING_NOTE_MIN_RATIO, "reading_note_omitted_reason": None}
+    em_last = {sc: scenarios[sc][-1]["global_fossil_mt"] for sc in names}
+    hi, lo = max(em_last, key=em_last.get), min(em_last, key=em_last.get)
+    ratio = em_last[hi] / em_last[lo]
+    if any(scenarios[sc][-1]["headline"] is None for sc in names):
+        out["reading_note_omitted_reason"] = "the headline regression is unavailable, so there is no temperature to compare"
+        return out, None
+    if ratio < READING_NOTE_MIN_RATIO:
+        out["reading_note_omitted_reason"] = f"the scenarios' {last} emissions differ by {ratio:.2f}x, below the {READING_NOTE_MIN_RATIO}x at which the note's premise (large emissions divergence, small temperature gap) holds"
+        return out, None
+    inc = {sc: scenarios[sc][-1]["headline"]["delta_t_c"] for sc in names}
+    if inc[hi] <= 0 or len(years) < 2:
+        out["reading_note_omitted_reason"] = "the highest scenario adds no warming, or there are fewer than two scenario years: the relative comparison is undefined"
+        return out, None
+    lvl = {sc: scenarios[sc][-1]["headline"]["level_c"] for sc in names}
+    pcts = [anchor / v * 100 for v in lvl.values()]
+    gap_end = per_year[-1]["level_gap_c"]
+    mid = per_year[len(per_year) // 2 - 1 if len(per_year) > 2 else 0]
+    less = (1 - inc[lo] / inc[hi]) * 100
+    out["reading_note_facts"] = {"year": last, "highest": hi, "lowest": lo, "emissions_ratio": ratio, "already_observed_pct_range": [min(pcts), max(pcts)],
+                                 "additional_warming_highest_c": inc[hi], "lowest_adds_less_pct": less, "gap_mid_year": mid["year"], "gap_mid_c": mid["level_gap_c"], "gap_end_c": gap_end}
+    note = (f"Scenarios diverge sharply in annual emissions by {last} ({hi} {em_last[hi]:,.0f} vs {lo} {em_last[lo]:,.0f} Mt a year, {ratio:.1f}×), but the implied temperatures differ by only "
+            f"{gap_end:.2f} °C. {years[0]}–{last} is a short window against the {n_years_observed} years of emissions already accumulated, and {min(pcts):.0f}–{max(pcts):.0f}% of the {last} implied level "
+            f"({anchor:.2f} °C) is warming already observed by {t0}, before any scenario begins. What the scenarios change is only the emissions still to come: relative to the {inc[hi]:.2f} °C of additional "
+            f"warming, the {lo} pathway adds {less:.0f}% less than {hi}. The gap widens every year the pathways stay apart ({mid['level_gap_c']:.3f} °C in {mid['year']}, {gap_end:.3f} °C in {last}).")
+    return out, note
 
 
 def _round(o, nd=6):
@@ -239,7 +281,7 @@ def _skeleton(vintage: dict, caveats: list[str]) -> dict:
     return {
         "schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "name": "Scenario temperature translation", "labels": LABELS, "note": CAUSATION_NOTE,
         "method": "implied warming = slope x cumulative emissions since the last observed year; level = anchor + implied warming",
-        "temperature_source_vintage": vintage, "caveats": caveats, "scenarios": None, "base": None, "covered_countries": None, "scenario_source": None,
+        "temperature_source_vintage": vintage, "caveats": caveats, "scenarios": None, "base": None, "covered_countries": None, "scenario_source": None, "spread": None, "reading_note": None,
         "inputs": {f: {"available": False} for f in INPUT_FILES}, "attribution": {},
         "assumptions": {
             "rest_of_world": {"rule": "held at its last-observed share of the World total, so rest-of-world emissions move proportionally with the covered-country pathway; "
@@ -331,7 +373,10 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
                 step = (f"{', '.join(f'{sc} {j:+.1f}%' for sc, j in sorted(jumps.items()))} from the last observed total for the covered countries "
                         f"({covered_t0:,.0f} Mt in {t0}; {', '.join(f'{sc} {v:,.0f} Mt' for sc, v in sorted(first_cov.items()))} in {t0 + 1})")
             caveats.append(f"The scenario pathways start {step}; the translation uses the pathways as given, so each scenario carries that step.")
+        _require_finite(res["scenarios"], "scenarios")  # before anything is derived from it
+        spread, reading_note = _spread(res["scenarios"], t0, anchor, t0 - 1850 + 1)
         filled = {
+            "spread": _round(spread), "reading_note": reading_note,
             "scenarios": _round(res["scenarios"]),
             "base": {"last_observed_year": t0, "world_co2_mt": world_t0, "covered_co2_mt": covered_t0, "covered_share_of_world": covered_t0 / world_t0,
                      "world_cumulative_total_co2_since_1850_mt": float(w.loc[1850:t0, "total_co2_incl_luc_mt"].sum(skipna=False)), "world_cumulative_fossil_co2_mt": float(w.loc[t0, "cumulative_co2_mt"]),
@@ -351,7 +396,7 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
     except Exception as e:  # noqa: BLE001 -- whatever the cause: explicit nulls and a deviation, never a stale or partial translation
         if not isinstance(e, (Unavailable, OSError, ValueError, KeyError)):
             logging.exception("scenario_temperature: unexpected error")
-        out["scenarios"], out["base"], out["covered_countries"] = None, None, None  # a failure after partial work must leave no partial translation behind
+        out["scenarios"], out["base"], out["covered_countries"], out["spread"], out["reading_note"] = None, None, None, None, None  # a failure after partial work must leave no partial translation behind
         out["unavailable_reason"] = e.args[0] if isinstance(e, Unavailable) else f"{type(e).__name__}: {e}"
         out, scrubbed = _scrub_non_finite(out)  # the metadata read before the failure may itself hold the non-finite value that caused it
         if scrubbed:

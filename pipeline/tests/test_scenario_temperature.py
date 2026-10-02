@@ -709,3 +709,85 @@ def test_the_new_blocks_never_make_the_output_invalid_json_and_the_unavailable_s
     _, bad = go(x, scenario_edit=lambda p: p.assign(year=p.year + 3))
     assert set(bad) - {"unavailable_reason"} == set(good) and bad["base"] is None
     strict_json(x / "correlation_scenario_temperature.json")
+
+
+# ---------------------------------------------------------------- spread block and generated reading note (decision 43)
+
+
+def wide_apart(factor):
+    """A scenario_edit that scales Aggressive's years after the first by `factor`, so the highest/lowest 2003 emissions ratio is controlled."""
+    def edit(p):
+        cols = {c: p.reset_index(drop=True)[c].to_numpy().copy() for c in p.columns}
+        v = cols["co2_projected"].astype(float)
+        m = (cols["scenario"] == "Aggressive") & (cols["year"] > FIRST)
+        v[m] = v[m] * factor
+        cols["co2_projected"] = v
+        return pd.DataFrame(cols)
+    return edit
+
+
+def test_the_spread_block_has_per_year_max_min_ratio_and_level_gap(tmp_path):
+    _, out = go(tmp_path)
+    sp = out["spread"]
+    assert [r["year"] for r in sp["per_year"]] == [FIRST, FIRST + 1, FIRST + 2]
+    for i, r in enumerate(sp["per_year"]):
+        em = [out["scenarios"][s][i]["global_fossil_mt"] for s in out["scenarios"]]
+        lv = [out["scenarios"][s][i]["headline"]["level_c"] for s in out["scenarios"]]
+        assert r["emissions_max_mt"] == pytest.approx(max(em), rel=1e-5) and r["emissions_min_mt"] == pytest.approx(min(em), rel=1e-5)
+        assert r["emissions_ratio"] == pytest.approx(max(em) / min(em), rel=1e-5) and r["level_gap_c"] == pytest.approx(max(lv) - min(lv), abs=1e-5)
+    assert sp["min_ratio_for_reading_note"] == 1.25
+
+
+def test_the_reading_note_is_generated_from_the_output_numbers(tmp_path):
+    _, out = go(tmp_path)  # BAU 700k+460k=1,160,000 vs Aggressive 520k+360k=880,000 covered in 2003 -> ratio 1.318
+    f = out["spread"]["reading_note_facts"]
+    s = out["scenarios"]
+    hi, lo = s["BAU"][-1], s["Aggressive"][-1]
+    assert (f["highest"], f["lowest"], f["year"]) == ("BAU", "Aggressive", FIRST + 2) and f["emissions_ratio"] == pytest.approx(hi["global_fossil_mt"] / lo["global_fossil_mt"], rel=1e-5)
+    anchor = out["base"]["anchor"]["value_c"]
+    assert f["lowest_adds_less_pct"] == pytest.approx((1 - lo["headline"]["delta_t_c"] / hi["headline"]["delta_t_c"]) * 100, rel=1e-4)
+    assert f["already_observed_pct_range"] == [pytest.approx(anchor / max(x["headline"]["level_c"] for x in (hi, lo, s["Moderate"][-1])) * 100, rel=1e-4),
+                                              pytest.approx(anchor / min(x["headline"]["level_c"] for x in (hi, lo, s["Moderate"][-1])) * 100, rel=1e-4)]
+    rows = {r["year"]: r for r in out["spread"]["per_year"]}
+    lv = lambda sc: s[sc][-1]["headline"]["level_c"]  # noqa: E731
+    assert f["gap_end_c"] == pytest.approx(lv("BAU") - lv("Aggressive"), abs=1e-5) and f["gap_end_c"] == pytest.approx(rows[FIRST + 2]["level_gap_c"], abs=1e-5) and f["gap_end_c"] > 0
+    assert f["gap_mid_c"] == pytest.approx(rows[f["gap_mid_year"]]["level_gap_c"], abs=1e-5) and f["gap_mid_year"] < FIRST + 2 and f["gap_mid_c"] < f["gap_end_c"]
+    n = out["reading_note"]
+    assert f"({hi and 'BAU'} {hi['global_fossil_mt']:,.0f} vs Aggressive {lo['global_fossil_mt']:,.0f} Mt a year, {f['emissions_ratio']:.1f}×)" in n
+    assert f"differ by only {f['gap_end_c']:.2f} °C" in n and f"the {T0 + 1 - 1 - 1850 + 1} years of emissions already accumulated" in n
+    assert f"{anchor:.2f} °C) is warming already observed by {T0}, before any scenario begins" in n
+    assert f"the Aggressive pathway adds {f['lowest_adds_less_pct']:.0f}% less than BAU" in n and "The gap widens every year the pathways stay apart" in n
+    assert out["spread"]["reading_note_omitted_reason"] is None
+
+
+def test_the_note_is_omitted_when_the_emissions_ratio_is_below_the_threshold(tmp_path):
+    _, out = go(tmp_path, scenario_edit=wide_apart(1.35))  # lifts Aggressive towards BAU: ratio < 1.25
+    assert out["reading_note"] is None and "below the 1.25x" in out["spread"]["reading_note_omitted_reason"] and "reading_note_facts" not in out["spread"]
+    assert out["spread"]["per_year"] and out["scenarios"] is not None  # the spread itself is still published
+
+
+@pytest.mark.parametrize("factor,expect", [(1.0, True), (1.2, False)])
+def test_the_threshold_is_applied_to_the_last_year_ratio(tmp_path, factor, expect):
+    _, out = go(tmp_path, scenario_edit=wide_apart(factor))
+    assert (out["reading_note"] is not None) is expect
+
+
+def test_an_unavailable_headline_regression_leaves_the_whole_translation_and_so_the_spread_and_note_null(tmp_path):
+    _, out = go(tmp_path, headline="none")
+    assert out["scenarios"] is None and out["spread"] is None and out["reading_note"] is None
+
+
+def test_the_spread_helper_omits_the_note_with_a_reason_if_a_headline_line_is_missing():
+    row = lambda y, em: {"year": y, "global_fossil_mt": em, "headline": None}  # noqa: E731
+    sp, note = T._spread({"A": [row(2001, 100.0), row(2002, 100.0)], "B": [row(2001, 50.0), row(2002, 50.0)]}, 2000, 1.3, 151)
+    assert note is None and "headline regression is unavailable" in sp["reading_note_omitted_reason"] and all(r["level_gap_c"] is None for r in sp["per_year"])
+    assert sp["per_year"][1]["emissions_ratio"] == 2.0
+
+
+def test_the_unavailable_output_has_the_same_keys_with_null_spread_and_note(tmp_path):
+    _, good = go(tmp_path)
+    x = tmp_path / "u"
+    x.mkdir()
+    _, bad = go(x, scenario_edit=lambda p: p.assign(year=p.year + 3))
+    assert set(bad) - {"unavailable_reason"} == set(good) and bad["spread"] is None and bad["reading_note"] is None
+    strict_json(tmp_path / "correlation_scenario_temperature.json")
