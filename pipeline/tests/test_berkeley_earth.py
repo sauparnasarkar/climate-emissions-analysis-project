@@ -76,3 +76,57 @@ def test_parse_summary_rejects_missing_1850(berkeley_text):
     text = "\n".join(ln for ln in berkeley_text.splitlines() if not ln.strip().startswith("1850 "))
     with pytest.raises(ValueError, match="1850"):
         be.parse_summary(text)
+
+
+# ---------------------------------------------------------------- provider correspondence (pipeline/source_notices.json)
+
+
+def _notices(tmp_path, replies=None, sent_at="2026-10-02T14:20:19Z", name="notices.json"):
+    p = tmp_path / name
+    p.write_text(json.dumps({"berkeley_earth": {"notifications": [{
+        "type": "inquiry", "sent_at": sent_at, "to": "data@example.test", "dataset_version_at_notification": "v-old", "status": "sent", "replies": replies or []}]}}))
+    return str(p)
+
+
+def _run_with(tmp_path, berkeley_text, notices_path, last_modified="2025-01-10T04:48:46+00:00"):
+    fetcher = lambda url: make_fetched(url, berkeley_text, last_modified=last_modified)  # noqa: E731
+    return be.run(fetcher, out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today=_Today, notices_path=notices_path)
+
+
+def test_open_inquiry_is_copied_into_provenance_and_noted_not_alerted(tmp_path, berkeley_text):
+    rep = _run_with(tmp_path, berkeley_text, _notices(tmp_path))
+    prov = json.loads((tmp_path / "p.json").read_text())["temperature_anomaly_annual"]
+    c = prov["provider_correspondence"]["notices"]
+    assert len(c) == 1 and c[0]["type"] == "inquiry" and c[0]["sent_at"] == "2026-10-02T14:20:19Z" and c[0]["to"] == "data@example.test"
+    assert any("inquiry to Berkeley Earth" in n and "no recorded reply" in n and "2026-10-02" in n for n in rep.notes)
+    assert not any("inquiry" in d for d in rep.deviations)  # the stale-source deviation is the alert; the inquiry is context
+
+
+def test_source_file_changing_after_the_inquiry_is_called_out(tmp_path, berkeley_text):
+    rep = _run_with(tmp_path, berkeley_text, _notices(tmp_path), last_modified="2026-10-20T00:00:00+00:00")
+    assert any("source file has changed since that inquiry (last modified 2026-10-20)" in n and "record the reply" in n for n in rep.notes)
+    rep2 = _run_with(tmp_path, berkeley_text, _notices(tmp_path, name="n2.json"), last_modified="2025-01-10T04:48:46+00:00")
+    assert not any("source file has changed" in n for n in rep2.notes)  # an unchanged file says nothing extra
+
+
+def test_answered_inquiry_is_no_longer_noted_as_open(tmp_path, berkeley_text):
+    rep = _run_with(tmp_path, berkeley_text, _notices(tmp_path, replies=[{"received_at": "2026-10-09T00:00:00Z", "summary": "new URL"}]))
+    assert not any("no recorded reply" in n for n in rep.notes)
+    prov = json.loads((tmp_path / "p.json").read_text())["temperature_anomaly_annual"]
+    assert prov["provider_correspondence"]["notices"][0]["replies"][0]["summary"] == "new URL"
+
+
+def test_no_notices_file_is_fine_for_berkeley_unlike_primap(tmp_path, berkeley_text):
+    rep = _run_with(tmp_path, berkeley_text, str(tmp_path / "missing.json"))
+    assert not any("notif" in d or "inquiry" in d for d in rep.deviations)  # Berkeley asks only for attribution
+    assert json.loads((tmp_path / "p.json").read_text())["temperature_anomaly_annual"]["provider_correspondence"]["notices"] == []
+
+
+def test_the_real_tracked_file_records_the_berkeley_inquiry_sent_2026_10_02():
+    from pipeline.common import NOTICES_PATH, load_source_notices
+
+    (n,) = load_source_notices("berkeley_earth", NOTICES_PATH)
+    assert n["type"] == "inquiry" and n["sent_at"] == "2026-10-02T14:20:19Z" and n["to"] == "data@berkeleyearth.org"
+    assert "Land_and_Ocean_summary.txt" in n["subject"] and "2025-01-10" in n["dataset_version_at_notification"]
+    assert len(n["questions"]) == 2 and len(n["context"]) == 3 and n["replies"] == []
+    assert any("1.44" in c and "1.52" in c for c in n["context"])  # the January 2026 report figures the question rests on

@@ -20,5 +20,30 @@
         "replies": []
       }
     ]
+  },
+  "berkeley_earth": {
+    "notifications": [
+      {
+        "type": "inquiry",
+        "requested_by": "Owner's decision, not a provider requirement: a courtesy notice of use plus two questions about a stale download location (Berkeley Earth's data page asks only for attribution under CC BY-NC)",
+        "sent_at": "2026-10-02T14:20:19Z",
+        "sent_by": "Sauparna Sarkar",
+        "to": "data@berkeleyearth.org",
+        "subject": "Where is the current Land_and_Ocean_summary.txt? The S3 file was last updated Jan 2025",
+        "dataset_version_at_notification": "Land_and_Ocean_summary.txt (S3 object last modified 2025-01-10; analysis run 2025-01-04; data through 2024)",
+        "covers": "Notice of use of the annual Land+Ocean global anomaly (air-above-sea-ice version, 1951-1980 reference, plus a computed 1850-1900 offset) in a publicly accessible, non-commercial dashboard shared within the sender's personal network; CC BY-NC terms and attribution acknowledged.",
+        "context": [
+          "The file's 2024 value (+1.311 C vs 1951-1980 = 1.617 C above the computed 1850-1900 offset) reproduces Berkeley Earth's January 2025 report (1.62 +/- 0.06).",
+          "The January 2026 report gives 2025 as 1.44 +/- 0.09 C above 1850-1900, ~0.08 C cooler than 2024 and 0.03 C cooler than 2023, implying ~1.52 C for 2024 and ~1.47 C for 2023: ~0.10 C and ~0.065 C below the file (1.617 / 1.535).",
+          "S3 file serves 200 (Last-Modified 2025-01-10); data.berkeleyearth.org/auto/Global/Land_and_Ocean_summary.txt returns 403; berkeleyearth.lbl.gov does not respond (checked 2026-10-02 from two machines)."
+        ],
+        "questions": [
+          "Where does the current, regularly updated version of Land_and_Ocean_summary.txt (or an equivalent annual global series) live?",
+          "Is the S3 bucket still the canonical source or has it been superseded, and is the 2025 analysis in the January 2026 report based on a different vintage or method that should be used instead?"
+        ],
+        "status": "sent; no reply received as of 2026-10-02",
+        "replies": []
+      }
+    ]
   }
 }

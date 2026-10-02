@@ -20,10 +20,12 @@ import pandas as pd
 
 from .common import (
     CLIMATE_DIR,
+    NOTICES_PATH,
     PROVENANCE_PATH,
     Fetched,
     RunReport,
     fetch,
+    load_source_notices,
     require_contiguous_years,
     write_csv_atomic,
     write_provenance,
@@ -102,7 +104,7 @@ def to_normalized(df: pd.DataFrame, offset_c: float) -> pd.DataFrame:
     return out[["year", "anomaly_1951_1980_c", "anomaly_1850_1900_c", "uncertainty_95_c"]]
 
 
-def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVENANCE_PATH, today=None) -> RunReport:
+def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVENANCE_PATH, today=None, notices_path: str = NOTICES_PATH) -> RunReport:
     from datetime import date, datetime, timezone
 
     today = today or date.today()
@@ -126,6 +128,15 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
                 f"the publisher's download location may not be receiving updates"
             )
 
+    # Correspondence with the provider (pipeline/source_notices.json, tracked) is copied into provenance each run, like PRIMAP-hist's.
+    # Nothing here is required by the provider, so an unanswered inquiry is a note, never an alert; the stale-source deviation above is the alert.
+    notices = load_source_notices("berkeley_earth", notices_path)
+    open_inquiries = [n for n in notices if n["type"] == "inquiry" and not n.get("replies")]
+    for n in open_inquiries:
+        sent = datetime.fromisoformat(n["sent_at"].replace("Z", "+00:00"))
+        report.note(f"inquiry to Berkeley Earth about this stale download sent {n['sent_at'][:10]} ({(date(today.year, today.month, today.day) - sent.date()).days} days ago) has no recorded reply")
+        if raw.last_modified and datetime.fromisoformat(raw.last_modified) > sent:
+            report.note(f"the source file has changed since that inquiry (last modified {raw.last_modified[:10]}): it may now be answered in practice -- check, and record the reply")
     write_csv_atomic(series, os.path.join(out_dir, "temperature_anomaly_annual.csv"))
     report.count(SERIES_ID, len(series))
     write_provenance(
@@ -161,6 +172,7 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
             ),
             "attribution_required": True,
             "non_commercial_only": True,
+            "provider_correspondence": {"notices": notices, "record": "pipeline/source_notices.json (tracked); copied here on every run"},
             "citations": ["Rohde, R. A. and Hausfather, Z.: The Berkeley Earth Land/Ocean Temperature Record, Earth Syst. Sci. Data, 12, 3469-3479, https://doi.org/10.5194/essd-12-3469-2020, 2020."],
             "published": True,
             "rows": len(series),
