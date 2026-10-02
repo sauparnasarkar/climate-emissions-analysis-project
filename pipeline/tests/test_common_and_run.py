@@ -208,7 +208,31 @@ def test_composition_runs_when_another_source_failed_and_when_named_alone(tmp_pa
 
 
 def test_each_gated_stage_depends_only_on_its_own_upstream(tmp_path, monkeypatch):
-    assert run.DEPENDS_ON == {"correlate": ("harmonize",), "composition": ("primap_hist",)}
+    assert run.DEPENDS_ON == {"correlate": ("harmonize",), "composition": ("primap_hist",), "country_share": ("owid", "primap_hist")}
     called = _stub_all(monkeypatch, tmp_path, fail={"harmonize"})
     run.main(["--source", "all"])
     assert "correlate" not in called and "composition" in called  # a failed harmonize does not block composition
+
+
+@pytest.mark.parametrize("failed", ["owid", "primap_hist"])
+def test_country_share_is_skipped_when_either_of_its_two_sources_failed(tmp_path, monkeypatch, failed):
+    called = _stub_all(monkeypatch, tmp_path, fail={failed})
+    assert run.main(["--source", "all"]) == 1
+    summary = json.loads((tmp_path / "last_run.json").read_text())
+    assert "country_share" not in called and summary["failures"]["country_share"].startswith(f"skipped: upstream stage(s) failed in this run: {failed}")
+    assert "harmonize" in called and "correlate" in called  # unrelated stages still run
+
+
+def test_country_share_runs_when_an_unrelated_source_failed_and_when_named_alone(tmp_path, monkeypatch):
+    called = _stub_all(monkeypatch, tmp_path, fail={"noaa_gml"})
+    run.main(["--source", "all"])
+    assert "country_share" in called
+    called2 = _stub_all(monkeypatch, tmp_path / "b" if (tmp_path / "b").mkdir() is None else tmp_path, fail={"owid", "primap_hist"})
+    assert run.main(["--source", "country_share"]) == 0 and called2 == ["country_share"]
+
+
+def test_both_failing_sources_are_named_in_the_skip_reason(tmp_path, monkeypatch):
+    _stub_all(monkeypatch, tmp_path, fail={"owid", "primap_hist"})
+    run.main(["--source", "all"])
+    reason = json.loads((tmp_path / "last_run.json").read_text())["failures"]["country_share"]
+    assert "owid" in reason and "primap_hist" in reason
