@@ -88,6 +88,43 @@ $(cat "$out_dir/last_run.message")"
 }
 # <<< pipeline_stage
 
+# >>> restart_api
+# Mirrors the Allocation Monitor's `_restart_api_process` (run_scheduled_refresh.py): the API's loaders are
+# process-lifetime @lru_cache, so refreshed CSVs are only served after a restart -- freshness is a property
+# of process lifetime, not of any in-process invalidation. Only called after the notebooks reran on validated
+# data (never after a restored-backup failure, where nothing new is live). Never fatal: a failed restart is
+# reported (priority high, in the notification) but does not turn a successful refresh into a failed run.
+# Only the API is restarted: the agent keeps per-conversation state in memory that a restart would wipe
+# (and the MCP server holds no data cache); vitepreview serves static files off disk.
+# GHG_SKIP_API_RESTART=1 skips it (e.g. an on-demand run you don't want to interrupt the API for).
+API_LABEL="com.ghgemissions.uvicorn"
+restart_api() {
+  local out rc
+  if [ "${GHG_SKIP_API_RESTART:-0}" = "1" ]; then
+    log "API restart skipped (GHG_SKIP_API_RESTART=1)."
+    PIPE_SECTION="${PIPE_SECTION}
+
+API: restart skipped (GHG_SKIP_API_RESTART=1) -- it keeps serving the previous data until restarted."
+    return 0
+  fi
+  out=$(launchctl kickstart -k "gui/$(id -u)/$API_LABEL" 2>&1)
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    log "WARNING: failed to restart $API_LABEL (exit $rc): $out"
+    PIPE_PRIORITY=$(max_priority "$PIPE_PRIORITY" high)
+    PIPE_TITLE_SUFFIX="${PIPE_TITLE_SUFFIX} + API restart FAILED"
+    PIPE_SECTION="${PIPE_SECTION}
+
+API: FAILED to restart $API_LABEL (exit $rc): $out -- it keeps serving the previous data until restarted."
+  else
+    log "Restarted $API_LABEL to load the refreshed data."
+    PIPE_SECTION="${PIPE_SECTION}
+
+API: restarted $API_LABEL to load the refreshed data."
+  fi
+}
+# <<< restart_api
+
 log "--- $(date) ---"
 
 cd "$REPO_DIR" || { notify "GHG data refresh: FAILED" "urgent" "Could not cd to $REPO_DIR"; exit 1; }
@@ -161,6 +198,18 @@ if [ -n "$FAILED_WEEK" ]; then
 $TAIL${PIPE_SECTION}"
   exit 1
 fi
+
+# --- Step 4b: restart the API so its @lru_cache loaders pick up the refreshed CSVs ---
+# Only for a validated refresh (clean / soft_flag): a hard-fail already exited above with the backup restored.
+case "$STATUS" in
+  clean|soft_flag:*) restart_api ;;
+  *)
+    log "API not restarted: unrecognized status marker ($STATUS)."
+    PIPE_SECTION="${PIPE_SECTION}
+
+API: not restarted (unrecognized status marker: $STATUS)."
+    ;;
+esac
 
 # --- Step 5: notify outcome (always) ---
 ROWS=$(($(wc -l < "$DATA_FILE") - 1))

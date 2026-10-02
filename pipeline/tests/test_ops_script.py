@@ -89,3 +89,77 @@ def test_script_syntax_and_wiring():
     assert len(calls) == 2  # week-1 failure branch (after the restore) + the success path
     assert text.count("${PIPE_SECTION}") >= 5
     assert 'max_priority default "$PIPE_PRIORITY"' in text and 'max_priority high "$PIPE_PRIORITY"' in text
+
+
+# ---------------------------------------------------------------- API restart (mirrors the Allocation Monitor's)
+
+
+def restart_source():
+    text = open(SCRIPT).read()
+    m = re.search(r"# >>> restart_api.*?# <<< restart_api", text, re.S)
+    assert m, "restart_api markers not found"
+    return m.group(0)
+
+
+def run_restart(tmp_path, launchctl_body, env_prefix="", initial_priority="default"):
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    args_file = tmp_path / "launchctl.args"
+    (bindir / "launchctl").write_text("#!/bin/bash\n" + f'echo "$@" > "{args_file}"\n' + textwrap.dedent(launchctl_body))
+    (bindir / "id").write_text("#!/bin/bash\necho 501\n")
+    for f in bindir.iterdir():
+        f.chmod(0o755)
+    log = tmp_path / "log"
+    script = f'''
+PATH="{bindir}:$PATH"
+LOG_FILE="{log}"
+log() {{ echo "$1" >> "$LOG_FILE"; }}
+{stage_source()}
+PIPE_PRIORITY="{initial_priority}"
+{restart_source()}
+{env_prefix}
+restart_api
+echo "RC=$?"
+echo "PRIORITY=$PIPE_PRIORITY"
+echo "SUFFIX=$PIPE_TITLE_SUFFIX"
+echo "SECTION<<$PIPE_SECTION>>"
+'''
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    return out.stdout, (args_file.read_text().strip() if args_file.exists() else None), (log.read_text() if log.exists() else "")
+
+
+def test_restart_kickstarts_the_api_service_and_reports_it(tmp_path):
+    out, args, log = run_restart(tmp_path, "exit 0\n")
+    assert args == "kickstart -k gui/501/com.ghgemissions.uvicorn"  # the same call the companion apps make
+    assert "PRIORITY=default" in out and "SUFFIX=" in out and "API: restarted com.ghgemissions.uvicorn" in out
+    assert "Restarted com.ghgemissions.uvicorn" in log
+
+
+def test_failed_restart_is_never_fatal_but_is_loud(tmp_path):
+    out, args, log = run_restart(tmp_path, 'echo "Could not find service" >&2\nexit 113\n')
+    assert "RC=0" in out  # the function itself never fails the run
+    assert "PRIORITY=high" in out and "+ API restart FAILED" in out
+    assert "FAILED to restart com.ghgemissions.uvicorn (exit 113): Could not find service" in out
+    assert "WARNING: failed to restart" in log
+
+
+def test_failed_restart_does_not_downgrade_an_urgent_pipeline_priority(tmp_path):
+    out, _, _ = run_restart(tmp_path, "exit 1\n", initial_priority="urgent")
+    assert "PRIORITY=urgent" in out
+
+
+def test_skip_env_var_does_not_touch_launchctl(tmp_path):
+    out, args, log = run_restart(tmp_path, "exit 0\n", env_prefix="export GHG_SKIP_API_RESTART=1")
+    assert args is None  # launchctl never invoked
+    assert "restart skipped" in out and "PRIORITY=default" in out and "skipped (GHG_SKIP_API_RESTART=1)" in log
+
+
+def test_restart_only_runs_on_a_validated_successful_refresh():
+    text = open(SCRIPT).read()
+    call = text.index("clean|soft_flag:*) restart_api")
+    assert text.count("restart_api") >= 3 and text.count(") restart_api") == 1  # exactly one call site
+    # after the weeks 2-5 failure exit, before the notification; never in a restored-backup failure branch
+    assert text.index('if [ -n "$FAILED_WEEK" ]') < call < text.index("# --- Step 5")
+    assert "unrecognized status marker" in text  # an unknown marker is not restarted, and says so
+    assert text.count("exit 1") >= 4 and all("restart_api" not in blk for blk in re.findall(r'FAILED[^\n]*\n(?:.*\n){0,8}?\s*exit 1', text))

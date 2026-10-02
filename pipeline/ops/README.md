@@ -3,7 +3,7 @@
 The data-refresh job runs on the **Mac Mini** (`sauparnasarkar@Sauparnas-Mac-mini.local`), outside this
 repo: `~/bin/ghg-data-refresh.sh`, scheduled by `~/Library/LaunchAgents/com.ghgemissions.datarefresh.plist`
 (see the `ghg-data-refresh` skill). These are **versioned copies of the proposed new versions** — nothing here
-is deployed by merging the PR. They differ from what is live in exactly two ways:
+is deployed by merging the PR. They differ from what is live in exactly three ways:
 
 1. **Schedule: weekly (Sunday 03:30) → monthly (day 10, 03:30).** `Weekday` is replaced by `Day = 10`. Annual-release
    datasets (PRIMAP-hist, OWID) don't need a weekly cycle (`SPEC.md` §5.26 decision 10); day 10 lets NOAA's
@@ -20,6 +20,20 @@ is deployed by merging the PR. They differ from what is live in exactly two ways
    - otherwise the notebook outcome's own priority is unchanged. The ntfy title gains a suffix
      (` + pipeline flagged` / ` + pipeline FAILED` / ` + pipeline NOT RUN`) when it isn't clean.
    - Stale summaries are deleted before each run, so a crash can never re-report the previous run's result.
+
+3. **A post-refresh API restart (`restart_api`)**, mirroring what the India Allocation Monitor does in
+   `run_scheduled_refresh.py` (`_restart_api_process`). The API's loaders are process-lifetime `@lru_cache`, and
+   nothing in the live job restarts it, so refreshed CSVs are not served until the process happens to restart
+   (found in 1.1c; `ENHANCEMENTS.md` Release 21, open item 8). After a **validated** refresh (status `clean` or
+   `soft_flag`, notebooks all reran) the script runs `launchctl kickstart -k gui/$(id -u)/com.ghgemissions.uvicorn`;
+   `KeepAlive` brings it straight back. Semantics copied from the companion apps: only after a genuinely successful
+   refresh (never after a restored-backup failure, where nothing new is live), and **never fatal** — a failed
+   restart is reported in the notification (`+ API restart FAILED`, priority at least `high`) but does not turn a
+   successful refresh into a failed run. Only the API is restarted: the agent keeps per-conversation state in memory
+   that a restart would wipe, the MCP server holds no data cache, and `vitepreview` serves static files off disk.
+   Set `GHG_SKIP_API_RESTART=1` to skip it (e.g. an on-demand run you don't want to interrupt the API for).
+   *Known limit:* it triggers on the notebook refresh path only; when Phase 1.4 makes the API serve
+   `data/climate/*`, a pipeline-only refresh (notebooks failed or skipped) will need the same trigger.
 
 The OWID step **does not download**: the script's existing backup → download → week-1 validation → restore
 flow stays the single authority for that file; `pipeline/owid.py` only verifies and registers what is on disk
@@ -44,8 +58,10 @@ On the Mac Mini, in this order, stopping if any check fails:
    reload it: `launchctl bootout gui/$(id -u)/com.ghgemissions.datarefresh` followed by
    `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.ghgemissions.datarefresh.plist`
    (`kickstart -k` would keep the old definition).
-5. **Trigger one full run** (`~/bin/ghg-data-refresh.sh`) and read `~/.ghg-data-refresh/logs/<date>.log` and the ntfy
-   push: both the notebook outcome and the `Area 2 pipeline:` section should be present.
+5. **Trigger one full run** (`~/bin/ghg-data-refresh.sh`; it restarts the API at the end, so expect a few seconds of
+   failed requests — prefix `GHG_SKIP_API_RESTART=1` for a run that must not) and read `~/.ghg-data-refresh/logs/<date>.log` and the ntfy
+   push: both the notebook outcome and the `Area 2 pipeline:` section should be present; confirm `launchctl list | grep ghgemissions.uvicorn` shows a **new PID** (and that the log says
+   `Restarted com.ghgemissions.uvicorn`).
 
 Rollback: restore the two `.bak-…` files and repeat the `bootout`/`bootstrap`.
 
@@ -54,4 +70,6 @@ Rollback: restore the two `.bak-…` files and repeat the `bootout`/`bootstrap`.
 `pipeline/tests/test_ops_script.py` extracts `pipeline_stage` and `max_priority` from the script (between its
 `# >>> pipeline_stage` / `# <<< pipeline_stage` markers) and runs them in bash with a stub Python: summary and
 priority handling, a crash that must not re-report stale files, a missing python/pipeline dir, priority ordering,
-and syntax/wiring of the call sites. The live job itself can only be verified by step 5 above.
+and syntax/wiring of the call sites; and `restart_api` with stub `launchctl`/`id` binaries (the exact kickstart call, a
+failed restart being loud but never fatal and never downgrading `urgent`, the opt-out, and that the call sits after the
+weeks 2–5 failure exit and before the notification, gated on a validated status). The live job itself can only be verified by step 5 above.
