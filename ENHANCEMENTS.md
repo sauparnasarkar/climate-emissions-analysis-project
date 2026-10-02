@@ -3649,15 +3649,20 @@ carry the most risk.
 
 Known ordering friction (accepted, user's order kept): 2.1 links to an Overview anchor 2.2 creates; 2.2 links to the module 2.4 builds (stub first); 2.6 reopens pages 2.1/2.2 changed.
 
+### Settled after review (2026-10-01, replaces open items 1–3)
+
+| # | Decision |
+|---|---|
+| 14 | **Rest-of-world = share held flat.** RoW's 2024 share of the global total is held constant and scaled against the covered-country pathway each year (`global_t = covered_t / (1 − RoW_share_2024)`), so RoW moves proportionally with the scenario. Rejected: freezing RoW in absolute terms — under the Aggressive scenario it would let an unmodeled bloc dominate global cumulative emissions and dilute the scenario's logic. International bunkers sit inside the RoW bucket (World − covered set), consistent with decision 15's regression X-variable. The assumption is stated in the **`scenario-temperature` response metadata** (not just a label footnote). |
+| 15 | **Two different "global" quantities, documented as such.** The TCRE regression's X-variable is OWID's full **World** row (bunkers included — they are real atmospheric loading; excluding them undercounts X and biases the slope upward). The country-share denominator is the **bunker-excluded national sum** (shares sum to ~100% of national emissions). `/api/correlation/meta` (and the relevant endpoint docs) states that the two differ and why. |
+| 16 | **IPCC comparability is stated, not just avoided.** Methodology copy shown with the slope/CI/R² names the differences: *"This estimate is derived from OWID fossil CO₂ + cement emissions (excludes land-use/LULUCF emissions) regressed against Berkeley Earth global temperature anomaly. It will not match the IPCC's published TCRE estimate (about 0.45 °C per 1,000 GtCO₂, ~1.65 °C per 1,000 GtC), which is derived from CO₂-only forcing in a full Earth-system model context and includes land-use emissions. This platform's figure is a simplified, data-driven analog to TCRE, not a restatement of the IPCC value."* The slope also absorbs non-CO₂ forcing co-varying with CO₂ (add to the note). |
+
 ### Open items (resolve in the relevant phase's docs-first step)
 
-1. **"Rest of world held flat at last-observed share" (decision 5)** is read as: RoW's *share of global emissions* is held at its 2024 value, so RoW scales with the covered set's pathway (not frozen in absolute terms). Confirm at 1.3's review.
-2. **Bunkers vs the regression (decision 9).** OWID's World row includes international transport; the country sum does not. Shares use the territorial sum as denominator (as decided). Recommendation: the TCRE regression keeps the full World total (bunkers included), since temperature responds to all emissions — excluding them biases the slope slightly upward. Confirm at 1.3.
-3. **Comparability caveat.** OWID fossil CO₂ excludes land-use change and the slope absorbs non-CO₂ forcing, so the result will not match the IPCC's TCRE; copy must say so and not compare numbers directly.
-4. **`baseline` parameter semantics.** Define explicitly whether it sets the emissions index base, the temperature reference period, or both (and `preindustrial` = 1850–1900 via decision 8's offset).
-5. **Monthly cadence (decision 10) changes the existing weekly Mac Mini job** (launchd + the `ghg-data-refresh` skill); coordinate as an operational change in 1.1.
-6. **Requirements doc** itself is unchanged; the decisions above are the amendments (§1.1.1 fourth source row, §1.3.1/§1.3.5 framing, §1.4 endpoint list, §2.4 forcing line, §2.6 globe).
-7. `ARCHITECTURE.md` gets updated when `pipeline/` and the `correlation` domain land (new data flow), not now.
+1. **`baseline` parameter semantics.** Define explicitly whether it sets the emissions index base, the temperature reference period, or both (and `preindustrial` = 1850–1900 via decision 8's offset).
+2. **Monthly cadence (decision 10) changes the existing weekly Mac Mini job** (launchd + the `ghg-data-refresh` skill); coordinate as an operational change in 1.1.
+3. **Requirements doc** itself is unchanged; the decisions above are the amendments (§1.1.1 fourth source row, §1.3.1/§1.3.5 framing, §1.3.1 methodology note (decision 16), §1.4 endpoint list, §2.4 forcing line, §2.6 globe).
+4. `ARCHITECTURE.md` gets updated when `pipeline/` and the `correlation` domain land (new data flow), not now.
 
 ### Progress
 
