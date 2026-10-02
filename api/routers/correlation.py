@@ -421,6 +421,8 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
         if (isinstance(pub_rows, int) and len(d) != pub_rows) or (isinstance(pub_countries, int) and d["country"].nunique() != pub_countries):
             raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has {len(d)} rows for {d['country'].nunique()} countries for source={source}, gas_scope={gas_scope}, but "
                                             f"correlation_country_share.json publishes {pub_rows} rows for {pub_countries} countries: the two files are out of step")
+        if d.duplicated(["country", "year"]).any():
+            raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has duplicate country/year rows for source={source}, gas_scope={gas_scope}")
         names = {c["iso3"]: c.get("name", c["iso3"]) for c in doc.get("countries", []) if isinstance(c, dict) and "iso3" in c}
         cov = combo.get("coverage") if isinstance(combo.get("coverage"), list) else None
         base = dict(schema_version=doc.get("schema_version", 1), generated_at=doc.get("generated_at"), note=doc.get("note") or "", caveats=_strings(doc.get("caveats")),

@@ -704,6 +704,19 @@ def test_an_interior_row_missing_while_the_year_bounds_still_match_is_a_503(api,
     assert api.get(CS + "?source=primap_hist").status_code == 200
 
 
+def test_a_missing_country_year_replaced_by_a_duplicate_row_is_a_503(api, climate):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    missing = next(k for k, ln in enumerate(lines) if ln.startswith("AAA,1900,owid_co2,co2,"))
+    duplicate = next(ln for ln in lines if ln.startswith("AAA,1901,owid_co2,co2,"))
+    lines[missing] = duplicate
+    (climate / "correlation_country_share.csv").write_text("\n".join(lines) + "\n")
+    cl.clear_caches()
+    for q in ("", "?countries=AAA"):
+        r = api.get(CS + q)
+        assert r.status_code == 503 and "duplicate country/year rows" in r.json()["detail"], (q, r.text)
+    assert api.get(CS + "?source=primap_hist").status_code == 200
+
+
 def test_a_country_relabelled_onto_another_keeps_the_row_count_but_fails_the_country_count(api, climate):
     lines = (climate / "correlation_country_share.csv").read_text().splitlines()
     out = [ln.replace("DDD,", "AAA,", 1) if ln.startswith("DDD,") and ",owid_co2," in ln else ln for ln in lines]
