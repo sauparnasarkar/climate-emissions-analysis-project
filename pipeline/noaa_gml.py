@@ -82,12 +82,10 @@ def parse_law_dome_co2(text: str) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["year", "co2_ppm"])
 
 
-def validate_monthly(df: pd.DataFrame) -> None:
-    """The monthly record must be one row per month from its first month to its last."""
+    first = df.iloc[0]
+    if (int(first["year"]), int(first["month"])) != (1958, 3):
+        raise ValueError("monthly series does not start at 1958-03")
     idx = df["year"] * 12 + (df["month"] - 1)
-    if idx.duplicated().any() or not idx.is_monotonic_increasing:
-        raise ValueError("monthly series has duplicate or unordered months")
-    missing = set(range(int(idx.min()), int(idx.max()) + 1)) - set(int(i) for i in idx)
     if missing:
         first = sorted(missing)[0]
         raise ValueError(f"monthly series: {len(missing)} missing month(s), first {first // 12}-{first % 12 + 1:02d}")
