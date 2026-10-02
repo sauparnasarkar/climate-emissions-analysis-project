@@ -86,7 +86,7 @@ def _series_by_country(owid: pd.DataFrame, countries: list[str], first: int, las
     out, problems = {}, []
     for c in countries:
         s = owid[(owid["country"] == c) & (owid["year"] >= first) & (owid["year"] <= last)].set_index("year")["co2"].sort_index()
-        if len(s) != last - first + 1 or s.isna().any() or not np.isfinite(s.to_numpy(dtype=float)).all() or (s <= 0).any():
+        if s.index.tolist() != list(range(first, last + 1)) or s.isna().any() or not np.isfinite(s.to_numpy(dtype=float)).all() or (s <= 0).any():
             problems.append(c)
         out[c] = s
     if problems:
