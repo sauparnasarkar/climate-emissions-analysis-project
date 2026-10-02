@@ -1,5 +1,7 @@
 pandas==2.3.0
-numpy==2.2.6
+# numpy 2.2.6 -> 2.3.5: on Python 3.14, numpy 2.2.6 silently corrupts pandas pivot/unstack on dense frames over ~32k rows
+# (fixed from numpy 2.3.0; verified before/after on the notebooks and the API -- see ENHANCEMENTS.md Release 21, open item 13).
+numpy==2.3.5
 matplotlib==3.11.0
 plotly==5.24.1
 scikit-learn==1.6.1

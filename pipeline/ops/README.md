@@ -43,6 +43,7 @@ flow stays the single authority for that file; `pipeline/owid.py` only verifies 
 
 On the Mac Mini, in this order, stopping if any check fails:
 
+0. **Upgrade numpy in the Mac Mini's venv** (it has the same numpy 2.2.6 / Python 3.14 stack that corrupts large dense pandas reshapes; `requirements.txt` now pins 2.3.5): `cd ~/ClaudeWorkspace/climate-emissions-analysis-project && .venv/bin/pip install numpy==2.3.5 && .venv/bin/pip check`. Only numpy changes (verified: with every other package held identical, the notebooks' outputs and 24 API responses did not change apart from the unseeded Monte Carlo bands in `ets_forecasts.csv`). Do it before the first full run: that run restarts uvicorn, which then loads the new numpy; the agent and MCP server keep running on the old one in memory until their next restart, which is harmless.
 1. **Get the code**: the Mac Mini checkout has no `pipeline/` yet. `git pull --ff-only` in
    `~/ClaudeWorkspace/climate-emissions-analysis-project` (after confirming the tree is clean and on `main`).
    This updates source files on disk only: the running API/`vitepreview` keep serving what is loaded/built until

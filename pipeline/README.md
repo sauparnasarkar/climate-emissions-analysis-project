@@ -43,9 +43,9 @@ One key (integer calendar year, unique per indicator), one unit and one **scope*
 - Country scope is deliberately small: PRIMAP total, per-gas and cumulative per area.
 - **No dense pandas reshapes anywhere in this layer** — see the environment note below.
 
-### Environment note: numpy 2.2.6 on Python 3.14 corrupts large dense reshapes
+### Environment note: numpy 2.2.6 on Python 3.14 corrupted large dense reshapes (fixed by pinning numpy 2.3.5)
 
-Found while building the harmonized layer: with the pinned stack (numpy 2.2.6, Python 3.14), `DataFrame.pivot` / `unstack` on a **fully populated** frame of more than ~32k rows (2¹⁵) silently returns wrong, duplicated year labels — no error (27,500 rows are fine, 41,250 are not). Isolated in a throwaway venv: **numpy ≥ 2.3.0 fixes it (checked 2.3.0–2.3.5 and 2.5.3, with pandas 2.3.0); pandas 2.3.3 does not fix it while numpy stays 2.2.6.** The Mac Mini runs the same stack. No production code path is currently affected (the API's world-map pivot handles 7.6k rows from 1990, ~12k from 1970), and the pipeline avoids dense reshapes, but `pipeline.run` carries a **canary** (`common.check_reshape_environment`) that reports the problem as an `environment` deviation in every run until numpy is upgraded.
+Found while building the harmonized layer: with the previously pinned stack (numpy 2.2.6, Python 3.14), `DataFrame.pivot` / `unstack` on a **fully populated** frame of more than ~32k rows (2¹⁵) silently returned wrong, duplicated year labels — no error (27,500 rows fine, 41,250 not). Isolated in a throwaway venv: **numpy ≥ 2.3.0 fixes it; pandas 2.3.3 does not fix it while numpy stays 2.2.6.** `requirements.txt` now pins **numpy 2.3.5**; before/after, the notebooks' outputs and 24 API responses were identical except for the unseeded Monte Carlo bands in `ets_forecasts.csv` (see `ENHANCEMENTS.md` Release 21, open items 13–14). The harmonized layer still avoids dense reshapes, and `pipeline.run` keeps its **canary** (`common.check_reshape_environment`): on any environment that still has the bug (for example a venv not yet upgraded) it reports an `environment` deviation in the run summary.
 
 ### OWID notes
 
