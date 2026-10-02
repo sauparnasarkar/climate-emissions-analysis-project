@@ -108,7 +108,7 @@ def test_hac_bandwidth_rule(n, expected):
 
 def test_output_structure_conversion_ar6_and_published_sensitivities(tmp_path):
     rep, out = stage(tmp_path)
-    assert rep.deviations == [] and rep.records["correlation_headline"] == 1 and out["schema_version"] == 1
+    assert rep.deviations == [] and rep.records["correlation_headline"] == 2 and out["schema_version"] == 1  # two variants published
     h, s = out["headline"], out["secondary_fossil_only"]
     assert h["x_indicator"] == "owid_total_co2_world_cumulative_mt" and s["x_indicator"] == "owid_co2_world_cumulative_mt" and h["y_indicator"] == "temperature_anomaly_1850_1900_c"
     assert h["range"] == [1850, 2024] and h["n_years"] == 175 and h["fit"]["maxlags"] == 8 and h["unit"] == "°C per 1,000 GtCO2"
@@ -171,15 +171,70 @@ def test_mandatory_caveats_and_attribution_travel_with_the_output(tmp_path):
     assert set(out["inputs"]) == {"temperature_anomaly_1850_1900_c", "owid_total_co2_world_cumulative_mt", "owid_co2_world_cumulative_mt", "owid_luc_co2_world_cumulative_mt"}
 
 
-def test_missing_inputs_give_explicit_nulls_with_a_reason_not_a_crash_or_a_stale_file(tmp_path):
-    def remove_luc_columns(d):
+def drop_columns(*cols):
+    def edit(d):
         p = os.path.join(d, "owid_world_co2_annual.csv")
-        pd.read_csv(p).drop(columns=["total_co2_incl_luc_mt", "land_use_change_co2_mt"]).to_csv(p, index=False)
+        pd.read_csv(p).drop(columns=list(cols)).to_csv(p, index=False)
+    return edit
 
-    rep, out = stage(tmp_path, edit_inputs=remove_luc_columns)
-    assert out["headline"] is None and out["secondary_fossil_only"] is None and "owid_total_co2_world_cumulative_mt" in out["unavailable_reason"]
-    assert any("headline regression unavailable" in d for d in rep.deviations) and rep.records["correlation_headline"] == 0
-    assert out["ar6_reference"]["best_estimate"] == 0.45  # the reference is still published
+
+METADATA_KEYS = {"schema_version", "generated_at", "note", "ar6_reference", "method", "methodology", "definition", "temperature_source_vintage", "attribution", "caveats", "inputs"}
+
+
+def assert_full_metadata(out):
+    """Every output, available or not, carries the contract's metadata (decision 39): the vintage and licence caveats most of all."""
+    assert METADATA_KEYS <= set(out)
+    c = " ".join(out["caveats"])
+    assert "not a complete climate model" in c and "No formal license (e.g., CC BY) is stated" in c and "+/-0.7 GtC/yr" in c and "international aviation and shipping" in c
+    assert out["temperature_source_vintage"]["caveat"] in out["caveats"] and out["attribution"]["attribution_required"] is True
+    assert out["ar6_reference"]["best_estimate"] == 0.45 and out["definition"] == "total anthropogenic CO2 since 1850"
+
+
+def test_headline_inputs_missing_leaves_the_independent_fossil_variant_published(tmp_path):
+    rep, out = stage(tmp_path, edit_inputs=drop_columns("total_co2_incl_luc_mt", "land_use_change_co2_mt"))
+    assert out["headline"] is None and "owid_total_co2_world_cumulative_mt" in out["headline_unavailable_reason"] and "owid_luc_co2_world_cumulative_mt" in out["headline_unavailable_reason"]
+    assert out["secondary_fossil_only"]["fit"]["slope"] > 0 and "secondary_fossil_only_unavailable_reason" not in out  # it needs neither land-use input
+    assert [d for d in rep.deviations if "regression unavailable" in d] == [f"headline regression unavailable: {out['headline_unavailable_reason']}"]
+    assert rep.records["correlation_headline"] == 1 and out["inputs"]["owid_total_co2_world_cumulative_mt"] == {"available": False} and out["inputs"]["owid_co2_world_cumulative_mt"]["available"] is True
+    assert_full_metadata(out)
+
+
+def test_fossil_input_missing_leaves_the_headline_published(tmp_path):
+    rep, out = stage(tmp_path, edit_inputs=drop_columns("cumulative_co2_mt"))
+    assert out["secondary_fossil_only"] is None and "owid_co2_world_cumulative_mt" in out["secondary_fossil_only_unavailable_reason"]
+    assert out["headline"]["fit"]["slope"] > 0 and "headline_unavailable_reason" not in out
+    assert_full_metadata(out)
+
+
+def test_unavailable_results_still_carry_the_full_metadata_contract(tmp_path):
+    rep, out = stage(tmp_path, edit_inputs=drop_columns("total_co2_incl_luc_mt", "land_use_change_co2_mt", "cumulative_co2_mt"))
+    assert out["headline"] is None and out["secondary_fossil_only"] is None and rep.records["correlation_headline"] == 0
+    assert_full_metadata(out)
+    assert "Based on Berkeley Earth file vintage 2025-01-10" in out["temperature_source_vintage"]["caveat"]  # the vintage survives: it needs only provenance.json
+
+
+def test_a_missing_catalog_overwrites_the_previous_output_with_explicit_nulls_and_does_not_raise(tmp_path):
+    _, good = stage(tmp_path)
+    assert good["headline"] is not None
+    os.remove(tmp_path / "indicator_catalog.json")
+    rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))  # must not raise
+    out = json.loads((tmp_path / "correlation_headline.json").read_text())
+    assert out["headline"] is None and out["secondary_fossil_only"] is None  # the stale regression is not left in place as current
+    assert "harmonized layer unavailable" in out["headline_unavailable_reason"] and "FileNotFoundError" in out["headline_unavailable_reason"]
+    assert len([d for d in rep.deviations if "regression unavailable" in d]) == 2 and all(v == {"available": False} for v in out["inputs"].values())
+    assert_full_metadata(out)
+
+
+def test_a_pairing_that_is_refused_becomes_a_reason_not_a_crash(tmp_path):
+    def keep_ten_temperature_years(d):
+        p = os.path.join(d, "temperature_anomaly_annual.csv")
+        df = pd.read_csv(p)
+        df[df.year >= 2015].to_csv(p, index=False)  # 10 shared years: below the pairing's min_overlap
+
+    rep, out = stage(tmp_path, edit_inputs=keep_ten_temperature_years)
+    assert out["headline"] is None and out["secondary_fossil_only"] is None
+    assert "pairing refused" in out["headline_unavailable_reason"] and "at least 20 are required" in out["headline_unavailable_reason"]
+    assert_full_metadata(out)
 
 
 def test_a_non_positive_slope_is_flagged_before_publishing(tmp_path):

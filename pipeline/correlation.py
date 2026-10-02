@@ -30,6 +30,7 @@ from statsmodels.stats.stattools import durbin_watson
 from statsmodels.tools.tools import add_constant
 
 from .common import CLIMATE_DIR, NOTICES_PATH, RunReport, utc_now, write_json_atomic
+from .harmonize import _LUC_LICENSE, _LUC_UNCERTAINTY
 from .pairing import CAUSATION_NOTE, Harmonized, align_pair, load_harmonized
 
 SCHEMA_VERSION = 1
@@ -134,10 +135,15 @@ def _variant_block(h: Harmonized, x_id: str, label: str, scale_luc: bool = False
     return block
 
 
-def _vintage(h: Harmonized, notices_path: str) -> dict:
-    """The temperature source's vintage and the caveat that stays until the owner records a reconciliation (decision 39)."""
-    prov = (h.entry(TEMPERATURE).get("provenance") or {})
-    rel = prov.get("source_release")
+def _provenance(climate_dir: str, series_id: str) -> dict:
+    path = os.path.join(climate_dir, "provenance.json")
+    return (json.load(open(path)).get(series_id) or {}) if os.path.exists(path) else {}
+
+
+def _vintage(climate_dir: str, notices_path: str) -> dict:
+    """The temperature source's vintage and the caveat that stays until the owner records a reconciliation (decision 39).
+    Read from provenance.json, not the catalog, so it is available even when the harmonized layer is not."""
+    rel = _provenance(climate_dir, "temperature_anomaly_annual").get("source_release")
     last_modified = rel.get("http_last_modified") if isinstance(rel, dict) else None
     reconciled = False
     if os.path.exists(notices_path):
@@ -148,30 +154,51 @@ def _vintage(h: Harmonized, notices_path: str) -> dict:
     return {"file_last_modified": last_modified, "reconciled": reconciled, "caveat": None if reconciled else caveat}
 
 
-def build(h: Harmonized, notices_path: str, report: RunReport) -> dict:
-    needed = [TEMPERATURE, X_TOTAL, X_FOSSIL, X_LUC]
-    missing = [i for i in needed if i not in h.catalog]
-    base = {"schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "note": CAUSATION_NOTE, "ar6_reference": AR6_TCRE}
-    if missing:
-        report.deviate(f"headline regression unavailable: indicator(s) {', '.join(missing)} not in the harmonized catalog")
-        return {**base, "headline": None, "secondary_fossil_only": None, "unavailable_reason": f"missing indicators: {', '.join(missing)}"}
-    headline = _variant_block(h, X_TOTAL, "Total anthropogenic CO2 (fossil + cement + land-use change)", scale_luc=True)
-    fossil = _variant_block(h, X_FOSSIL, "Fossil fuel + cement CO2 only (excludes land-use change)")
-    vintage = _vintage(h, notices_path)
-    attribution = {k: v for k, v in (h.entry(X_TOTAL).get("provenance") or {}).items()
+# each variant is judged on its own inputs: the independent secondary must survive the headline's inputs being absent, and vice versa
+VARIANTS = {
+    "headline": dict(x=X_TOTAL, needs=[TEMPERATURE, X_TOTAL, X_LUC], label="Total anthropogenic CO2 (fossil + cement + land-use change)", scale_luc=True),
+    "secondary_fossil_only": dict(x=X_FOSSIL, needs=[TEMPERATURE, X_FOSSIL], label="Fossil fuel + cement CO2 only (excludes land-use change)", scale_luc=False),
+}
+INPUT_IDS = [TEMPERATURE, X_TOTAL, X_FOSSIL, X_LUC]
+
+
+def build(h: Harmonized | None, climate_dir: str, notices_path: str, report: RunReport, load_error: str | None = None) -> dict:
+    """The output is always complete in its metadata (method, caveats, vintage, attribution, inputs): an unavailable result is explicit
+    nulls with a reason, never a missing field, a stale file, or a crash. Metadata comes from provenance.json and module constants, so it
+    does not depend on the harmonized catalog having loaded."""
+    vintage = _vintage(climate_dir, notices_path)
+    attribution = {k: v for k, v in _provenance(climate_dir, "owid_world_co2_annual").items()
                    if k in ("citations", "attribution_required", "required_citation_format", "land_use_license_note")}
-    caveats = [PLAIN_LANGUAGE, METHODOLOGY, DENOMINATOR_NOTE, *h.entry(X_TOTAL).get("caveats", [])]
-    if vintage["caveat"]:
-        caveats.append(vintage["caveat"])
-    out = {**base, "method": "OLS with intercept; Newey-West (HAC) standard errors", "methodology": METHODOLOGY, "definition": "total anthropogenic CO2 since 1850",
-           "headline": headline, "secondary_fossil_only": fossil, "temperature_source_vintage": vintage, "attribution": attribution, "caveats": caveats,
-           "inputs": {i: {"name": h.entry(i)["name"], "unit": h.entry(i)["unit"], "coverage": h.entry(i)["coverage"], "provenance": h.entry(i).get("provenance")} for i in needed}}
+    caveats = [PLAIN_LANGUAGE, METHODOLOGY, DENOMINATOR_NOTE, _LUC_UNCERTAINTY, _LUC_LICENSE] + ([vintage["caveat"]] if vintage["caveat"] else [])
+    inputs = {}
+    for i in INPUT_IDS:
+        e = h.catalog.get(i) if h is not None else None
+        inputs[i] = ({"available": True, "name": e["name"], "unit": e["unit"], "coverage": e["coverage"], "provenance": e.get("provenance")}
+                     if e else {"available": False})
+    out = {"schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "note": CAUSATION_NOTE, "ar6_reference": AR6_TCRE,
+           "method": "OLS with intercept; Newey-West (HAC) standard errors", "methodology": METHODOLOGY, "definition": "total anthropogenic CO2 since 1850",
+           "temperature_source_vintage": vintage, "attribution": attribution, "caveats": caveats, "inputs": inputs}
+    for key, spec in VARIANTS.items():
+        reason = None
+        if h is None:
+            reason = f"harmonized layer unavailable: {load_error}"
+        elif (missing := [i for i in spec["needs"] if i not in h.catalog]):
+            reason = f"missing indicators: {', '.join(missing)}"
+        else:
+            try:
+                out[key] = _variant_block(h, spec["x"], spec["label"], scale_luc=spec["scale_luc"])
+            except ValueError as e:  # too few shared years, an unusable pairing, ...
+                reason = f"pairing refused: {e}"
+        if reason:
+            out[key] = None
+            out[f"{key}_unavailable_reason"] = reason
+            report.deviate(f"{key} regression unavailable: {reason}")
     validate(out, report)
     return out
 
 
 def validate(out: dict, report: RunReport) -> None:
-    for key in ("headline", "secondary_fossil_only"):
+    for key in VARIANTS:
         b = out.get(key)
         if not b:
             continue
@@ -189,17 +216,24 @@ def validate(out: dict, report: RunReport) -> None:
 
 
 def run(climate_dir: str = CLIMATE_DIR, out_dir: str | None = None, notices_path: str = NOTICES_PATH) -> RunReport:
+    """Always replaces the output (atomically): when the inputs are unavailable the previous file is overwritten with explicit nulls and a
+    reason, so a stale regression is never served as current. The failure is a deviation (an alert), not a crash."""
     out_dir = out_dir or climate_dir
     report = RunReport("correlate")
-    h = load_harmonized(climate_dir)
-    out = build(h, notices_path, report)
+    h, load_error = None, None
+    try:
+        h = load_harmonized(climate_dir)
+    except (OSError, ValueError, KeyError) as e:  # missing/invalid catalog or tables
+        load_error = f"{type(e).__name__}: {e}"
+    out = build(h, climate_dir, notices_path, report, load_error)
     write_json_atomic(out, os.path.join(out_dir, OUTPUT_NAME))
-    report.count("correlation_headline", 1 if out.get("headline") else 0)
+    report.count("correlation_headline", sum(1 for k in VARIANTS if out.get(k)))
     if out.get("headline"):
-        f, g = out["headline"]["fit"], out["secondary_fossil_only"]["fit"]
+        f = out["headline"]["fit"]
         report.note(f"headline (total anthropogenic CO2) {f['slope']:.3f} °C per 1,000 GtCO2, HAC 95% CI [{f['ci95_hac'][0]:.3f}, {f['ci95_hac'][1]:.3f}], "
-                    f"R^2 {f['r_squared']:.3f}, n={f['n']}; fossil-only {g['slope']:.3f}; AR6 range {AR6_TCRE['very_likely_range']}")
-        v = out["temperature_source_vintage"]
-        if not v["reconciled"]:
-            report.note("Berkeley Earth vintage caveat is attached to the headline (owner has not recorded a reconciliation)")
+                    f"R^2 {f['r_squared']:.3f}, n={f['n']}; AR6 range {AR6_TCRE['very_likely_range']}")
+    if out.get("secondary_fossil_only"):
+        report.note(f"fossil-only variant {out['secondary_fossil_only']['fit']['slope']:.3f} °C per 1,000 GtCO2")
+    if not out["temperature_source_vintage"]["reconciled"]:
+        report.note("Berkeley Earth vintage caveat is attached (owner has not recorded a reconciliation)")
     return report
