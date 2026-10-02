@@ -152,8 +152,17 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
             "caveats": [
                 "Anomalies are deviations from a reference period, not absolute temperatures.",
                 "The 1850-1900 'pre-industrial' reference is a convention; the offset is computed from this dataset's own early record, whose uncertainty is largest.",
+                "Non-commercial use only (CC BY-NC): fine for this platform; any commercial use would need a licence from Berkeley Earth.",
             ],
-            "license": "Berkeley Earth data: CC BY 4.0 (cite Rohde & Hausfather 2020, ESSD 12, 3469).",
+            "license": (
+                "CC BY-NC 4.0 International (Berkeley Earth's data page: 'in general ... for non-commercial use only'; commercial use needs "
+                "a licence from admin@berkeleyearth.org). Attribution to Berkeley Earth, including a reference to www.berkeleyearth.org. "
+                "Cite Rohde & Hausfather 2020, ESSD 12, 3469-3479, doi:10.5194/essd-12-3469-2020."
+            ),
+            "attribution_required": True,
+            "non_commercial_only": True,
+            "citations": ["Rohde, R. A. and Hausfather, Z.: The Berkeley Earth Land/Ocean Temperature Record, Earth Syst. Sci. Data, 12, 3469-3479, https://doi.org/10.5194/essd-12-3469-2020, 2020."],
+            "published": True,
             "rows": len(series),
         },
         provenance_path,

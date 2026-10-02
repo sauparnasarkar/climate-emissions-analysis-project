@@ -199,7 +199,11 @@ def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str 
         "raw_sha256": {"owid-co2-data.csv": sha},
         "units": "Mt CO2 (fossil + cement; excludes land-use change in the `co2` column)",
         "update_cadence": "OWID updates when the Global Carbon Budget is released; the refresh job re-downloads monthly",
-        "license": "CC BY 4.0 (OWID); underlying Global Carbon Project data CC BY 4.0. Cite OWID and the Global Carbon Budget.",
+        "license": (
+            "CC BY 4.0 for OWID's compilation (OWID's README). Per that README, third-party data it republishes (the Global Carbon Project, "
+            "the Energy Institute, others) stays subject to the original authors' licence terms -- not yet verified individually. "
+            "Cite OWID and the Global Carbon Budget."
+        ),
         "citations": CITATIONS,
         "published": True,
     }
