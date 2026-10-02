@@ -87,6 +87,9 @@ def load_harmonized(climate_dir: str = CLIMATE_DIR) -> Harmonized:
     if bad:  # a malformed entry is a clear load error here, not a KeyError somewhere downstream
         first_id, first_missing = bad[0]
         raise ValueError(f"indicator_catalog.json: {len(bad)} malformed indicator entr{'y' if len(bad) == 1 else 'ies'}; first: {first_id} (missing {', '.join(first_missing)})")
+    ids = [e["id"] for e in inds]
+    if len(ids) != len(set(ids)):
+        raise ValueError("indicator_catalog.json: duplicate indicator ids")
     glob = pd.read_csv(os.path.join(climate_dir, "harmonized_global_annual.csv"))
     ctry = pd.read_csv(os.path.join(climate_dir, "harmonized_country_annual.csv"))
     for name, df, required, keys in (("harmonized_global_annual.csv", glob, GLOBAL_COLUMNS, ("indicator_id", "year")), ("harmonized_country_annual.csv", ctry, COUNTRY_COLUMNS, ("indicator_id", "iso3", "year"))):
