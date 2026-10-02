@@ -1,5 +1,13 @@
 """EDGAR (European Commission / JRC) total-GHG and gas-split ingestion. Release 21, Phase 1.1b.
 
+STATUS: SHELVED FOR PUBLICATION -- internal validation only (decision 20, `ENHANCEMENTS.md` Release 21).
+The fuel-combustion CO2 inside EDGAR (88.5% of its CO2, 65.5% of its total GHG in 2023) is IEA data
+licensed CC BY-NC-ND 4.0; ND bars sharing the transformed series this pipeline produces, and permission
+has not been obtained. So this source is excluded from `python -m pipeline.run --source all`, writes to
+`data/internal/edgar/` (never `data/climate/`, which is what the API reads), and must not feed any public
+surface. It stays in the tree to cross-check the active total-GHG source locally, and to be switched back
+on if IEA permission is obtained and the sector detail proves worth it.
+
 The combined `EDGAR_AR5_GHG` workbook has country totals only, so the gas split is built from
 EDGAR's separate per-gas files -- fossil CO2 (`IEA_EDGAR_CO2`), CH4, N2O (Gg x IPCC AR5 GWP-100)
 and F-gases (the `AR5g` file, already CO2-equivalent) -- then **summed and reconciled against the
@@ -31,8 +39,7 @@ import numpy as np
 import pandas as pd
 
 from .common import (
-    CLIMATE_DIR,
-    PROVENANCE_PATH,
+    INTERNAL_DIR,
     ROOT,
     RunReport,
     fetch,
@@ -225,7 +232,11 @@ def _default_owid_and_expanded(root: str = ROOT):
     return owid, expanded
 
 
-def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVENANCE_PATH, today=None, owid=None, expanded=None, root_url: str = EDGAR_ROOT) -> RunReport:
+INTERNAL_OUT_DIR = os.path.join(INTERNAL_DIR, "edgar")
+INTERNAL_PROVENANCE_PATH = os.path.join(INTERNAL_OUT_DIR, "provenance.json")
+
+
+def run(fetcher=fetch, out_dir: str = INTERNAL_OUT_DIR, provenance_path: str = INTERNAL_PROVENANCE_PATH, today=None, owid=None, expanded=None, root_url: str = EDGAR_ROOT) -> RunReport:
     today = today or date.today()
     report = RunReport("edgar")
 
@@ -283,11 +294,13 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
         "coverage": [first, latest],
         "units": "MtCO2e (CO2 in Mt; CH4/N2O converted with IPCC AR5 GWP-100: CH4 28, N2O 265; F-gases from EDGAR's AR5g CO2e file)",
         "gas_scope": "CO2 (fossil, excl. short-cycle biogenic), CH4, N2O, F-gases; excludes LULUCF",
-        "update_cadence": "annual release (EDGAR_<year>_GHG); pipeline runs monthly and discovers the latest release",
+        "status": "internal_validation_only",
+        "published": False,
+        "update_cadence": "annual release (EDGAR_<year>_GHG); discovers the latest release when run explicitly (not part of the monthly refresh)",
         "license": (
             "EDGAR: CC BY 4.0 (European Union). CAUTION: the IEA-EDGAR CO2 component (fuel-combustion CO2) is based on IEA data licensed "
             "CC BY-NC-ND 4.0; the workbook asks users of IEA-EDGAR CO2 data to contact the IEA (compliance@iea.org) for permission to use. "
-            "Review before public/derivative use."
+            "NOT PUBLISHED: ND bars sharing the transformed series; shelved until IEA permission is obtained."
         ),
     }
     write_provenance(

@@ -24,6 +24,9 @@ from email.utils import parsedate_to_datetime
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLIMATE_DIR = os.path.join(ROOT, "data", "climate")
 PROVENANCE_PATH = os.path.join(CLIMATE_DIR, "provenance.json")
+# Sources that are shelved for publication (e.g. EDGAR, pending licence) write here, never to CLIMATE_DIR,
+# so nothing the API reads can contain them.
+INTERNAL_DIR = os.path.join(ROOT, "data", "internal")
 
 log = logging.getLogger("pipeline")
 

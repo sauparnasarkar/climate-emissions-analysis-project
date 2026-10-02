@@ -270,6 +270,7 @@ def test_run_end_to_end(tmp_path, zips):
     assert p["coverage"] == [1988, 1992] and p["source_release"]["release"] == "EDGAR_2026_GHG"
     assert p["reconciliation"]["fgas_unavailable_years"] == [1988, 1989, 1992]
     assert "CC BY-NC-ND 4.0" in p["license"] and "IEA" in p["license"]  # the licence caution is carried in provenance
+    assert p["status"] == "internal_validation_only" and p["published"] is False and "NOT PUBLISHED" in p["license"]
     assert prov["country_crosswalk"]["match_counts"]["bunker"] == 2
 
 
