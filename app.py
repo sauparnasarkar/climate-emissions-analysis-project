@@ -594,14 +594,6 @@ elif page == "Scenario Comparison":
             "Complete **Week 5** of the notebook to generate this file, then restart the app."
         )
     else:
-        def bau_segment(country_filter, start, end):
-            """BAU (ETS mean), summed across the given countries, restricted to a year range."""
-            if df_forecasts is None:
-                return pd.Series(dtype=float)
-            fc = df_forecasts[df_forecasts["country"].isin(country_filter)]
-            fc = fc[(fc["year"] >= start) & (fc["year"] <= end)]
-            return fc.groupby("year")["mean"].sum()
-
         view_mode = st.radio("View", ["Single Country", "Global Aggregate"], horizontal=True)
 
         if view_mode == "Single Country":
@@ -620,7 +612,6 @@ elif page == "Scenario Comparison":
             if df is not None else pd.Series(dtype=float)
         )
         level_1990 = hist.loc[1990] if 1990 in hist.index else None
-        bau_2020_2024 = bau_segment(countries_in_view, 2020, 2024)
 
         fig = go.Figure()
         if not hist.empty:
@@ -628,16 +619,13 @@ elif page == "Scenario Comparison":
                 x=hist.index, y=hist.values,
                 name="Historical (1990–2024)", line=dict(color="grey", width=2)))
         for scenario, color in SCENARIO_COLORS.items():
-            if scenario == "BAU":
-                series = bau_segment(countries_in_view, 2020, 2040)
-            else:
-                future = (
-                    df_scenarios[
-                        (df_scenarios["country"].isin(countries_in_view)) &
-                        (df_scenarios["scenario"] == scenario)
-                    ].groupby("year")["co2_projected"].sum()
-                )
-                series = pd.concat([bau_2020_2024, future])
+            # All three lines come from scenario_projections.csv (2025 onward), so BAU is the same baseline the other two are derived from.
+            series = (
+                df_scenarios[
+                    (df_scenarios["country"].isin(countries_in_view)) &
+                    (df_scenarios["scenario"] == scenario)
+                ].groupby("year")["co2_projected"].sum()
+            )
             fig.add_trace(go.Scatter(
                 x=series.index, y=series.values,
                 name=scenario, line=dict(color=color, width=2)))

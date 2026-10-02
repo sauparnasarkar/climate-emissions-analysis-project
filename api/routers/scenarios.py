@@ -4,7 +4,7 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
 from ..constants import FEATURED_COUNTRIES, SCENARIO_COLORS
-from ..data_loaders import DataNotFoundError, load_expanded_countries, load_features, load_forecasts, load_scenarios
+from ..data_loaders import DataNotFoundError, load_expanded_countries, load_features, load_scenarios
 from ..schemas import (
     ScenarioCompareResponse,
     ScenarioCumulativeResponse,
@@ -20,25 +20,12 @@ SortScenario = Literal["BAU", "Moderate", "Aggressive"]
 Scope = Literal["featured", "expanded"]
 
 
-def _bau_segment(df_forecasts, country_filter, start, end):
-    if df_forecasts is None:
-        return pd.Series(dtype=float)
-    fc = df_forecasts[df_forecasts["country"].isin(country_filter)]
-    fc = fc[(fc["year"] >= start) & (fc["year"] <= end)]
-    return fc.groupby("year")["mean"].sum()
-
-
 @router.get("/scenarios/timeseries", response_model=ScenarioTimeseriesResponse)
 def get_scenario_timeseries(view: ViewMode = "single", country: str | None = None, scope: Scope = "featured"):
     try:
         df_scenarios = load_scenarios()
     except DataNotFoundError as e:
         raise HTTPException(status_code=503, detail=e.message)
-
-    try:
-        df_forecasts = load_forecasts()
-    except DataNotFoundError:
-        df_forecasts = None
 
     try:
         df = load_features()
@@ -60,7 +47,6 @@ def get_scenario_timeseries(view: ViewMode = "single", country: str | None = Non
         else pd.Series(dtype=float)
     )
     level_1990 = float(hist.loc[1990]) if 1990 in hist.index else None
-    bau_2020_2024 = _bau_segment(df_forecasts, countries_in_view, 2020, 2024)
 
     historical_series = (
         ScenarioSeries(name="Historical (1990–2024)", years=hist.index.tolist(), values=hist.values.tolist())
@@ -68,19 +54,16 @@ def get_scenario_timeseries(view: ViewMode = "single", country: str | None = Non
         else None
     )
 
+    # All three lines come from scenario_projections.csv (2025 onward), so BAU is the very baseline the other two are derived from. The grey historical series
+    # (observed, through 2024) is separate. (This used to draw BAU from ets_forecasts.csv -- Week 4's fit stopped at 2018 -- and prepend its 2020-2024 forecast values
+    # to the other lines; once Week 5's BAU became an ETS fit on all observed years, that mixed two baselines and made mitigation appear as a step in 2025.)
     scenario_series = []
     for scenario in SCENARIO_COLORS:
-        if scenario == "BAU":
-            series = _bau_segment(df_forecasts, countries_in_view, 2020, 2040)
-        else:
-            future = (
-                df_scenarios[
-                    (df_scenarios["country"].isin(countries_in_view)) & (df_scenarios["scenario"] == scenario)
-                ]
-                .groupby("year")["co2_projected"]
-                .sum()
-            )
-            series = pd.concat([bau_2020_2024, future])
+        series = (
+            df_scenarios[(df_scenarios["country"].isin(countries_in_view)) & (df_scenarios["scenario"] == scenario)]
+            .groupby("year")["co2_projected"]
+            .sum()
+        )
         scenario_series.append(ScenarioSeries(name=scenario, years=series.index.tolist(), values=series.values.tolist()))
 
     return ScenarioTimeseriesResponse(
@@ -164,47 +147,34 @@ def get_scenario_compare(countries: list[str] = Query(...)):
         raise HTTPException(status_code=503, detail=e.message)
 
     try:
-        df_forecasts = load_forecasts()
-    except DataNotFoundError:
-        df_forecasts = None
-
-    try:
         df = load_features()
     except DataNotFoundError:
         df = None
 
     scenario_names = list(SCENARIO_COLORS.keys())
+    first_scenario_year = int(df_scenarios["year"].min())
     result: dict[str, list[ScenarioSeries]] = {s: [] for s in scenario_names}
 
     for country in countries:
-        # Historical stops before 2020 (where the forecast/scenario segments below begin) so
-        # each country's line is one clean, non-overlapping series rather than the two
-        # overlapping historical-vs-forecast traces /scenarios/timeseries uses to show
-        # holdout accuracy -- with up to 10 countries per panel, that pattern here would
-        # double the trace count and clutter the legend for no benefit in this view.
+        # Each country's line is one continuous, non-overlapping series per scenario: observed history up to the year before the scenarios begin, then that
+        # scenario's projection (BAU included, from scenario_projections.csv). Unlike /scenarios/timeseries there is no overlapping historical trace, because with up
+        # to 10 countries per panel that would double the trace count and clutter the legend.
         hist = (
-            df[(df["country"] == country) & (df["year"] < 2020)].sort_values("year")
+            df[(df["country"] == country) & (df["year"] < first_scenario_year)].sort_values("year")
             if df is not None
             else None
         )
         hist_years = hist["year"].tolist() if hist is not None else []
         hist_values = hist["co2"].tolist() if hist is not None else []
 
-        bau_2020_2024 = _bau_segment(df_forecasts, [country], 2020, 2024)
-
         for scenario in scenario_names:
-            if scenario == "BAU":
-                future = _bau_segment(df_forecasts, [country], 2020, 2040)
-            else:
-                future_only = (
-                    df_scenarios[(df_scenarios["country"] == country) & (df_scenarios["scenario"] == scenario)]
-                    .groupby("year")["co2_projected"]
-                    .sum()
-                )
-                future = pd.concat([bau_2020_2024, future_only])
-
-            years = hist_years + future.index.tolist()
-            values = hist_values + future.values.tolist()
-            result[scenario].append(ScenarioSeries(name=country, years=years, values=values))
+            projected = (
+                df_scenarios[(df_scenarios["country"] == country) & (df_scenarios["scenario"] == scenario)]
+                .groupby("year")["co2_projected"]
+                .sum()
+            )
+            result[scenario].append(
+                ScenarioSeries(name=country, years=hist_years + projected.index.tolist(), values=hist_values + projected.values.tolist())
+            )
 
     return ScenarioCompareResponse(countries=countries, scenarios=result)
