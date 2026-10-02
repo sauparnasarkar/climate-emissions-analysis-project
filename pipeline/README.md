@@ -43,6 +43,18 @@ One key (integer calendar year, unique per indicator), one unit and one **scope*
 - Country scope is deliberately small: PRIMAP total, per-gas and cumulative per area.
 - **No dense pandas reshapes anywhere in this layer** — see the environment note below.
 
+### Pairing (`pairing.py`) — correlation-ready aligned series
+
+```python
+from pipeline.pairing import load_harmonized, align_pair
+h = load_harmonized()                       # reads data/climate/{indicator_catalog.json, harmonized_*.csv}
+frame, meta = align_pair(h, "owid_co2_world_cumulative_mt", "temperature_anomaly_1850_1900_c")
+```
+
+`frame` has columns `year`, `<a>`, `<b>` and only years where **both** series have a value (no interpolation). `meta` carries both indicators' catalog entries (unit, kind, coverage, **provenance link with release / licence / checksums**, caveats), the requested / common / used ranges, **every omitted year with its reason** (`a missing` / `b missing` / `both missing`, within the requested range), `interpolated: false`, and a standing note that co-movement is interpretive context, not proof of causation. Phase 1.3's co-trends, regressions and composition outputs are built on this.
+
+Refused, with a clear error: pairing an indicator with itself; a **global** with a **country** indicator (country pairs need one named `geography` shared by both — country emissions are never paired with the global temperature line, §1.3.4); `uncertainty` series (they describe a series, they are not one); an empty range; and fewer than `min_overlap` (default 20) shared years — a correlation over a handful of years looks authoritative and means nothing. Derived indicators pair too, and the common range follows their own coverage (a trailing 5-year mean starts four years into the record).
+
 ### Environment note: numpy 2.2.6 on Python 3.14 corrupts large dense reshapes
 
 Found while building the harmonized layer: with the pinned stack (numpy 2.2.6, Python 3.14), `DataFrame.pivot` / `unstack` on a **fully populated** frame of more than ~32k rows (2¹⁵) silently returns wrong, duplicated year labels — no error (27,500 rows are fine, 41,250 are not). Isolated in a throwaway venv: **numpy ≥ 2.3.0 fixes it (checked 2.3.0–2.3.5 and 2.5.3, with pandas 2.3.0); pandas 2.3.3 does not fix it while numpy stays 2.2.6.** The Mac Mini runs the same stack. No production code path is currently affected (the API's world-map pivot handles 7.6k rows from 1990, ~12k from 1970), and the pipeline avoids dense reshapes, but `pipeline.run` carries a **canary** (`common.check_reshape_environment`) that reports the problem as an `environment` deviation in every run until numpy is upgraded.
