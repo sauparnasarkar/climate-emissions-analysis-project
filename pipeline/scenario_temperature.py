@@ -242,7 +242,7 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
             "covered_countries": [{"country": n, "co2_mt_last_observed_year": float(at_t0[n])} for n in names]}
         rest = {"share": res["rest_of_world_share"], "year": t0}
         luc = {"mt_per_year": luc_flat, "window": [t0 - LUC_FLAT_WINDOW + 1, t0]}
-        _require_finite({**filled, "rest_of_world": rest, "land_use": luc})  # nothing non-finite may reach the file
+        _require_finite({"attribution": out["attribution"], "slope": out["assumptions"]["slope"], **filled, "rest_of_world": rest, "land_use": luc})  # nothing non-finite may reach the file
         out.update(filled)
         out["assumptions"]["rest_of_world"].update(rest)
         out["assumptions"]["land_use"].update(luc)
