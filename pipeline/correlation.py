@@ -113,9 +113,26 @@ def fit_line(x_mt: np.ndarray, y: np.ndarray, maxlags: int) -> dict:
     }
 
 
-def bootstrap_slopes(x_mt: np.ndarray, y: np.ndarray, block: int, resamples: int, rng: np.random.Generator) -> np.ndarray:
-    """Slopes from a moving-block bootstrap of the *residuals* with x held fixed: y* = fitted + residual blocks of `block` consecutive years
-    (start years drawn uniformly, blocks concatenated and trimmed to n). A pairs bootstrap is avoided on purpose: x is a trending cumulative
+def block_indices(years: np.ndarray | None, n: int, block: int, resamples: int, rng: np.random.Generator) -> np.ndarray:
+    """Row indices (resamples x n) of residual blocks built only from **calendar-consecutive** years. `align_pair` drops a year missing from
+    either series, so a block of `block` rows could otherwise span a gap and treat residuals several years apart as consecutive; a start is
+    allowed only if the `block` rows from it cover `block` consecutive calendar years. With no gaps the allowed starts are exactly
+    0..n-block, so the draws are identical to an unconstrained moving-block bootstrap."""
+    if years is None:
+        valid = np.arange(0, n - block + 1)
+    else:
+        years = np.asarray(years)
+        valid = np.flatnonzero(years[block - 1:] - years[: n - block + 1] == block - 1)
+    if len(valid) == 0:
+        raise ValueError(f"no run of {block} consecutive calendar years in the paired data, so {block}-year blocks cannot be formed")
+    nb = -(-n // block)
+    starts = valid[rng.integers(0, len(valid), size=(resamples, nb))]
+    return (starts[:, :, None] + np.arange(block)).reshape(resamples, -1)[:, :n]
+
+
+def bootstrap_slopes(x_mt: np.ndarray, y: np.ndarray, block: int, resamples: int, rng: np.random.Generator, years: np.ndarray | None = None) -> np.ndarray:
+    """Slopes from a moving-block bootstrap of the *residuals* with x held fixed: y* = fitted + residual blocks of `block` consecutive calendar
+    years (see `block_indices`; blocks concatenated and trimmed to n). A pairs bootstrap is avoided on purpose: x is a trending cumulative
     series, so resampling (x, y) blocks from different eras gives samples with little x spread and an unstable slope (decision 34)."""
     x = np.asarray(x_mt, float) / MT_PER_THOUSAND_GT
     y = np.asarray(y, float)
@@ -125,18 +142,16 @@ def bootstrap_slopes(x_mt: np.ndarray, y: np.ndarray, block: int, resamples: int
     slope, intercept = np.polyfit(x, y, 1)
     fitted = intercept + slope * x
     resid = y - fitted
-    nb = -(-n // block)
-    starts = rng.integers(0, n - block + 1, size=(resamples, nb))
-    idx = (starts[:, :, None] + np.arange(block)).reshape(resamples, -1)[:, :n]
-    y_star = fitted + resid[idx]
+    y_star = fitted + resid[block_indices(years, n, block, resamples, rng)]
     xc = x - x.mean()
     return (y_star @ xc) / (xc @ xc)  # OLS slope per resample (sum of xc is 0, so y* needs no centring)
 
 
-def _bootstrap_block(x: np.ndarray, y: np.ndarray, block: int, seed: int = BOOTSTRAP_SEED, resamples: int = BOOTSTRAP_RESAMPLES) -> dict:
+def _bootstrap_block(x: np.ndarray, y: np.ndarray, block: int, seed: int = BOOTSTRAP_SEED, resamples: int = BOOTSTRAP_RESAMPLES,
+                     years: np.ndarray | None = None) -> dict:
     # each block length builds its own generator from (seed, block), so the result for a length never depends on which other lengths are computed or in what order
     rng = np.random.default_rng(np.random.SeedSequence([seed, block]))
-    s = bootstrap_slopes(x, y, block, resamples, rng)
+    s = bootstrap_slopes(x, y, block, resamples, rng, years)
     lo, med, hi = (float(v) for v in np.percentile(s, [2.5, 50, 97.5]))
     return {"block_years": block, "ci95": [lo, hi], "median": med}
 
@@ -159,8 +174,16 @@ def holdout(frame: pd.DataFrame, x_id: str, split: int) -> dict:
 
 def _stability(frame: pd.DataFrame, x_id: str, fit: dict, windows: list[dict]) -> dict:
     x, y = frame[x_id].to_numpy(), frame[TEMPERATURE].to_numpy()
-    blocks = [_bootstrap_block(x, y, b) for b in BOOTSTRAP_BLOCKS if b <= len(x)]
-    primary = next(b for b in blocks if b["block_years"] == BOOTSTRAP_BLOCK)
+    years = frame["year"].to_numpy()
+    blocks, unavailable = [], []
+    for b in BOOTSTRAP_BLOCKS:
+        try:
+            blocks.append(_bootstrap_block(x, y, b, years=years))
+        except ValueError as e:  # a length the paired data cannot support (too long, or no run of that many consecutive years)
+            unavailable.append({"block_years": b, "reason": str(e)})
+    primary = next((b for b in blocks if b["block_years"] == BOOTSTRAP_BLOCK), None)
+    if primary is None:  # the summary and the interval are defined on the primary block length: no primary, no stability block
+        raise ValueError(next(u["reason"] for u in unavailable if u["block_years"] == BOOTSTRAP_BLOCK))
     holdouts = [holdout(frame, x_id, s) for s in HOLDOUT_SPLITS]
     hac = fit["ci95_hac"]
     boot = primary["ci95"]
@@ -179,7 +202,7 @@ def _stability(frame: pd.DataFrame, x_id: str, fit: dict, windows: list[dict]) -
     return {
         "method": "moving-block bootstrap of the regression residuals with the predictor held fixed (distinct from the HAC standard errors), plus decade holdouts",
         "seed": BOOTSTRAP_SEED, "resamples": BOOTSTRAP_RESAMPLES, "primary_block_years": BOOTSTRAP_BLOCK,
-        "bootstrap": primary, "block_length_sensitivity": blocks,
+        "bootstrap": primary, "block_length_sensitivity": blocks, "block_length_unavailable": unavailable,
         "hac_ci95": hac, "bootstrap_vs_hac_width_ratio": (boot[1] - boot[0]) / (hac[1] - hac[0]) if hac[1] > hac[0] else None,
         "holdouts": holdouts, "summary": " ".join(parts),
         "note": "These are published as measured; no pass/fail judgement is made.",
@@ -200,7 +223,7 @@ def _variant_block(h: Harmonized, x_id: str, label: str, scale_luc: bool = False
     slope = full["slope"]
     block = {
         "label": label, "x_indicator": x_id, "y_indicator": TEMPERATURE, "unit": AR6_TCRE["unit"],
-        "range": pair["range_used"], "n_years": n, "omitted_years": pair["omitted_years"],
+        "range": pair["range_used"], "n_years": n, "omitted_years": pair["omitted_years"], "contiguous": not pair["omitted_years"],
         "fit": {**full, "slope_per_1000_gtc": slope * GTCO2_PER_GTC,
                 "rule": "maxlags = floor(1.5 * n^(1/3)); Bartlett kernel; 95% CI from the HAC standard error (normal)"},
         "hac_sensitivity": [_hac_row(x, y, L) for L in HAC_SENSITIVITY_LAGS],
@@ -329,6 +352,9 @@ def validate(out: dict, report: RunReport) -> None:
             report.deviate(f"{key}: the confidence interval does not bracket the slope")
         if f["slope"] <= 0:
             report.deviate(f"{key}: slope {f['slope']:.3f} is not positive; check the inputs before publishing")
+        if b.get("contiguous") is False:
+            report.deviate(f"{key}: {len(b['omitted_years'])} calendar-year gap(s) in the paired years — bootstrap blocks are formed only from consecutive years, "
+                           "but the Newey-West lags count rows, so the HAC interval treats the rows either side of a gap as consecutive")
         s = b.get("stability", {}).get("bootstrap")
         if s and not (s["ci95"][0] <= f["slope"] <= s["ci95"][1]):
             report.deviate(f"{key}: the bootstrap interval does not bracket the fitted slope")

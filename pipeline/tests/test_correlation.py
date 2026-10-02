@@ -536,3 +536,79 @@ def test_a_bootstrap_interval_that_misses_the_fitted_slope_is_flagged(tmp_path, 
     monkeypatch.setattr(C, "_bootstrap_block", lambda x, y, block, **k: {"block_years": block, "ci95": [9.0, 10.0], "median": 9.5})
     rep, out = stage(tmp_path)
     assert any("the bootstrap interval does not bracket the fitted slope" in d for d in rep.deviations)
+
+
+# ---------------------------------------------------------------- calendar gaps (Copilot review on #213)
+
+
+def gappy_years(drop):
+    return np.array([y for y in range(1850, 2025) if y not in set(drop)])
+
+
+@pytest.mark.parametrize("block", [5, 10, 20])
+def test_blocks_never_span_a_calendar_gap(block):
+    years = gappy_years(range(1900, 1915))  # a 15-year hole
+    idx = C.block_indices(years, len(years), block, 2000, np.random.default_rng(3))
+    assert idx.shape == (2000, len(years))
+    full = (len(years) // block) * block  # the final block is trimmed to n, so check the complete ones
+    for row in idx[:, :full].reshape(2000, -1, block):
+        assert np.all(np.diff(years[row], axis=1) == 1)  # every block is calendar-consecutive
+
+
+def test_without_gaps_the_draws_are_identical_to_an_unconstrained_bootstrap():
+    n, block = 120, 10
+    constrained = C.block_indices(np.arange(1850, 1850 + n), n, block, 500, np.random.default_rng(11))
+    unconstrained = C.block_indices(None, n, block, 500, np.random.default_rng(11))
+    assert np.array_equal(constrained, unconstrained)  # so seeded results do not change for gap-free data
+
+
+def test_a_block_length_with_no_consecutive_run_is_refused_with_the_reason():
+    years = gappy_years(range(1857, 2025, 8))  # runs of 7 consecutive years
+    with pytest.raises(ValueError, match="no run of 10 consecutive calendar years"):
+        C.block_indices(years, len(years), 10, 10, np.random.default_rng(0))
+    assert C.block_indices(years, len(years), 5, 10, np.random.default_rng(0)).shape == (10, len(years))  # 5-year blocks still fit
+
+
+def test_gappy_data_gives_a_different_interval_than_ignoring_the_gap():
+    years = gappy_years(range(1900, 1915))
+    x_mt, y = ar1_data(n=len(years), seed=21)
+    aware = C._bootstrap_block(x_mt, y, 10, years=years)
+    naive = C._bootstrap_block(x_mt, y, 10)
+    assert aware != naive and aware["ci95"][0] <= np.polyfit(x_mt / 1e6, y, 1)[0] <= aware["ci95"][1]
+
+
+def drop_temperature_years(drop):
+    def edit(d):
+        p = os.path.join(d, "temperature_anomaly_annual.csv")
+        df = pd.read_csv(p)
+        df[~df.year.isin(list(drop))].to_csv(p, index=False)
+    return edit
+
+
+def test_a_gap_in_the_paired_years_is_flagged_and_the_stability_block_still_forms(tmp_path):
+    rep, out = stage(tmp_path, edit_inputs=drop_temperature_years(range(1900, 1905)))
+    h = out["headline"]
+    assert h["contiguous"] is False and h["n_years"] == 170 and [o["year"] for o in h["omitted_years"]] == list(range(1900, 1905))
+    assert any("5 calendar-year gap(s)" in d and "Newey-West lags count rows" in d for d in rep.deviations)
+    s = h["stability"]
+    assert s["bootstrap"]["block_years"] == 10 and s["block_length_unavailable"] == [] and s["bootstrap"]["ci95"][0] <= h["fit"]["slope"] <= s["bootstrap"]["ci95"][1]
+
+
+def test_gap_free_data_is_contiguous_with_no_deviation_and_nothing_unavailable(tmp_path):
+    rep, out = stage(tmp_path)
+    assert out["headline"]["contiguous"] is True and out["headline"]["stability"]["block_length_unavailable"] == []
+    assert not any("calendar-year gap" in d for d in rep.deviations)
+
+
+def test_long_block_lengths_that_the_data_cannot_support_are_listed_not_hidden(tmp_path):
+    rep, out = stage(tmp_path, edit_inputs=drop_temperature_years(range(1874, 2025, 25)))  # runs of 24 consecutive years
+    s = out["headline"]["stability"]
+    assert [b["block_years"] for b in s["block_length_sensitivity"]] == [5, 10, 20]
+    assert [u["block_years"] for u in s["block_length_unavailable"]] == [30] and "no run of 30 consecutive calendar years" in s["block_length_unavailable"][0]["reason"]
+    assert "5 to 20 years" in s["summary"]
+
+
+def test_a_missing_primary_block_length_makes_the_variant_unavailable_with_the_reason(tmp_path):
+    rep, out = stage(tmp_path, edit_inputs=drop_temperature_years(range(1857, 2025, 8)))  # runs of 7: the 10-year primary cannot be formed
+    assert out["headline"] is None and "no run of 10 consecutive calendar years" in out["headline_unavailable_reason"]
+    assert out["secondary_fossil_only"] is None and any("regression unavailable" in d for d in rep.deviations)
