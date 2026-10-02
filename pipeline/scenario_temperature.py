@@ -127,6 +127,9 @@ def _check_scenarios(proj: pd.DataFrame, t0: int) -> pd.DataFrame:
     if first != t0 + 1:
         raise Unavailable(f"scenarios are stale relative to OWID: the first scenario year is {first} but the last observed year is {t0} (expected {t0 + 1}); rerun the Week 5 notebook")
     expected_years = set(range(first, int(proj["year"].max()) + 1))
+    scenarios = set(proj["scenario"])
+    if scenarios != {"BAU", "Moderate", "Aggressive"}:
+        raise Unavailable(f"scenario_projections.csv must contain exactly BAU, Moderate and Aggressive; found {sorted(map(str, scenarios))}")
     countries = set(proj["country"])
     for sc, g in proj.groupby("scenario"):
         if set(g["year"]) != expected_years or any(set(h["year"]) != expected_years for _, h in g.groupby("country")) or set(g["country"]) != countries:
