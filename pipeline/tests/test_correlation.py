@@ -221,7 +221,7 @@ def test_a_missing_catalog_overwrites_the_previous_output_with_explicit_nulls_an
     out = json.loads((tmp_path / "correlation_headline.json").read_text())
     assert out["headline"] is None and out["secondary_fossil_only"] is None  # the stale regression is not left in place as current
     assert "harmonized layer unavailable" in out["headline_unavailable_reason"] and "FileNotFoundError" in out["headline_unavailable_reason"]
-    assert len([d for d in rep.deviations if "regression unavailable" in d]) == 2 and all(v == {"available": False} for v in out["inputs"].values())
+    assert len([d for d in rep.deviations if "regression unavailable" in d]) == 3  # two headline variants + all-gas and all(v == {"available": False} for v in out["inputs"].values())
     assert_full_metadata(out)
 
 
@@ -289,7 +289,7 @@ def test_a_malformed_table_overwrites_the_stale_output_with_nulls_and_does_not_r
     rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))  # must not raise a KeyError
     out = json.loads((tmp_path / "correlation_headline.json").read_text())
     assert out["headline"] is None and out["secondary_fossil_only"] is None
-    assert "required column(s) missing: year" in out["headline_unavailable_reason"] and len([d for d in rep.deviations if "regression unavailable" in d]) == 2
+    assert "required column(s) missing: year" in out["headline_unavailable_reason"] and len([d for d in rep.deviations if "regression unavailable" in d]) == 3  # two headline variants + all-gas
     assert_full_metadata(out)
 
 
@@ -305,7 +305,7 @@ def test_a_key_error_inside_a_variant_becomes_a_reason_too(tmp_path, monkeypatch
     monkeypatch.setattr(C, "align_pair", boom)
     rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))
     out = json.loads((tmp_path / "correlation_headline.json").read_text())
-    assert out["headline"] is None and "pairing refused" in out["headline_unavailable_reason"] and len(rep.deviations) == 2
+    assert out["headline"] is None and "pairing refused" in out["headline_unavailable_reason"] and len(rep.deviations) == 3  # the two headline variants and the all-gas view
 
 
 # ---------------------------------------------------------------- degenerate predictor, malformed catalog entries, last-resort handling (Copilot review #3 on #212)
@@ -370,7 +370,7 @@ def test_catalog_json_of_the_wrong_shape_is_handled_not_raised(tmp_path, doc):
     (tmp_path / "indicator_catalog.json").write_text(json.dumps(doc))
     rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))
     out = json.loads((tmp_path / "correlation_headline.json").read_text())
-    assert out["headline"] is None and out["secondary_fossil_only"] is None and len(rep.deviations) == 2
+    assert out["headline"] is None and out["secondary_fossil_only"] is None and len(rep.deviations) == 3  # the two headline variants and the all-gas view
     assert_full_metadata(out)
 
 
@@ -380,7 +380,7 @@ def test_an_unexpected_exception_in_a_variant_still_rewrites_the_output_with_nul
     with caplog.at_level("ERROR"):
         rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))  # must not raise
     out = json.loads((tmp_path / "correlation_headline.json").read_text())
-    assert out["headline"] is None and "unexpected error: RuntimeError: boom" in out["headline_unavailable_reason"] and len(rep.deviations) == 2
+    assert out["headline"] is None and "unexpected error: RuntimeError: boom" in out["headline_unavailable_reason"] and len(rep.deviations) == 3  # the two headline variants and the all-gas view
     assert any("unexpected error computing" in r.message for r in caplog.records)  # the traceback is logged, not swallowed silently
     assert_full_metadata(out)
 
@@ -705,3 +705,142 @@ def test_weight_scan_endpoints_equal_the_two_variants_and_the_middle_matches_an_
 def test_the_fossil_only_variant_has_no_weight_scan_or_note(tmp_path):
     _, out = stage(tmp_path)
     assert "land_use_weight_scan" not in out["secondary_fossil_only"] and "fit_quality_note" not in out["secondary_fossil_only"]
+
+
+# ---------------------------------------------------------------- the recent all-gas relationship (Phase 1.3c-i; decision 35)
+
+
+def read_all_gas(tmp_path):
+    return json.loads((tmp_path / "correlation_all_gas.json").read_text())
+
+
+def drop_primap_total(d):
+    p = os.path.join(d, "primap_global_composition_annual.csv")
+    pd.read_csv(p).drop(columns=["total_ghg_mtco2e"]).to_csv(p, index=False)
+
+
+def test_all_gas_is_a_separate_output_and_the_two_files_do_not_mix(tmp_path):
+    _, head = stage(tmp_path)
+    ag = read_all_gas(tmp_path)
+    assert "recent_all_gas" not in head and "recent_all_gas" in ag and "headline" not in ag and "secondary_fossil_only" not in ag
+    assert ag["name"] == "Recent all-gas relationship" and ag["definition"] == "cumulative PRIMAP-hist total greenhouse gases (CO2-equivalent) from 1970"
+
+
+def test_all_gas_slope_equals_an_independent_fit_of_the_synthetic_series_and_ignores_the_cumulative_start(tmp_path):
+    stage(tmp_path)
+    g = read_all_gas(tmp_path)["recent_all_gas"]
+    yrs = np.arange(1970, 2025)
+    temp = np.linspace(-0.13, 1.6, 175)[yrs - 1850]
+    from_1970 = np.cumsum([100.0 * (y - 1749) for y in yrs])  # cumulative from 1970, as decision 35 describes
+    from_1750 = np.cumsum([100.0 * (y - 1749) for y in range(1750, 2025)])[yrs - 1750]  # the harmonized indicator's own start
+    s1970, s1750 = np.polyfit(from_1970 / 1e6, temp, 1)[0], np.polyfit(from_1750 / 1e6, temp, 1)[0]
+    assert s1970 == pytest.approx(s1750, rel=1e-9)  # the slope does not depend on where the cumulative starts
+    assert g["fit"]["slope"] == pytest.approx(s1970, rel=1e-6) and g["range"] == [1970, 2024] and g["n_years"] == 55 and g["fit"]["maxlags"] == 5
+    assert g["unit"] == "°C per 1,000 GtCO2e" and g["x_indicator"] == "primap_ghg_total_cumulative_mtco2e"
+
+
+def test_all_gas_is_never_called_tcre_and_has_no_ipcc_comparison(tmp_path):
+    stage(tmp_path)
+    ag = read_all_gas(tmp_path)
+    assert "tcre" not in json.dumps(ag).lower()  # not in any field name, title, caveat or note (decision 35)
+    g = ag["recent_all_gas"]
+    assert "vs_ar6" not in g and "slope_per_1000_gtc" not in g["fit"] and "ar6_reference" not in ag and "land_use_sensitivity" not in g and "fit_quality_note" not in g
+
+
+def test_all_gas_explains_why_it_is_a_different_thing(tmp_path):
+    stage(tmp_path)
+    ag = read_all_gas(tmp_path)
+    c = " ".join(ag["caveats"])
+    for phrase in ("CO2, CH4, N2O and F-gases", "AR5 100-year global-warming potentials", "excludes international aviation and shipping and land-use change",
+                   "strongly correlated with time", "not comparable with the long-run CO2 relationship", "short-lived gases such as methane do not accumulate",
+                   "not a complete climate model"):
+        assert phrase in c, phrase
+    assert "No trailing years were excluded as incomplete." in c and ag["temperature_source_vintage"]["caveat"] in ag["caveats"]
+
+
+def test_all_gas_states_the_years_excluded_as_incomplete_from_provenance(tmp_path):
+    prov_path = write_inputs(tmp_path)
+    prov = json.loads(open(prov_path).read())
+    prov["primap_global_composition_annual"].update({"excluded_incomplete_years": [{"year": 2025, "reasons": "ch4 coverage 2.0% < 98%"}], "citations": ["Gütschow & Pflüger (2026)"]})
+    open(prov_path, "w").write(json.dumps(prov))
+    harmonize.run(str(tmp_path), prov_path)
+    C.run(str(tmp_path), notices_path=str(tmp_path / "n.json"))
+    ag = read_all_gas(tmp_path)
+    assert "Years excluded because PRIMAP-hist's reporting for them is incomplete: 2025." in " ".join(ag["caveats"])
+    assert ag["attribution"]["license"] == "CC BY-NC-SA 4.0" and ag["attribution"]["citations"] == ["Gütschow & Pflüger (2026)"] and ag["attribution"]["source"] == "PRIMAP"
+    assert "PRIMAP-hist licence: CC BY-NC-SA 4.0" in " ".join(ag["caveats"])  # the non-commercial / share-alike notice travels with the numbers
+
+
+def test_all_gas_window_holdouts_and_stability_follow_its_short_coverage(tmp_path):
+    stage(tmp_path)
+    g = read_all_gas(tmp_path)["recent_all_gas"]
+    assert [w["start"] for w in g["windows"]] == [1970] and g["windows"][0]["slope"] == pytest.approx(g["fit"]["slope"])  # the grid clipped to 1970+
+    ho = {h["split_year"]: h for h in g["stability"]["holdouts"]}
+    assert "unavailable" in ho[1980] and ho[1980]["n_train"] == 10  # only 10 training years before 1980
+    assert all("rmse_c" in ho[s] for s in (1990, 2000, 2010)) and ho[1990]["n_train"] == 20
+    assert g["stability"]["seed"] == 20261002 and [b["block_years"] for b in g["stability"]["block_length_sensitivity"]] == [5, 10, 20, 30]
+    lo, hi = g["stability"]["bootstrap"]["ci95"]
+    assert lo <= g["fit"]["slope"] <= hi
+
+
+def test_all_gas_unavailable_leaves_the_headline_untouched_and_is_explicit(tmp_path):
+    rep, head = stage(tmp_path, edit_inputs=drop_primap_total)
+    ag = read_all_gas(tmp_path)
+    assert head["headline"] is not None and head["secondary_fossil_only"] is not None  # independent outputs
+    assert ag["recent_all_gas"] is None and "primap_ghg_total_cumulative_mtco2e" in ag["recent_all_gas_unavailable_reason"]
+    assert any("recent_all_gas regression unavailable" in d for d in rep.deviations) and rep.records["correlation_all_gas"] == 0
+    assert ag["inputs"]["primap_ghg_total_cumulative_mtco2e"] == {"available": False} and ag["caveats"] and ag["temperature_source_vintage"]["caveat"] in ag["caveats"]
+
+
+def test_all_gas_missing_catalog_overwrites_the_stale_file_with_nulls_and_full_metadata(tmp_path):
+    stage(tmp_path)
+    assert read_all_gas(tmp_path)["recent_all_gas"] is not None
+    os.remove(tmp_path / "indicator_catalog.json")
+    rep = C.run(str(tmp_path), notices_path=str(tmp_path / "n.json"))
+    ag = read_all_gas(tmp_path)
+    assert ag["recent_all_gas"] is None and "harmonized layer unavailable" in ag["recent_all_gas_unavailable_reason"] and "FileNotFoundError" in ag["recent_all_gas_unavailable_reason"]
+    assert ag["name"] == "Recent all-gas relationship" and any("strongly correlated with time" in c for c in ag["caveats"]) and len(rep.deviations) == 3  # 2 headline variants + all-gas
+
+
+def test_all_gas_short_overlap_is_a_reason_not_a_crash(tmp_path):
+    def keep_ten_years(d):
+        p = os.path.join(d, "temperature_anomaly_annual.csv")
+        df = pd.read_csv(p)
+        df[df.year >= 2015].to_csv(p, index=False)
+
+    rep, _ = stage(tmp_path, edit_inputs=keep_ten_years)
+    ag = read_all_gas(tmp_path)
+    assert ag["recent_all_gas"] is None and "pairing refused" in ag["recent_all_gas_unavailable_reason"] and "at least 20 are required" in ag["recent_all_gas_unavailable_reason"]
+
+
+def test_all_gas_non_positive_slope_is_flagged(tmp_path):
+    def reverse_temperature(d):
+        p = os.path.join(d, "temperature_anomaly_annual.csv")
+        df = pd.read_csv(p)
+        df.assign(anomaly_1850_1900_c=df["anomaly_1850_1900_c"].to_numpy()[::-1]).to_csv(p, index=False)
+
+    rep, _ = stage(tmp_path, edit_inputs=reverse_temperature)
+    assert any(d.startswith("recent_all_gas: slope") and "is not positive" in d for d in rep.deviations)
+
+
+def test_all_gas_output_is_identical_run_to_run_and_the_stage_reports_it(tmp_path):
+    rep, _ = stage(tmp_path)
+    a = read_all_gas(tmp_path)
+    C.run(str(tmp_path), notices_path=str(tmp_path / "none.json"))
+    b = read_all_gas(tmp_path)
+    for d in (a, b):
+        d.pop("generated_at")
+    assert a == b and rep.records["correlation_all_gas"] == 1 and any(n.startswith("recent all-gas relationship") for n in rep.notes)
+
+
+@pytest.mark.parametrize("metadata_file,contents", [("provenance.json", "{not json"), ("notices.json", "{not json")])
+def test_all_gas_malformed_metadata_rewrites_the_stale_output_with_nulls_like_the_headline(tmp_path, metadata_file, contents):
+    stage(tmp_path, notices={"berkeley_earth": {}})
+    assert read_all_gas(tmp_path)["recent_all_gas"] is not None
+    (tmp_path / metadata_file).write_text(contents)
+    rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))  # must not raise
+    ag = read_all_gas(tmp_path)
+    assert ag["recent_all_gas"] is None and "correlation metadata unavailable" in ag["recent_all_gas_unavailable_reason"]
+    assert any("correlation metadata unavailable" in d for d in rep.deviations)
+    assert ag["temperature_source_vintage"]["caveat"] in ag["caveats"] and any("strongly correlated with time" in c for c in ag["caveats"])
+    assert {"schema_version", "generated_at", "note", "name", "method", "definition", "temperature_source_vintage", "attribution", "caveats", "inputs"} <= set(ag)

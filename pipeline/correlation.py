@@ -38,6 +38,10 @@ from .pairing import CAUSATION_NOTE, Harmonized, align_pair, load_harmonized
 
 SCHEMA_VERSION = 1
 OUTPUT_NAME = "correlation_headline.json"
+ALL_GAS_OUTPUT = "correlation_all_gas.json"
+ALL_GAS_X = "primap_ghg_total_cumulative_mtco2e"
+ALL_GAS_START = 1970  # decision 35: the recent all-gas relationship starts in 1970 (PRIMAP-hist multi-gas data; the headline starts in 1850)
+ALL_GAS_UNIT = "°C per 1,000 GtCO2e"
 
 TEMPERATURE = "temperature_anomaly_1850_1900_c"
 X_TOTAL = "owid_total_co2_world_cumulative_mt"
@@ -265,15 +269,17 @@ def _hac_row(x: np.ndarray, y: np.ndarray, maxlags: int) -> dict:
     return {"maxlags": maxlags, "se_hac": f["se_hac"], "ci95_hac": f["ci95_hac"]}
 
 
-def _variant_block(h: Harmonized, x_id: str, label: str, scale_luc: bool = False) -> dict | None:
-    frame, pair = align_pair(h, x_id, TEMPERATURE)
+def _variant_block(h: Harmonized, x_id: str, label: str, scale_luc: bool = False, *, start: int | None = None, window_grid: tuple = START_GRID,
+                   ar6: bool = True, unit: str | None = None) -> dict | None:
+    """One regression block. `ar6=False` is for the all-gas view, which is not the CO2-only quantity the AR6 range describes: no AR6 verdict and no per-GtC figure."""
+    frame, pair = align_pair(h, x_id, TEMPERATURE, start=start)
     x, y = frame[x_id].to_numpy(), frame[TEMPERATURE].to_numpy()
     n = len(frame)
     full = fit_line(x, y, hac_lags(n))
     lo, hi = AR6_TCRE["very_likely_range"]
     slope = full["slope"]
     block = {
-        "label": label, "x_indicator": x_id, "y_indicator": TEMPERATURE, "unit": AR6_TCRE["unit"],
+        "label": label, "x_indicator": x_id, "y_indicator": TEMPERATURE, "unit": unit or AR6_TCRE["unit"],
         "range": pair["range_used"], "n_years": n, "omitted_years": pair["omitted_years"], "contiguous": not pair["omitted_years"],
         "fit": {**full, "slope_per_1000_gtc": slope * GTCO2_PER_GTC,
                 "rule": "maxlags = floor(1.5 * n^(1/3)); Bartlett kernel; 95% CI from the HAC standard error (normal)"},
@@ -282,7 +288,7 @@ def _variant_block(h: Harmonized, x_id: str, label: str, scale_luc: bool = False
                    "ratio_to_best_estimate": slope / AR6_TCRE["best_estimate"]},
         "windows": [],
     }
-    for s in START_GRID:
+    for s in window_grid:
         sub = frame[frame["year"] >= s]
         if len(sub) < MIN_WINDOW_YEARS:
             block["windows"].append({"start": s, "end": int(frame["year"].max()), "n_years": int(len(sub)), "unavailable": f"fewer than {MIN_WINDOW_YEARS} years"})
@@ -290,6 +296,9 @@ def _variant_block(h: Harmonized, x_id: str, label: str, scale_luc: bool = False
         f = fit_line(sub[x_id].to_numpy(), sub[TEMPERATURE].to_numpy(), hac_lags(len(sub)))
         block["windows"].append({"start": s, "end": int(sub["year"].max()), "n_years": int(len(sub)), "slope": f["slope"], "ci95_hac": f["ci95_hac"],
                                  "r_squared": f["r_squared"], "maxlags": f["maxlags"]})
+    if not ar6:
+        block["fit"].pop("slope_per_1000_gtc")
+        block.pop("vs_ar6")
     block["stability"] = _stability(frame, x_id, full, block["windows"])
     if scale_luc:
         yrs = frame["year"].to_numpy()
@@ -397,8 +406,8 @@ def build(h: Harmonized | None, climate_dir: str, notices_path: str, report: Run
     return out
 
 
-def validate(out: dict, report: RunReport) -> None:
-    for key in VARIANTS:
+def validate(out: dict, report: RunReport, keys=tuple(VARIANTS)) -> None:
+    for key in keys:
         b = out.get(key)
         if not b:
             continue
@@ -421,6 +430,77 @@ def validate(out: dict, report: RunReport) -> None:
             report.deviate(f"{key}: R^2 {f['r_squared']} outside [0, 1]")
 
 
+ALL_GAS_SCOPE = (
+    "This view uses PRIMAP-hist national total greenhouse-gas emissions in CO2-equivalent terms (CO2, CH4, N2O and F-gases, AR5 100-year global-warming "
+    "potentials), summed from 1970. It excludes international aviation and shipping and land-use change, covers a short window, and a steadily rising "
+    "cumulative series is strongly correlated with time, so the estimate describes a recent co-movement; it is not comparable with the long-run CO2 "
+    "relationship elsewhere on this platform."
+)
+ALL_GAS_WEIGHTING = (
+    "CO2-equivalent weights use the AR5 100-year global-warming potentials; short-lived gases such as methane do not accumulate in the atmosphere the way CO2 "
+    "does, so a cumulative CO2-equivalent total is a simplification."
+)
+ALL_GAS_NAME = "Recent all-gas relationship"
+
+
+def build_all_gas(h: Harmonized | None, climate_dir: str, notices_path: str, report: RunReport, load_error: str | None = None) -> dict:
+    """The recent all-gas relationship (decision 35): the same anomaly regressed on cumulative PRIMAP-hist total GHG from 1970. A separate output
+    with its own name, never described as the CO2-only long-run relationship, and without an IPCC comparison: the AR6 range describes CO2 only."""
+    metadata_errors = []
+    try:
+        prim = _provenance(climate_dir, "primap_global_composition_annual")
+        excluded = sorted({int(e["year"]) for e in prim.get("excluded_incomplete_years", []) if isinstance(e, dict) and "year" in e})
+    except Exception as exc:  # noqa: BLE001 -- malformed provenance must not stop the explicit-null output from being written (same contract as the headline)
+        logging.exception("correlate: unable to load PRIMAP-hist attribution metadata")
+        metadata_errors.append(f"attribution metadata: {type(exc).__name__}: {exc}")
+        prim, excluded = {}, []
+    try:
+        vintage = _vintage(climate_dir, notices_path)
+    except Exception as exc:  # noqa: BLE001
+        logging.exception("correlate: unable to load temperature vintage metadata")
+        metadata_errors.append(f"temperature vintage metadata: {type(exc).__name__}: {exc}")
+        vintage = {"file_last_modified": None, "reconciled": False, "caveat": f"Berkeley Earth vintage metadata could not be read: {type(exc).__name__}: {exc}"}
+    for error in metadata_errors:
+        report.deviate(f"correlation metadata unavailable: {error}")
+    completeness = (f"Years excluded because PRIMAP-hist's reporting for them is incomplete: {', '.join(map(str, excluded))}." if excluded
+                    else "No trailing years were excluded as incomplete.")
+    attribution = {k: prim[k] for k in ("source", "license", "citations", "source_release") if k in prim}
+    caveats = [PLAIN_LANGUAGE, ALL_GAS_SCOPE, ALL_GAS_WEIGHTING, completeness]
+    if prim.get("license"):
+        caveats.append(f"PRIMAP-hist licence: {prim['license']}")
+    if vintage["caveat"]:
+        caveats.append(vintage["caveat"])
+    e = h.catalog.get(ALL_GAS_X) if h is not None else None
+    t = h.catalog.get(TEMPERATURE) if h is not None else None
+    inputs = {i: ({"available": True, "name": c.get("name"), "unit": c.get("unit"), "coverage": c.get("coverage"), "provenance": c.get("provenance")} if c else {"available": False})
+              for i, c in ((ALL_GAS_X, e), (TEMPERATURE, t))}
+    out = {"schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "note": CAUSATION_NOTE, "name": ALL_GAS_NAME,
+           "method": "OLS with intercept; Newey-West (HAC) standard errors", "definition": f"cumulative PRIMAP-hist total greenhouse gases (CO2-equivalent) from {ALL_GAS_START}",
+           "temperature_source_vintage": vintage, "attribution": attribution, "caveats": caveats, "inputs": inputs}
+    reason = None
+    if metadata_errors:
+        reason = f"correlation metadata unavailable: {'; '.join(metadata_errors)}"
+    elif h is None:
+        reason = f"harmonized layer unavailable: {load_error}"
+    elif (missing := [i for i in (TEMPERATURE, ALL_GAS_X) if i not in h.catalog]):
+        reason = f"missing indicators: {', '.join(missing)}"
+    else:
+        try:
+            out["recent_all_gas"] = _variant_block(h, ALL_GAS_X, f"{ALL_GAS_NAME}: all gases, national totals, {ALL_GAS_START} onward", start=ALL_GAS_START,
+                                                   window_grid=tuple(s for s in START_GRID if s >= ALL_GAS_START), ar6=False, unit=ALL_GAS_UNIT)
+        except (ValueError, KeyError) as exc:
+            reason = f"pairing refused: {exc}"
+        except Exception as exc:  # noqa: BLE001 -- last resort: explicit nulls, never a stale file
+            logging.exception("correlate: unexpected error computing the all-gas relationship")
+            reason = f"unexpected error: {type(exc).__name__}: {exc}"
+    if reason:
+        out["recent_all_gas"] = None
+        out["recent_all_gas_unavailable_reason"] = reason
+        report.deviate(f"recent_all_gas regression unavailable: {reason}")
+    validate(out, report, keys=("recent_all_gas",))
+    return out
+
+
 def run(climate_dir: str = CLIMATE_DIR, out_dir: str | None = None, notices_path: str = NOTICES_PATH) -> RunReport:
     """Always replaces the output (atomically): when the inputs are unavailable the previous file is overwritten with explicit nulls and a
     reason, so a stale regression is never served as current. The failure is a deviation (an alert), not a crash."""
@@ -435,6 +515,12 @@ def run(climate_dir: str = CLIMATE_DIR, out_dir: str | None = None, notices_path
         load_error = f"{type(e).__name__}: {e}"
     out = build(h, climate_dir, notices_path, report, load_error)
     write_json_atomic(out, os.path.join(out_dir, OUTPUT_NAME))
+    all_gas = build_all_gas(h, climate_dir, notices_path, report, load_error)
+    write_json_atomic(all_gas, os.path.join(out_dir, ALL_GAS_OUTPUT))
+    report.count("correlation_all_gas", 1 if all_gas.get("recent_all_gas") else 0)
+    if all_gas.get("recent_all_gas"):
+        g = all_gas["recent_all_gas"]["fit"]
+        report.note(f"recent all-gas relationship {g['slope']:.3f} °C per 1,000 GtCO2e, HAC 95% CI [{g['ci95_hac'][0]:.3f}, {g['ci95_hac'][1]:.3f}], R^2 {g['r_squared']:.3f}, n={g['n']}")
     report.count("correlation_headline", sum(1 for k in VARIANTS if out.get(k)))
     if out.get("headline"):
         f = out["headline"]["fit"]
