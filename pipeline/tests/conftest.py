@@ -69,3 +69,13 @@ def _no_real_network(monkeypatch):
         raise RuntimeError("real network access attempted inside a unit test -- stub the source or pass a fake fetcher")
 
     monkeypatch.setattr(urllib.request, "urlopen", blocked)
+
+
+@pytest.fixture(autouse=True)
+def _neutral_reshape_canary(monkeypatch):
+    """`pipeline.run.main` runs an environment canary that, on a stack with the numpy-2.2.6/Python-3.14 reshape bug,
+    adds an 'environment' deviation. Tests of `main` must not depend on which stack they run on, so it is neutral here;
+    the canary has its own tests that call `common.check_reshape_environment` directly."""
+    import pipeline.run as run_module
+
+    monkeypatch.setattr(run_module, "check_reshape_environment", lambda: None)
