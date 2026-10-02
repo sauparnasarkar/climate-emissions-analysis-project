@@ -155,6 +155,8 @@ def build(climate_dir: str, owid_path: str, selected_path: str, report: RunRepor
         last = int(w["year"].max())
         out["inputs"]["owid_world_co2_annual.csv"] = {"available": True, "last_complete_year": last}
         countries = sorted(json.load(open(selected_path))["expanded"])
+        if len(countries) != len(set(countries)):
+            raise Unavailable("selected_countries.json lists duplicate countries")
         out["inputs"]["selected_countries.json"] = {"available": True, "n_countries": len(countries)}
         if not countries:
             raise Unavailable("selected_countries.json lists no countries")
