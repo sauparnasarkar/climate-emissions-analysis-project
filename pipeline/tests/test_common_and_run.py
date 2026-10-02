@@ -140,3 +140,52 @@ def test_main_writes_notification_files_atomically(tmp_path, monkeypatch):
     assert "deviations flagged" in (tmp_path / "last_run.title").read_text()
     assert "DEVIATION noaa_gml: something off" in (tmp_path / "last_run.message").read_text()
     assert not list(tmp_path.glob("*.tmp"))
+
+
+# ---------------------------------------------------------------- derived-stage dependencies (Copilot review on #212)
+
+
+def _stub_all(monkeypatch, tmp_path, fail=()):
+    monkeypatch.setattr(run, "CLIMATE_DIR", str(tmp_path))
+    called = []
+
+    def make(n):
+        def stage():
+            called.append(n)
+            if n in fail:
+                raise RuntimeError(f"{n} exploded")
+            return common.RunReport(n)
+        return stage
+
+    for name in run.SOURCES:
+        monkeypatch.setitem(run.SOURCES, name, make(name))
+    return called
+
+
+def test_correlate_is_skipped_when_harmonize_failed_in_the_same_run(tmp_path, monkeypatch):
+    called = _stub_all(monkeypatch, tmp_path, fail={"harmonize"})
+    assert run.main(["--source", "all"]) == 1
+    s = json.loads((tmp_path / "last_run.json").read_text())
+    assert "correlate" not in called and "harmonize" in called  # never ran against the previous run's stale layer
+    assert "harmonize exploded" in s["failures"]["harmonize"]
+    assert s["failures"]["correlate"].startswith("skipped: upstream stage(s) failed in this run: harmonize") and "correlate" not in s["sources"]
+
+
+def test_a_failed_source_does_not_block_harmonize_or_correlate(tmp_path, monkeypatch):
+    called = _stub_all(monkeypatch, tmp_path, fail={"noaa_gml"})
+    assert run.main(["--source", "all"]) == 1  # the failure is reported ...
+    assert "harmonize" in called and "correlate" in called  # ... but partial source updates are normal and each source's age is in its provenance
+    assert set(json.loads((tmp_path / "last_run.json").read_text())["failures"]) == {"noaa_gml"}
+
+
+def test_correlate_named_alone_is_not_gated(tmp_path, monkeypatch):
+    called = _stub_all(monkeypatch, tmp_path, fail={"harmonize"})
+    assert run.main(["--source", "correlate"]) == 0 and called == ["correlate"]  # the dependency is about this run's own harmonize, not the disk
+
+
+def test_a_skipped_stage_still_produces_a_notification(tmp_path, monkeypatch):
+    _stub_all(monkeypatch, tmp_path, fail={"harmonize"})
+    run.main(["--source", "all"])
+    assert (tmp_path / "last_run.priority").read_text().strip() == "urgent" and "FAILED" in (tmp_path / "last_run.title").read_text()
+    msg = (tmp_path / "last_run.message").read_text()
+    assert "FAILED harmonize: RuntimeError: harmonize exploded" in msg and "FAILED correlate: skipped: upstream stage(s) failed in this run: harmonize" in msg

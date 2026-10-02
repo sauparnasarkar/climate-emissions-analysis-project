@@ -261,3 +261,48 @@ def test_the_stage_is_registered_after_harmonize_in_the_run_order():
 
     order = list(run.DERIVED_SOURCES)
     assert order.index("correlate") > order.index("harmonize") and "correlate" not in run.ACTIVE_SOURCES
+
+
+# ---------------------------------------------------------------- malformed harmonized tables (Copilot review on #212)
+
+
+def test_a_harmonized_table_missing_a_required_column_is_a_clear_load_error(tmp_path):
+    from pipeline.pairing import load_harmonized
+
+    stage(tmp_path)
+    p = tmp_path / "harmonized_global_annual.csv"
+    pd.read_csv(p).drop(columns=["value"]).to_csv(p, index=False)
+    with pytest.raises(ValueError, match=r"harmonized_global_annual.csv: required column\(s\) missing: value"):
+        load_harmonized(str(tmp_path))
+    q = tmp_path / "harmonized_country_annual.csv"
+    pd.read_csv(q).drop(columns=["iso3"]).to_csv(q, index=False)
+    p.write_text(pd.read_csv(tmp_path / "harmonized_global_annual.csv").assign(value=1.0).to_csv(index=False))
+    with pytest.raises(ValueError, match=r"harmonized_country_annual.csv: required column\(s\) missing: iso3"):
+        load_harmonized(str(tmp_path))
+
+
+def test_a_malformed_table_overwrites_the_stale_output_with_nulls_and_does_not_raise(tmp_path):
+    _, good = stage(tmp_path)
+    assert good["headline"] is not None
+    p = tmp_path / "harmonized_global_annual.csv"
+    pd.read_csv(p).drop(columns=["year"]).to_csv(p, index=False)
+    rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))  # must not raise a KeyError
+    out = json.loads((tmp_path / "correlation_headline.json").read_text())
+    assert out["headline"] is None and out["secondary_fossil_only"] is None
+    assert "required column(s) missing: year" in out["headline_unavailable_reason"] and len([d for d in rep.deviations if "regression unavailable" in d]) == 2
+    assert_full_metadata(out)
+
+
+def test_a_key_error_inside_a_variant_becomes_a_reason_too(tmp_path, monkeypatch):
+    """Belt and braces: a column problem that slips past the load check is still a per-variant reason, not an escaped exception."""
+    from pipeline import pairing
+
+    _, _ = stage(tmp_path)
+
+    def boom(*a, **k):
+        raise KeyError("value")
+
+    monkeypatch.setattr(C, "align_pair", boom)
+    rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))
+    out = json.loads((tmp_path / "correlation_headline.json").read_text())
+    assert out["headline"] is None and "pairing refused" in out["headline_unavailable_reason"] and len(rep.deviations) == 2

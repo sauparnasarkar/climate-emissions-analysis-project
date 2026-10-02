@@ -37,6 +37,8 @@ CAUSATION_NOTE = (
 DEFAULT_MIN_OVERLAP = 20
 SUPPORTED_SCHEMA = 1
 NOT_PAIRABLE_KINDS = ("uncertainty",)
+GLOBAL_COLUMNS = ("indicator_id", "year", "value")
+COUNTRY_COLUMNS = ("indicator_id", "iso3", "year", "value")
 
 
 @dataclass
@@ -76,10 +78,16 @@ def load_harmonized(climate_dir: str = CLIMATE_DIR) -> Harmonized:
     doc = json.load(open(path))
     if doc.get("schema_version") != SUPPORTED_SCHEMA:
         raise ValueError(f"indicator_catalog.json has schema_version {doc.get('schema_version')!r}; this code reads {SUPPORTED_SCHEMA}")
+    glob = pd.read_csv(os.path.join(climate_dir, "harmonized_global_annual.csv"))
+    ctry = pd.read_csv(os.path.join(climate_dir, "harmonized_country_annual.csv"))
+    for name, df, required in (("harmonized_global_annual.csv", glob, GLOBAL_COLUMNS), ("harmonized_country_annual.csv", ctry, COUNTRY_COLUMNS)):
+        missing = [c for c in required if c not in df.columns]
+        if missing:  # a malformed table is a clear load error here, not a KeyError deep inside a regression
+            raise ValueError(f"{name}: required column(s) missing: {', '.join(missing)}")
     return Harmonized(
         catalog={e["id"]: e for e in doc["indicators"]},
-        global_long=pd.read_csv(os.path.join(climate_dir, "harmonized_global_annual.csv")),
-        country_long=pd.read_csv(os.path.join(climate_dir, "harmonized_country_annual.csv")),
+        global_long=glob,
+        country_long=ctry,
         meta={k: doc[k] for k in ("baselines", "trailing_window_years", "generated_at") if k in doc},
     )
 

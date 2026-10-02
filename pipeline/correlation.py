@@ -187,7 +187,7 @@ def build(h: Harmonized | None, climate_dir: str, notices_path: str, report: Run
         else:
             try:
                 out[key] = _variant_block(h, spec["x"], spec["label"], scale_luc=spec["scale_luc"])
-            except ValueError as e:  # too few shared years, an unusable pairing, ...
+            except (ValueError, KeyError) as e:  # too few shared years, an unusable pairing, a table missing a column that slipped past the load check
                 reason = f"pairing refused: {e}"
         if reason:
             out[key] = None
