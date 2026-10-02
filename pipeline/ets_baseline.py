@@ -124,8 +124,11 @@ def _metadata(climate_dir: str) -> tuple[list[str], dict]:
     caveats = ["This is a statistical extrapolation of each country's own history, not a model of policy or technology; it is the BAU pathway's starting point, and the scenarios are derived from it.",
                *SCOPE_LIMITS]
     pp = os.path.join(climate_dir, "provenance.json")
-    prov = (json.load(open(pp)).get("owid_world_co2_annual") or {}) if os.path.exists(pp) else {}
-    return caveats, {k: prov[k] for k in ("source", "license", "citations") if k in prov}
+    with open(pp) as f:
+        prov = json.load(f).get("owid_world_co2_annual")
+    if not isinstance(prov, dict) or any(not prov.get(k) for k in ("source", "license", "citations")):
+        raise Unavailable("OWID provenance is missing source, license or citations")
+    return caveats, {k: prov[k] for k in ("source", "license", "citations")}
 
 
 def _skeleton(caveats: list[str], attribution: dict) -> dict:
