@@ -408,3 +408,131 @@ def test_malformed_metadata_rewrites_stale_output_with_nulls_and_a_deviation(
     assert out["temperature_source_vintage"]["caveat"] in out["caveats"]
     assert bool(out["attribution"]) is attribution_available
     assert METADATA_KEYS <= set(out)
+
+
+# ---------------------------------------------------------------- stability: seeded residual block bootstrap and decade holdouts (Phase 1.3b)
+
+
+def test_bootstrap_of_noise_free_data_has_no_spread():
+    x_mt = np.linspace(1e4, 2.5e6, 100)
+    s = C.bootstrap_slopes(x_mt, 0.2 + 0.5 * x_mt / 1e6, 10, 300, np.random.default_rng(1))
+    assert np.allclose(s, 0.5, atol=1e-12) and len(s) == 300  # zero residuals: every resample has the fitted slope
+
+
+@pytest.mark.parametrize("block", [1, 5, 10, 30])
+def test_vectorized_bootstrap_equals_a_slow_reference_built_from_the_same_draws(block):
+    x_mt, y = ar1_data(n=80, seed=3)
+    B = 50
+    fast = C.bootstrap_slopes(x_mt, y, block, B, np.random.default_rng(99))
+    x = x_mt / 1e6
+    slope, intercept = np.polyfit(x, y, 1)
+    fitted, resid = intercept + slope * x, y - (intercept + slope * x)
+    n, nb = len(x), -(-len(x) // block)
+    starts = np.random.default_rng(99).integers(0, n - block + 1, size=(B, nb))  # the same draws, then built the slow way
+    slow = []
+    for row in starts:
+        e = np.concatenate([resid[s:s + block] for s in row])[:n]
+        slow.append(np.polyfit(x, fitted + e, 1)[0])
+    assert np.allclose(fast, slow, rtol=1e-9, atol=1e-12)
+
+
+def test_bootstrap_block_length_must_fit_the_series():
+    x_mt, y = ar1_data(n=40)
+    for bad in (0, 41, -3):
+        with pytest.raises(ValueError, match="block length"):
+            C.bootstrap_slopes(x_mt, y, bad, 10, np.random.default_rng(0))
+
+
+def test_bootstrap_is_reproducible_and_the_seed_matters():
+    x_mt, y = ar1_data()
+    a, b = C._bootstrap_block(x_mt, y, 10), C._bootstrap_block(x_mt, y, 10)
+    assert a == b  # fixed seed: identical to the last digit, every run
+    assert C._bootstrap_block(x_mt, y, 10, seed=1) != a and C._bootstrap_block(x_mt, y, 10, seed=1) == C._bootstrap_block(x_mt, y, 10, seed=1)
+    assert C._bootstrap_block(x_mt, y, 5) != a  # a different block length is a different (and itself reproducible) result
+    assert C._bootstrap_block(x_mt, y, 5) == C._bootstrap_block(x_mt, y, 5) and C._bootstrap_block(x_mt, y, 10) == a  # computing one length never disturbs another
+
+
+def test_bootstrap_interval_covers_a_known_slope_at_close_to_the_nominal_rate():
+    """60 simulated datasets with AR(1) residuals and a true slope of 0.5; deterministic (fixed seeds). Measured 0.92 against the nominal 0.95."""
+    hit = 0
+    for r in range(60):
+        x_mt, y = ar1_data(rho=0.55, seed=1000 + r)
+        lo, hi = C._bootstrap_block(x_mt, y, 10, seed=r, resamples=1000)["ci95"]
+        hit += lo <= 0.5 <= hi
+    assert hit / 60 >= 0.85
+
+
+def test_bootstrap_is_wider_than_plain_ols_when_residuals_are_autocorrelated():
+    x_mt, y = ar1_data(rho=0.7)
+    f = C.fit_line(x_mt, y, 8)
+    lo, hi = C._bootstrap_block(x_mt, y, 10)["ci95"]
+    assert (hi - lo) > 2 * 1.96 * f["se_ols"] and lo < f["slope"] < hi
+
+
+def holdout_frame():
+    years = np.arange(1850, 2025)
+    x = np.cumsum(np.linspace(1e3, 4e4, len(years)))
+    rng = np.random.default_rng(5)
+    y = 0.1 + 0.6 * x / 1e6 + rng.normal(0, 0.1, len(years))
+    return pd.DataFrame({"year": years, "x": x, C.TEMPERATURE: y})
+
+
+def test_holdout_matches_an_independent_calculation():
+    f = holdout_frame()
+    h = C.holdout(f, "x", 2000)
+    tr, te = f[f.year < 2000], f[f.year >= 2000]
+    slope, intercept = np.polyfit(tr.x / 1e6, tr[C.TEMPERATURE], 1)
+    err = te[C.TEMPERATURE].to_numpy() - (intercept + slope * te.x.to_numpy() / 1e6)
+    assert h["train_slope"] == pytest.approx(slope, rel=1e-10) and h["rmse_c"] == pytest.approx(np.sqrt(np.mean(err**2)), rel=1e-10)
+    assert h["mae_c"] == pytest.approx(np.mean(abs(err)), rel=1e-10) and h["mean_error_c"] == pytest.approx(np.mean(err), rel=1e-10)
+    assert h["baseline_rmse_train_mean_c"] == pytest.approx(np.sqrt(np.mean((te[C.TEMPERATURE] - tr[C.TEMPERATURE].mean()) ** 2)), rel=1e-10)
+    assert (h["n_train"], h["n_test"], h["train_range"], h["test_range"]) == (150, 25, [1850, 1999], [2000, 2024])
+
+
+def test_a_holdout_that_is_too_small_is_marked_unavailable_with_the_reason():
+    f = holdout_frame()
+    assert "unavailable" in C.holdout(f, "x", 1860) and "at least 20 training" in C.holdout(f, "x", 1860)["unavailable"]  # 10 training years
+    h = C.holdout(f, "x", 2022)
+    assert "unavailable" in h and h["n_test"] == 3 and "rmse_c" not in h
+    assert "rmse_c" in C.holdout(f, "x", 1870)  # exactly 20 training years is enough
+
+
+def test_stability_block_structure_seed_and_decade_splits(tmp_path):
+    _, out = stage(tmp_path)
+    for key in ("headline", "secondary_fossil_only"):
+        s = out[key]["stability"]
+        assert s["seed"] == 20261002 and s["resamples"] == 2000 and s["primary_block_years"] == 10
+        assert [b["block_years"] for b in s["block_length_sensitivity"]] == [5, 10, 20, 30] and s["bootstrap"] == s["block_length_sensitivity"][1]
+        assert [h["split_year"] for h in s["holdouts"]] == [1980, 1990, 2000, 2010] and all("rmse_c" in h for h in s["holdouts"])
+        assert s["hac_ci95"] == out[key]["fit"]["ci95_hac"] and s["bootstrap_vs_hac_width_ratio"] > 0
+        lo, hi = s["bootstrap"]["ci95"]
+        assert lo <= out[key]["fit"]["slope"] <= hi  # the bootstrap is centred on the fitted slope
+    assert "distinct from the HAC" in out["headline"]["stability"]["method"]
+
+
+def test_stability_summary_states_the_numbers_and_makes_no_pass_fail_claim(tmp_path):
+    _, out = stage(tmp_path)
+    s = out["headline"]["stability"]
+    lo, hi = s["bootstrap"]["ci95"]
+    text = s["summary"]
+    assert f"{lo:.3f} to {hi:.3f}" in text and "seed 20261002" in text and "2,000 resamples" in text and "10-year blocks" in text
+    assert f"{s['hac_ci95'][0]:.3f} to {s['hac_ci95'][1]:.3f}" in text and "out-of-sample error (RMSE)" in text and "before 2000" in text
+    ho = [h for h in s["holdouts"] if h["split_year"] == 2000][0]
+    assert f"{ho['rmse_c']:.3f} °C" in text and f"{ho['train_slope']:.3f}" in text
+    low = (text + s["note"]).lower()
+    assert not any(w in low for w in ("passes", "passed", "fails", "failed", "robust", "reliable", "validated")) and "no pass/fail judgement" in s["note"]
+
+
+def test_the_stage_output_including_the_bootstrap_is_identical_run_to_run(tmp_path):
+    _, a = stage(tmp_path)
+    C.run(str(tmp_path), notices_path=str(tmp_path / "none.json"))
+    b = json.loads((tmp_path / "correlation_headline.json").read_text())
+    for d in (a, b):
+        d.pop("generated_at")
+    assert a == b and a["headline"]["stability"] == b["headline"]["stability"]
+
+
+def test_a_bootstrap_interval_that_misses_the_fitted_slope_is_flagged(tmp_path, monkeypatch):
+    monkeypatch.setattr(C, "_bootstrap_block", lambda x, y, block, **k: {"block_years": block, "ci95": [9.0, 10.0], "median": 9.5})
+    rep, out = stage(tmp_path)
+    assert any("the bootstrap interval does not bracket the fitted slope" in d for d in rep.deviations)
