@@ -334,10 +334,13 @@ def get_ghg_composition(start_year: int | None = Query(None, ge=0), end_year: in
             seen = [r.gas for r in rows]
             if sorted(seen) != sorted(order) or len(set(seen)) != len(seen):
                 raise cl.ClimateDataUnavailable(f"correlation_composition_annual.csv has gases {sorted(seen)} for {y}, but correlation_composition.json publishes {sorted(order)}")
-            included = set(_strings(meta.get("gases_included")))
-            bad = sorted(r.gas for r in rows if (_value(r.mtco2e) is not None) != (r.gas in included))
+            inc_list = meta.get("gases_included")
+            if not isinstance(inc_list, list) or not all(isinstance(i, str) for i in inc_list) or len(set(inc_list)) != len(inc_list) or not set(inc_list) <= set(order):
+                raise cl.ClimateDataUnavailable(f"gases_included for {y} in correlation_composition.json is not a unique list of published gas ids: {inc_list!r}")
+            included = set(inc_list)
+            bad = sorted(r.gas for r in rows if (_value(r.mtco2e) is not None) != (r.gas in included) or (_value(r.share_pct) is not None) != (r.gas in included))
             if bad:
-                raise cl.ClimateDataUnavailable(f"correlation_composition_annual.csv disagrees with gases_included in correlation_composition.json for {y}: {', '.join(bad)}")
+                raise cl.ClimateDataUnavailable(f"correlation_composition_annual.csv disagrees with gases_included in correlation_composition.json (value or share) for {y}: {', '.join(bad)}")
             out.append(CompositionYear(year=y, gases_included=_strings(meta.get("gases_included")), components_total_mtco2e=meta.get("components_total_mtco2e"),
                                        national_total_mtco2e=meta.get("national_total_mtco2e"), residual_pct=meta.get("residual_pct"),
                                        values=[GasValue(gas=r.gas, name=r.gas_name, mtco2e=_value(r.mtco2e), share_pct=_value(r.share_pct)) for r in rows]))

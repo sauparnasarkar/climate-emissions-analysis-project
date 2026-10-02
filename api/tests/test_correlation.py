@@ -523,6 +523,30 @@ def test_a_value_that_disagrees_with_gases_included_is_a_503_in_both_directions(
     assert api.get(GC + "?year=2023").status_code == 503 and api.get(GC + "?year=2024").status_code == 200
 
 
+@pytest.mark.parametrize("bad", [["co2", "ch4", "n2o", "fgas", "sf6"], ["co2", "co2", "ch4", "n2o"], "co2", [1, 2], None])
+def test_gases_included_must_be_a_unique_subset_of_the_published_gas_ids(api, climate, bad):
+    doc = json.loads((climate / "correlation_composition.json").read_text())
+    doc["years"][2]["gases_included"] = bad  # 2024
+    (climate / "correlation_composition.json").write_text(json.dumps(doc))
+    cl.clear_caches()
+    r = api.get(GC + "?year=2024")
+    assert r.status_code == 503 and "not a unique list of published gas ids" in r.json()["detail"]
+    assert api.get(GC + "?year=2023").status_code == 200
+
+
+def test_a_share_that_disagrees_with_gases_included_is_a_503_even_when_the_value_agrees(api, climate):
+    lines = _csv_lines(climate)
+    # 2022: fgas not included, value null -- but a share is present
+    (climate / "correlation_composition_annual.csv").write_text("\n".join(ln.replace("2022,fgas,Fluorinated gases,,", "2022,fgas,Fluorinated gases,,2.0") for ln in lines) + "\n")
+    cl.clear_caches()
+    r = api.get(GC + "?year=2022")
+    assert r.status_code == 503 and "value or share" in r.json()["detail"] and "fgas" in r.json()["detail"]
+    # 2023: fgas included, value present -- but its share is null
+    (climate / "correlation_composition_annual.csv").write_text("\n".join(ln.replace("2023,fgas,Fluorinated gases,200.0,2.0", "2023,fgas,Fluorinated gases,200.0,") for ln in lines) + "\n")
+    cl.clear_caches()
+    assert api.get(GC + "?year=2023").status_code == 503 and api.get(GC + "?year=2024").status_code == 200
+
+
 def test_composition_csv_without_its_columns_is_a_503(api, climate):
     (climate / "correlation_composition_annual.csv").write_text("year,gas\n2022,co2\n")
     cl.clear_caches()
