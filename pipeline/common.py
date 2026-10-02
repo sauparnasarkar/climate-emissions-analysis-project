@@ -180,6 +180,29 @@ def write_json_atomic(obj, path: str) -> None:
     os.replace(tmp, path)
 
 
+def check_reshape_environment() -> str | None:
+    """Canary for a silent-corruption bug found in Phase 1.2: with numpy 2.2.6 on Python 3.14 (the pinned production
+    stack), `DataFrame.pivot` / `unstack` on a *dense* frame of more than ~32k rows (2**15) returns wrong, duplicated
+    year labels with no error (27,500 rows fine, 41,250 corrupt; numpy >= 2.3.0 fixes it -- verified 2.3.0-2.3.5 and
+    2.5.3 on pandas 2.3.0, and pandas 2.3.3 does NOT fix it with numpy 2.2.6). The pipeline's own code avoids dense
+    reshapes; this reports the environment so it can be fixed before anything else depends on one. Returns a message,
+    or None if reshapes are sound."""
+    import sys
+
+    ny, na = 200, 207  # 41,400 rows: above the threshold
+    df = pd.DataFrame({"year": np.repeat(np.arange(1750, 1750 + ny), na), "area": np.tile(np.arange(na), ny)})
+    df["v"] = np.arange(len(df), dtype=float)
+    want_years, want_col0 = list(range(1750, 1750 + ny)), [float(i * na) for i in range(ny)]
+    for wide in (df.pivot(index="year", columns="area", values="v"), df.set_index(["year", "area"])["v"].unstack("area")):
+        if list(wide.index) != want_years or wide.iloc[:, 0].tolist() != want_col0:
+            return (
+                f"pandas pivot/unstack returns corrupted labels on dense frames over ~32k rows in this environment "
+                f"(pandas {pd.__version__}, numpy {np.__version__}, Python {sys.version.split()[0]}); pipeline code avoids dense reshapes, "
+                f"but any other code that uses one is silently wrong -- upgrade numpy to >= 2.3 (verified: 2.3.5)"
+            )
+    return None
+
+
 def write_text_atomic(text: str, path: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"

@@ -1,6 +1,6 @@
-"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|owid|all]`.
+"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|owid|harmonize|all]`.
 
-`all` runs the active (publishable) sources only. Shelved sources (`edgar`) run only when named explicitly
+`all` runs the active (publishable) sources, then the derived stages (the harmonized layer), only. Shelved sources (`edgar`) run only when named explicitly
 and write to `data/internal/`, never `data/climate/`.
 
 Writes normalized series to `data/climate/` plus `data/climate/provenance.json` and a
@@ -17,8 +17,8 @@ import os
 import sys
 import traceback
 
-from . import berkeley_earth, edgar, noaa_gml, owid, primap_hist
-from .common import CLIMATE_DIR, utc_now, write_json_atomic, write_text_atomic
+from . import berkeley_earth, edgar, harmonize, noaa_gml, owid, primap_hist
+from .common import CLIMATE_DIR, check_reshape_environment, utc_now, write_json_atomic, write_text_atomic
 
 ACTIVE_SOURCES = {
     "noaa_gml": noaa_gml.run,
@@ -30,7 +30,11 @@ ACTIVE_SOURCES = {
 INTERNAL_SOURCES = {
     "edgar": edgar.run,
 }
-SOURCES = {**ACTIVE_SOURCES, **INTERNAL_SOURCES}
+# Derived stages read what the source steps wrote and run after them in `all` (the harmonized layer).
+DERIVED_SOURCES = {
+    "harmonize": harmonize.run,
+}
+SOURCES = {**ACTIVE_SOURCES, **DERIVED_SOURCES, **INTERNAL_SOURCES}
 
 
 def build_notification(summary: dict) -> tuple[str, str, str]:
@@ -63,11 +67,15 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    selected = list(ACTIVE_SOURCES) if args.source == "all" else [args.source]
+    selected = [*ACTIVE_SOURCES, *DERIVED_SOURCES] if args.source == "all" else [args.source]
     for name in selected:
         if name in INTERNAL_SOURCES:
             logging.warning("%s is shelved for publication: running for internal validation only (output in data/internal/)", name)
     summary: dict = {"started_at": utc_now(), "sources": {}, "failures": {}}
+    env_problem = check_reshape_environment()
+    if env_problem:  # reported like any other deviation (priority high in the push), never fatal
+        logging.warning("environment: DEVIATION: %s", env_problem)
+        summary["sources"]["environment"] = {"records": {}, "deviations": [env_problem], "notes": []}
     for name in selected:
         try:
             summary["sources"][name] = SOURCES[name]().as_dict()

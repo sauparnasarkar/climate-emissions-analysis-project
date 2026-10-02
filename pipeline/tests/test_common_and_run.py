@@ -94,7 +94,8 @@ def test_all_runs_active_sources_only_and_never_the_shelved_edgar(tmp_path, monk
     for name in run.SOURCES:  # stub EVERY registered source: a source added later must not make this test hit the network/disk
         monkeypatch.setitem(run.SOURCES, name, lambda n=name: called.append(n) or common.RunReport(n))
     assert run.main(["--source", "all"]) == 0
-    assert sorted(called) == sorted(run.ACTIVE_SOURCES)
+    assert sorted(called) == sorted([*run.ACTIVE_SOURCES, *run.DERIVED_SOURCES])  # sources, then the derived harmonize stage
+    assert called.index("harmonize") > max(called.index(n) for n in run.ACTIVE_SOURCES)  # derived runs after every source
     assert "edgar" in run.INTERNAL_SOURCES and "edgar" not in run.ACTIVE_SOURCES and "edgar" not in called
 
 

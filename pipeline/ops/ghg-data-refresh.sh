@@ -35,7 +35,7 @@ log() {
 }
 
 
-# >>> pipeline_stage (Area 2 ingestion: NOAA GML, Berkeley Earth, PRIMAP-hist, OWID registration)
+# >>> pipeline_stage (Area 2 ingestion: NOAA GML, Berkeley Earth, PRIMAP-hist, OWID registration, then the harmonized layer)
 # Its own failure domain: it runs once the OWID file is final (after week1, or after week1 failed
 # and the backup was restored), never blocks the notebook weeks, and its outcome is appended to
 # whichever notification goes out. Source scripts live in pipeline/ (see pipeline/README.md);

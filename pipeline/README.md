@@ -6,7 +6,7 @@ normalized series to `data/climate/` (gitignored) plus provenance. Not intern cu
 
 ```
 python -m pipeline.run                      # all ACTIVE (publishable) sources
-python -m pipeline.run --source noaa_gml    # or berkeley_earth, primap_hist, owid
+python -m pipeline.run --source noaa_gml    # or berkeley_earth, primap_hist, owid, harmonize
 python -m pipeline.run --source edgar       # shelved source: explicit opt-in, writes to data/internal/edgar/ only
 .venv/bin/python -m pytest pipeline/tests   # offline; no network
 ```
@@ -16,6 +16,7 @@ python -m pipeline.run --source edgar       # shelved source: explicit opt-in, w
 | `noaa_gml.py` | `co2_concentration_annual.csv` (1750–latest, spliced), `co2_concentration_monthly_mlo.csv` | NOAA GML Mauna Loa (1959+ annual; monthly from Mar 1958) + Law Dome ice-core/firn spline (< 1959) |
 | `primap_hist.py` | `primap_country_annual.csv` (area × year, MtCO₂e by gas + Kyoto-basket total + residual; explicit nulls), `primap_global_composition_annual.csv` (1750–latest complete year: gases, areas reporting, per-gas-sum residual), `country_crosswalk.csv` | PRIMAP-hist, latest Zenodo release (via the concept record): no-extrapolation CSV, HISTCR, category M.0.EL, AR5 baskets; **CC BY-NC-SA 4.0** |
 | `owid.py` | `owid_world_co2_annual.csv` (World CO₂ incl. international transport, cumulative, national sum, international transport; through the latest complete year); provenance for `data/owid-co2-data.csv` | OWID (Global Carbon Project) — **registers the file the refresh job downloaded; does not download** |
+| `harmonize.py` + `derive.py` (derived stage, runs after the sources in `all`) | `indicator_catalog.json`, `harmonized_global_annual.csv` (indicator_id, year, value), `harmonized_country_annual.csv` (indicator_id, iso3, year, value) | the other normalized series + `provenance.json` — one consistent, precomputed view (Phase 1.2) |
 | `edgar.py` **(shelved — internal validation only)** | `data/internal/edgar/`: `edgar_country_annual.csv` (entity × year, MtCO₂e by gas + combined total + residual), `edgar_global_composition_annual.csv` (global composition, bunkers, national total, per-year reconciliation), `country_crosswalk.csv` | EDGAR latest `EDGAR_<year>_GHG` release (auto-discovered): per-gas files + combined AR5 totals |
 | `crosswalk.py` | (used by `edgar.py`) | ISO3 EDGAR↔OWID crosswalk built from both datasets' own entity lists |
 | `berkeley_earth.py` | `temperature_anomaly_annual.csv` (native 1951–1980 and computed 1850–1900 baselines) | Berkeley Earth Land/Ocean summary |
@@ -32,6 +33,19 @@ or odd source is a *deviation* (warning) the refresh job turns into an alert.
 - **Completeness (decision 22):** a year is published only if each of CO₂, CH₄, N₂O and the F-gas basket has **emission-weighted coverage ≥ 98%** (the share of the previous year's emissions still reported) and the national total is within **±15%** of the prior year. Emission-weighted rather than area-count because F-gas reporting drifts from 169 to 151 areas over 2017–2024 while the missing areas hold ~0.04% of emissions. Calibrated over 1751–2024: every gas ≥ 99.96%, total year-on-year −9.2% (1945) to +9.9% (1920). v2.8's 2025 fails (CH₄ 2.0%, N₂O 0.1%, F-gases 0.0%, total −28.3%) and is excluded. A failing year followed by a passing one raises; more than one trailing year trimmed raises a deviation.
 - **Consistency check:** the per-gas sum (CO₂ + CH₄×28 + N₂O×265 + F-gas basket) must reproduce PRIMAP-hist's own Kyoto basket within 0.5% (v2.8: −0.18% … +0.21%).
 - **Scope:** national emissions excluding LULUCF **and excluding international aviation/shipping** (not in the dataset); no world aggregate in the file, so the world total is the sum of areas.
+
+### Harmonized layer (`harmonize.py`, `derive.py`)
+
+One key (integer calendar year, unique per indicator), one unit and one **scope** (global / country) per indicator, explicit nulls (nothing is interpolated), and a link from every indicator to its source series' provenance. `indicator_catalog.json` lists every indicator: id, name, unit, kind (`level` / `cumulative` / `anomaly` / `uncertainty` / `derived`), its own coverage, provenance link, and for derived ones the baseline year, formula and the baselines that were excluded (with why). The API reads these tables; it never recomputes them.
+
+- **Level** series get year-on-year %, a **trailing** 5-year mean (null until 5 consecutive observations; trailing so it never uses a later year) and an index for each allowed baseline: 1990, 1970, pre-industrial (= 1850) — defined only where the baseline value exists and is > 0.
+- **Cumulative** series are never indexed or averaged. **Anomalies are never indexed** (the 1850–1900 anomaly is −0.13 °C in 1850, so "= 100" is meaningless, and a year-on-year % of an anomaly is undefined); they keep both native references and the interval, and get the trailing 5-year mean only. Every derived entry inherits its base's description and caveats, and every provenance link carries the source's checksums and URLs.
+- Country scope is deliberately small: PRIMAP total, per-gas and cumulative per area.
+- **No dense pandas reshapes anywhere in this layer** — see the environment note below.
+
+### Environment note: numpy 2.2.6 on Python 3.14 corrupts large dense reshapes
+
+Found while building the harmonized layer: with the pinned stack (numpy 2.2.6, Python 3.14), `DataFrame.pivot` / `unstack` on a **fully populated** frame of more than ~32k rows (2¹⁵) silently returns wrong, duplicated year labels — no error (27,500 rows are fine, 41,250 are not). Isolated in a throwaway venv: **numpy ≥ 2.3.0 fixes it (checked 2.3.0–2.3.5 and 2.5.3, with pandas 2.3.0); pandas 2.3.3 does not fix it while numpy stays 2.2.6.** The Mac Mini runs the same stack. No production code path is currently affected (the API's world-map pivot handles 7.6k rows from 1990, ~12k from 1970), and the pipeline avoids dense reshapes, but `pipeline.run` carries a **canary** (`common.check_reshape_environment`) that reports the problem as an `environment` deviation in every run until numpy is upgraded.
 
 ### OWID notes
 
