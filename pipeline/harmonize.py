@@ -62,6 +62,15 @@ class Spec:
 
 
 _CO2E = "MtCO2e"
+_LUC_UNCERTAINTY = (
+    "Land-use CO2 is a modelled estimate (average of bookkeeping models) with a large uncertainty: the Global Carbon Budget gives about +/-0.7 GtC/yr "
+    "(about +/-2.6 GtCO2/yr, 1 sigma) for recent decades."
+)
+_LUC_LICENSE = (
+    "Land-use CO2 data originates from the Global Carbon Project via OWID. No formal license (e.g., CC BY) is stated on the Global Carbon Project's data page; "
+    "use is conditional on citing the original source per their stated terms. The required citation is included in this platform's data attribution. "
+    "No non-commercial, no-derivatives, or share-alike restrictions were found."
+)
 
 GLOBAL_SPECS: list[Spec] = [
     Spec("co2_concentration_ppm", "Atmospheric CO2 concentration", "ppm", "level", "global", "co2_concentration_annual.csv", "co2_ppm",
@@ -79,7 +88,17 @@ GLOBAL_SPECS: list[Spec] = [
     Spec("owid_co2_world_mt", "World CO2 emissions (incl. international transport)", "Mt CO2", "level", "global", "owid_world_co2_annual.csv", "co2_mt",
          "owid_world_co2_annual", "OWID/GCP World fossil + cement CO2, including international aviation and shipping (the TCRE regression X-variable's annual flow).", 0, "1990"),
     Spec("owid_co2_world_cumulative_mt", "World cumulative CO2 emissions", "Mt CO2", "cumulative", "global", "owid_world_co2_annual.csv", "cumulative_co2_mt",
-         "owid_world_co2_annual", "OWID's own cumulative World CO2 since 1750 (the TCRE regression X-variable).", 0),
+         "owid_world_co2_annual", "OWID's own cumulative World fossil + cement CO2 since 1750 (the secondary, fossil-only regression X-variable; the headline uses owid_total_co2_world_cumulative_mt, decision 40).", 0),
+    Spec("owid_luc_co2_world_mt", "World land-use-change CO2 emissions", "Mt CO2", "level", "global", "owid_world_co2_annual.csv", "land_use_change_co2_mt",
+         "owid_world_co2_annual", "OWID/Global Carbon Project World land-use-change CO2 (bookkeeping-model average), 1850 onward; a separate column from the fossil + cement total.", 0, "1990",
+         caveats=[_LUC_UNCERTAINTY, _LUC_LICENSE]),
+    Spec("owid_total_co2_world_mt", "World total anthropogenic CO2 emissions (fossil + cement + land-use)", "Mt CO2", "level", "global", "owid_world_co2_annual.csv", "total_co2_incl_luc_mt",
+         "owid_world_co2_annual", "Fossil + cement (incl. international aviation and shipping) plus land-use-change CO2: the annual flow behind the headline regression's X-variable.", 0, "1990",
+         caveats=[_LUC_UNCERTAINTY, _LUC_LICENSE]),
+    Spec("owid_total_co2_world_cumulative_mt", "World cumulative total anthropogenic CO2 since 1850", "Mt CO2", "cumulative", "global", "owid_world_co2_annual.csv", None,
+         "owid_world_co2_annual", "Running total of total anthropogenic CO2 (fossil + cement + land-use) from 1850, the first year of the land-use series: the headline TCRE-style regression's X-variable (decision 40). "
+         "Not comparable to the 1750-based fossil cumulative; a regression slope is unaffected by the choice of start year.", 0, from_id="owid_total_co2_world_mt",
+         caveats=[_LUC_UNCERTAINTY, _LUC_LICENSE]),
     Spec("owid_co2_national_sum_mt", "Sum of national CO2 emissions", "Mt CO2", "level", "global", "owid_world_co2_annual.csv", "national_sum_mt",
          "owid_world_co2_annual", "Sum of ISO-coded countries; excludes international transport (the country-share denominator).", 0, "1990",
          caveats=["Includes some non-sovereign territories (ISO-coded OWID entities)."]),

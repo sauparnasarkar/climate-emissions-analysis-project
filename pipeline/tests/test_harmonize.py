@@ -20,7 +20,9 @@ def write_inputs(d, drop=(), cum_gap=False, extra_ppm_year=True, prov_coverage_o
     pd.DataFrame({"year": range(1850, 2025), "anomaly_1951_1980_c": np.linspace(-0.4, 1.3, 175), "anomaly_1850_1900_c": np.linspace(-0.13, 1.6, 175),
                   "uncertainty_95_c": 0.05}).to_csv(os.path.join(d, "temperature_anomaly_annual.csv"), index=False)
     pd.DataFrame({"year": y, "co2_mt": 10.0 * (y - 1749), "cumulative_co2_mt": np.cumsum(10.0 * (y - 1749)), "national_sum_mt": 9.0 * (y - 1749),
-                  "countries_reporting": 200, "international_transport_mt": np.where(y >= 1950, 1.0 * (y - 1949), np.nan)}).to_csv(os.path.join(d, "owid_world_co2_annual.csv"), index=False)
+                  "countries_reporting": 200, "international_transport_mt": np.where(y >= 1950, 1.0 * (y - 1949), np.nan),
+                  "land_use_change_co2_mt": np.where(y >= 1850, 3.0 * (y - 1849), np.nan),  # land-use CO2 exists from 1850 only
+                  "total_co2_incl_luc_mt": np.where(y >= 1850, 10.0 * (y - 1749) + 3.0 * (y - 1849), np.nan)}).to_csv(os.path.join(d, "owid_world_co2_annual.csv"), index=False)
     tot = 100.0 * (y - 1749)
     pd.DataFrame({"year": y, "co2_mt": tot * 0.7, "ch4_mtco2e": tot * 0.2, "n2o_mtco2e": tot * 0.08, "fgas_mtco2e": np.where(y >= 1990, tot * 0.02, 0.0),
                   "total_ghg_mtco2e": tot}).to_csv(os.path.join(d, "primap_global_composition_annual.csv"), index=False)
@@ -275,3 +277,47 @@ def test_country_cumulative_with_a_missing_source_column_is_skipped_with_a_devia
     assert any("primap_country_ghg_total_mtco2e: column 'total_ghg_mtco2e' missing" in d for d in rep.deviations)
     assert any("primap_country_ghg_total_cumulative_mtco2e: its source column 'total_ghg_mtco2e'" in d for d in rep.deviations)
     assert "primap_country_ghg_total_cumulative_mtco2e" not in ids and "primap_country_co2_mt" in ids and "owid_co2_world_mt" in ids  # the rest of the stage still ran
+
+
+# ---------------------------------------------------------------- total anthropogenic CO2 (decision 40)
+
+
+def test_total_co2_indicators_values_coverage_and_headline_cumulative(tmp_path):
+    run(tmp_path)
+    g, _, cat = read(tmp_path)
+    ids = {e["id"]: e for e in cat["indicators"]}
+    for i in ("owid_luc_co2_world_mt", "owid_total_co2_world_mt", "owid_total_co2_world_cumulative_mt"):
+        assert i in ids and ids[i]["scope"] == "global" and ids[i]["unit"] == "Mt CO2" and ids[i]["coverage"] == [1850, 2024]  # land-use exists from 1850, not 1750
+    assert ids["owid_total_co2_world_cumulative_mt"]["kind"] == "cumulative" and ids["owid_total_co2_world_mt"]["kind"] == "level"
+    s = lambda i: g[g.indicator_id == i].set_index("year")["value"]
+    flow = lambda yr: 10.0 * (yr - 1749) + 3.0 * (yr - 1849)
+    assert s("owid_total_co2_world_mt")[2000] == pytest.approx(flow(2000), abs=0.01)
+    assert s("owid_luc_co2_world_mt")[2000] == pytest.approx(3.0 * 151, abs=0.01)
+    # the headline X-variable: cumulative from 1850 INCLUSIVE, starting at the 1850 flow
+    cum = s("owid_total_co2_world_cumulative_mt")
+    assert cum[1850] == pytest.approx(flow(1850), abs=0.01) and cum[1900] == pytest.approx(sum(flow(y) for y in range(1850, 1901)), rel=1e-9)
+    # the fossil-only cumulative keeps its 1750 start and is a different, labelled series
+    assert ids["owid_co2_world_cumulative_mt"]["coverage"][0] == 1750 and "fossil" in ids["owid_co2_world_cumulative_mt"]["description"].lower()
+
+
+def test_total_co2_indicators_carry_the_uncertainty_and_licence_caveats(tmp_path):
+    run(tmp_path)
+    _, _, cat = read(tmp_path)
+    ids = {e["id"]: e for e in cat["indicators"]}
+    for i in ("owid_luc_co2_world_mt", "owid_total_co2_world_mt", "owid_total_co2_world_cumulative_mt"):
+        c = " ".join(ids[i]["caveats"])
+        assert "+/-0.7 GtC/yr" in c and "No formal license (e.g., CC BY) is stated" in c and "No non-commercial, no-derivatives, or share-alike restrictions were found" in c
+    # derived entries inherit them (decision 28)
+    assert any("No formal license" in " ".join(e["caveats"]) for e in cat["indicators"] if e["id"].startswith("owid_total_co2_world_mt__"))
+
+
+def test_missing_total_column_skips_the_total_indicators_with_deviations_not_a_crash(tmp_path):
+    prov = write_inputs(tmp_path)
+    p = tmp_path / "owid_world_co2_annual.csv"
+    df = pd.read_csv(p).drop(columns=["total_co2_incl_luc_mt", "land_use_change_co2_mt"])
+    df.to_csv(p, index=False)
+    rep = harmonize.run(str(tmp_path), prov)
+    assert any("owid_total_co2_world_mt" in d and "missing" in d for d in rep.deviations)
+    assert any("owid_total_co2_world_cumulative_mt" in d and "not built" in d for d in rep.deviations)
+    _, _, cat = read(tmp_path)
+    assert "owid_co2_world_cumulative_mt" in {e["id"] for e in cat["indicators"]}  # the fossil-only series is unaffected
