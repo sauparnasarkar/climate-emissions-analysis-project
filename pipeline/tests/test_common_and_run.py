@@ -208,7 +208,8 @@ def test_composition_runs_when_another_source_failed_and_when_named_alone(tmp_pa
 
 
 def test_each_gated_stage_depends_only_on_its_own_upstream(tmp_path, monkeypatch):
-    assert run.DEPENDS_ON == {"correlate": ("harmonize",), "composition": ("primap_hist",), "country_share": ("owid", "primap_hist"), "ets_baseline": ("owid",)}
+    assert run.DEPENDS_ON == {"correlate": ("harmonize",), "composition": ("primap_hist",), "country_share": ("owid", "primap_hist"), "ets_baseline": ("owid",),
+                             "scenario_temperature": ("correlate", "owid", "berkeley_earth")}
     called = _stub_all(monkeypatch, tmp_path, fail={"harmonize"})
     run.main(["--source", "all"])
     assert "correlate" not in called and "composition" in called  # a failed harmonize does not block composition
@@ -251,3 +252,19 @@ def test_ets_baseline_runs_when_unrelated_sources_fail_and_when_named_alone(tmp_
     assert "ets_baseline" in called
     called2 = _stub_all(monkeypatch, tmp_path / "b" if (tmp_path / "b").mkdir() is None else tmp_path, fail={"owid"})
     assert run.main(["--source", "ets_baseline"]) == 0 and called2 == ["ets_baseline"]
+
+
+@pytest.mark.parametrize("failed", ["correlate", "owid", "berkeley_earth"])
+def test_scenario_temperature_is_skipped_when_any_of_its_three_upstreams_failed(tmp_path, monkeypatch, failed):
+    called = _stub_all(monkeypatch, tmp_path, fail={failed})
+    assert run.main(["--source", "all"]) == 1
+    summary = json.loads((tmp_path / "last_run.json").read_text())
+    assert "scenario_temperature" not in called and summary["failures"]["scenario_temperature"].startswith(f"skipped: upstream stage(s) failed in this run: {failed}")
+
+
+def test_scenario_temperature_runs_after_correlate_and_when_unrelated_stages_fail(tmp_path, monkeypatch):
+    called = _stub_all(monkeypatch, tmp_path, fail={"noaa_gml", "primap_hist"})
+    run.main(["--source", "all"])
+    assert "scenario_temperature" in called and called.index("scenario_temperature") > called.index("correlate")  # reads correlation_headline.json
+    called2 = _stub_all(monkeypatch, tmp_path / "b" if (tmp_path / "b").mkdir() is None else tmp_path, fail={"correlate", "owid", "berkeley_earth"})
+    assert run.main(["--source", "scenario_temperature"]) == 0 and called2 == ["scenario_temperature"]  # not gated when named alone
