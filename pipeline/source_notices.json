@@ -1,0 +1,24 @@
+{
+  "_about": "Tracked record of notices owed to / sent to data providers. The pipeline copies the matching entries into each source's provenance on every run (provenance entries are rewritten each run, so a hand-edited field there would be lost). Add new entries here; never delete sent ones.",
+  "primap_hist": {
+    "notifications": [
+      {
+        "type": "notification_of_use",
+        "requested_by": "PRIMAP-hist data description on Zenodo ('Use of the dataset': please notify nc-support@johannes-guetschow.de if you use the dataset)",
+        "sent_at": "2026-10-02T06:27:27Z",
+        "sent_by": "Sauparna Sarkar",
+        "to": "nc-support@johannes-guetschow.de",
+        "subject": "Notification of use: PRIMAP-hist v2.8 in a non-commercial climate dashboard",
+        "dataset_version_at_notification": "v2.8",
+        "dataset_doi": "10.5281/zenodo.22876287",
+        "covers": "Use of PRIMAP-hist v2.8 (no-extrapolation file, HISTCR, category M.0.EL, AR5 baskets) as the total-GHG / composition / country-share source of a publicly accessible, non-commercial dashboard shared within the sender's personal network; derived data to carry CC BY-NC-SA 4.0 with attribution.",
+        "questions": [
+          "Which licence is authoritative: CC BY-NC-SA (Zenodo record and data description, since v2.8) or the dataset YAML's 'rights' field (Creative Commons Attribution-NonCommercial 4.0)?",
+          "Do the upstream sources used for gap-filling (EDGAR, CDIAC, Energy Institute, FAOSTAT, Andrew cement, others) impose conditions on redistributing series derived from PRIMAP-hist?"
+        ],
+        "status": "sent; no reply received as of 2026-10-02",
+        "replies": []
+      }
+    ]
+  }
+}

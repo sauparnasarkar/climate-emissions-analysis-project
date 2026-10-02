@@ -29,17 +29,19 @@ import io
 import json
 import os
 import re
-from datetime import date
+from datetime import date, datetime
 
 import numpy as np
 import pandas as pd
 
 from .common import (
     CLIMATE_DIR,
+    NOTICES_PATH,
     PROVENANCE_PATH,
     ROOT,
     RunReport,
     fetch,
+    load_source_notices,
     require_contiguous_years,
     weighted_coverage,
     write_csv_atomic,
@@ -60,6 +62,7 @@ YOY_MAX = 0.15  # |national total / prior-year total - 1|; history peaks at +9.8
 CONSISTENCY_TOL_PCT = 0.5  # components (CO2 + CH4*28 + N2O*265 + F-gases) vs the Kyoto basket
 MAX_LAG_YEARS = 2
 MAX_RELEASE_AGE_DAYS = 500  # PRIMAP-hist releases roughly yearly (Sep/Oct)
+NOTICE_NO_REPLY_NOTE_DAYS = 60  # note (not alert) if a notification has had no reply this long
 
 SERIES_COUNTRY = "primap_country_annual"
 SERIES_GLOBAL = "primap_global_composition_annual"
@@ -236,7 +239,7 @@ def _default_owid_and_expanded(root: str = ROOT):
     return owid, expanded
 
 
-def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVENANCE_PATH, today=None, owid=None, expanded=None, concept_url: str = ZENODO_CONCEPT_URL) -> RunReport:
+def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVENANCE_PATH, today=None, owid=None, expanded=None, concept_url: str = ZENODO_CONCEPT_URL, notices_path: str = NOTICES_PATH) -> RunReport:
     today = today or date.today()
     report = RunReport("primap_hist")
 
@@ -254,6 +257,21 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
     lic = (meta.get("license") or {}).get("id")
     if lic != "cc-by-nc-sa-4.0":
         report.deviate(f"PRIMAP-hist licence changed: Zenodo reports {lic!r}, expected 'cc-by-nc-sa-4.0' -- review before publishing derived data")
+
+    # The authors ask to be notified of use: the record lives in pipeline/source_notices.json and is copied
+    # into provenance every run (provenance is rewritten each run, so it cannot hold hand-edited fields).
+    notices = load_source_notices("primap_hist", notices_path)
+    version = meta.get("version")
+    covered = [n for n in notices if n["dataset_version_at_notification"] == version]
+    if not notices:
+        report.deviate("no record of notifying the PRIMAP-hist authors of use (they ask to be notified); add one to pipeline/source_notices.json once sent")
+    elif not covered:
+        report.note(f"PRIMAP-hist {version} is in use but the notifications on file cover {sorted({n['dataset_version_at_notification'] for n in notices})} -- consider notifying the authors again")
+    else:
+        latest = max(covered, key=lambda n: n["sent_at"])
+        waited = (today - datetime.fromisoformat(latest["sent_at"].replace("Z", "+00:00")).date()).days  # calendar days
+        if not latest.get("replies") and waited > NOTICE_NO_REPLY_NOTE_DAYS:
+            report.note(f"notification to the PRIMAP-hist authors sent {latest['sent_at'][:10]} has had no recorded reply for {waited} days")
 
     wides = parse_primap(csv_f.content)
     require_contiguous_years(wides["total"].columns, int(wides["total"].columns.min()), int(wides["total"].columns.max()), "PRIMAP-hist")
@@ -316,6 +334,12 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
         ),
         "citations": CITATIONS,
         "attribution_required": True,
+        "author_notification": {
+            "requested_by_provider": True,
+            "covers_current_version": bool(covered),
+            "notices": notices,
+            "record": "pipeline/source_notices.json (tracked); copied here on every run",
+        },
         "published": True,
     }
     write_provenance(
