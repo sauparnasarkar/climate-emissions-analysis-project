@@ -43,6 +43,18 @@ One key (integer calendar year, unique per indicator), one unit and one **scope*
 - Country scope is deliberately small: PRIMAP total, per-gas and cumulative per area.
 - **No dense pandas reshapes anywhere in this layer** — see the environment note below.
 
+### Pairing (`pairing.py`) — correlation-ready aligned series
+
+```python
+from pipeline.pairing import load_harmonized, align_pair
+h = load_harmonized()                       # reads data/climate/{indicator_catalog.json, harmonized_*.csv}
+frame, meta = align_pair(h, "owid_co2_world_cumulative_mt", "temperature_anomaly_1850_1900_c")
+```
+
+`frame` has columns `year`, `<a>`, `<b>` and only years where **both** series have a value (no interpolation). `meta` carries both indicators' catalog entries (unit, kind, coverage, **provenance link with release / licence / checksums**, caveats), the requested / common / used ranges, **every omitted year with its reason** (`a missing` / `b missing` / `both missing`, within the requested range), `interpolated: false`, and a standing note that co-movement is interpretive context, not proof of causation. Phase 1.3's co-trends, regressions and composition outputs are built on this.
+
+Refused, with a clear error: pairing an indicator with itself; a **global** with a **country** indicator (country pairs need one named `geography` shared by both — country emissions are never paired with the global temperature line, §1.3.4); `uncertainty` series (they describe a series, they are not one); an empty range; and fewer than `min_overlap` (default 20) shared years — a correlation over a handful of years looks authoritative and means nothing. Derived indicators pair too, and the common range follows their own coverage (a trailing 5-year mean starts four years into the record).
+
 ### Environment note: numpy 2.2.6 on Python 3.14 corrupted large dense reshapes (fixed by pinning numpy 2.3.5)
 
 Found while building the harmonized layer: with the previously pinned stack (numpy 2.2.6, Python 3.14), `DataFrame.pivot` / `unstack` on a **fully populated** frame of more than ~32k rows (2¹⁵) silently returned wrong, duplicated year labels — no error (27,500 rows fine, 41,250 not). Isolated in a throwaway venv: **numpy ≥ 2.3.0 fixes it; pandas 2.3.3 does not fix it while numpy stays 2.2.6.** `requirements.txt` now pins **numpy 2.3.5**; before/after, the notebooks' outputs and 24 API responses were identical except for the unseeded Monte Carlo bands in `ets_forecasts.csv` (see `ENHANCEMENTS.md` Release 21, open items 13–14). The harmonized layer still avoids dense reshapes, and `pipeline.run` keeps its **canary** (`common.check_reshape_environment`): on any environment that still has the bug (for example a venv not yet upgraded) it reports an `environment` deviation in the run summary.
