@@ -239,7 +239,7 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
         filled = {
             "scenarios": _round(res["scenarios"]),
             "base": {"last_observed_year": t0, "world_co2_mt": world_t0, "covered_co2_mt": covered_t0, "covered_share_of_world": covered_t0 / world_t0,
-                     "world_cumulative_total_co2_since_1850_mt": float(w.loc[1850:t0, "total_co2_incl_luc_mt"].sum()), "world_cumulative_fossil_co2_mt": float(w.loc[t0, "cumulative_co2_mt"]),
+                     "world_cumulative_total_co2_since_1850_mt": float(w.loc[1850:t0, "total_co2_incl_luc_mt"].sum(skipna=False)), "world_cumulative_fossil_co2_mt": float(w.loc[t0, "cumulative_co2_mt"]),
                      "first_scenario_year_covered_mt": first_cov, "first_scenario_year_vs_last_observed_pct": jumps,
                      "anchor": {"definition": f"trailing {ANCHOR_WINDOW}-year mean of the observed Berkeley Earth anomaly (1850-1900 reference), {t0 - ANCHOR_WINDOW + 1}-{t0}", "value_c": anchor,
                                 "last_year_value_c": float(temp.loc[t0])}},
