@@ -62,14 +62,19 @@ same files in-process — the two loader modules are hand-mirrored 1:1, not shar
 Cache invalidation is "restart the process" (a deploy, or the weekly refresh below); there
 is no explicit invalidation path.
 
-**Weekly automated refresh** (`ghg-data-refresh` skill, `com.ghgemissions.datarefresh`
-launchd agent, Sundays 03:30 local on the Mac Mini): re-downloads `owid-co2-data.csv` and
+**Monthly automated refresh** (`ghg-data-refresh` skill, `com.ghgemissions.datarefresh`
+launchd agent, **the 10th of each month 03:30** local on the Mac Mini; was weekly until
+2026-10-02): re-downloads `owid-co2-data.csv` (URL read from `notebook/constants.py`) and
 re-runs the full notebook pipeline non-interactively (`jupyter nbconvert --execute
 --inplace`, stopping at the first failure), validating the new download against the previous
 backup inside `week1_eda.ipynb` (hard-fail / soft-flag thresholds, see `SPEC.md` §6.1) and
-restoring the backup on failure; it ends with an ntfy notification. **The job itself does not
-restart `uvicorn`/`vitepreview`**: the API's `@lru_cache` loaders keep serving the previous
-CSVs until the process restarts (an open item — `ENHANCEMENTS.md` Release 21, open item 8).
+restoring the backup (mtime preserved) on failure. Once the OWID file is final it runs the
+Area 2 pipeline stage below (its own failure domain), and after a validated refresh it
+**restarts `com.ghgemissions.uvicorn`** (`launchctl kickstart -k`, mirroring the India
+Allocation Monitor) because the API's `@lru_cache` loaders only see new CSVs after a
+restart; a failed restart is reported, never fatal. One ntfy push per run carries the notebook
+outcome plus the pipeline summary (priority = the higher of the two). The versioned script and
+plist live in `pipeline/ops/`.
 
 ### Area 2 climate-context pipeline (`pipeline/`)
 
@@ -91,8 +96,8 @@ EDGAR (shelved: IEA CC BY-NC-ND fuel-combustion CO₂) ─▶ data/internal/edga
 Each source validates before publishing (missing years raise, source checksums verified,
 trailing incomplete years excluded rather than extrapolated) and reports *deviations from
 norm* (stale source, licence change, completeness exclusions, reconciliation gaps) that the
-refresh job turns into alerts. The monthly schedule and the `pipeline_stage` of the refresh
-script are versioned in `pipeline/ops/` (deployment to the Mac Mini is a separate step). Design
+refresh job turns into alerts. The monthly schedule, the `pipeline_stage` and the post-refresh API restart are versioned in
+`pipeline/ops/` and deployed. Design
 and decisions: `ENHANCEMENTS.md` Release 21, `SPEC.md` §5.26.
 
 ## 3. The two/three-tier country pattern
