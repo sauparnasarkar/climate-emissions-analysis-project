@@ -523,14 +523,14 @@ def test_a_value_that_disagrees_with_gases_included_is_a_503_in_both_directions(
     assert api.get(GC + "?year=2023").status_code == 503 and api.get(GC + "?year=2024").status_code == 200
 
 
-@pytest.mark.parametrize("bad", [["co2", "ch4", "n2o", "fgas", "sf6"], ["co2", "co2", "ch4", "n2o"], "co2", [1, 2], None])
+@pytest.mark.parametrize("bad", [["co2", "ch4", "n2o", "fgas", "sf6"], ["co2", "co2", "ch4", "n2o"], "co2", [1, 2], None, []])
 def test_gases_included_must_be_a_unique_subset_of_the_published_gas_ids(api, climate, bad):
     doc = json.loads((climate / "correlation_composition.json").read_text())
     doc["years"][2]["gases_included"] = bad  # 2024
     (climate / "correlation_composition.json").write_text(json.dumps(doc))
     cl.clear_caches()
     r = api.get(GC + "?year=2024")
-    assert r.status_code == 503 and "not a unique list of published gas ids" in r.json()["detail"]
+    assert r.status_code == 503 and "not a non-empty, unique list of published gas ids" in r.json()["detail"]
     assert api.get(GC + "?year=2023").status_code == 200
 
 
@@ -558,3 +558,14 @@ def test_meta_lists_the_new_endpoints_and_every_new_response_is_strict_json_with
     for url in (ET, ET + "?source=primap_ghg", ET + "?baseline=1990", GC, GC + "?year=2022"):
         j = strict(api.get(url))
         assert j["note"] and "attribution" in j and "caveats" in j and j["schema_version"] == 1 and j["generated_at"], url
+
+
+def test_a_year_with_no_included_gas_is_a_503_even_when_every_csv_value_and_share_is_null(api, climate):
+    doc = json.loads((climate / "correlation_composition.json").read_text())
+    doc["years"][2]["gases_included"] = []
+    (climate / "correlation_composition.json").write_text(json.dumps(doc))
+    (climate / "correlation_composition_annual.csv").write_text("\n".join(f"2024,{g},{n},," if ln.startswith("2024,") and ln.split(",")[1] == g else ln
+                                                                          for ln in _csv_lines(climate) for g, n in [(ln.split(",")[1], ln.split(",")[2])]) + "\n")
+    cl.clear_caches()
+    r = api.get(GC + "?year=2024")
+    assert r.status_code == 503 and "non-empty" in r.json()["detail"] and api.get(GC + "?year=2023").status_code == 200
