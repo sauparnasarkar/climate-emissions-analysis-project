@@ -77,7 +77,7 @@ def fit_forecast(series: pd.Series, steps: int) -> tuple[np.ndarray, dict]:
 
 def anomalies(series: pd.Series) -> list[dict]:
     """Single-year values more than ANOMALY_RATIO times above or below the centred ANOMALY_WINDOW-year median (flag only)."""
-    med = series.rolling(ANOMALY_WINDOW, center=True, min_periods=ANOMALY_WINDOW - 2).median()
+    med = series.rolling(ANOMALY_WINDOW, center=True, min_periods=ANOMALY_WINDOW // 2 + 1).median()
     ratio = series / med
     return [{"year": int(y), "value_mt": float(series.loc[y]), "ratio_to_local_median": float(r)} for y, r in ratio.items() if np.isfinite(r) and (r > ANOMALY_RATIO or r < 1 / ANOMALY_RATIO)]
 
