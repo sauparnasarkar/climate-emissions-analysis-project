@@ -88,7 +88,7 @@ def _describe(entry: dict, s_in_range: pd.Series) -> dict:
     return {
         "id": entry["id"], "name": entry["name"], "unit": entry["unit"], "kind": entry["kind"], "scope": entry["scope"],
         "coverage": entry.get("coverage"), "n_values_in_range": int(s_in_range.notna().sum()),
-        "provenance": entry.get("provenance"), "caveats": entry.get("caveats", []),
+        "provenance": json.loads(json.dumps(entry.get("provenance"))), "caveats": list(entry.get("caveats", [])),
     }
 
 
