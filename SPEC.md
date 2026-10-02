@@ -274,7 +274,7 @@ Produce a summary table with columns:
 
 **5.1 Scenario Design**
 
-- **Scenario A – Business as Usual (BAU):** No policy change; use the ETS(A,Ad,N) baseline forecast from Week 4
+- **Scenario A – Business as Usual (BAU):** No policy change; use the ETS(A,Ad,N) model of Week 4 **refitted on all observed years (1990–2024)** as the baseline — a second fit, not Week 4's export (Week 4's fit stops at 2018 so that 2019–2023 can be held out; see §6.2)
 - **Scenario B – Moderate Mitigation:** Apply a linear annual reduction rate of 2% per year to the BAU forecast starting from 2025
 - **Scenario C – Aggressive Mitigation:** Apply a linear annual reduction rate of 5% per year to the BAU forecast starting from 2025
 
@@ -462,6 +462,7 @@ Sections to include:
 | v59 | Oct 2026 | §5.26: Phase 1.2 design (harmonized analytical layer, indicator catalog, derived-metric and baseline policy, `align_pair`; decisions 25–29), written docs-first. Not an internship requirement change. |
 | v60 | Oct 2026 | §5.26: Phase 1.3 design (correlation analytics — headline OLS + HAC, window grid, residual block-bootstrap stability, recent all-gas view, composition, country cumulative share, scenario translation; `ENHANCEMENTS.md` decisions 30–39), written docs-first from measurements on the real data. Not an internship requirement change. |
 | v61 | Oct 2026 | §5.26 amended (`ENHANCEMENTS.md` Release 21, decision 40): the headline regression is redefined from fossil + cement CO₂ (slope 0.797) to total anthropogenic CO₂ including land-use change (slope 0.520, inside the IPCC AR6 range 0.27–0.63), a definitional correction found by testing against real numbers; the fossil-only figure is kept as a labelled secondary; a CO₂ + non-CO₂ two-predictor regression was rejected on measured collinearity. Decisions 31–34 and 38 re-derived on the new definition. Not an internship requirement change. |
+| v62 | Oct 2026 | Added §6.2 (`ENHANCEMENTS.md` Backlog B2), a **curriculum correction** found while building the Area 2 scenario translation: Week 5's BAU was Week 4's ETS forecast fitted through 2018, so the scenarios started +3.7% above the observed 2024 total; Week 5 now fits the same ETS(A,Ad,N) on every observed year (a second fit; Week 4 untouched), with a continuity check, a rewritten §5.4 interpretation, and its scope limits stated. §5.1's BAU line updated. Not a scope change. |
 
 ---
 
@@ -1979,7 +1980,7 @@ cutover checklist); not a curriculum change, same category as the rest of §5.
 
 > **This section is different from §5.** §5 documents the mentor's *separate, post-internship*
 > reference architecture — additional scope, not a correction. This section instead documents
-> corrections to the internship curriculum itself (Weeks 1 and 3), found after the fact via
+> corrections to the internship curriculum itself (Weeks 1, 3 and 5), found after the fact via
 > external comparison, not a scope change. Interns who already completed these weeks are not
 > required to redo them for certification; the corrections apply going forward.
 
@@ -2004,3 +2005,24 @@ cleanly in the exact environment the weekly job uses (no hard-fail or soft-flag 
 | Fix: `iso_code.notna()` | Switched Week 1's operative filter to `df_raw['iso_code'].notna()` (220 → 218 sovereign countries), keeping `NON_SOVEREIGN` as a reviewable audit record with a runtime drift-check logging any divergence between the two, rather than deleting the list outright |
 | Three-way mirror fix | The identical `NON_SOVEREIGN`-based gap existed independently in `api/data_loaders.py`'s and `app.py`'s own hand-mirrored `load_raw_sovereign()` (used for the Overview "All Countries" tier and the world map) — both switched to the same `iso_code.notna()` filter for consistency across all three copies |
 | Not a curriculum scope change | §3.1's problem-framing text already described a "year Y+1" target before this fix existed — the notebook implementation is what's catching up to the spec, not the other way around |
+
+### 6.2 Week 5 BAU Is a Second ETS Fit on All Observed Years (Release 21, Backlog B2)
+
+**Status: PR open** (`feat/week5-bau-refit`; becomes *Shipped* when merged) — tracked in `ENHANCEMENTS.md` Backlog B2. Found while building the Area 2
+scenario translation (§5.26): Week 5's BAU pathway was Week 4's ETS forecast, fitted through 2018 (`TRAIN_CUTOFF`) so that 2019–2023 can be held out for the
+forecast-vs-actual chart. That is the right choice for *evaluation* and the wrong input for a *scenario baseline*: the scenarios started in 2025 at a level that
+never saw 2019–2024 — **+3.7% above the observed 2024 total** for the expanded set, with per-country steps from −51% to +62% — a discontinuity unrelated to mitigation.
+
+| Item | Detail |
+|---|---|
+| The fix | **Two fits, not a changed cutoff.** Week 4 is untouched and keeps its teaching job (the forecast-vs-actual demonstration). Week 5 fits the **same model, ETS(A,Ad,N), on every observed year (1990–2024)** per country and forecasts to 2040. |
+| Why in the notebook | Interns do not run `pipeline/` (the mentor-side expansion), so Week 5 fits the baseline itself; it no longer reads Week 4's `ets_forecasts.csv` and is genuinely independent of Weeks 3–4. `pipeline/ets_baseline.py` is an independent implementation (the Area 2 production feed); the two agree exactly (max difference 0.0000 Mt over 640 values). |
+| Result | The first BAU year is **+0.9%** above the observed 2024 total (within ±2%); 37 of 40 countries are within ±5% (Kuwait −13.8%, Netherlands −5.8%, United Kingdom −5.4%). |
+| COVID | No outlier handling: the 2020 dip stays in the training data. A backtest fitting through 2021 and 2022 forecast the following years with a median per-country error of 3.5 / 6.4 / 6.8% and 3.9 / 5.5%, against 6.7 / 9.4 / 11.1% and 9.4 / 11.1% for the fit stuck at 2018; interpolating 2020 gave no consistent benefit. |
+| New §5.2b | A continuity check (aggregate within ±2%, countries outside ±5% listed) and a single-year anomaly scan. Kuwait 1991 (493 Mt, the oil fires) is the one anomaly in the 40 countries; it distorts Kuwait's fit and is flagged, not altered. |
+| Scope limits (carried in the notebook) | ETS(A,Ad,N) only, no model selection; the expanded set only (aggregates mix large and small emitters); two short, overlapping backtest cutoffs, so it does **not** establish forecast skill over the 16-year scenario horizon; point forecast only; territorial fossil + cement CO₂. |
+| Rewritten text | §5.4's interpretation quoted numbers from the old BAU and four claims no longer held (Japan → Indonesia in the top five by BAU; three → two countries beating the best of the original ten; the UK → the Netherlands as the smallest percentage reducer; China 67,700 → 69,100 Mt saved). It was rewritten from the recomputed values. |
+| Known limit | The Netherlands' BAU falls 82% over 2025–2040 (to ≈ 19.5 Mt), a steep extrapolation a damped trend does not flatten quickly; flagged in the notebook. The first-year thresholds would not catch it. |
+| Consumers | `api/routers/scenarios.py` and `app.py` build BAU from `ets_forecasts.csv` for 2020–2040; they need to take BAU from `scenario_projections.csv` and the 2020–2024 segment from observed history (separate PR). |
+| Not a scope change | Week 5 remains optional; the scenario definitions (BAU, −2%/year, −5%/year) are unchanged. |
+
