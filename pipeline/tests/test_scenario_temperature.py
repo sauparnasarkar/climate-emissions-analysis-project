@@ -16,17 +16,31 @@ WORLD_T0 = 1_250_000.0  # so the rest-of-world share is 0.2
 LUC = 100_000.0  # Mt/yr of land-use CO2 in each of the last five years
 ANOM = {1996: 1.00, 1997: 1.10, 1998: 1.20, 1999: 1.30, 2000: 1.90}  # the anchor is the 5-year mean (1.30), not the last year (1.90)
 FIRST = T0 + 1
-# the stage requires exactly BAU, Moderate and Aggressive; the first-year covered totals are 1,100,000 (+10%), 1,030,000 (+3%) and 960,000 (-4%) against 1,000,000 observed
-PATH = {"BAU": {"Aland": [660_000, 700_000, 740_000], "Bland": [440_000, 460_000, 480_000]},
-        "Moderate": {"Aland": [620_000, 620_000, 620_000], "Bland": [410_000, 400_000, 390_000]},
-        "Aggressive": {"Aland": [580_000, 520_000, 460_000], "Bland": [380_000, 340_000, 300_000]}}
+# the stage requires exactly BAU, Moderate and Aggressive. The default pathways are HEALTHY data: their first-year covered totals are 1,010,000 (+1.0%), 1,005,000 (+0.5%) and
+# 995,000 (-0.5%) against 1,000,000 observed, inside the +/-2% aggregate and +/-5% per-country thresholds. Tests that need a large step create it with `with_steps`.
+PATH = {"BAU": {"Aland": [606_000, 650_000, 700_000], "Bland": [404_000, 430_000, 460_000]},
+        "Moderate": {"Aland": [603_000, 590_000, 580_000], "Bland": [402_000, 395_000, 388_000]},
+        "Aggressive": {"Aland": [597_000, 560_000, 520_000], "Bland": [398_000, 380_000, 360_000]}}
+
+
+def with_steps(**pct):
+    """A scenario_edit that moves each named scenario's first-year values to `pct` percent from the last observed value, for every country."""
+    def edit(p):
+        cols = {c: p.reset_index(drop=True)[c].to_numpy().copy() for c in p.columns}
+        vals = cols["co2_projected"].astype(float)
+        for sc, s in pct.items():
+            mask = (cols["scenario"] == sc) & (cols["year"] == FIRST)
+            vals[mask] = np.array([COUNTRIES[c] for c in cols["country"][mask]]) * (1 + s / 100)
+        cols["co2_projected"] = vals
+        return pd.DataFrame(cols)
+    return edit
 
 
 def fit(slope, ci):
     return {"fit": {"slope": slope, "ci95_hac": ci}, "range": [1850, T0], "label": "x", "x_indicator": "x"}
 
 
-def write(tmp_path, headline="ok", scenario_edit=None, owid_edit=None, world_edit=None, no_scenario=False, vintage="2025-01-10T04:48:46+00:00", notices=None):
+def write(tmp_path, headline="ok", scenario_edit=None, owid_edit=None, world_edit=None, no_scenario=False, vintage="2025-01-10T04:48:46+00:00", notices=None, baseline="match"):
     # world series 1850..T0
     years = list(range(1850, T0 + 1))
     luc = [LUC if y > T0 - 5 else 0.0 for y in years]
@@ -53,9 +67,33 @@ def write(tmp_path, headline="ok", scenario_edit=None, owid_edit=None, world_edi
         proj = scenario_edit(proj)
     if not no_scenario:
         proj.to_csv(tmp_path / "scenario_projections.csv", index=False)
+    write_baseline(tmp_path, baseline)
     (tmp_path / "provenance.json").write_text(json.dumps({"temperature_anomaly_annual": {"source_release": {"http_last_modified": vintage}}}))
     npath = tmp_path / "notices.json"
     npath.write_text(json.dumps(notices or {}))
+
+
+def write_baseline(tmp_path, kind):
+    """The pipeline's current baseline (ets_baseline_full_data.csv/.json): by default exactly the default BAU pathway, i.e. the scenario file IS on the current baseline."""
+    rows = [(c, FIRST + i, float(v)) for c, vals in PATH["BAU"].items() for i, v in enumerate(vals)]
+    df = pd.DataFrame(rows, columns=["country", "year", "mean"])
+    if kind == "none":
+        return
+    if kind == "stale":
+        df = pd.DataFrame({"country": df["country"], "year": df["year"], "mean": df["mean"].to_numpy() * 0.97})
+    elif kind == "tiny":
+        df = pd.DataFrame({"country": df["country"], "year": df["year"], "mean": df["mean"].to_numpy() + 0.005})
+    elif kind == "missing_country_year":
+        df = df.iloc[1:]
+    elif kind == "empty":
+        df = df.iloc[0:0]
+    elif kind == "no_mean_column":
+        df = df.rename(columns={"mean": "value"})
+    df.to_csv(tmp_path / "ets_baseline_full_data.csv", index=False)
+    if kind == "unavailable_json":
+        (tmp_path / "ets_baseline_full_data.json").write_text(json.dumps({"unavailable_reason": "OWID CO2 for 1990-2024 is missing for: Aland"}))
+    else:
+        (tmp_path / "ets_baseline_full_data.json").write_text(json.dumps({"last_observed_year": T0}))
 
 
 def go(tmp_path, **kw):
@@ -238,7 +276,7 @@ def test_the_vintage_caveat_is_removed_only_when_the_owner_records_a_reconciliat
 
 
 def test_scenarios_that_start_at_different_levels_are_each_reported(tmp_path):
-    _, out = go(tmp_path)  # synthetic: BAU starts at 1,100,000 (+10%), Moderate 1,030,000 (+3%), Aggressive 960,000 (-4%) against 1,000,000 observed
+    _, out = go(tmp_path, scenario_edit=with_steps(BAU=10.0, Moderate=3.0, Aggressive=-4.0), baseline="none")  # against 1,000,000 observed
     b = out["base"]
     assert b["first_scenario_year_covered_mt"] == {"Aggressive": pytest.approx(960_000.0), "BAU": pytest.approx(1_100_000.0), "Moderate": pytest.approx(1_030_000.0)}
     assert b["first_scenario_year_vs_last_observed_pct"] == {"Aggressive": pytest.approx(-4.0), "BAU": pytest.approx(10.0), "Moderate": pytest.approx(3.0)}
@@ -249,14 +287,7 @@ def test_scenarios_that_start_at_different_levels_are_each_reported(tmp_path):
 
 
 def test_when_every_scenario_starts_at_the_same_level_the_caveat_says_so_once(tmp_path):
-    def same_start(p):
-        q = p.copy()
-        for sc in ("Moderate", "Aggressive"):  # every scenario starts where BAU does
-            q.loc[(q.year == FIRST) & (q.scenario == sc) & (q.country == "Aland"), "co2_projected"] = 660_000.0
-            q.loc[(q.year == FIRST) & (q.scenario == sc) & (q.country == "Bland"), "co2_projected"] = 440_000.0
-        return q
-
-    _, out = go(tmp_path, scenario_edit=lambda p: same_start(p.reset_index(drop=True)))
+    _, out = go(tmp_path, scenario_edit=with_steps(BAU=10.0, Moderate=10.0, Aggressive=10.0), baseline="none")
     text = [c for c in out["caveats"] if c.startswith("The scenario pathways start ")]
     assert len(text) == 1 and text[0].startswith("The scenario pathways start +10.0% from the last observed total for the covered countries (1,000,000 Mt in 2000 to 1,100,000 Mt in 2001)")
 
@@ -515,3 +546,166 @@ def test_the_scrub_replaces_only_non_finite_numbers_and_reports_their_paths():
     assert clean == {"a": 1.5, "b": [2.0, None], "c": {"d": None, "e": "x", "f": None, "g": 7}} and bad == ["output.b[1]", "output.c.d"]
     same, none = T._scrub_non_finite({"a": [1.0, {"b": 2}]})
     assert same == {"a": [1.0, {"b": 2}]} and none == []
+
+
+# ---------------------------------------------------------------- the first-year step check (Backlog B2: +/-2% aggregate, +/-5% per country)
+
+
+def many_countries(monkeypatch, n=20, per_country_step=None):
+    """A larger covered set (n countries of 50,000 Mt each, 1,000,000 in total) so a single outlier is below the systematic share."""
+    countries = {f"C{i:02d}": 1_000_000.0 / n for i in range(n)}
+    steps = per_country_step or {}
+    path = {sc: {c: [v * (1 + (steps.get(c, 0.0) if sc == "BAU" else 0.0) / 100) * f for f in (1.0, 1.04, 1.08)] for c, v in countries.items()} for sc in ("BAU", "Moderate", "Aggressive")}
+    monkeypatch.setattr(sys.modules[__name__], "COUNTRIES", countries)
+    monkeypatch.setattr(sys.modules[__name__], "PATH", path)
+
+
+import sys  # noqa: E402
+
+
+def test_the_default_pathways_are_within_the_thresholds_and_the_step_checks_are_published(tmp_path):
+    rep, out = go(tmp_path)
+    assert rep.deviations == [] and not any("start outside" in n for n in rep.notes)
+    sc = out["base"]["step_check"]
+    assert sorted(sc) == ["Aggressive", "BAU", "Moderate"]
+    for name, pct in (("BAU", 1.0), ("Moderate", 0.5), ("Aggressive", -0.5)):
+        r = sc[name]
+        assert r["aggregate_step_pct"] == pytest.approx(pct, abs=1e-9) and r["aggregate_breach"] is False and r["flagged_countries"] == [] and r["systematic_breach"] is False
+        assert r["aggregate_tolerance_pct"] == 2.0 and r["country_tolerance_pct"] == 5.0 and set(r["country_steps_pct"]) == set(COUNTRIES) and r["n_countries"] == 2
+        assert r["rule"].startswith("aggregate step within +/-2%")
+    assert out["base"]["first_scenario_year_vs_last_observed_pct"] == {k: pytest.approx(v["aggregate_step_pct"]) for k, v in sc.items()}  # one source of truth
+
+
+@pytest.mark.parametrize("pct,breach", [(0.0, False), (1.99, False), (2.0, False), (2.01, True), (-2.0, False), (-2.01, True), (3.7, True)])
+def test_the_aggregate_threshold_is_two_percent_and_inclusive(tmp_path, pct, breach):
+    rep, out = go(tmp_path, scenario_edit=with_steps(BAU=pct, Moderate=pct, Aggressive=pct), baseline="none")
+    assert out["base"]["step_check"]["BAU"]["aggregate_breach"] is breach and out["scenarios"] is not None  # the translation still publishes: a step is reported, not refused
+    assert (len([d for d in rep.deviations if "the aggregate first-year step is" in d]) == 1) is breach
+
+
+def test_each_distinct_scenario_start_gets_its_own_aggregate_deviation(tmp_path):
+    rep, out = go(tmp_path, scenario_edit=with_steps(BAU=10.0, Moderate=3.0, Aggressive=-4.0), baseline="none")
+    dev = [d for d in rep.deviations if "the aggregate first-year step is" in d]
+    assert len(dev) == 3
+    assert any("(BAU), first year 2001: the aggregate first-year step is +10.0% from the last observed total (tolerance ±2%)" in d for d in dev)
+    assert any("(Moderate), first year 2001" in d and "+3.0%" in d for d in dev) and any("(Aggressive), first year 2001" in d and "-4.0%" in d for d in dev)
+
+
+def test_scenarios_that_start_identically_are_reported_once(tmp_path):
+    rep, _ = go(tmp_path, scenario_edit=with_steps(BAU=10.0, Moderate=10.0, Aggressive=10.0), baseline="none")
+    dev = [d for d in rep.deviations if "the aggregate first-year step is" in d]
+    assert len(dev) == 1 and "scenario pathways (Aggressive, BAU, Moderate), first year 2001: the aggregate first-year step is +10.0%" in dev[0]
+
+
+def test_a_breaching_start_does_not_stop_the_translation(tmp_path):
+    _, out = go(tmp_path, scenario_edit=with_steps(BAU=10.0, Moderate=10.0, Aggressive=10.0), baseline="none")
+    assert out["scenarios"] is not None and out["base"]["step_check"]["BAU"]["aggregate_breach"] is True
+
+
+def test_in_a_small_set_one_outlier_country_is_systematic_and_a_deviation(tmp_path):
+    def one_country(p):
+        cols = {c: p.reset_index(drop=True)[c].to_numpy().copy() for c in p.columns}
+        v = cols["co2_projected"].astype(float)
+        m = (cols["year"] == FIRST) & (cols["country"] == "Aland")
+        v[m] = 600_000.0 * 1.08  # Aland +8%: 1 of 2 countries = 50% of the set
+        cols["co2_projected"] = v
+        return pd.DataFrame(cols)
+
+    rep, out = go(tmp_path, scenario_edit=one_country, baseline="none")
+    r = out["base"]["step_check"]["BAU"]
+    assert r["systematic_breach"] is True and [f["country"] for f in r["flagged_countries"]] == ["Aland"]
+    assert any("1 of 2 countries start outside ±5%" in d and "Aland +8.0%" in d and "more than the systematic threshold" in d for d in rep.deviations)
+
+
+def test_in_a_large_set_one_outlier_is_a_note_with_the_country_and_not_a_deviation(tmp_path, monkeypatch):
+    many_countries(monkeypatch, n=20, per_country_step={"C03": 12.0, "C04": -1.0})
+    rep, out = go(tmp_path, baseline="none")
+    r = out["base"]["step_check"]["BAU"]
+    assert [f["country"] for f in r["flagged_countries"]] == ["C03"] and r["flagged_share"] == pytest.approx(0.05) and r["systematic_breach"] is False
+    assert not any("start outside" in d for d in rep.deviations)
+    assert any("1 of 20 countries start outside ±5%" in n and "C03 +12.0%" in n for n in rep.notes)
+    assert out["base"]["step_check"]["BAU"]["aggregate_step_pct"] == pytest.approx((0.12 * 1 - 0.01) / 20 * 100, abs=1e-6)
+
+
+def test_more_than_ten_percent_of_countries_outside_is_systematic_even_in_a_large_set(tmp_path, monkeypatch):
+    many_countries(monkeypatch, n=20, per_country_step={f"C{i:02d}": 9.0 for i in range(3)})  # 3 of 20 = 15%
+    rep, out = go(tmp_path, baseline="none")
+    assert out["base"]["step_check"]["BAU"]["systematic_breach"] is True and any("3 of 20 countries start outside" in d for d in rep.deviations)
+
+
+def test_a_non_positive_observed_value_makes_the_step_undefined_and_the_translation_unavailable(tmp_path):
+    _, out = go(tmp_path, owid_edit=lambda r: r.assign(co2=np.where(r.country == "Aland", 0.0, r.co2)))
+    assert out["scenarios"] is None and "first-year step check cannot be computed" in out["unavailable_reason"] and "observed total is not positive for: Aland" in out["unavailable_reason"]
+
+
+def test_the_continuity_caveat_uses_the_shared_two_percent_threshold(tmp_path):
+    from pipeline import step_check
+
+    assert step_check.AGGREGATE_TOL_PCT == 2.0
+    _, a = go(tmp_path, scenario_edit=with_steps(BAU=1.99, Moderate=1.99, Aggressive=1.99), baseline="none")
+    assert not any(c.startswith("The scenario pathways start ") for c in a["caveats"])
+    x = tmp_path / "b"
+    x.mkdir()
+    _, b = go(x, scenario_edit=with_steps(BAU=2.5, Moderate=2.5, Aggressive=2.5), baseline="none")
+    assert any(c.startswith("The scenario pathways start +2.5%") for c in b["caveats"])
+
+
+# ---------------------------------------------------------------- is the scenario file's BAU the current baseline?
+
+
+def test_a_scenario_file_on_the_current_baseline_is_reported_current_with_no_alert(tmp_path):
+    rep, out = go(tmp_path)
+    pb = out["base"]["pathway_baseline"]
+    assert pb["status"] == "current" and pb["max_abs_difference_mt"] == 0.0 and pb["n_country_years_compared"] == 6 and pb["file"] == "ets_baseline_full_data.csv"
+    assert pb["aggregate"][str(FIRST)]["difference_pct"] == pytest.approx(0.0) and pb["aggregate"][str(FIRST + 2)]["difference_pct"] == pytest.approx(0.0)
+    assert rep.deviations == [] and not any("older ETS fit" in c for c in out["caveats"])
+
+
+def test_a_scenario_file_from_an_older_fit_is_a_deviation_with_the_cause_and_the_fix_and_a_caveat(tmp_path):
+    rep, out = go(tmp_path, baseline="stale")  # the current baseline is 3% below the scenario file's BAU
+    pb = out["base"]["pathway_baseline"]
+    assert pb["status"] == "stale" and pb["max_abs_difference_mt"] > 0.01
+    expect_first = (1_010_000.0 / (1_010_000.0 * 0.97) - 1) * 100
+    assert pb["aggregate"][str(FIRST)]["difference_pct"] == pytest.approx(expect_first, abs=1e-6) and pb["aggregate"][str(FIRST)]["scenario_bau_mt"] == pytest.approx(1_010_000.0)
+    dev = [d for d in rep.deviations if "BAU is not the current baseline" in d]
+    assert len(dev) == 1 and "ets_baseline_full_data.csv" in dev[0] and "older fit" in dev[0] and "rerun the Week 5 notebook (Backlog B2)" in dev[0] and f"{expect_first:+.1f}%" in dev[0]
+    assert any(c.startswith("The BAU in these scenario pathways comes from an older ETS fit than the current baseline") for c in out["caveats"]) and out["scenarios"] is not None
+
+
+def test_a_difference_within_the_rounding_tolerance_is_still_current(tmp_path):
+    rep, out = go(tmp_path, baseline="tiny")  # +0.005 Mt on every value: below 0.01
+    assert out["base"]["pathway_baseline"]["status"] == "current" and rep.deviations == []
+
+
+@pytest.mark.parametrize("kind,reason_fragment", [
+    ("none", "ets_baseline_full_data.csv not found: the ets_baseline stage has not run"),
+    ("unavailable_json", "the current baseline is unavailable: OWID CO2 for 1990-2024 is missing for: Aland"),
+    ("missing_country_year", "the current baseline has no value for 1 of the scenario file's BAU country-years (e.g. Aland 2001)"),
+    ("empty", "is empty or lacks country/year/mean columns"),
+    ("no_mean_column", "is empty or lacks country/year/mean columns"),
+])
+def test_a_missing_or_unusable_baseline_is_a_note_not_a_deviation_and_the_translation_still_publishes(tmp_path, kind, reason_fragment):
+    rep, out = go(tmp_path, baseline=kind)
+    pb = out["base"]["pathway_baseline"]
+    assert pb["status"] == "unavailable" and reason_fragment in pb["reason"] and out["scenarios"] is not None
+    assert not any("current baseline" in d for d in rep.deviations) and any("were not compared with the current baseline" in n for n in rep.notes)
+
+
+def test_the_stale_and_step_alerts_are_independent(tmp_path):
+    """A stale file with a healthy first-year step gets the baseline alert only; a breaching step on the current baseline file gets the step alert only."""
+    rep, _ = go(tmp_path, baseline="stale")
+    assert any("BAU is not the current baseline" in d for d in rep.deviations) and not any("aggregate first-year step" in d for d in rep.deviations)
+    x = tmp_path / "b"
+    x.mkdir()
+    rep2, _ = go(x, scenario_edit=with_steps(BAU=5.0, Moderate=5.0, Aggressive=5.0))  # the baseline file is still the unedited default BAU
+    assert any("aggregate first-year step" in d for d in rep2.deviations)
+
+
+def test_the_new_blocks_never_make_the_output_invalid_json_and_the_unavailable_schema_is_unchanged(tmp_path):
+    _, good = go(tmp_path)
+    strict_json(tmp_path / "correlation_scenario_temperature.json")
+    x = tmp_path / "u"
+    x.mkdir()
+    _, bad = go(x, scenario_edit=lambda p: p.assign(year=p.year + 3))
+    assert set(bad) - {"unavailable_reason"} == set(good) and bad["base"] is None
+    strict_json(x / "correlation_scenario_temperature.json")

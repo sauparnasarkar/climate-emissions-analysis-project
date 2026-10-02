@@ -33,6 +33,7 @@ from .correlation import METHODOLOGY, PLAIN_LANGUAGE, _vintage
 from .harmonize import _LUC_LICENSE, _LUC_UNCERTAINTY
 from .owid import DATA_PATH as OWID_PATH
 from .pairing import CAUSATION_NOTE
+from .step_check import AGGREGATE_TOL_PCT, check_step, step_messages
 
 SCHEMA_VERSION = 1
 OUTPUT_JSON = "correlation_scenario_temperature.json"
@@ -40,7 +41,9 @@ SCENARIO_PATH = os.path.join(ROOT, "data", "scenario_projections.csv")
 MT_PER_THOUSAND_GT = 1e6
 LUC_FLAT_WINDOW = 5
 ANCHOR_WINDOW = 5
-CONTINUITY_NOTE_PCT = 2.0  # a first scenario year this far from the last observed covered-country total is called out
+BASELINE_CSV = "ets_baseline_full_data.csv"
+BASELINE_JSON = "ets_baseline_full_data.json"
+BASELINE_TOL_MT = 0.01  # both files round to 3 decimals, so the same fit on the same data agrees to well within this per country-year
 
 LABELS = ["illustrative, partial-coverage translation", "Implied temperature outcomes",
           "Dependent on the selected regression period, emissions source and model assumptions",
@@ -168,6 +171,65 @@ def _fit(headline_json: dict, key: str) -> dict | None:
     return f
 
 
+def _step_checks(proj: pd.DataFrame, at_t0: pd.Series, t0: int) -> dict:
+    """The shared first-year step check (pipeline/step_check.py, Backlog B2) applied to each scenario's first projected year against the last observed value, per country."""
+    observed = {c: float(v) for c, v in at_t0.items()}
+    first = proj[proj["year"] == t0 + 1]
+    out = {}
+    for sc, g in first.groupby("scenario"):
+        try:
+            out[sc] = check_step(g.groupby("country")["co2_projected"].sum().to_dict(), observed)
+        except ValueError as e:
+            raise Unavailable(f"the first-year step check cannot be computed for scenario {sc}: {e}") from e
+    return out
+
+
+def _report_steps(steps: dict, t0: int, report: RunReport) -> None:
+    """Deviations and notes from the step checks. Scenarios that start identically (the Week 5 notebook starts all three from the BAU first year) are reported once."""
+    groups: list[tuple[list[str], dict]] = []
+    for sc in sorted(steps):
+        for names, res in groups:
+            if res["country_steps_pct"].keys() == steps[sc]["country_steps_pct"].keys() and all(abs(res["country_steps_pct"][c] - steps[sc]["country_steps_pct"][c]) < 1e-9 for c in res["country_steps_pct"]):
+                names.append(sc)
+                break
+        else:
+            groups.append(([sc], steps[sc]))
+    for names, res in groups:
+        label = f"scenario pathways ({', '.join(names)}), first year {t0 + 1}"
+        dev, notes = step_messages(res, label)
+        for d in dev:
+            report.deviate(d)
+        for n in notes:
+            report.note(n)
+
+
+def _baseline_consistency(climate_dir: str, proj: pd.DataFrame, t0: int) -> dict:
+    """Is the scenario file's BAU the current baseline (the pipeline's ets_baseline_full_data.csv)? 'current', 'stale' (generated from an older fit) or 'unavailable'."""
+    path, meta_path = os.path.join(climate_dir, BASELINE_CSV), os.path.join(climate_dir, BASELINE_JSON)
+    if not os.path.exists(path):
+        return {"status": "unavailable", "reason": f"{BASELINE_CSV} not found: the ets_baseline stage has not run"}
+    if os.path.exists(meta_path):
+        meta = json.load(open(meta_path))
+        if isinstance(meta, dict) and meta.get("unavailable_reason"):
+            return {"status": "unavailable", "reason": f"the current baseline is unavailable: {meta['unavailable_reason']}"}
+    base = pd.read_csv(path)
+    if base.empty or not {"country", "year", "mean"} <= set(base.columns):
+        return {"status": "unavailable", "reason": f"{BASELINE_CSV} is empty or lacks country/year/mean columns"}
+    bau = proj[proj["scenario"] == "BAU"][["country", "year", "co2_projected"]]
+    merged = bau.merge(base[["country", "year", "mean"]], on=["country", "year"], how="left")
+    missing = merged[merged["mean"].isna()]
+    if len(missing):
+        return {"status": "unavailable", "reason": f"the current baseline has no value for {len(missing)} of the scenario file's BAU country-years (e.g. {missing.iloc[0]['country']} {int(missing.iloc[0]['year'])})"}
+    diff = (merged["co2_projected"] - merged["mean"]).abs()
+    first, last = t0 + 1, int(merged["year"].max())
+    tot = lambda col, y: float(merged.loc[merged["year"] == y, col].sum())  # noqa: E731
+    out = {"status": "current" if float(diff.max()) <= BASELINE_TOL_MT else "stale", "max_abs_difference_mt": float(diff.max()), "tolerance_mt": BASELINE_TOL_MT,
+           "n_country_years_compared": int(len(merged)), "file": BASELINE_CSV,
+           "aggregate": {str(y): {"scenario_bau_mt": tot("co2_projected", y), "current_baseline_mt": tot("mean", y),
+                                  "difference_pct": (tot("co2_projected", y) / tot("mean", y) - 1) * 100} for y in (first, last)}}
+    return out
+
+
 INPUT_FILES = ("owid_world_co2_annual.csv", "correlation_headline.json", "scenario_projections.csv", "owid-co2-data.csv", "temperature_anomaly_annual.csv")
 
 
@@ -248,8 +310,20 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
 
         res = translate(proj, t0, covered_t0, world_t0, luc_flat, fit_head, fit_foss, anchor)
         first_cov = {sc: float(v) for sc, v in proj[proj["year"] == t0 + 1].groupby("scenario")["co2_projected"].sum().items()}
-        jumps = {sc: (v / covered_t0 - 1) * 100 for sc, v in first_cov.items()}
-        if any(abs(j) > CONTINUITY_NOTE_PCT for j in jumps.values()):
+        steps = _step_checks(proj, at_t0, t0)
+        jumps = {sc: steps[sc]["aggregate_step_pct"] for sc in first_cov}  # the same number as (first_cov / covered_t0 - 1): the covered set is the checked set
+        _report_steps(steps, t0, report)
+        pathway_baseline = _baseline_consistency(climate_dir, proj, t0)
+        if pathway_baseline["status"] == "stale":
+            a = pathway_baseline["aggregate"]
+            first_y, last_y = str(t0 + 1), str(max(int(k) for k in a))
+            report.deviate(f"scenario pathways' BAU is not the current baseline: it differs from {BASELINE_CSV} by up to {pathway_baseline['max_abs_difference_mt']:,.1f} Mt per country-year "
+                           f"(aggregate {first_y}: {a[first_y]['difference_pct']:+.1f}%, {last_y}: {a[last_y]['difference_pct']:+.1f}%): the scenario file was generated from an older fit; rerun the Week 5 notebook (Backlog B2)")
+            caveats.append(f"The BAU in these scenario pathways comes from an older ETS fit than the current baseline ({BASELINE_CSV}): the aggregate differs by {a[first_y]['difference_pct']:+.1f}% in {first_y} and "
+                           f"{a[last_y]['difference_pct']:+.1f}% in {last_y}. The translation uses the pathways as given.")
+        elif pathway_baseline["status"] == "unavailable":
+            report.note(f"scenario pathways were not compared with the current baseline: {pathway_baseline['reason']}")
+        if any(abs(j) > AGGREGATE_TOL_PCT for j in jumps.values()):
             vals = list(jumps.values())
             if max(vals) - min(vals) < 0.05:  # every scenario starts at the same level (as in the current Week 5 output)
                 step = f"{vals[0]:+.1f}% from the last observed total for the covered countries ({covered_t0:,.0f} Mt in {t0} to {next(iter(first_cov.values())):,.0f} Mt in {t0 + 1})"
@@ -262,6 +336,7 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
             "base": {"last_observed_year": t0, "world_co2_mt": world_t0, "covered_co2_mt": covered_t0, "covered_share_of_world": covered_t0 / world_t0,
                      "world_cumulative_total_co2_since_1850_mt": float(w.loc[1850:t0, "total_co2_incl_luc_mt"].sum(skipna=False)), "world_cumulative_fossil_co2_mt": float(w.loc[t0, "cumulative_co2_mt"]),
                      "first_scenario_year_covered_mt": first_cov, "first_scenario_year_vs_last_observed_pct": jumps,
+                     "step_check": steps, "pathway_baseline": pathway_baseline,
                      "anchor": {"definition": f"trailing {ANCHOR_WINDOW}-year mean of the observed Berkeley Earth anomaly (1850-1900 reference), {t0 - ANCHOR_WINDOW + 1}-{t0}", "value_c": anchor,
                                 "last_year_value_c": float(temp.loc[t0])}},
             "covered_countries": [{"country": n, "co2_mt_last_observed_year": float(at_t0[n])} for n in names]}
