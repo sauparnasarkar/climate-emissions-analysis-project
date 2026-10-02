@@ -88,6 +88,11 @@ class RunReport:
     source: str
     records: dict[str, int] = field(default_factory=dict)
     deviations: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)  # known, expected data gaps: logged, never alerting
+
+    def note(self, message: str) -> None:
+        self.notes.append(message)
+        log.info("%s: note: %s", self.source, message)
 
     def count(self, series_id: str, n: int) -> None:
         self.records[series_id] = n
@@ -98,7 +103,7 @@ class RunReport:
         log.warning("%s: DEVIATION: %s", self.source, message)
 
     def as_dict(self) -> dict:
-        return {"source": self.source, "records": self.records, "deviations": self.deviations}
+        return {"source": self.source, "records": self.records, "deviations": self.deviations, "notes": self.notes}
 
 
 def write_provenance(series_id: str, entry: dict, path: str = PROVENANCE_PATH) -> None:

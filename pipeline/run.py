@@ -14,12 +14,13 @@ import os
 import sys
 import traceback
 
-from . import berkeley_earth, noaa_gml
+from . import berkeley_earth, edgar, noaa_gml
 from .common import CLIMATE_DIR, utc_now, write_json_atomic
 
 SOURCES = {
     "noaa_gml": noaa_gml.run,
     "berkeley_earth": berkeley_earth.run,
+    "edgar": edgar.run,
 }
 
 
