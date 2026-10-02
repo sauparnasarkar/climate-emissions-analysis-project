@@ -39,7 +39,7 @@ or odd source is a *deviation* (warning) the refresh job turns into an alert.
 One key (integer calendar year, unique per indicator), one unit and one **scope** (global / country) per indicator, explicit nulls (nothing is interpolated), and a link from every indicator to its source series' provenance. `indicator_catalog.json` lists every indicator: id, name, unit, kind (`level` / `cumulative` / `anomaly` / `uncertainty` / `derived`), its own coverage, provenance link, and for derived ones the baseline year, formula and the baselines that were excluded (with why). The API reads these tables; it never recomputes them.
 
 - **Level** series get year-on-year %, a **trailing** 5-year mean (null until 5 consecutive observations; trailing so it never uses a later year) and an index for each allowed baseline: 1990, 1970, pre-industrial (= 1850) — defined only where the baseline value exists and is > 0.
-- **Cumulative** series are never indexed or averaged. **Anomalies are never indexed** (the 1850–1900 anomaly is −0.13 °C in 1850, so "= 100" is meaningless); they keep both native references and the interval.
+- **Cumulative** series are never indexed or averaged. **Anomalies are never indexed** (the 1850–1900 anomaly is −0.13 °C in 1850, so "= 100" is meaningless, and a year-on-year % of an anomaly is undefined); they keep both native references and the interval, and get the trailing 5-year mean only. Every derived entry inherits its base's description and caveats, and every provenance link carries the source's checksums and URLs.
 - Country scope is deliberately small: PRIMAP total, per-gas and cumulative per area.
 - **No dense pandas reshapes anywhere in this layer** — see the environment note below.
 

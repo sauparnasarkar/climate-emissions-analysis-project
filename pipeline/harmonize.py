@@ -21,7 +21,7 @@ What "harmonized" means here, concretely:
 Derived indicators (`level` kind only): year-on-year %, trailing 5-year mean, and an index for each
 allowed baseline (1990, 1970, pre-industrial = 1850) where the baseline value exists and is > 0.
 `cumulative` series get none of these; `anomaly` series are **never indexed** (the 1850-1900 anomaly is
--0.13 C in 1850, so "= 100" is meaningless) and carry both native references instead.
+-0.13 C in 1850, so "= 100" is meaningless): they carry both native references and the trailing 5-year mean.
 """
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ GLOBAL_SPECS: list[Spec] = [
     Spec("owid_co2_world_mt", "World CO2 emissions (incl. international transport)", "Mt CO2", "level", "global", "owid_world_co2_annual.csv", "co2_mt",
          "owid_world_co2_annual", "OWID/GCP World fossil + cement CO2, including international aviation and shipping (the TCRE regression X-variable's annual flow).", 0, "1990"),
     Spec("owid_co2_world_cumulative_mt", "World cumulative CO2 emissions", "Mt CO2", "cumulative", "global", "owid_world_co2_annual.csv", "cumulative_co2_mt",
-         "owid_world_co2_annual", "OWID's own cumulative World CO2 since 1750 (the TCRE regression X-variable).", 0, "preindustrial"),
+         "owid_world_co2_annual", "OWID's own cumulative World CO2 since 1750 (the TCRE regression X-variable).", 0),
     Spec("owid_co2_national_sum_mt", "Sum of national CO2 emissions", "Mt CO2", "level", "global", "owid_world_co2_annual.csv", "national_sum_mt",
          "owid_world_co2_annual", "Sum of ISO-coded countries; excludes international transport (the country-share denominator).", 0, "1990",
          caveats=["Includes some non-sovereign territories (ISO-coded OWID entities)."]),
@@ -97,7 +97,7 @@ GLOBAL_SPECS: list[Spec] = [
     Spec("primap_fgas_mtco2e", "F-gases in CO2e (PRIMAP-hist national)", _CO2E, "level", "global", "primap_global_composition_annual.csv", "fgas_mtco2e",
          "primap_global_composition_annual", "PRIMAP-hist national F-gas basket (AR5 GWP-100).", 1, "1970"),
     Spec("primap_ghg_total_cumulative_mtco2e", "Cumulative total GHG emissions, national (PRIMAP-hist)", _CO2E, "cumulative", "global", "primap_global_composition_annual.csv", None,
-         "primap_global_composition_annual", "Running total of the PRIMAP-hist national total from its first year.", 0, "preindustrial", from_id="primap_ghg_total_mtco2e"),
+         "primap_global_composition_annual", "Running total of the PRIMAP-hist national total from its first year.", 0, from_id="primap_ghg_total_mtco2e"),
 ]
 
 COUNTRY_SPECS: list[Spec] = [
@@ -122,20 +122,31 @@ def _provenance_link(prov: dict, series_id: str) -> dict | None:
         return None
     rel = e.get("source_release")
     return {"series": series_id, "source": e.get("source"), "retrieved_at": e.get("retrieved_at"), "coverage": e.get("coverage"),
-            "license": e.get("license"), "source_release": rel if isinstance(rel, (dict, str)) else None}
+            "license": e.get("license"), "source_release": rel if isinstance(rel, (dict, str)) else None,
+            # the exact source artifacts: raw-file checksums (and the provider's own, where verified) travel with every indicator
+            "raw_sha256": e.get("raw_sha256"), "checksum_verified": e.get("checksum_verified"), "source_urls": e.get("source_urls")}
 
 
 def _derived_entries(spec: Spec, series: pd.Series) -> tuple[list[dict], dict[str, pd.Series], dict[str, str]]:
-    """Derived catalog entries + their series for a `level` indicator, and the baselines that were excluded (with why)."""
-    entries, data, excluded = [], {}, {}
-    base = {"derived_from": spec.id, "scope": spec.scope, "kind": "derived", "decimals": spec.decimals, "source_series": spec.source_series}
+    """Derived catalog entries + their series, and the baselines that were excluded (with why).
 
-    data[f"{spec.id}__yoy_pct"] = derive.yoy_pct(series)
-    entries.append({**base, "id": f"{spec.id}__yoy_pct", "name": f"{spec.name}: year-on-year change", "unit": "%", "metric": "yoy_pct",
-                    "formula": "100 × (value[y] / value[y-1] - 1); null if the previous calendar year is missing or not > 0", "decimals": 1})
+    `level` indicators get year-on-year %, a trailing 5-year mean and an index per allowed baseline. `anomaly` indicators get
+    **only** the trailing mean (decision 28): an anomaly can be zero or negative, so "= 100" has no meaning and a year-on-year
+    percentage is undefined. Every derived entry inherits its base's description and caveats, so a consumer that is served only a
+    derived metric still receives the limitation (e.g. the CO2 splice)."""
+    entries, data, excluded = [], {}, {}
+    base = {"derived_from": spec.id, "scope": spec.scope, "kind": "derived", "decimals": spec.decimals, "source_series": spec.source_series,
+            "description": spec.description, "caveats": list(spec.caveats)}
+
+    if spec.kind == "level":
+        data[f"{spec.id}__yoy_pct"] = derive.yoy_pct(series)
+        entries.append({**base, "id": f"{spec.id}__yoy_pct", "name": f"{spec.name}: year-on-year change", "unit": "%", "metric": "yoy_pct",
+                        "formula": "100 × (value[y] / value[y-1] - 1); null if the previous calendar year is missing or not > 0", "decimals": 1})
     data[f"{spec.id}__mean5y"] = derive.trailing_mean(series)
     entries.append({**base, "id": f"{spec.id}__mean5y", "name": f"{spec.name}: trailing 5-year mean", "unit": spec.unit, "metric": "trailing_mean_5y",
                     "formula": "mean of the current and previous 4 calendar years; null until 5 consecutive observations (trailing, no look-ahead)"})
+    if spec.kind != "level":
+        return entries, data, excluded
     for key, year in derive.BASELINES.items():
         idx, problem = derive.index_to_baseline(series, year)
         if problem:
@@ -212,17 +223,18 @@ def build(climate_dir: str, provenance: dict, report: RunReport) -> tuple[pd.Dat
         entry = {"id": spec.id, "name": spec.name, "unit": spec.unit, "kind": spec.kind, "scope": spec.scope, "description": spec.description,
                  "decimals": spec.decimals, "source_series": spec.source_series, "provenance": _provenance_link(provenance, spec.source_series),
                  "coverage": _span(s), "n_values": int(s.notna().sum()), "caveats": spec.caveats}
-        if spec.default_baseline:
+        if spec.default_baseline and spec.kind == "level":  # only level indicators have indices; never advertise a baseline that cannot be applied
             entry["default_baseline"] = spec.default_baseline
         if spec.default_reference:
             entry["default_reference"] = spec.default_reference
         series_map = {spec.id: s}
         derived_entries: list[dict] = []
-        if spec.kind == "level":
+        if spec.kind in ("level", "anomaly"):
             derived_entries, derived_data, excluded = _derived_entries(spec, s)
             series_map.update(derived_data)
-            entry["allowed_baselines"] = [k for k in derive.BASELINES if k not in excluded]
-            entry["excluded_baselines"] = excluded
+            if spec.kind == "level":
+                entry["allowed_baselines"] = [k for k in derive.BASELINES if k not in excluded]
+                entry["excluded_baselines"] = excluded
             for e in derived_entries:
                 e["provenance"] = entry["provenance"]
                 e["coverage"] = _span(derived_data[e["id"]])
@@ -242,12 +254,17 @@ def build(climate_dir: str, provenance: dict, report: RunReport) -> tuple[pd.Dat
     if cdf is not None:
         if cdf.duplicated(["iso3", "year"]).any():
             raise ValueError("primap_country_annual.csv: duplicate (iso3, year)")
+        col_of = {s.id: s.column for s in COUNTRY_SPECS}
         for spec in COUNTRY_SPECS:
             check_provenance_coverage(spec, cdf)
             if spec.column is None:
+                src_col = col_of.get(spec.from_id)
+                if src_col is None or src_col not in cdf.columns:
+                    report.deviate(f"{spec.id}: its source column {src_col!r} (for {spec.from_id}) is missing from {spec.file}; skipped")
+                    continue
                 parts = []
                 for iso, g in cdf.groupby("iso3", sort=True):
-                    cum = derive.cumulative(g.set_index("year")["total_ghg_mtco2e"].astype(float)).dropna()
+                    cum = derive.cumulative(g.set_index("year")[src_col].astype(float)).dropna()
                     parts.append(pd.DataFrame({"iso3": iso, "year": cum.index.astype(int), "value": cum.to_numpy()}))
                 long = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=["iso3", "year", "value"])
             else:

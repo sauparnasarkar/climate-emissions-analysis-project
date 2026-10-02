@@ -35,7 +35,7 @@ def test_trailing_mean_is_trailing_needs_five_consecutive_years_and_never_looks_
 def test_trailing_mean_does_not_bridge_a_gap():
     s = ser({2000: 1.0, 2001: 2.0, 2002: 3.0, 2003: 4.0, 2004: np.nan, 2005: 6.0, 2006: 7.0, 2007: 8.0, 2008: 9.0, 2009: 10.0})
     out = derive.trailing_mean(s)
-    assert out[2003] != out[2003] or True
+    assert np.isnan(out[2003])  # only 4 observations (2000-2003) exist yet: a premature rolling value would be wrong
     assert np.isnan(out[2004]) and np.isnan(out[2008])  # any window containing the gap is null
     assert out[2009] == pytest.approx(8.0)  # 2005..2009 complete again
 

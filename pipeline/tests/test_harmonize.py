@@ -37,7 +37,8 @@ def write_inputs(d, drop=(), cum_gap=False, extra_ppm_year=True, prov_coverage_o
         "co2_concentration_annual": {"source": "NOAA+LawDome", "coverage": [1750, 2025 if extra_ppm_year else 2024], "license": "cite", "retrieved_at": "t", "source_release": {"x": 1}},
         "temperature_anomaly_annual": {"source": "Berkeley", "coverage": [1850, 2024], "license": "CC BY-NC 4.0", "retrieved_at": "t", "source_release": {"y": 2}},
         "owid_world_co2_annual": {"source": "OWID", "coverage": [1750, 2024], "license": "CC BY 4.0", "retrieved_at": "t", "source_release": {}},
-        "primap_global_composition_annual": {"source": "PRIMAP", "coverage": prov_coverage_override or [1750, 2024], "license": "CC BY-NC-SA 4.0", "retrieved_at": "t", "source_release": {"version": "v9"}},
+        "primap_global_composition_annual": {"source": "PRIMAP", "coverage": prov_coverage_override or [1750, 2024], "license": "CC BY-NC-SA 4.0", "retrieved_at": "t", "source_release": {"version": "v9"},
+                                             "raw_sha256": {"csv": "ab" * 32}, "checksum_verified": {"csv": "md5:cd"}, "source_urls": ["https://z.test/f.csv"]},
         "primap_country_annual": {"source": "PRIMAP", "coverage": [1750, 2024], "license": "CC BY-NC-SA 4.0", "retrieved_at": "t", "source_release": {"version": "v9"}},
     }
     for k in drop:
@@ -98,6 +99,7 @@ def test_anomalies_are_never_indexed_but_levels_are(tmp_path):
     run(tmp_path)
     ids = {e["id"] for e in read(tmp_path)[2]["indicators"]}
     assert not any(i.startswith("temperature_") and "__" in i and "index" in i for i in ids)
+    assert not any(i.startswith("temperature_") and i.endswith("__yoy_pct") for i in ids)  # a % change of an anomaly is undefined
     assert {"temperature_anomaly_1850_1900_c", "temperature_anomaly_1951_1980_c", "temperature_uncertainty_95_c"} <= ids  # both native references kept
     assert not any(i.startswith("owid_co2_world_cumulative_mt__") for i in ids)  # a running total is never indexed or averaged
     assert {"owid_co2_world_mt__index_1990", "owid_co2_world_mt__index_1970", "owid_co2_world_mt__index_preindustrial"} <= ids
@@ -214,3 +216,62 @@ def test_main_reports_the_environment_problem_as_a_deviation_not_a_failure(tmp_p
     s = json.loads((tmp_path / "last_run.json").read_text())
     assert s["sources"]["environment"]["deviations"] == ["reshape bug here"]
     assert (tmp_path / "last_run.priority").read_text().strip() == "high" and "DEVIATION environment: reshape bug here" in (tmp_path / "last_run.message").read_text()
+
+
+# ---------------------------------------------------------------- Copilot review of #207
+
+
+def test_anomalies_carry_the_trailing_mean_and_nothing_else_derived(tmp_path):
+    """Decision 28: anomalies keep both native references AND the trailing 5-year mean, but are never indexed."""
+    run(tmp_path)
+    g, _, cat = read(tmp_path)
+    ids = {e["id"]: e for e in cat["indicators"]}
+    anomalies = [i for i, e in ids.items() if e["kind"] == "anomaly"]
+    assert sorted(anomalies) == ["temperature_anomaly_1850_1900_c", "temperature_anomaly_1951_1980_c"]
+    for a in anomalies:
+        derived = sorted(i for i, e in ids.items() if e.get("derived_from") == a)
+        assert derived == [f"{a}__mean5y"]  # the trailing mean only: no index, no yoy
+        assert "allowed_baselines" not in ids[a]  # baselines are a level-indicator concept
+    anom = np.linspace(-0.13, 1.6, 175)  # the fixture's 1850-1900 anomaly, 1850..2024
+    m = g[(g.indicator_id == "temperature_anomaly_1850_1900_c__mean5y")].set_index("year").value
+    assert m.index.min() == 1854 and m[1854] == pytest.approx(anom[0:5].mean()) and m[2024] == pytest.approx(anom[-5:].mean())
+
+
+def test_cumulative_indicators_advertise_no_baseline(tmp_path):
+    run(tmp_path)
+    cat = {e["id"]: e for e in read(tmp_path)[2]["indicators"]}
+    for i in ("owid_co2_world_cumulative_mt", "primap_ghg_total_cumulative_mtco2e", "primap_country_ghg_total_cumulative_mtco2e"):
+        assert cat[i]["kind"] == "cumulative" and "default_baseline" not in cat[i] and "allowed_baselines" not in cat[i]
+    assert cat["primap_ghg_total_mtco2e"]["default_baseline"] == "1970"  # level indicators still do
+
+
+def test_provenance_link_carries_the_source_checksums(tmp_path):
+    run(tmp_path)
+    cat = {e["id"]: e for e in read(tmp_path)[2]["indicators"]}
+    for i in ("primap_ghg_total_mtco2e", "primap_ghg_total_mtco2e__index_1970"):  # base and derived
+        p = cat[i]["provenance"]
+        assert p["raw_sha256"] == {"csv": "ab" * 32} and p["checksum_verified"] == {"csv": "md5:cd"} and p["source_urls"] == ["https://z.test/f.csv"]
+        assert p["license"] == "CC BY-NC-SA 4.0" and p["source_release"] == {"version": "v9"}
+
+
+def test_derived_entries_inherit_description_and_caveats_from_their_base(tmp_path):
+    run(tmp_path)
+    cat = {e["id"]: e for e in read(tmp_path)[2]["indicators"]}
+    base = cat["co2_concentration_ppm"]
+    assert any("Spliced at 1959" in c for c in base["caveats"])
+    for suffix in ("__yoy_pct", "__mean5y", "__index_1990", "__index_preindustrial"):
+        d = cat["co2_concentration_ppm" + suffix]
+        assert d["caveats"] == base["caveats"] and d["description"] == base["description"], suffix  # the splice limitation survives into every derived metric
+    t = cat["temperature_anomaly_1850_1900_c__mean5y"]
+    assert t["caveats"] == cat["temperature_anomaly_1850_1900_c"]["caveats"] and t["caveats"]
+
+
+def test_country_cumulative_with_a_missing_source_column_is_skipped_with_a_deviation_not_a_crash(tmp_path):
+    prov = write_inputs(tmp_path)
+    p = tmp_path / "primap_country_annual.csv"
+    pd.read_csv(p).drop(columns=["total_ghg_mtco2e"]).to_csv(p, index=False)
+    rep = harmonize.run(str(tmp_path), prov)  # used to raise KeyError and fail the whole stage
+    ids = {e["id"] for e in read(tmp_path)[2]["indicators"]}
+    assert any("primap_country_ghg_total_mtco2e: column 'total_ghg_mtco2e' missing" in d for d in rep.deviations)
+    assert any("primap_country_ghg_total_cumulative_mtco2e: its source column 'total_ghg_mtco2e'" in d for d in rep.deviations)
+    assert "primap_country_ghg_total_cumulative_mtco2e" not in ids and "primap_country_co2_mt" in ids and "owid_co2_world_mt" in ids  # the rest of the stage still ran
