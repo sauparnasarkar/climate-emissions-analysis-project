@@ -116,6 +116,25 @@ def write_provenance(series_id: str, entry: dict, path: str = PROVENANCE_PATH) -
     os.replace(tmp, path)
 
 
+def require_contiguous_years(years, first: int, last: int, label: str) -> None:
+    """Missing-year validation (an acceptance criterion of every ingestion phase): the series
+    must cover `first..last` with no gaps. A gap raises rather than publishing an incomplete
+    series -- the API returns explicit nulls for genuine source gaps, never a silently short one."""
+    missing = sorted(set(range(first, last + 1)) - set(int(y) for y in years))
+    if missing:
+        shown = ", ".join(map(str, missing[:10])) + (" ..." if len(missing) > 10 else "")
+        raise ValueError(f"{label}: {len(missing)} missing year(s) in {first}-{last}: {shown}")
+
+
+def write_json_atomic(obj, path: str) -> None:
+    """Write-then-replace, so an interrupted run can't leave truncated JSON for monitoring to read."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(obj, f, indent=2)
+    os.replace(tmp, path)
+
+
 def write_csv_atomic(df, path: str) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"

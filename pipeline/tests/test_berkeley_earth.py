@@ -62,3 +62,15 @@ def test_run_fresh_source_has_no_deviations(tmp_path, berkeley_text):
         year, month, day = 2026, 10, 1
     report = be.run(fetcher, out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today=T)
     assert report.deviations == []
+
+
+def test_parse_summary_rejects_missing_year_after_1900(berkeley_text):
+    text = "\n".join(ln for ln in berkeley_text.splitlines() if not ln.strip().startswith("1950 "))
+    with pytest.raises(ValueError, match="missing year.*1950"):
+        be.parse_summary(text)
+
+
+def test_parse_summary_rejects_missing_1850(berkeley_text):
+    text = "\n".join(ln for ln in berkeley_text.splitlines() if not ln.strip().startswith("1850 "))
+    with pytest.raises(ValueError, match="1850"):
+        be.parse_summary(text)

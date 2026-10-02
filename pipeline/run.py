@@ -9,14 +9,13 @@ Exit status: 0 = every selected source ran (deviations are warnings, listed in t
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import sys
 import traceback
 
 from . import berkeley_earth, noaa_gml
-from .common import CLIMATE_DIR, utc_now
+from .common import CLIMATE_DIR, utc_now, write_json_atomic
 
 SOURCES = {
     "noaa_gml": noaa_gml.run,
@@ -41,8 +40,7 @@ def main(argv: list[str] | None = None) -> int:
     summary["finished_at"] = utc_now()
 
     os.makedirs(CLIMATE_DIR, exist_ok=True)
-    with open(os.path.join(CLIMATE_DIR, "last_run.json"), "w") as f:
-        json.dump(summary, f, indent=2)
+    write_json_atomic(summary, os.path.join(CLIMATE_DIR, "last_run.json"))
     n_dev = sum(len(s["deviations"]) for s in summary["sources"].values())
     print(f"pipeline: {len(summary['sources'])} ok, {len(summary['failures'])} failed, {n_dev} deviation(s)")
     return 1 if summary["failures"] else 0

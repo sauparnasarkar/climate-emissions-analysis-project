@@ -23,6 +23,7 @@ from .common import (
     Fetched,
     RunReport,
     fetch,
+    require_contiguous_years,
     write_csv_atomic,
     write_provenance,
 )
@@ -38,6 +39,7 @@ SPLICE_YEAR = 1959  # first NOAA annual-mean year; Law Dome supplies earlier yea
 FIRST_YEAR = 1750  # matches OWID's earliest year; Law Dome itself goes back to 1 AD
 MAX_SPLICE_GAP_PPM = 1.0  # deviation alert if Law Dome and NOAA disagree this much at the splice
 MAX_LAG_YEARS = 2  # alert if the latest annual value is older than this
+MAX_MONTHLY_LAG_MONTHS = 3  # alert if the latest monthly reading is older than this
 
 
 def parse_noaa_annual(text: str) -> pd.DataFrame:
@@ -80,6 +82,17 @@ def parse_law_dome_co2(text: str) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["year", "co2_ppm"])
 
 
+def validate_monthly(df: pd.DataFrame) -> None:
+    """The monthly record must be one row per month from its first month to its last."""
+    idx = df["year"] * 12 + (df["month"] - 1)
+    if idx.duplicated().any() or not idx.is_monotonic_increasing:
+        raise ValueError("monthly series has duplicate or unordered months")
+    missing = set(range(int(idx.min()), int(idx.max()) + 1)) - set(int(i) for i in idx)
+    if missing:
+        first = sorted(missing)[0]
+        raise ValueError(f"monthly series: {len(missing)} missing month(s), first {first // 12}-{first % 12 + 1:02d}")
+
+
 def build_concentration(noaa: pd.DataFrame, law: pd.DataFrame, splice_year: int = SPLICE_YEAR) -> tuple[pd.DataFrame, dict]:
     """Law Dome for FIRST_YEAR <= year < splice_year, NOAA for year >= splice_year. Law Dome has
     no per-year uncertainty in this release, so its `uncertainty_ppm` is an explicit null
@@ -94,6 +107,7 @@ def build_concentration(noaa: pd.DataFrame, law: pd.DataFrame, splice_year: int 
     series = pd.concat([pre, post], ignore_index=True)[["year", "co2_ppm", "uncertainty_ppm", "source"]]
     if series["year"].duplicated().any() or not series["year"].is_monotonic_increasing:
         raise ValueError("concentration series has duplicate or unordered years")
+    require_contiguous_years(series["year"], FIRST_YEAR, int(series["year"].max()), "concentration series")
 
     overlap = law.merge(noaa, on="year", suffixes=("_law", "_noaa"))
     gap = overlap["co2_ppm_law"] - overlap["co2_ppm_noaa"]
@@ -108,10 +122,11 @@ def build_concentration(noaa: pd.DataFrame, law: pd.DataFrame, splice_year: int 
     return series, check
 
 
-def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVENANCE_PATH, today_year: int | None = None) -> RunReport:
+def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVENANCE_PATH, today=None) -> RunReport:
     from datetime import date
 
-    today_year = today_year or date.today().year
+    today = today or date.today()
+    today_year = today.year
     report = RunReport("noaa_gml")
     annual: Fetched = fetcher(NOAA_ANNUAL_URL)
     monthly: Fetched = fetcher(NOAA_MONTHLY_URL)
@@ -121,12 +136,17 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
     monthly_df = parse_noaa_monthly(monthly.text())
     law_df = parse_law_dome_co2(law_raw.text("latin-1"))
     series, check = build_concentration(noaa_df, law_df)
+    validate_monthly(monthly_df)
 
     if check["gap_at_splice_ppm"] is not None and abs(check["gap_at_splice_ppm"]) > MAX_SPLICE_GAP_PPM:
         report.deviate(f"Law Dome vs NOAA differ by {check['gap_at_splice_ppm']} ppm at the {SPLICE_YEAR} splice (> {MAX_SPLICE_GAP_PPM})")
     latest = int(series["year"].max())
     if today_year - latest > MAX_LAG_YEARS:
         report.deviate(f"latest annual CO2 value is {latest}, more than {MAX_LAG_YEARS} years behind {today_year}")
+    last = monthly_df.iloc[-1]
+    monthly_lag = (today.year * 12 + today.month) - (int(last["year"]) * 12 + int(last["month"]))
+    if monthly_lag > MAX_MONTHLY_LAG_MONTHS:
+        report.deviate(f"latest monthly CO2 reading is {int(last['year'])}-{int(last['month']):02d}, {monthly_lag} months behind (> {MAX_MONTHLY_LAG_MONTHS})")
 
     write_csv_atomic(series, os.path.join(out_dir, "co2_concentration_annual.csv"))
     write_csv_atomic(monthly_df, os.path.join(out_dir, "co2_concentration_monthly_mlo.csv"))

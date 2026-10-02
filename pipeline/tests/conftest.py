@@ -18,11 +18,13 @@ def noaa_annual_text():
 
 @pytest.fixture
 def noaa_monthly_text():
-    return (
-        "# comment\nyear,month,decimal date,average,deseasonalized,ndays,sdev,unc\n"
-        "1958,3,1958.2027,315.71,314.44,-1,-9.99,-0.99\n"
-        "2026,8,2026.6250,427.55,429.51,17,0.36,0.17\n"
-    )
+    rows = []
+    for y in range(1958, 2027):
+        for m in range(1, 13):
+            if (y, m) < (1958, 3) or (y, m) > (2026, 8):
+                continue
+            rows.append(f"{y},{m},{y + (m - 0.5) / 12:.4f},{315.0 + (y - 1958) * 1.5:.2f},{314.5 + (y - 1958) * 1.5:.2f},20,0.5,0.2")
+    return "# comment\nyear,month,decimal date,average,deseasonalized,ndays,sdev,unc\n" + "\n".join(rows) + "\n"
 
 
 @pytest.fixture

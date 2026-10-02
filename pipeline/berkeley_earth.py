@@ -24,6 +24,7 @@ from .common import (
     Fetched,
     RunReport,
     fetch,
+    require_contiguous_years,
     write_csv_atomic,
     write_provenance,
 )
@@ -55,6 +56,7 @@ def parse_summary(text: str) -> pd.DataFrame:
     df = pd.DataFrame(rows, columns=["year", "anomaly_1951_1980_c", "uncertainty_95_c"])
     if df["year"].duplicated().any():
         raise ValueError("Berkeley summary: duplicate years")
+    require_contiguous_years(df["year"], PREIND_START, int(df["year"].max()), "Berkeley summary")
     return df
 
 

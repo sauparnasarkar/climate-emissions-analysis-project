@@ -1,4 +1,5 @@
 import json
+from datetime import date
 
 import pandas as pd
 import pytest
@@ -18,7 +19,7 @@ def test_parse_noaa_annual_skips_comments(noaa_annual_text):
 def test_parse_noaa_monthly(noaa_monthly_text):
     df = parse_noaa_monthly(noaa_monthly_text)
     assert list(df.columns) == ["year", "month", "co2_ppm", "co2_deseasonalized_ppm"]
-    assert len(df) == 2 and df["month"].tolist() == [3, 8]
+    assert df.iloc[0][["year", "month"]].tolist() == [1958, 3] and df.iloc[-1][["year", "month"]].tolist() == [2026, 8]
 
 
 def test_parse_law_dome_reads_co2_columns_not_ch4(law_text):
@@ -60,8 +61,8 @@ def _fetcher(texts):
 def test_run_writes_outputs_and_provenance(tmp_path, noaa_annual_text, noaa_monthly_text, law_text):
     texts = {noaa_gml.NOAA_ANNUAL_URL: noaa_annual_text, noaa_gml.NOAA_MONTHLY_URL: noaa_monthly_text, noaa_gml.LAW_DOME_URL: law_text}
     prov = tmp_path / "provenance.json"
-    report = noaa_gml.run(_fetcher(texts), out_dir=str(tmp_path), provenance_path=str(prov), today_year=2026)
-    assert report.records == {"co2_concentration_annual": 276, "co2_concentration_monthly_mlo": 2}
+    report = noaa_gml.run(_fetcher(texts), out_dir=str(tmp_path), provenance_path=str(prov), today=date(2026, 10, 1))
+    assert report.records == {"co2_concentration_annual": 276, "co2_concentration_monthly_mlo": 822}
     assert report.deviations == []
     assert (tmp_path / "co2_concentration_annual.csv").exists()
     p = json.loads(prov.read_text())["co2_concentration_annual"]
@@ -71,12 +72,48 @@ def test_run_writes_outputs_and_provenance(tmp_path, noaa_annual_text, noaa_mont
 
 def test_run_flags_stale_series(tmp_path, noaa_annual_text, noaa_monthly_text, law_text):
     texts = {noaa_gml.NOAA_ANNUAL_URL: noaa_annual_text, noaa_gml.NOAA_MONTHLY_URL: noaa_monthly_text, noaa_gml.LAW_DOME_URL: law_text}
-    report = noaa_gml.run(_fetcher(texts), out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today_year=2030)
+    report = noaa_gml.run(_fetcher(texts), out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today=date(2030, 1, 1))
     assert any("behind 2030" in d for d in report.deviations)
 
 
 def test_run_flags_large_splice_gap(tmp_path, noaa_annual_text, noaa_monthly_text, law_text):
     shifted = noaa_annual_text.replace("1959,315.98", "1959,320.98")  # 5 ppm above Law Dome at the splice
     texts = {noaa_gml.NOAA_ANNUAL_URL: shifted, noaa_gml.NOAA_MONTHLY_URL: noaa_monthly_text, noaa_gml.LAW_DOME_URL: law_text}
-    report = noaa_gml.run(_fetcher(texts), out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today_year=2026)
+    report = noaa_gml.run(_fetcher(texts), out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today=date(2026, 10, 1))
     assert any("splice" in d for d in report.deviations)
+
+
+def test_build_concentration_rejects_missing_year(noaa_annual_text, law_text):
+    law = parse_law_dome_co2(law_text)
+    law = law[law["year"] != 1800]  # interior gap in the ice-core record
+    with pytest.raises(ValueError, match=r"1 missing year\(s\).*1800"):
+        build_concentration(parse_noaa_annual(noaa_annual_text), law)
+
+
+def test_build_concentration_rejects_missing_noaa_year(noaa_annual_text, law_text):
+    noaa = parse_noaa_annual(noaa_annual_text)
+    noaa = noaa[noaa["year"] != 2000]
+    with pytest.raises(ValueError, match="2000"):
+        build_concentration(noaa, parse_law_dome_co2(law_text))
+
+
+def test_validate_monthly_rejects_gap(noaa_monthly_text):
+    df = parse_noaa_monthly(noaa_monthly_text)
+    noaa_gml.validate_monthly(df)  # complete: ok
+    with pytest.raises(ValueError, match="missing month"):
+        noaa_gml.validate_monthly(df.drop(index=100).reset_index(drop=True))
+
+
+def test_run_fails_on_gappy_series(tmp_path, noaa_annual_text, noaa_monthly_text, law_text):
+    gappy = "\n".join(ln for ln in noaa_annual_text.splitlines() if not ln.startswith("2000,"))
+    texts = {noaa_gml.NOAA_ANNUAL_URL: gappy, noaa_gml.NOAA_MONTHLY_URL: noaa_monthly_text, noaa_gml.LAW_DOME_URL: law_text}
+    with pytest.raises(ValueError, match="missing year"):
+        noaa_gml.run(_fetcher(texts), out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today=date(2026, 10, 1))
+    assert not (tmp_path / "co2_concentration_annual.csv").exists()  # nothing published
+
+
+def test_run_flags_stale_monthly_even_when_annual_is_fresh(tmp_path, noaa_annual_text, noaa_monthly_text, law_text):
+    texts = {noaa_gml.NOAA_ANNUAL_URL: noaa_annual_text, noaa_gml.NOAA_MONTHLY_URL: noaa_monthly_text, noaa_gml.LAW_DOME_URL: law_text}
+    report = noaa_gml.run(_fetcher(texts), out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today=date(2027, 1, 15))
+    assert any("monthly CO2 reading" in d for d in report.deviations)
+    assert not any("annual CO2" in d for d in report.deviations)  # annual (2025) is within 2 years of 2027
