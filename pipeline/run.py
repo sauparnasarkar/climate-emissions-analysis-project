@@ -1,4 +1,4 @@
-"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|owid|harmonize|all]`.
+"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|owid|harmonize|correlate|all]`.
 
 `all` runs the active (publishable) sources, then the derived stages (the harmonized layer), only. Shelved sources (`edgar`) run only when named explicitly
 and write to `data/internal/`, never `data/climate/`.
@@ -17,7 +17,7 @@ import os
 import sys
 import traceback
 
-from . import berkeley_earth, edgar, harmonize, noaa_gml, owid, primap_hist
+from . import berkeley_earth, correlation, edgar, harmonize, noaa_gml, owid, primap_hist
 from .common import CLIMATE_DIR, check_reshape_environment, utc_now, write_json_atomic, write_text_atomic
 
 ACTIVE_SOURCES = {
@@ -33,8 +33,13 @@ INTERNAL_SOURCES = {
 # Derived stages read what the source steps wrote and run after them in `all` (the harmonized layer).
 DERIVED_SOURCES = {
     "harmonize": harmonize.run,
+    "correlate": correlation.run,
 }
 SOURCES = {**ACTIVE_SOURCES, **DERIVED_SOURCES, **INTERNAL_SOURCES}
+# A derived stage that consumes one upstream stage's artifact as a whole must not run when that stage failed in the same run: it would build a
+# fresh-looking result (new generated_at) from the previous run's artifact. `correlate` reads exactly what `harmonize` wrote. (harmonize itself is
+# deliberately NOT gated on the sources: it merges several independent sources, a partial update is normal, and each source's age is in its provenance.)
+DEPENDS_ON = {"correlate": ("harmonize",)}
 
 
 def build_notification(summary: dict) -> tuple[str, str, str]:
@@ -77,6 +82,11 @@ def main(argv: list[str] | None = None) -> int:
         logging.warning("environment: DEVIATION: %s", env_problem)
         summary["sources"]["environment"] = {"records": {}, "deviations": [env_problem], "notes": []}
     for name in selected:
+        blocked = [d for d in DEPENDS_ON.get(name, ()) if d in summary["failures"]]
+        if blocked:
+            summary["failures"][name] = f"skipped: upstream stage(s) failed in this run: {', '.join(blocked)} (its last good output is left untouched)"
+            logging.error("%s skipped: upstream %s failed", name, ", ".join(blocked))
+            continue
         try:
             summary["sources"][name] = SOURCES[name]().as_dict()
         except Exception as exc:  # noqa: BLE001 -- one source failing must not hide the others' results
