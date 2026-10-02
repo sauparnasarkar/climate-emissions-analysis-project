@@ -86,3 +86,33 @@ def test_require_contiguous_years():
     common.require_contiguous_years([1, 2, 3], 1, 3, "x")
     with pytest.raises(ValueError, match="x: 1 missing year"):
         common.require_contiguous_years([1, 3], 1, 3, "x")
+
+
+def test_all_runs_active_sources_only_and_never_the_shelved_edgar(tmp_path, monkeypatch):
+    monkeypatch.setattr(run, "CLIMATE_DIR", str(tmp_path))
+    called = []
+    monkeypatch.setitem(run.SOURCES, "noaa_gml", lambda: called.append("noaa_gml") or common.RunReport("noaa_gml"))
+    monkeypatch.setitem(run.SOURCES, "berkeley_earth", lambda: called.append("berkeley_earth") or common.RunReport("berkeley_earth"))
+    monkeypatch.setitem(run.SOURCES, "edgar", lambda: called.append("edgar") or common.RunReport("edgar"))
+    assert run.main(["--source", "all"]) == 0
+    assert sorted(called) == ["berkeley_earth", "noaa_gml"]
+    assert "edgar" in run.INTERNAL_SOURCES and "edgar" not in run.ACTIVE_SOURCES
+
+
+def test_explicit_edgar_run_warns_that_it_is_internal_only(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(run, "CLIMATE_DIR", str(tmp_path))
+    monkeypatch.setitem(run.SOURCES, "edgar", lambda: common.RunReport("edgar"))
+    with caplog.at_level("WARNING"):
+        assert run.main(["--source", "edgar"]) == 0
+    assert any("shelved for publication" in r.message for r in caplog.records)
+
+
+def test_edgar_defaults_write_outside_the_published_store():
+    import inspect
+
+    from pipeline import edgar
+
+    params = inspect.signature(edgar.run).parameters
+    for name in ("out_dir", "provenance_path"):
+        default = params[name].default
+        assert default.startswith(common.INTERNAL_DIR) and not default.startswith(common.CLIMATE_DIR)

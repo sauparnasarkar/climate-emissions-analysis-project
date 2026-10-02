@@ -1,5 +1,8 @@
 """Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|all]`.
 
+`all` runs the active (publishable) sources only. Shelved sources (`edgar`) run only when named explicitly
+and write to `data/internal/`, never `data/climate/`.
+
 Writes normalized series to `data/climate/` plus `data/climate/provenance.json` and a
 `last_run.json` summary (records processed, deviations) the refresh job logs and alerts on.
 Exit status: 0 = every selected source ran (deviations are warnings, listed in the summary);
@@ -14,13 +17,18 @@ import os
 import sys
 import traceback
 
-from . import berkeley_earth, noaa_gml
+from . import berkeley_earth, edgar, noaa_gml
 from .common import CLIMATE_DIR, utc_now, write_json_atomic
 
-SOURCES = {
+ACTIVE_SOURCES = {
     "noaa_gml": noaa_gml.run,
     "berkeley_earth": berkeley_earth.run,
 }
+# Shelved for publication (licence): explicit opt-in only, internal output directory.
+INTERNAL_SOURCES = {
+    "edgar": edgar.run,
+}
+SOURCES = {**ACTIVE_SOURCES, **INTERNAL_SOURCES}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -29,7 +37,10 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-    selected = list(SOURCES) if args.source == "all" else [args.source]
+    selected = list(ACTIVE_SOURCES) if args.source == "all" else [args.source]
+    for name in selected:
+        if name in INTERNAL_SOURCES:
+            logging.warning("%s is shelved for publication: running for internal validation only (output in data/internal/)", name)
     summary: dict = {"started_at": utc_now(), "sources": {}, "failures": {}}
     for name in selected:
         try:

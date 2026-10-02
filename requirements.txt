@@ -12,6 +12,8 @@ ipykernel==6.29.5
 fastapi==0.139.2
 uvicorn[standard]==0.51.0
 pytest==9.0.3
+# openpyxl: reads EDGAR's .xlsx workbooks in pipeline/edgar.py (Area 2 ingestion).
+openpyxl==3.1.5
 # httpx: transitive dep of jupyterlab, kept explicit since api/tests relies on it being
 # present. httpx2: what starlette.testclient.TestClient now prefers (avoids a
 # StarletteDeprecationWarning) — not a duplicate, both are genuinely needed.
