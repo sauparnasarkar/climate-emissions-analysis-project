@@ -80,7 +80,7 @@ plist live in `pipeline/ops/`.
 
 Separate from the notebooks (which are intern curriculum): one versioned ingestion module per
 source, run by `python -m pipeline.run`, writing a normalized store to `data/climate/`
-(gitignored) that the future `/api/correlation/*` domain will read.
+(gitignored) that the `/api/correlation/*` domain (§4) reads.
 
 ```
 NOAA GML Mauna Loa + Law Dome ice core ─▶ co2_concentration_{annual,monthly_mlo}.csv
@@ -118,6 +118,21 @@ FastAPI (`0.139.2`) + Uvicorn (`0.51.0`), one router per dashboard page
 (`api/routers/{overview,historical,country_profile,forecasts,scenarios,explorer,countries}.py`),
 Pydantic response models (`api/schemas.py`). Mirrors `app.py`'s pandas logic
 endpoint-by-endpoint — same computations, same cache shape, different transport.
+
+**Climate-context endpoints** (`api/routers/correlation.py`, `api/climate_loaders.py`,
+`api/schemas_correlation.py`; `ENHANCEMENTS.md` Release 21, decisions 44-55): seven read-only
+`GET /api/correlation/*` endpoints (`meta`, `concentration`, `temperature`,
+`emissions-temperature`, `ghg-composition`, `country-share`, `scenario-temperature`) over what
+`pipeline/` wrote to `data/climate/` (directory overridable with `CLIMATE_DATA_DIR`). `api/` does
+not import `pipeline/`: the two meet at the files. Nothing is recomputed per request; a missing
+file, a stage's explicit-null output (`unavailable_reason`), an unsupported `schema_version`, a
+non-finite number, or a CSV that disagrees with its JSON metadata is a 503 naming the cause, never
+a 200 with nulls to chart. Every response carries one envelope (`schema_version`, `generated_at`,
+`note`, `caveats`, `attribution`, `source_vintage`), so licences and the interpretive-context
+note travel with the numbers. A published regression fit is attached only when its window matches
+the served pair exactly; nothing is fitted on the fly. The API tests build their climate directory
+by running the real `pipeline` stages on small stubbed inputs, so a pipeline schema change breaks
+them rather than production.
 
 **Deploy-prefix handling** (`api/main.py`): `DEPLOY_BASE_PATH` (same env var the frontend
 build reads, see §6) is normalized and used two ways — `root_path=DEPLOY_PATH_PREFIX` on

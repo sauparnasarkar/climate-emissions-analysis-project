@@ -121,3 +121,62 @@ class CorrelationGhgCompositionResponse(CorrelationEnvelope):
     reconciliation: dict[str, Any] | None = None
     excluded_incomplete_years: list[int] = []
     notes: list[str] = []
+
+
+class ShareRow(BaseModel):
+    rank: int
+    country: str
+    name: str
+    cumulative_mt: float
+    share_pct: float
+
+
+class SharePoint(BaseModel):
+    year: int
+    cumulative_mt: float
+    share_pct: float
+
+
+class ShareSeries(BaseModel):
+    country: str
+    name: str
+    points: list[SharePoint]
+
+
+class CorrelationCountryShareResponse(CorrelationEnvelope):
+    name: str
+    method: str
+    source: str
+    gas_scope: str
+    label: str
+    unit: str
+    mode: str
+    year: int | None = None
+    limit: int | None = None
+    start_year: int | None = None
+    end_year: int | None = None
+    coverage: list[int] | None = None
+    cumulative_from: int | None = None
+    total_cumulative_mt: float | None = None
+    rows: list[ShareRow] = []
+    series: list[ShareSeries] = []
+    denominator: dict[str, Any] | None = None
+    reconciliation: dict[str, Any] | None = None
+    details: dict[str, Any] = {}
+    notes: list[str] = []
+
+
+class CorrelationScenarioTemperatureResponse(CorrelationEnvelope):
+    name: str
+    method: str
+    labels: list[str]
+    line: str
+    selected_scenarios: list[str]
+    scenarios: dict[str, list[dict[str, Any]]]
+    assumptions: dict[str, Any]
+    base: dict[str, Any]
+    covered_countries: list[dict[str, Any]]
+    scenario_source: dict[str, Any] | None = None
+    spread: dict[str, Any] | None = None
+    reading_note: str | None = None
+    notes: list[str] = []
