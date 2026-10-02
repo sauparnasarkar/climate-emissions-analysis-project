@@ -109,6 +109,27 @@ def _require_finite(o, where: str = "output") -> None:
             _require_finite(v, f"{where}[{i}]")
 
 
+def _scrub_non_finite(o, path: str = "output") -> tuple[object, list[str]]:
+    """A copy of `o` with every non-finite float replaced by None, and the paths that were replaced. Used on the failure path: metadata is recorded as soon as it is read, so a
+    rejected non-finite value must not survive in an unavailable output (`NaN`/`Infinity` are not valid JSON)."""
+    if isinstance(o, float):
+        return (o, []) if np.isfinite(o) else (None, [path])
+    if isinstance(o, dict):
+        bad, out = [], {}
+        for k, v in o.items():
+            out[k], b = _scrub_non_finite(v, f"{path}.{k}")
+            bad += b
+        return out, bad
+    if isinstance(o, (list, tuple)):
+        bad, out = [], []
+        for i, v in enumerate(o):
+            c, b = _scrub_non_finite(v, f"{path}[{i}]")
+            out.append(c)
+            bad += b
+        return out, bad
+    return o, []
+
+
 def _check_scenarios(proj: pd.DataFrame, t0: int) -> pd.DataFrame:
     """Validate the scenario file and return it with numeric, finite, non-negative projected emissions."""
     for col in ("country", "year", "scenario", "co2_projected"):
@@ -257,6 +278,9 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
             logging.exception("scenario_temperature: unexpected error")
         out["scenarios"], out["base"], out["covered_countries"] = None, None, None  # a failure after partial work must leave no partial translation behind
         out["unavailable_reason"] = e.args[0] if isinstance(e, Unavailable) else f"{type(e).__name__}: {e}"
+        out, scrubbed = _scrub_non_finite(out)  # the metadata read before the failure may itself hold the non-finite value that caused it
+        if scrubbed:
+            out["unavailable_reason"] += f" (non-finite value(s) removed from the metadata: {', '.join(scrubbed)})"
         report.deviate(f"scenario temperature translation unavailable: {out['unavailable_reason']}")
     return out
 
