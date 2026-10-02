@@ -92,12 +92,35 @@ def _round(o, nd=6):
     return o
 
 
-def _check_scenarios(proj: pd.DataFrame, t0: int) -> None:
+def _finite(x) -> bool:
+    return isinstance(x, (int, float, np.integer, np.floating)) and not isinstance(x, bool) and bool(np.isfinite(x))
+
+
+def _require_finite(o, where: str = "output") -> None:
+    """A last line of defence: no NaN or infinity may reach the JSON file (they are written as non-standard `NaN`/`Infinity` that strict clients cannot parse)."""
+    if isinstance(o, float):
+        if not np.isfinite(o):
+            raise Unavailable(f"a non-finite number ({o}) in the translation {where}; check the inputs")
+    elif isinstance(o, dict):
+        for k, v in o.items():
+            _require_finite(v, f"{where}.{k}")
+    elif isinstance(o, (list, tuple)):
+        for i, v in enumerate(o):
+            _require_finite(v, f"{where}[{i}]")
+
+
+def _check_scenarios(proj: pd.DataFrame, t0: int) -> pd.DataFrame:
+    """Validate the scenario file and return it with numeric, finite, non-negative projected emissions."""
     for col in ("country", "year", "scenario", "co2_projected"):
         if col not in proj.columns:
             raise Unavailable(f"scenario_projections.csv: required column missing: {col}")
-    if proj["co2_projected"].isna().any() or (proj["co2_projected"] < 0).any():
-        raise Unavailable("scenario_projections.csv has missing or negative projected emissions")
+    values = pd.to_numeric(proj["co2_projected"], errors="coerce")
+    years = pd.to_numeric(proj["year"], errors="coerce")
+    if not np.isfinite(values.to_numpy(dtype=float)).all() or (values < 0).any():
+        raise Unavailable("scenario_projections.csv has missing, non-numeric, non-finite or negative projected emissions")
+    if not np.isfinite(years.to_numpy(dtype=float)).all() or (years % 1 != 0).any():
+        raise Unavailable("scenario_projections.csv has a missing or non-integer year")
+    proj = pd.DataFrame({"country": proj["country"].to_numpy(), "year": years.to_numpy().astype(int), "scenario": proj["scenario"].to_numpy(), "co2_projected": values.to_numpy(dtype=float)})
     if proj.duplicated(["scenario", "country", "year"]).any():
         raise Unavailable("scenario_projections.csv has duplicate scenario/country/year rows")
     first = int(proj["year"].min())
@@ -108,49 +131,93 @@ def _check_scenarios(proj: pd.DataFrame, t0: int) -> None:
     for sc, g in proj.groupby("scenario"):
         if set(g["year"]) != expected_years or any(set(h["year"]) != expected_years for _, h in g.groupby("country")) or set(g["country"]) != countries:
             raise Unavailable(f"scenario {sc!r} is not a complete country x year grid ({len(countries)} countries x {first}-{max(expected_years)})")
+    return proj
 
 
 def _fit(headline_json: dict, key: str) -> dict | None:
     b = headline_json.get(key)
-    return None if not b else {"slope": b["fit"]["slope"], "ci95_hac": b["fit"]["ci95_hac"], "range": b["range"], "label": b["label"], "x_indicator": b["x_indicator"]}
+    if not b:
+        return None
+    f = {"slope": b["fit"]["slope"], "ci95_hac": b["fit"]["ci95_hac"], "range": b["range"], "label": b["label"], "x_indicator": b["x_indicator"]}
+    if not (_finite(f["slope"]) and len(f["ci95_hac"]) == 2 and all(_finite(v) for v in f["ci95_hac"])):
+        raise Unavailable(f"the {key} regression statistics in correlation_headline.json are not finite numbers")
+    return f
+
+
+INPUT_FILES = ("owid_world_co2_annual.csv", "correlation_headline.json", "scenario_projections.csv", "owid-co2-data.csv", "temperature_anomaly_annual.csv")
+
+
+def _skeleton(vintage: dict, caveats: list[str]) -> dict:
+    """The complete output schema. Everything that does not depend on the data is filled in now; each input's metadata is added as soon as it is read, so an
+    unavailable result still carries the method, the assumptions, the attribution, the scenario file's checksum (when it was readable) and what was available."""
+    return {
+        "schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "name": "Scenario temperature translation", "labels": LABELS, "note": CAUSATION_NOTE,
+        "method": "implied warming = slope x cumulative emissions since the last observed year; level = anchor + implied warming",
+        "temperature_source_vintage": vintage, "caveats": caveats, "scenarios": None, "base": None, "covered_countries": None, "scenario_source": None,
+        "inputs": {f: {"available": False} for f in INPUT_FILES}, "attribution": {},
+        "assumptions": {
+            "rest_of_world": {"rule": "held at its last-observed share of the World total, so rest-of-world emissions move proportionally with the covered-country pathway; "
+                                      "international aviation and shipping fall inside it", "share": None, "year": None, "formula": "global_t = covered_t / (1 - share)"},
+            "land_use": {"rule": f"held flat after the last observed year at its trailing {LUC_FLAT_WINDOW}-year mean (the scenarios do not model it)", "mt_per_year": None, "window": None},
+            "slope": {"headline": None, "fossil_only": None, "unit": "°C per 1,000 GtCO2",
+                      "note": "Full-range regression from correlation_headline.json; the band is the HAC 95% interval of the slope times the cumulative increment: slope uncertainty only, not scenario or climate uncertainty."},
+            "fossil_only_line": "applies the fossil-only slope to fossil + cement increments only (no land-use assumption), so the effect of the definition is visible"}}
 
 
 def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: str, report: RunReport) -> dict:
-    vintage = _vintage(climate_dir, notices_path)
-    caveats = [PLAIN_LANGUAGE, METHODOLOGY, _LUC_UNCERTAINTY, _LUC_LICENSE, *([vintage["caveat"]] if vintage["caveat"] else [])]
-    out = {"schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "name": "Scenario temperature translation", "labels": LABELS, "note": CAUSATION_NOTE,
-           "temperature_source_vintage": vintage, "caveats": caveats, "scenarios": None}
+    metadata_errors = []
     try:
+        vintage = _vintage(climate_dir, notices_path)
+    except Exception as e:  # noqa: BLE001 -- malformed provenance/notices must not stop the explicit-null output from being written
+        logging.exception("scenario_temperature: unable to load the temperature vintage metadata")
+        metadata_errors.append(f"temperature vintage metadata: {type(e).__name__}: {e}")
+        vintage = {"file_last_modified": None, "reconciled": False, "caveat": f"Berkeley Earth vintage metadata could not be read: {type(e).__name__}: {e}"}
+    caveats = [PLAIN_LANGUAGE, METHODOLOGY, _LUC_UNCERTAINTY, _LUC_LICENSE, *([vintage["caveat"]] if vintage["caveat"] else [])]
+    out = _skeleton(vintage, caveats)
+    try:
+        if metadata_errors:
+            raise Unavailable(f"scenario metadata unavailable: {'; '.join(metadata_errors)}")
         w = pd.read_csv(os.path.join(climate_dir, "owid_world_co2_annual.csv"))
         for col in ("year", "co2_mt", "total_co2_incl_luc_mt", "land_use_change_co2_mt", "cumulative_co2_mt"):
             if col not in w.columns:
                 raise Unavailable(f"owid_world_co2_annual.csv: required column missing: {col}")
         w = w.set_index("year")
         t0 = int(w.index.max())
+        out["inputs"]["owid_world_co2_annual.csv"] = {"available": True, "last_observed_year": t0}
         hj = json.load(open(os.path.join(climate_dir, "correlation_headline.json")))
+        out["attribution"] = hj.get("attribution", {}) if isinstance(hj, dict) else {}
         fit_head, fit_foss = _fit(hj, "headline"), _fit(hj, "secondary_fossil_only")
+        out["inputs"]["correlation_headline.json"] = {"available": True, "headline_regression": fit_head is not None, "fossil_only_regression": fit_foss is not None}
+        out["assumptions"]["slope"].update({"headline": fit_head, "fossil_only": fit_foss})
         if fit_head is None:
             raise Unavailable("the headline regression is unavailable, so there is no slope to translate with")
         if not os.path.exists(scenario_path):
             raise Unavailable(f"{os.path.basename(scenario_path)} not found (the Week 5 notebook writes it)")
         raw = open(scenario_path, "rb").read()
-        proj = pd.read_csv(scenario_path)
-        _check_scenarios(proj, t0)
+        out["scenario_source"] = {"file": os.path.basename(scenario_path), "sha256": sha256_hex(raw)}  # known as soon as the bytes are readable
+        proj_raw = pd.read_csv(scenario_path)
+        out["inputs"]["scenario_projections.csv"] = {"available": True, "rows": int(len(proj_raw))}
+        proj = _check_scenarios(proj_raw, t0)
+        out["scenario_source"].update({"rows": int(len(proj)), "years": [int(proj["year"].min()), int(proj["year"].max())], "scenarios": sorted(set(proj["scenario"]))})
 
         names = sorted(set(proj["country"]))
         owid = pd.read_csv(owid_path, usecols=["country", "year", "co2"])
+        out["inputs"]["owid-co2-data.csv"] = {"available": True}
         at_t0 = owid[(owid["year"] == t0) & owid["country"].isin(names)].set_index("country")["co2"].dropna()
         missing = [n for n in names if n not in at_t0.index]
         if missing:
             raise Unavailable(f"scenario countries with no OWID CO2 value in {t0}: {', '.join(missing)}")
+        if not np.isfinite(at_t0.to_numpy(dtype=float)).all():
+            raise Unavailable(f"a scenario country has a non-finite OWID CO2 value in {t0}")
         covered_t0, world_t0 = float(at_t0.sum()), float(w.loc[t0, "co2_mt"])
-        if not 0 < covered_t0 < world_t0:
+        if not (np.isfinite(covered_t0) and np.isfinite(world_t0) and 0 < covered_t0 < world_t0):
             raise Unavailable(f"the covered countries ({covered_t0:,.0f} Mt) are not a proper part of the World total ({world_t0:,.0f} Mt) in {t0}")
 
         luc_flat = float(w["land_use_change_co2_mt"].loc[t0 - LUC_FLAT_WINDOW + 1:t0].mean())
         temp = pd.read_csv(os.path.join(climate_dir, "temperature_anomaly_annual.csv")).set_index("year")["anomaly_1850_1900_c"]
+        out["inputs"]["temperature_anomaly_annual.csv"] = {"available": True}
         window = temp.loc[t0 - ANCHOR_WINDOW + 1:t0]
-        if len(window) < ANCHOR_WINDOW or not np.isfinite(luc_flat):
+        if len(window) < ANCHOR_WINDOW or not np.isfinite(window.to_numpy(dtype=float)).all() or not np.isfinite(luc_flat):
             raise Unavailable(f"the last {ANCHOR_WINDOW} years of the observed anomaly (or of land-use CO2) are not all available up to {t0}")
         anchor = float(window.mean())
 
@@ -165,33 +232,26 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
                 step = (f"{', '.join(f'{sc} {j:+.1f}%' for sc, j in sorted(jumps.items()))} from the last observed total for the covered countries "
                         f"({covered_t0:,.0f} Mt in {t0}; {', '.join(f'{sc} {v:,.0f} Mt' for sc, v in sorted(first_cov.items()))} in {t0 + 1})")
             caveats.append(f"The scenario pathways start {step}; the translation uses the pathways as given, so each scenario carries that step.")
-        out.update({
+        filled = {
             "scenarios": _round(res["scenarios"]),
             "base": {"last_observed_year": t0, "world_co2_mt": world_t0, "covered_co2_mt": covered_t0, "covered_share_of_world": covered_t0 / world_t0,
                      "world_cumulative_total_co2_since_1850_mt": float(w.loc[1850:t0, "total_co2_incl_luc_mt"].sum()), "world_cumulative_fossil_co2_mt": float(w.loc[t0, "cumulative_co2_mt"]),
                      "first_scenario_year_covered_mt": first_cov, "first_scenario_year_vs_last_observed_pct": jumps,
                      "anchor": {"definition": f"trailing {ANCHOR_WINDOW}-year mean of the observed Berkeley Earth anomaly (1850-1900 reference), {t0 - ANCHOR_WINDOW + 1}-{t0}", "value_c": anchor,
                                 "last_year_value_c": float(temp.loc[t0])}},
-            "assumptions": {
-                "rest_of_world": {"rule": "held at its last-observed share of the World total, so rest-of-world emissions move proportionally with the covered-country pathway; "
-                                          "international aviation and shipping fall inside it", "share": res["rest_of_world_share"], "year": t0,
-                                  "formula": "global_t = covered_t / (1 - share)"},
-                "land_use": {"rule": f"held flat after {t0} at its trailing {LUC_FLAT_WINDOW}-year mean (the scenarios do not model it)", "mt_per_year": luc_flat,
-                             "window": [t0 - LUC_FLAT_WINDOW + 1, t0]},
-                "slope": {"headline": fit_head, "fossil_only": fit_foss, "unit": "°C per 1,000 GtCO2",
-                          "note": "Full-range regression from correlation_headline.json; the band is the HAC 95% interval of the slope times the cumulative increment: slope uncertainty only, not scenario or climate uncertainty."},
-                "method": "implied warming = slope x cumulative emissions since the last observed year; level = anchor + implied warming",
-                "fossil_only_line": "applies the fossil-only slope to fossil + cement increments only (no land-use assumption), so the effect of the definition is visible"},
-            "covered_countries": [{"country": n, "co2_mt_last_observed_year": float(at_t0[n])} for n in names],
-            "scenario_source": {"file": os.path.basename(scenario_path), "sha256": sha256_hex(raw), "rows": int(len(proj)), "years": [int(proj["year"].min()), int(proj["year"].max())],
-                                "scenarios": sorted(set(proj["scenario"]))},
-            "attribution": hj.get("attribution", {})})
+            "covered_countries": [{"country": n, "co2_mt_last_observed_year": float(at_t0[n])} for n in names]}
+        rest = {"share": res["rest_of_world_share"], "year": t0}
+        luc = {"mt_per_year": luc_flat, "window": [t0 - LUC_FLAT_WINDOW + 1, t0]}
+        _require_finite({**filled, "rest_of_world": rest, "land_use": luc})  # nothing non-finite may reach the file
+        out.update(filled)
+        out["assumptions"]["rest_of_world"].update(rest)
+        out["assumptions"]["land_use"].update(luc)
         if fit_foss is None:
             report.deviate("scenario_temperature: the fossil-only line is unavailable because the fossil-only regression is unavailable")
     except Exception as e:  # noqa: BLE001 -- whatever the cause: explicit nulls and a deviation, never a stale or partial translation
         if not isinstance(e, (Unavailable, OSError, ValueError, KeyError)):
             logging.exception("scenario_temperature: unexpected error")
-        out["scenarios"] = None
+        out["scenarios"], out["base"], out["covered_countries"] = None, None, None  # a failure after partial work must leave no partial translation behind
         out["unavailable_reason"] = e.args[0] if isinstance(e, Unavailable) else f"{type(e).__name__}: {e}"
         report.deviate(f"scenario temperature translation unavailable: {out['unavailable_reason']}")
     return out

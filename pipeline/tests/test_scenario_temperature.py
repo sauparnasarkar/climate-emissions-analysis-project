@@ -166,8 +166,8 @@ def test_scenarios_that_start_before_the_next_year_are_also_refused(tmp_path):
     ("missing year", lambda p: p[~((p.scenario == "BAU") & (p.country == "Bland") & (p.year == FIRST + 1))], "not a complete country x year grid"),
     ("country in one scenario only", lambda p: p[~((p.scenario == "Aggressive") & (p.country == "Bland"))], "not a complete country x year grid"),
     ("duplicates", lambda p: pd.concat([p, p.head(1)]), "duplicate scenario/country/year rows"),
-    ("negative", lambda p: p.assign(co2_projected=np.where(p.index == 0, -1.0, p.co2_projected)), "missing or negative projected emissions"),
-    ("missing value", lambda p: p.assign(co2_projected=np.where(p.index == 0, np.nan, p.co2_projected)), "missing or negative projected emissions"),
+    ("negative", lambda p: p.assign(co2_projected=np.where(p.index == 0, -1.0, p.co2_projected)), "missing, non-numeric, non-finite or negative projected emissions"),
+    ("missing value", lambda p: p.assign(co2_projected=np.where(p.index == 0, np.nan, p.co2_projected)), "missing, non-numeric, non-finite or negative projected emissions"),
     ("missing column", lambda p: p.drop(columns=["scenario"]), "required column missing: scenario"),
 ])
 def test_malformed_scenario_files_are_explicit_nulls_with_the_reason(tmp_path, name, edit, fragment):
@@ -300,3 +300,141 @@ def test_the_output_is_deterministic_and_the_stage_is_registered_and_gated(tmp_p
         d.pop("generated_at")
     assert a == b
     assert "scenario_temperature" in run.DERIVED_SOURCES and "scenario_temperature" not in run.ACTIVE_SOURCES and run.DEPENDS_ON["scenario_temperature"] == ("correlate", "owid", "berkeley_earth")
+
+
+# ---------------------------------------------------------------- Copilot review on #218
+
+
+def set_cell(df, idx, col, value):
+    """A copy with one cell replaced, built from numpy arrays: any pandas setitem/assign here trips the false-positive chained-assignment warning on Python 3.14."""
+    cols = {c: df[c].to_numpy().copy() for c in df.columns}
+    arr = cols[col].astype(object if isinstance(value, str) else float)
+    arr[idx] = value
+    cols[col] = arr
+    return pd.DataFrame(cols)
+
+
+def strict_json(path):
+    """Parse like a strict client: NaN / Infinity are not valid JSON."""
+    def refuse(c):
+        raise ValueError(f"non-standard JSON constant {c}")
+    return json.loads(path.read_text(), parse_constant=refuse)
+
+
+@pytest.mark.parametrize("metadata_file,contents", [("provenance.json", "{not json"), ("notices.json", "{not json")])
+def test_malformed_vintage_metadata_overwrites_the_stale_output_with_nulls_and_does_not_raise(tmp_path, metadata_file, contents):
+    _, good = go(tmp_path)
+    assert good["scenarios"] is not None
+    (tmp_path / metadata_file).write_text(contents)
+    rep = T.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"), scenario_path=str(tmp_path / "scenario_projections.csv"), owid_path=str(tmp_path / "owid-co2-data.csv"))
+    out = strict_json(tmp_path / "correlation_scenario_temperature.json")
+    assert out["scenarios"] is None and "scenario metadata unavailable: temperature vintage metadata" in out["unavailable_reason"]
+    assert out["temperature_source_vintage"]["caveat"] in out["caveats"] and "could not be read" in out["temperature_source_vintage"]["caveat"]
+    assert any("scenario temperature translation unavailable" in d for d in rep.deviations)
+
+
+@pytest.mark.parametrize("bad", [np.inf, -np.inf, np.nan])
+def test_non_finite_projected_emissions_are_refused_and_never_reach_the_file(tmp_path, bad):
+    rep, out = go(tmp_path, scenario_edit=lambda p: set_cell(p, 3, "co2_projected", bad))
+    assert out["scenarios"] is None and "non-finite" in out["unavailable_reason"] and any("translation unavailable" in d for d in rep.deviations)
+    strict_json(tmp_path / "correlation_scenario_temperature.json")  # parses under a strict parser: no Infinity / NaN
+
+
+def test_non_numeric_projected_emissions_and_a_non_integer_year_are_refused(tmp_path):
+    _, out = go(tmp_path, scenario_edit=lambda p: set_cell(p, 2, "co2_projected", "lots"))
+    assert out["scenarios"] is None and "non-numeric" in out["unavailable_reason"]
+    _, out2 = go(tmp_path / "y" if (tmp_path / "y").mkdir() is None else tmp_path, scenario_edit=lambda p: set_cell(p, 0, "year", 2001.5))
+    assert out2["scenarios"] is None and "non-integer year" in out2["unavailable_reason"]
+
+
+def test_non_finite_values_in_the_other_inputs_are_refused(tmp_path):
+    _, a = go(tmp_path, owid_edit=lambda r: r.assign(co2=np.where(r.country == "Aland", np.inf, r.co2)))
+    assert a["scenarios"] is None and "non-finite OWID CO2 value" in a["unavailable_reason"]
+    _, b = go(tmp_path / "w" if (tmp_path / "w").mkdir() is None else tmp_path, world_edit=lambda w: w.assign(co2_mt=np.where(w.year == T0, np.inf, w.co2_mt)))
+    assert b["scenarios"] is None and "not a proper part of the World total" in b["unavailable_reason"]
+    write(tmp_path / "w")
+    hj = json.loads((tmp_path / "w" / "correlation_headline.json").read_text())
+    hj["headline"]["fit"]["slope"] = "NaN-ish"
+    (tmp_path / "w" / "correlation_headline.json").write_text(json.dumps(hj))
+    T.run(str(tmp_path / "w"), notices_path=str(tmp_path / "w" / "notices.json"), scenario_path=str(tmp_path / "w" / "scenario_projections.csv"), owid_path=str(tmp_path / "w" / "owid-co2-data.csv"))
+    c = strict_json(tmp_path / "w" / "correlation_scenario_temperature.json")
+    assert c["scenarios"] is None and "regression statistics in correlation_headline.json are not finite numbers" in c["unavailable_reason"]
+
+
+def test_require_finite_rejects_non_finite_numbers_anywhere_in_the_structure():
+    T._require_finite({"a": [1.0, {"b": 2.0}], "c": 3})
+    for bad in ({"a": float("inf")}, {"a": [1.0, {"b": float("nan")}]}, [float("-inf")]):
+        with pytest.raises(T.Unavailable, match="non-finite number"):
+            T._require_finite(bad)
+
+
+def test_a_non_finite_value_produced_by_the_translation_leaves_no_partial_result(tmp_path, monkeypatch):
+    monkeypatch.setattr(T, "translate", lambda *a, **k: {"rest_of_world_share": 0.1, "scenarios": {"S": [{"year": 2001, "x": float("inf")}]}})
+    rep, out = go(tmp_path)
+    assert out["scenarios"] is None and out["base"] is None and out["covered_countries"] is None and "non-finite number" in out["unavailable_reason"]
+    assert out["assumptions"]["rest_of_world"]["share"] is None and out["assumptions"]["land_use"]["mt_per_year"] is None  # nothing from the failed translation was kept
+    strict_json(tmp_path / "correlation_scenario_temperature.json")
+
+
+# ---- the complete schema, whether or not the translation is available
+
+
+def test_an_unavailable_output_has_exactly_the_same_keys_as_an_available_one(tmp_path):
+    _, good = go(tmp_path)
+    _, bad = go(tmp_path / "b" if (tmp_path / "b").mkdir() is None else tmp_path, scenario_edit=lambda p: p.assign(year=p.year + 3))
+    assert set(bad) - {"unavailable_reason"} == set(good) and bad["scenarios"] is None and bad["base"] is None and bad["covered_countries"] is None
+    assert set(bad["assumptions"]) == set(good["assumptions"]) and set(bad["assumptions"]["rest_of_world"]) == set(good["assumptions"]["rest_of_world"])
+    assert set(bad["inputs"]) == set(good["inputs"]) == set(T.INPUT_FILES)
+
+
+def test_the_unavailable_output_keeps_the_method_assumption_rules_labels_and_the_scenario_checksum(tmp_path):
+    _, out = go(tmp_path, scenario_edit=lambda p: p.assign(year=p.year + 3))  # stale: the file is readable but refused
+    raw = (tmp_path / "scenario_projections.csv").read_bytes()
+    assert out["method"].startswith("implied warming = slope x cumulative emissions since the last observed year")
+    assert out["scenario_source"]["sha256"] == hashlib.sha256(raw).hexdigest() and out["scenario_source"]["file"] == "scenario_projections.csv"  # the checksum is retained once the bytes were read
+    assert "held at its last-observed share" in out["assumptions"]["rest_of_world"]["rule"] and out["assumptions"]["rest_of_world"]["share"] is None
+    assert "trailing 5-year mean" in out["assumptions"]["land_use"]["rule"] and out["assumptions"]["slope"]["unit"] == "°C per 1,000 GtCO2"
+    assert "slope uncertainty only" in out["assumptions"]["slope"]["note"] and out["assumptions"]["fossil_only_line"]
+    assert out["labels"] and out["attribution"]["required_citation_format"].startswith("Global Carbon Project")  # attribution was readable from the headline file
+
+
+def test_each_input_is_recorded_as_available_as_soon_as_it_was_read_and_not_before(tmp_path):
+    _, out = go(tmp_path, scenario_edit=lambda p: p.assign(year=p.year + 3))  # fails in the grid check, before OWID country data and the temperature series are read
+    i = out["inputs"]
+    assert i["owid_world_co2_annual.csv"] == {"available": True, "last_observed_year": T0} and i["correlation_headline.json"]["headline_regression"] is True
+    assert i["scenario_projections.csv"]["available"] is True and i["owid-co2-data.csv"] == {"available": False} and i["temperature_anomaly_annual.csv"] == {"available": False}
+    _, out2 = go(tmp_path / "m" if (tmp_path / "m").mkdir() is None else tmp_path, no_scenario=True)
+    assert out2["inputs"]["scenario_projections.csv"] == {"available": False} and out2["scenario_source"] is None and out2["inputs"]["correlation_headline.json"]["available"] is True
+
+
+def test_the_regression_slopes_read_so_far_are_kept_when_a_later_input_fails(tmp_path):
+    _, out = go(tmp_path, scenario_edit=lambda p: p.assign(year=p.year + 3))
+    s = out["assumptions"]["slope"]
+    assert s["headline"]["slope"] == SLOPE_H and s["fossil_only"]["slope"] == SLOPE_F
+    _, out2 = go(tmp_path / "h" if (tmp_path / "h").mkdir() is None else tmp_path, headline="none")
+    assert out2["assumptions"]["slope"]["headline"] is None and out2["inputs"]["correlation_headline.json"]["headline_regression"] is False
+
+
+def test_every_output_the_stage_writes_is_valid_strict_json(tmp_path):
+    go(tmp_path)
+    strict_json(tmp_path / "correlation_scenario_temperature.json")
+    go(tmp_path / "u" if (tmp_path / "u").mkdir() is None else tmp_path, scenario_edit=lambda p: p.assign(year=p.year + 3))
+    strict_json(tmp_path / "correlation_scenario_temperature.json")
+
+
+def test_a_failure_after_the_translation_is_filled_in_still_leaves_no_partial_result(tmp_path, monkeypatch):
+    """The reset in the failure handler is defensive (nothing assigns a translation before the last step), so force a failure after it was assigned."""
+    calls = {"n": 0}
+    real = T.RunReport.deviate
+
+    def flaky(self, msg):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("boom after the translation was filled in")
+        return real(self, msg)
+
+    monkeypatch.setattr(T.RunReport, "deviate", flaky)
+    rep, out = go(tmp_path, headline="no_fossil")  # the missing fossil regression makes the success path call report.deviate
+    assert out["scenarios"] is None and out["base"] is None and out["covered_countries"] is None
+    assert "boom after the translation was filled in" in out["unavailable_reason"]
+    strict_json(tmp_path / "correlation_scenario_temperature.json")
