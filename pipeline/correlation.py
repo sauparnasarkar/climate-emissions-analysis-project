@@ -142,7 +142,13 @@ def _variant_block(h: Harmonized, x_id: str, label: str, scale_luc: bool = False
 
 def _provenance(climate_dir: str, series_id: str) -> dict:
     path = os.path.join(climate_dir, "provenance.json")
-    return (json.load(open(path)).get(series_id) or {}) if os.path.exists(path) else {}
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"{path} not found")
+    doc = json.load(open(path))
+    entry = doc.get(series_id) if isinstance(doc, dict) else None
+    if not entry:
+        raise ValueError(f"{path}: missing provenance for {series_id}")
+    return entry
 
 
 def _vintage(climate_dir: str, notices_path: str) -> dict:
