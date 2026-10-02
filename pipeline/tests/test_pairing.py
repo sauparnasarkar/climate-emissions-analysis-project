@@ -196,3 +196,14 @@ def test_min_overlap_below_one_is_rejected_up_front(h, bad):
         pairing.align_pair(h, "co2_concentration_ppm", "temperature_anomaly_1850_1900_c", min_overlap=bad)  # 175 shared years: still refused
     f, _ = pairing.align_pair(h, "co2_concentration_ppm", "temperature_anomaly_1850_1900_c", min_overlap=1)
     assert len(f) == 175
+
+
+# ---------------------------------------------------------------- the redefined headline pair (decision 40)
+
+
+def test_the_headline_pair_uses_total_anthropogenic_cumulative_co2_from_1850(h):
+    f, m = pairing.align_pair(h, "owid_total_co2_world_cumulative_mt", "temperature_anomaly_1850_1900_c")
+    flow = lambda yr: 10.0 * (yr - 1749) + 3.0 * (yr - 1849)
+    assert m["common_range"] == [1850, 2024] and len(f) == 175 and m["a"]["coverage"] == [1850, 2024]
+    assert f[f.year == 1900].iloc[0]["owid_total_co2_world_cumulative_mt"] == pytest.approx(sum(flow(y) for y in range(1850, 1901)), rel=1e-9)
+    assert any("No formal license" in c for c in m["a"]["caveats"])  # the land-use licence/attribution note travels with the pair

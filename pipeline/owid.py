@@ -10,8 +10,9 @@ second opinion. This step takes the file *as it stands on disk after that job*, 
 provenance, and writes the small normalized series the correlation API needs:
 
 - `owid_world_co2_annual.csv`: World CO2 (Mt, **includes international aviation/shipping**) and
-  its cumulative sum -- the TCRE regression's X-variable (decision 15) and the scenario base --
-  plus `national_sum_mt` (the sum of ISO-coded countries, the country-share denominator,
+  its cumulative sum -- the fossil-only (secondary) regression X-variable (decision 15) and the scenario base --
+  plus World **land-use-change CO2** (`land_use_change_co2_mt`, Global Carbon Project via OWID, 1850+) and the **total anthropogenic CO2**
+  (`total_co2_incl_luc_mt` = fossil + cement + land-use) that the headline regression accumulates (decision 40), plus `national_sum_mt` (the sum of ISO-coded countries, the country-share denominator,
   decision 15) and `international_transport_mt` (OWID's aviation + shipping rows) so the two
   accountings are both available and reconcile to World.
 
@@ -45,6 +46,9 @@ from .common import (
 
 DATA_PATH = os.path.join(ROOT, "data", "owid-co2-data.csv")
 REQUIRED_COLUMNS = ["country", "year", "iso_code", "co2", "cumulative_co2", "methane", "nitrous_oxide"]
+# Needed for the headline (total anthropogenic CO2) but not for the fossil series, so a rename upstream raises a deviation instead of stopping the whole step.
+LAND_USE_COLUMN = "land_use_change_co2"
+LAND_USE_START = 1850  # the headline cumulative is labelled "since 1850"; a later first year would silently change the period
 INTERNATIONAL_TRANSPORT = ("International aviation", "International shipping")
 
 COVERAGE_MIN = 0.98
@@ -58,9 +62,20 @@ ROW_DROP_DEVIATION_PCT = 5.0  # the week-1 notebook hard-fails at the same thres
 SERIES_WORLD = "owid_world_co2_annual"
 SERIES_COUNTRY = "owid_country_co2"
 
+LAND_USE_LICENSE_NOTE = (
+    "Land-use CO2 data originates from the Global Carbon Project via OWID. No formal license (e.g., CC BY) is stated on the Global Carbon "
+    "Project's data page; use is conditional on citing the original source per their stated terms. The required citation is included in this "
+    "platform's data attribution. No non-commercial, no-derivatives, or share-alike restrictions were found."
+)
+GCP_CITATION_FORMAT = (
+    "Global Carbon Project. (<year>). Supplemental data of Global Carbon Budget <year> (Version <n>) [Data set]. Global Carbon Project. "
+    "https://doi.org/10.18160/gcp-<year>  (e.g. the 2024 edition: Global Carbon Project. (2024). Supplemental data of Global Carbon Budget 2024 "
+    "(Version 1.0) [Data set]. Global Carbon Project. https://doi.org/10.18160/gcp-2024)"
+)
 CITATIONS = [
     "Our World in Data, CO2 and Greenhouse Gas Emissions (https://github.com/owid/co2-data), CC BY 4.0.",
-    "Friedlingstein, P. et al., Global Carbon Budget (Global Carbon Project), the source of the fossil CO2 data.",
+    "Friedlingstein, P. et al., Global Carbon Budget (Global Carbon Project), the source of the fossil CO2 and land-use-change CO2 data.",
+    "Required by the Global Carbon Project for its data: " + GCP_CITATION_FORMAT + " (use the edition OWID currently republishes).",
 ]
 
 
@@ -125,7 +140,7 @@ def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str 
     modified = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).replace(microsecond=0)
     age_days = (datetime(today.year, today.month, today.day, tzinfo=timezone.utc) - modified).days
 
-    df = pd.read_csv(path, usecols=lambda c: c in set(REQUIRED_COLUMNS))
+    df = pd.read_csv(path, usecols=lambda c: c in set(REQUIRED_COLUMNS) | {LAND_USE_COLUMN})
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
     if missing:
         raise ValueError(f"OWID CSV: required column(s) missing: {', '.join(missing)}")
@@ -135,6 +150,14 @@ def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str 
         raise ValueError("OWID CSV: no usable 'World' CO2 rows")
     require_contiguous_years(world.index, int(world.index.min()), int(world.index.max()), "OWID World CO2")
     cum = df[df["country"] == "World"].set_index("year")["cumulative_co2"]
+
+    luc = df[df["country"] == "World"].set_index("year")[LAND_USE_COLUMN].dropna() if LAND_USE_COLUMN in df.columns else pd.Series(dtype=float)
+
+    early = luc[luc.index < LAND_USE_START]
+    if len(early):
+        # the headline cumulative is "since 1850": observations before it are dropped, not accumulated, and the source change is noted
+        luc = luc[luc.index >= LAND_USE_START]
+        report.note(f"OWID World land-use CO2 has {len(early)} observation(s) before {LAND_USE_START} ({int(early.index.min())}-{int(early.index.max())}); ignored so the cumulative stays \"since {LAND_USE_START}\"")
 
     iso = df["iso_code"].fillna("").str.fullmatch(r"[A-Z]{3}")
     countries = df[iso]
@@ -176,6 +199,21 @@ def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str 
             "international_transport_mt": [transport.get(y, np.nan) for y in years],
         }
     ).round(4)
+    land_use = pd.Series([luc.get(y, np.nan) for y in years], index=out.index)
+    out = out.assign(land_use_change_co2_mt=land_use.round(4), total_co2_incl_luc_mt=(out["co2_mt"] + land_use).round(4))  # assign, not setitem: pandas 3.14 chained-assignment warning
+    if luc.empty:
+        report.deviate(f"OWID column {LAND_USE_COLUMN!r} is missing or empty: the headline regression (total anthropogenic CO2) is unavailable; the fossil-only series is unaffected")
+    else:
+        lo, hi = int(luc.index.min()), int(luc.index.max())
+        expected_start = max(LAND_USE_START, int(world.index.min()))
+        if lo > expected_start:
+            report.deviate(f"OWID World land-use CO2 starts in {lo}, after {expected_start}: the cumulative total \"since {LAND_USE_START}\" would silently start later")
+        gaps = [y for y in range(lo, min(hi, last) + 1) if y not in luc.index]
+        if gaps:
+            report.deviate(f"OWID World land-use CO2 has interior gap(s) {gaps[:5]}{'...' if len(gaps) > 5 else ''}: the cumulative total would be too small from {gaps[0]}")
+        if hi < last:
+            report.deviate(f"OWID World land-use CO2 ends in {hi}, before the last complete CO2 year {last}: total anthropogenic CO2 is unavailable for {hi + 1}-{last}")
+        report.note(f"World land-use CO2 {lo}-{hi}; total anthropogenic CO2 published for {int(out.loc[out['total_co2_incl_luc_mt'].notna(), 'year'].min())}-{int(out.loc[out['total_co2_incl_luc_mt'].notna(), 'year'].max())}")
     if out["cumulative_co2_mt"].isna().any():
         report.deviate(f"World cumulative_co2 is missing for {int(out['cumulative_co2_mt'].isna().sum())} year(s); the regression X-variable would have gaps")
     # World should reconcile to (sum of ISO-coded countries + international aviation/shipping); a
@@ -197,13 +235,17 @@ def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str 
         "retrieved_at": modified.isoformat(),
         "retrieved_at_basis": "file modification time on disk (downloaded by the refresh job; this step does not download)",
         "raw_sha256": {"owid-co2-data.csv": sha},
-        "units": "Mt CO2 (fossil + cement; excludes land-use change in the `co2` column)",
+        "units": "Mt CO2 (`co2`: fossil + cement, excludes land-use change; `land_use_change_co2`: land-use change, a separate column)",
         "update_cadence": "OWID updates when the Global Carbon Budget is released; the refresh job re-downloads monthly",
         "license": (
             "CC BY 4.0 for OWID's compilation (OWID's README). Per that README, third-party data it republishes (the Global Carbon Project, "
-            "the Energy Institute, others) stays subject to the original authors' licence terms -- not yet verified individually. "
+            "the Energy Institute, others) stays subject to the original authors' licence terms. Fossil CO2 and land-use CO2 are Global Carbon Project "
+            "data: see `land_use_license_note`. The Energy Institute and other components are not used by the headline analysis and are not individually verified. "
             "Cite OWID and the Global Carbon Budget."
         ),
+        "land_use_license_note": LAND_USE_LICENSE_NOTE,
+        "attribution_required": True,
+        "required_citation_format": GCP_CITATION_FORMAT,
         "citations": CITATIONS,
         "published": True,
     }
@@ -212,11 +254,14 @@ def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str 
         {**base, "coverage": [int(min(years)), last], "excluded_incomplete_years": trimmed,
          "geography": "World (OWID/GCP aggregate; includes international aviation and shipping)",
          "columns": {"co2_mt": "World total CO2 incl. international transport (the TCRE regression X-variable, decision 15)",
-                     "cumulative_co2_mt": "OWID's own cumulative World CO2",
+                     "cumulative_co2_mt": "OWID's own cumulative World fossil + cement CO2 since 1750 (the secondary, fossil-only regression X-variable)",
+                     "land_use_change_co2_mt": "World land-use-change CO2 (Global Carbon Project bookkeeping-model average, via OWID); 1850 onward",
+                     "total_co2_incl_luc_mt": "fossil + cement + land-use-change CO2 (total anthropogenic CO2): its cumulative since 1850 is the headline regression X-variable (decision 40)",
                      "national_sum_mt": "sum of ISO-coded countries (the country-share denominator; excludes international transport)",
                      "international_transport_mt": "OWID 'International aviation' + 'International shipping' rows"},
          "completeness_rule": {"coverage_min_weighted": COVERAGE_MIN, "yoy_max": YOY_MAX, "scope": "trailing years only"},
-         "caveats": ["CO2 only (fossil + cement); land-use change is not in the `co2` column.",
+         "caveats": ["`co2_mt` is fossil + cement only; land-use change is a separate column (`land_use_change_co2_mt`) and `total_co2_incl_luc_mt` adds the two.",
+                     "Land-use CO2 is a modelled estimate (average of bookkeeping models) with a large uncertainty: the Global Carbon Budget gives about +/-0.7 GtC/yr (about +/-2.6 GtCO2/yr, 1 sigma) for recent decades. " + LAND_USE_LICENSE_NOTE,
                      "OWID/GCP and PRIMAP-hist/EDGAR differ by a few percent through scope and method; disclosed, not reconciled.",
                      "`national_sum_mt` sums ISO-coded entities, which include some non-sovereign territories."],
          "rows": len(out)},

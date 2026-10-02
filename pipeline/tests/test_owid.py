@@ -11,7 +11,7 @@ from pipeline import owid
 TODAY = date(2025, 10, 2)  # the synthetic data ends in 2024, so 'today' is a year later (lag within limits)
 
 
-def make_df(years=range(1990, 2025), partial_last=False, jump_last=False, drop_bbb_before=None, no_cum=False):
+def make_df(years=range(1990, 2025), partial_last=False, jump_last=False, drop_bbb_before=None, no_cum=False, luc=True, luc_end=None, luc_gap=None, luc_start=None):
     rows = []
     cum = 0.0
     for y in years:
@@ -28,12 +28,15 @@ def make_df(years=range(1990, 2025), partial_last=False, jump_last=False, drop_b
         for name, iso, v in [("Aland", "AAA", a), ("Bland", "BBB", b), ("Cland", "CCC", c)]:
             if drop_bbb_before and name == "Bland" and y < drop_bbb_before:
                 continue
-            rows.append((name, y, iso, v, np.nan, 1.0, 1.0))
-        rows.append(("International aviation", y, np.nan, air, np.nan, np.nan, np.nan))
-        rows.append(("International shipping", y, np.nan, ship, np.nan, np.nan, np.nan))
-        rows.append(("World", y, np.nan, world, np.nan if no_cum else cum, 1.0, 1.0))
-        rows.append(("Europe", y, np.nan, 5.0, np.nan, np.nan, np.nan))  # an aggregate without iso: must be ignored for countries
-    return pd.DataFrame(rows, columns=["country", "year", "iso_code", "co2", "cumulative_co2", "methane", "nitrous_oxide"])
+            rows.append((name, y, iso, v, np.nan, 1.0, 1.0, np.nan))
+        rows.append(("International aviation", y, np.nan, air, np.nan, np.nan, np.nan, np.nan))
+        rows.append(("International shipping", y, np.nan, ship, np.nan, np.nan, np.nan, np.nan))
+        luc_v = 400.0 + 2 * (y - 1990)  # land-use CO2 (Mt): a separate World column, not part of `co2`
+        if not luc or (luc_end and y > luc_end) or (luc_gap and y == luc_gap) or (luc_start and y < luc_start):
+            luc_v = np.nan
+        rows.append(("World", y, np.nan, world, np.nan if no_cum else cum, 1.0, 1.0, luc_v))
+        rows.append(("Europe", y, np.nan, 5.0, np.nan, np.nan, np.nan, np.nan))  # an aggregate without iso: must be ignored for countries
+    return pd.DataFrame(rows, columns=["country", "year", "iso_code", "co2", "cumulative_co2", "methane", "nitrous_oxide", "land_use_change_co2"])
 
 
 def write(tmp_path, df, name="owid.csv", age_days=1):
@@ -61,7 +64,7 @@ def test_run_publishes_world_series_and_provenance(tmp_path):
     assert any("reconciles to national sum + international transport" in n for n in rep.notes)
     p = json.loads((tmp_path / "p.json").read_text())
     w, c = p["owid_world_co2_annual"], p["owid_country_co2"]
-    assert w["coverage"] == [1990, 2024] and "CC BY 4.0" in w["license"] and len(w["citations"]) == 2 and w["published"] is True
+    assert w["coverage"] == [1990, 2024] and "CC BY 4.0" in w["license"] and len(w["citations"]) == 3 and w["published"] is True
     assert c["rows_in_source"] == len(make_df()) and len(c["raw_sha256"]["owid-co2-data.csv"]) == 64
     assert "does not download" in w["retrieved_at_basis"] or "not download" in w["retrieved_at_basis"]
 
@@ -159,3 +162,64 @@ def test_year_with_no_country_observations_at_all_is_not_published(tmp_path):
     s = pd.read_csv(tmp_path / "out" / "owid_world_co2_annual.csv")
     assert s["year"].max() == 2023
     assert any("excluded incomplete year 2024: no country observations" in n for n in rep.notes)
+
+
+# ---------------------------------------------------------------- land-use CO2 and total anthropogenic CO2 (decision 40)
+
+
+def test_land_use_and_total_columns_are_published_and_add_up(tmp_path):
+    rep = run(tmp_path, write(tmp_path, make_df()))
+    assert rep.deviations == []
+    s = pd.read_csv(tmp_path / "out" / "owid_world_co2_annual.csv").set_index("year")
+    assert s.loc[1990, "land_use_change_co2_mt"] == pytest.approx(400.0) and s.loc[2024, "land_use_change_co2_mt"] == pytest.approx(400.0 + 2 * 34)
+    assert (s["total_co2_incl_luc_mt"] - (s["co2_mt"] + s["land_use_change_co2_mt"])).abs().max() < 1e-3
+    assert any("World land-use CO2 1990-2024" in n for n in rep.notes)
+
+
+def test_land_use_licence_note_and_citation_are_in_provenance_verbatim(tmp_path):
+    run(tmp_path, write(tmp_path, make_df()))
+    w = json.loads((tmp_path / "p.json").read_text())["owid_world_co2_annual"]
+    assert w["land_use_license_note"] == owid.LAND_USE_LICENSE_NOTE
+    for phrase in ("originates from the Global Carbon Project via OWID", "No formal license (e.g., CC BY) is stated", "use is conditional on citing the original source",
+                   "No non-commercial, no-derivatives, or share-alike restrictions were found"):
+        assert phrase in w["land_use_license_note"]
+    assert "licensed under" not in w["land_use_license_note"].lower() and "is cc by" not in w["land_use_license_note"].lower()  # never defaulted to a claimed CC BY licence
+    assert w["attribution_required"] is True and "doi.org/10.18160/gcp-" in w["required_citation_format"]
+    assert any("Supplemental data of Global Carbon Budget" in c for c in w["citations"])
+    assert any("separate column" in c for c in w["caveats"]) and any("+/-0.7 GtC/yr" in c for c in w["caveats"])
+    assert "Global Carbon Project" in w["columns"]["land_use_change_co2_mt"]
+
+
+def test_missing_land_use_column_is_a_deviation_but_the_fossil_series_survives(tmp_path):
+    df = make_df().drop(columns=["land_use_change_co2"])
+    rep = run(tmp_path, write(tmp_path, df))
+    assert any("land_use_change_co2" in d and "unavailable" in d for d in rep.deviations)
+    s = pd.read_csv(tmp_path / "out" / "owid_world_co2_annual.csv")
+    assert s["co2_mt"].notna().all() and s["land_use_change_co2_mt"].isna().all() and s["total_co2_incl_luc_mt"].isna().all()
+
+
+def test_land_use_series_ending_before_the_last_year_and_interior_gaps_are_deviations(tmp_path):
+    rep = run(tmp_path, write(tmp_path, make_df(luc_end=2022)))
+    assert any("ends in 2022" in d and "2023-2024" in d for d in rep.deviations)
+    s = pd.read_csv(tmp_path / "out" / "owid_world_co2_annual.csv").set_index("year")
+    assert s.loc[2022, "total_co2_incl_luc_mt"] > 0 and pd.isna(s.loc[2023, "total_co2_incl_luc_mt"])  # no total where a component is absent
+    rep2 = run(tmp_path, write(tmp_path, make_df(luc_gap=2005, ), name="g.csv"))
+    assert any("interior gap" in d and "2005" in d for d in rep2.deviations)
+
+
+def test_land_use_series_starting_late_is_a_deviation_not_a_silently_shorter_period(tmp_path):
+    rep = run(tmp_path, write(tmp_path, make_df(luc_start=2000)))
+    assert any("land-use CO2 starts in 2000, after 1990" in d and "silently start later" in d for d in rep.deviations)
+    rep_ok = run(tmp_path, write(tmp_path, make_df(), name="ok.csv"))  # starting with the CO2 series (or 1850, whichever is later) is fine
+    assert not any("starts in" in d for d in rep_ok.deviations)
+
+
+def test_land_use_observations_before_the_start_year_are_ignored_not_accumulated(tmp_path, monkeypatch):
+    monkeypatch.setattr(owid, "LAND_USE_START", 2000)  # the synthetic data has land-use from 1990: 1990-1999 are 'before the start'
+    rep = run(tmp_path, write(tmp_path, make_df()))
+    s = pd.read_csv(tmp_path / "out" / "owid_world_co2_annual.csv").set_index("year")
+    assert s.loc[:1999, "land_use_change_co2_mt"].isna().all() and s.loc[:1999, "total_co2_incl_luc_mt"].isna().all()
+    assert s.loc[2000, "land_use_change_co2_mt"] == pytest.approx(400.0 + 2 * 10) and s.loc[2000:, "total_co2_incl_luc_mt"].notna().all()
+    assert any("10 observation(s) before 2000 (1990-1999); ignored" in n for n in rep.notes)
+    assert not any("land-use" in d.lower() for d in rep.deviations)  # trimmed, so no late-start or gap deviation either
+    assert s["co2_mt"].notna().all()  # the fossil series is untouched
