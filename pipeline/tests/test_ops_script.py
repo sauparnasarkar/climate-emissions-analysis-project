@@ -218,3 +218,29 @@ def test_script_does_not_duplicate_the_url_and_matches_the_real_constants():
     script = f'REPO_DIR="{repo_root}"; LOG_FILE=/dev/null; log() {{ :; }}; notify() {{ :; }}\n{owid_url_snippet()}\necho "$OWID_URL"'
     got = subprocess.run(["bash", "-c", script], capture_output=True, text=True).stdout.strip()
     assert got == owid.owid_url()
+
+
+# ---------------------------------------------------------------- mtime preservation on backup/restore
+
+
+def test_every_data_file_copy_preserves_mtime_so_a_restored_old_file_stays_stale(tmp_path):
+    import time
+
+    text = open(SCRIPT).read()
+    copies = re.findall(r'^\s*(cp [^\n]*"\$(?:DATA_FILE|TODAY_BACKUP)"[^\n]*)$', text, re.M)
+    assert len(copies) == 4 and all(c.startswith("cp -p ") for c in copies)  # 1 backup + 3 restores, none plain
+
+    # behavioural: backup then restore with the script's own commands; the old mtime must survive both
+    data, backup = tmp_path / "owid.csv", tmp_path / "owid.csv.bak"
+    data.write_text("x")
+    old = time.time() - 120 * 86400
+    os.utime(data, (old, old))
+    backup_cmd = next(c for c in copies if c.endswith('"$TODAY_BACKUP"') and c.split()[2] == '"$DATA_FILE"')
+    restore_cmd = next(c for c in copies if c.split()[2] == '"$TODAY_BACKUP"')
+    script = f'''DATA_FILE="{data}"; TODAY_BACKUP="{backup}"
+{backup_cmd}
+rm -f "$DATA_FILE"
+{restore_cmd}
+'''
+    assert subprocess.run(["bash", "-c", script]).returncode == 0
+    assert abs(os.stat(backup).st_mtime - old) < 2 and abs(os.stat(data).st_mtime - old) < 2

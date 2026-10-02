@@ -144,11 +144,14 @@ esac
 # <<< owid_url
 
 # --- Step 1: backup ---
+# `cp -p` everywhere the data file is copied (here and on every restore below): pipeline/owid.py takes the file's
+# mtime as its retrieval time and uses it to detect a stopped refresh job, so a restored (old) file must keep
+# its original mtime -- a plain cp would stamp it "now" and mask both the staleness and the true retrieval time.
 TODAY_BACKUP="data/owid-co2-data.csv.bak-$(date +%Y%m%d)"
 if [ -f "$TODAY_BACKUP" ]; then
   log "Backup for today already exists ($TODAY_BACKUP) -- not overwriting."
 else
-  cp "$DATA_FILE" "$TODAY_BACKUP"
+  cp -p "$DATA_FILE" "$TODAY_BACKUP"
   log "Backed up $DATA_FILE -> $TODAY_BACKUP"
 fi
 
@@ -156,7 +159,7 @@ fi
 rm -f "$DATA_FILE"
 if ! curl -fsSL -o "$DATA_FILE" "$OWID_URL"; then
   log "Download FAILED (curl error) -- restoring backup."
-  cp "$TODAY_BACKUP" "$DATA_FILE"
+  cp -p "$TODAY_BACKUP" "$DATA_FILE"
   notify "GHG data refresh: FAILED -- old data restored" "urgent" \
     "curl failed to download $OWID_URL. Backup restored from $TODAY_BACKUP. See $LOG_FILE."
   exit 1
@@ -165,7 +168,7 @@ fi
 NEW_SIZE=$(stat -f%z "$DATA_FILE" 2>/dev/null || echo 0)
 if [ "$NEW_SIZE" -lt "$MIN_BYTES" ]; then
   log "Downloaded file implausibly small ($NEW_SIZE bytes) -- restoring backup."
-  cp "$TODAY_BACKUP" "$DATA_FILE"
+  cp -p "$TODAY_BACKUP" "$DATA_FILE"
   notify "GHG data refresh: FAILED -- old data restored" "urgent" \
     "Downloaded file was only $NEW_SIZE bytes (expected >$MIN_BYTES). Backup restored. See $LOG_FILE."
   exit 1
@@ -176,7 +179,7 @@ log "Downloaded new file OK ($NEW_SIZE bytes)"
 rm -f data/.refresh_status data/.refresh_row_diff
 if ! (cd notebook && "$JUPYTER" nbconvert --to notebook --execute --inplace week1_eda.ipynb) >> "$LOG_FILE" 2>&1; then
   log "week1_eda.ipynb FAILED -- restoring backup, skipping weeks 2-5."
-  cp "$TODAY_BACKUP" "$DATA_FILE"
+  cp -p "$TODAY_BACKUP" "$DATA_FILE"
   pipeline_stage  # the OWID file is final again (restored); the other sources are independent
   TAIL=$(tail -n 15 "$LOG_FILE")
   notify "GHG data refresh: FAILED -- old data restored" "urgent" \
