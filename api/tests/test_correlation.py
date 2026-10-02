@@ -490,6 +490,39 @@ def test_composition_503_for_missing_unavailable_or_inconsistent_files(api, clim
     assert r.status_code == 503 and "missing input" in r.json()["detail"]
 
 
+def _csv_lines(climate):
+    return (climate / "correlation_composition_annual.csv").read_text().splitlines()
+
+
+def test_a_year_with_a_gas_row_missing_from_the_csv_is_a_503_not_an_incomplete_200(api, climate):
+    lines = [ln for ln in _csv_lines(climate) if ln != "2023,n2o,N₂O,800.0,8.0"]
+    assert len(lines) == len(_csv_lines(climate)) - 1  # the row to remove really exists
+    (climate / "correlation_composition_annual.csv").write_text("\n".join(lines) + "\n")
+    cl.clear_caches()
+    r = api.get(GC + "?year=2023")
+    assert r.status_code == 503 and "for 2023" in r.json()["detail"] and "publishes" in r.json()["detail"]
+    assert api.get(GC + "?year=2024").status_code == 200  # only the inconsistent year is refused
+
+
+def test_a_duplicated_gas_row_is_a_503(api, climate):
+    (climate / "correlation_composition_annual.csv").write_text("\n".join(_csv_lines(climate) + ["2024,co2,CO₂,7000.0,70.0"]) + "\n")
+    cl.clear_caches()
+    assert api.get(GC + "?year=2024").status_code == 503
+
+
+def test_a_value_that_disagrees_with_gases_included_is_a_503_in_both_directions(api, climate):
+    lines = _csv_lines(climate)
+    # 2022 lists fgas as not included: a value for it is a disagreement
+    (climate / "correlation_composition_annual.csv").write_text("\n".join(ln.replace("2022,fgas,Fluorinated gases,,", "2022,fgas,Fluorinated gases,200.0,2.0") for ln in lines) + "\n")
+    cl.clear_caches()
+    r = api.get(GC + "?year=2022")
+    assert r.status_code == 503 and "disagrees with gases_included" in r.json()["detail"] and "fgas" in r.json()["detail"]
+    # 2023 lists fgas as included: a null for it is a disagreement
+    (climate / "correlation_composition_annual.csv").write_text("\n".join(ln.replace("2023,fgas,Fluorinated gases,200.0,2.0", "2023,fgas,Fluorinated gases,,") for ln in lines) + "\n")
+    cl.clear_caches()
+    assert api.get(GC + "?year=2023").status_code == 503 and api.get(GC + "?year=2024").status_code == 200
+
+
 def test_composition_csv_without_its_columns_is_a_503(api, climate):
     (climate / "correlation_composition_annual.csv").write_text("year,gas\n2022,co2\n")
     cl.clear_caches()

@@ -330,6 +330,14 @@ def get_ghg_composition(start_year: int | None = Query(None, ge=0), end_year: in
                 raise cl.ClimateDataUnavailable(f"correlation_composition_annual.csv has no rows for {y}, which correlation_composition.json lists")
             order = {gid: i for i, gid in enumerate(x.get("id") for x in doc.get("gases", []) if isinstance(x, dict))}
             rows = sorted(g.itertuples(), key=lambda r: order.get(r.gas, 99))
+            # the CSV must agree with the JSON metadata for this year: every published gas exactly once, a value for each gas listed in gases_included and none for the others
+            seen = [r.gas for r in rows]
+            if sorted(seen) != sorted(order) or len(set(seen)) != len(seen):
+                raise cl.ClimateDataUnavailable(f"correlation_composition_annual.csv has gases {sorted(seen)} for {y}, but correlation_composition.json publishes {sorted(order)}")
+            included = set(_strings(meta.get("gases_included")))
+            bad = sorted(r.gas for r in rows if (_value(r.mtco2e) is not None) != (r.gas in included))
+            if bad:
+                raise cl.ClimateDataUnavailable(f"correlation_composition_annual.csv disagrees with gases_included in correlation_composition.json for {y}: {', '.join(bad)}")
             out.append(CompositionYear(year=y, gases_included=_strings(meta.get("gases_included")), components_total_mtco2e=meta.get("components_total_mtco2e"),
                                        national_total_mtco2e=meta.get("national_total_mtco2e"), residual_pct=meta.get("residual_pct"),
                                        values=[GasValue(gas=r.gas, name=r.gas_name, mtco2e=_value(r.mtco2e), share_pct=_value(r.share_pct)) for r in rows]))
