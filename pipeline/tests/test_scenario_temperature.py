@@ -248,8 +248,8 @@ def test_scenarios_that_start_at_different_levels_are_each_reported(tmp_path):
 def test_when_every_scenario_starts_at_the_same_level_the_caveat_says_so_once(tmp_path):
     def same_start(p):
         q = p.copy()
-        q.loc[(q.year == FIRST) & (q.country == "Aland"), "co2_projected"] = 660_000.0
-        q.loc[(q.year == FIRST) & (q.country == "Bland"), "co2_projected"] = 440_000.0
+        q.loc[(q.year == FIRST) & (q.scenario == "Aggressive") & (q.country == "Aland"), "co2_projected"] = 660_000.0
+        q.loc[(q.year == FIRST) & (q.scenario == "Aggressive") & (q.country == "Bland"), "co2_projected"] = 440_000.0
         return q
 
     _, out = go(tmp_path, scenario_edit=lambda p: same_start(p.reset_index(drop=True)))
