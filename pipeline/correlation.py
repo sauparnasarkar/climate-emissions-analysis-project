@@ -59,6 +59,10 @@ BOOTSTRAP_BLOCK = 10  # the primary block length (years); the others are a publi
 BOOTSTRAP_BLOCKS = (5, 10, 20, 30)
 HOLDOUT_SPLITS = (1980, 1990, 2000, 2010)  # decade-based: fit on the years before the split, test from the split year to the end
 MIN_TRAIN_YEARS = 20
+FIT_QUALITY_SPLIT = 2000  # the holdout split the headline copy quotes (fit before it, test from it)
+LUC_WEIGHT_SCAN = (0.0, 0.25, 0.5, 0.7, 1.0, 1.3)  # land-use weight in x = fossil + cement + weight * land-use (0 = fossil-only, 1 = headline)
+SIMILAR_RMSE_RATIO = 1.10  # out-of-sample errors within 10% of each other are described as similar
+SIMILAR_R2_GAP = 0.01  # in-sample R^2 within 0.01 is described as almost identical
 MIN_TEST_YEARS = 5
 
 AR6_TCRE = {
@@ -209,6 +213,53 @@ def _stability(frame: pd.DataFrame, x_id: str, fit: dict, windows: list[dict]) -
     }
 
 
+def _weight_scan(frame: pd.DataFrame, fossil_from_1850: np.ndarray, luc: np.ndarray) -> dict:
+    """How the slope and the out-of-sample error respond to the weight given to land-use CO2. Published to show the *shape* of the trade-off
+    (decision 41), not to select a weight: a weight chosen to minimise this error would be tuned to the holdout."""
+    rows = []
+    for w in LUC_WEIGHT_SCAN:
+        f = frame[["year", TEMPERATURE]].assign(_x=fossil_from_1850 + w * luc)
+        full = fit_line(f["_x"].to_numpy(), f[TEMPERATURE].to_numpy(), hac_lags(len(f)))
+        ho = holdout(f, "_x", FIT_QUALITY_SPLIT)
+        rows.append({"land_use_weight": w, "slope": full["slope"], "r_squared": full["r_squared"], "holdout_split_year": FIT_QUALITY_SPLIT,
+                     "holdout_train_slope": ho.get("train_slope"), "holdout_rmse_c": ho.get("rmse_c")})
+    return {"definition": "x = cumulative fossil + cement CO2 + weight * cumulative land-use CO2 (weight 0 = the fossil-only variant, 1 = the headline)", "weights": rows,
+            "note": "Shows how the out-of-sample error responds to the weight given to land-use CO2. It is published to show the shape of the trade-off, not to choose a "
+                    "weight: a weight picked to minimise this error would be tuned to the holdout."}
+
+
+def fit_quality_note(headline: dict, fossil: dict) -> dict | None:
+    """The headline module's required copy on the land-use trade-off (decision 41), generated from the holdout and R^2 numbers so the UI, the
+    agent and the docs quote the same figures. The wording follows what the numbers show: larger / smaller / similar out-of-sample error, and
+    whether the in-sample fits agree. Returns None if either variant has no usable holdout at the reference split."""
+    def ref(b):
+        return next((h for h in b["stability"]["holdouts"] if h["split_year"] == FIT_QUALITY_SPLIT and "rmse_c" in h), None)
+
+    hh, ff = ref(headline), ref(fossil)
+    if not hh or not ff:
+        return None
+    h_rmse, f_rmse = hh["rmse_c"], ff["rmse_c"]
+    h_r2, f_r2 = headline["fit"]["r_squared"], fossil["fit"]["r_squared"]
+    relation = "larger" if h_rmse > f_rmse * SIMILAR_RMSE_RATIO else "smaller" if h_rmse * SIMILAR_RMSE_RATIO < f_rmse else "similar"
+    insample_similar = abs(h_r2 - f_r2) < SIMILAR_R2_GAP
+    a, b = hh["test_range"]
+    errs = f"{h_rmse:.2f} vs {f_rmse:.2f} °C for {a}-{b}"
+    s = ["Including land-use emissions aligns this estimate with the IPCC's own TCRE definition."]
+    adj = {"larger": "a larger error than", "smaller": "a smaller error than", "similar": "a similar error to"}[relation]
+    s.append(f"Land-use CO₂ is estimated with more uncertainty than fossil-fuel emissions, and in an out-of-sample test this headline predicted recent temperatures "
+             f"with {adj} the fossil-only variant ({errs}).")
+    if relation == "larger":
+        s.append("The data cannot say whether that reflects land-use measurement uncertainty or something else.")
+    if insample_similar:
+        s.append(f"In-sample, both variants fit the historical record almost identically (R² {h_r2:.3f} vs {f_r2:.3f})"
+                 + ("; the difference appears specifically in out-of-sample prediction." if relation != "similar" else "."))
+    else:
+        s.append(f"In-sample fit differs as well (R² {h_r2:.3f} vs {f_r2:.3f}).")
+    return {"text": " ".join(s), "split_year": FIT_QUALITY_SPLIT, "test_range": [a, b], "headline_rmse_c": h_rmse, "fossil_only_rmse_c": f_rmse,
+            "headline_r_squared": h_r2, "fossil_only_r_squared": f_r2, "out_of_sample_error": relation, "in_sample_fit_similar": insample_similar,
+            "note": "Generated from the holdout and R-squared numbers in this file; the cause of the out-of-sample difference is not established."}
+
+
 def _hac_row(x: np.ndarray, y: np.ndarray, maxlags: int) -> dict:
     f = fit_line(x, y, maxlags)
     return {"maxlags": maxlags, "se_hac": f["se_hac"], "ci95_hac": f["ci95_hac"]}
@@ -245,6 +296,8 @@ def _variant_block(h: Harmonized, x_id: str, label: str, scale_luc: bool = False
         luc = h.series(X_LUC).reindex(yrs).to_numpy()
         fossil_from_1850 = x - luc  # total cumulative minus land-use cumulative, both from 1850
         block["land_use_sensitivity"] = [{"land_use_scale": sc, "slope": fit_line(fossil_from_1850 + sc * luc, y, hac_lags(n))["slope"]} for sc in LUC_SCALES]
+    if scale_luc:
+        block["land_use_weight_scan"] = _weight_scan(frame, fossil_from_1850, luc)
     return block
 
 
@@ -334,6 +387,12 @@ def build(h: Harmonized | None, climate_dir: str, notices_path: str, report: Run
             out[key] = None
             out[f"{key}_unavailable_reason"] = reason
             report.deviate(f"{key} regression unavailable: {reason}")
+    if out.get("headline"):
+        note = fit_quality_note(out["headline"], out["secondary_fossil_only"]) if out.get("secondary_fossil_only") else None
+        out["headline"]["fit_quality_note"] = note
+        if note is None:
+            out["headline"]["fit_quality_note_unavailable_reason"] = ("the fossil-only variant is unavailable" if not out.get("secondary_fossil_only")
+                                                                      else f"no usable holdout at the {FIT_QUALITY_SPLIT} split for both variants")
     validate(out, report)
     return out
 

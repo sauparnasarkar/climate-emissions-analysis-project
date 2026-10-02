@@ -612,3 +612,96 @@ def test_a_missing_primary_block_length_makes_the_variant_unavailable_with_the_r
     rep, out = stage(tmp_path, edit_inputs=drop_temperature_years(range(1857, 2025, 8)))  # runs of 7: the 10-year primary cannot be formed
     assert out["headline"] is None and "no run of 10 consecutive calendar years" in out["headline_unavailable_reason"]
     assert out["secondary_fossil_only"] is None and any("regression unavailable" in d for d in rep.deviations)
+
+
+# ---------------------------------------------------------------- the land-use trade-off copy and weight scan (decisions 41-42)
+
+
+def variant(rmse, r2, test_range=(2000, 2024)):
+    """The minimum a variant block needs for fit_quality_note."""
+    return {"fit": {"r_squared": r2}, "stability": {"holdouts": [
+        {"split_year": 1990, "rmse_c": 9.9, "test_range": [1990, 2024]},
+        {"split_year": 2000, "rmse_c": rmse, "test_range": list(test_range)}]}}
+
+
+def test_copy_when_the_headline_error_is_larger_and_in_sample_fits_agree_matches_decision_41_exactly():
+    n = C.fit_quality_note(variant(0.1744, 0.9033), variant(0.1262, 0.9094))
+    assert n["text"] == ("Including land-use emissions aligns this estimate with the IPCC's own TCRE definition. Land-use CO₂ is estimated with more uncertainty than "
+                         "fossil-fuel emissions, and in an out-of-sample test this headline predicted recent temperatures with a larger error than the fossil-only variant "
+                         "(0.17 vs 0.13 °C for 2000-2024). The data cannot say whether that reflects land-use measurement uncertainty or something else. In-sample, both "
+                         "variants fit the historical record almost identically (R² 0.903 vs 0.909); the difference appears specifically in out-of-sample prediction.")
+    assert (n["out_of_sample_error"], n["in_sample_fit_similar"], n["split_year"], n["test_range"]) == ("larger", True, 2000, [2000, 2024])
+    assert n["headline_rmse_c"] == 0.1744 and n["fossil_only_rmse_c"] == 0.1262  # full precision kept beside the rounded text
+
+
+def test_copy_never_asserts_a_cause_or_softens_a_large_gap():
+    text = C.fit_quality_note(variant(0.229, 0.903), variant(0.150, 0.909))["text"]
+    low = text.lower()
+    assert "which results in" not in low and "because" not in low and "modestly" not in low
+    assert "cannot say whether" in low and "0.23 vs 0.15" in text
+
+
+@pytest.mark.parametrize("h,f,relation,phrase,has_cannot_say", [
+    (0.200, 0.126, "larger", "a larger error than the fossil-only variant", True),
+    (0.100, 0.126, "smaller", "a smaller error than the fossil-only variant", False),
+    (0.130, 0.126, "similar", "a similar error to the fossil-only variant", False),
+    (0.126 * 1.10, 0.126, "similar", "a similar error to", False),  # exactly on the threshold is still similar
+])
+def test_copy_follows_what_the_numbers_show(h, f, relation, phrase, has_cannot_say):
+    n = C.fit_quality_note(variant(h, 0.903), variant(f, 0.909))
+    assert n["out_of_sample_error"] == relation and phrase in n["text"] and ("cannot say whether" in n["text"]) is has_cannot_say
+    assert ("the difference appears specifically in out-of-sample prediction" in n["text"]) is (relation != "similar")  # only claimed when there is a difference
+
+
+def test_in_sample_sentence_is_conditional_on_the_fits_actually_agreeing():
+    agree = C.fit_quality_note(variant(0.2, 0.903), variant(0.126, 0.909))["text"]
+    differ = C.fit_quality_note(variant(0.2, 0.80), variant(0.126, 0.909))
+    assert "almost identically (R² 0.903 vs 0.909)" in agree
+    assert differ["in_sample_fit_similar"] is False and "almost identically" not in differ["text"] and "In-sample fit differs as well (R² 0.800 vs 0.909)." in differ["text"]
+    assert "specifically in out-of-sample" not in differ["text"]
+
+
+def test_copy_is_unavailable_when_either_variant_has_no_usable_holdout():
+    no_ref = {"fit": {"r_squared": 0.9}, "stability": {"holdouts": [{"split_year": 2000, "unavailable": "needs more years"}]}}
+    assert C.fit_quality_note(no_ref, variant(0.1, 0.9)) is None and C.fit_quality_note(variant(0.1, 0.9), no_ref) is None
+
+
+def test_the_stage_output_carries_the_note_with_the_same_numbers_as_the_holdouts_and_fits(tmp_path):
+    _, out = stage(tmp_path)
+    n = out["headline"]["fit_quality_note"]
+    ho = lambda b: [h for h in out[b]["stability"]["holdouts"] if h["split_year"] == 2000][0]
+    assert n["headline_rmse_c"] == ho("headline")["rmse_c"] and n["fossil_only_rmse_c"] == ho("secondary_fossil_only")["rmse_c"]
+    assert n["headline_r_squared"] == out["headline"]["fit"]["r_squared"] and n["fossil_only_r_squared"] == out["secondary_fossil_only"]["fit"]["r_squared"]
+    assert f"{n['headline_rmse_c']:.2f} vs {n['fossil_only_rmse_c']:.2f} °C for 2000-2024" in n["text"] and "fit_quality_note" not in out["secondary_fossil_only"]
+
+
+def test_without_the_fossil_variant_the_note_is_null_with_a_reason_and_the_headline_survives(tmp_path):
+    rep, out = stage(tmp_path, edit_inputs=drop_columns("cumulative_co2_mt"))
+    assert out["headline"] is not None and out["headline"]["fit_quality_note"] is None
+    assert out["headline"]["fit_quality_note_unavailable_reason"] == "the fossil-only variant is unavailable"
+
+
+def test_weight_scan_endpoints_equal_the_two_variants_and_the_middle_matches_an_independent_fit(tmp_path):
+    _, out = stage(tmp_path)
+    scan = out["headline"]["land_use_weight_scan"]
+    assert [w["land_use_weight"] for w in scan["weights"]] == [0.0, 0.25, 0.5, 0.7, 1.0, 1.3] and "not to choose a weight" in scan["note"]
+    by = {w["land_use_weight"]: w for w in scan["weights"]}
+    ho = lambda b: [h for h in out[b]["stability"]["holdouts"] if h["split_year"] == 2000][0]
+    assert by[1.0]["holdout_rmse_c"] == pytest.approx(ho("headline")["rmse_c"], rel=1e-9) and by[1.0]["slope"] == pytest.approx(out["headline"]["fit"]["slope"], rel=1e-9)
+    assert by[0.0]["holdout_rmse_c"] == pytest.approx(ho("secondary_fossil_only")["rmse_c"], rel=1e-6)  # weight 0 IS the fossil-only variant (slope is start-invariant)
+    assert by[0.0]["slope"] == pytest.approx(out["secondary_fossil_only"]["fit"]["slope"], rel=1e-6)
+    # the land-use sensitivity published since 1.3a is the same fit at scales 0.7 / 1.0 / 1.3
+    for s in out["headline"]["land_use_sensitivity"]:
+        assert by[s["land_use_scale"]]["slope"] == pytest.approx(s["slope"], rel=1e-9)
+    # an independent calculation at weight 0.5 from the synthetic series definitions
+    yrs = np.arange(1850, 2025)
+    fossil = np.cumsum([10.0 * (y - 1749) for y in yrs]); luc = np.cumsum([3.0 * (y - 1849) for y in yrs]); temp = np.linspace(-0.13, 1.6, 175)
+    x = (fossil + 0.5 * luc) / 1e6; tr = yrs < 2000
+    b, a = np.polyfit(x[tr], temp[tr], 1)
+    rmse = np.sqrt(np.mean((temp[~tr] - (a + b * x[~tr])) ** 2))
+    assert by[0.5]["holdout_rmse_c"] == pytest.approx(rmse, rel=1e-5) and by[0.5]["holdout_train_slope"] == pytest.approx(b, rel=1e-5)
+
+
+def test_the_fossil_only_variant_has_no_weight_scan_or_note(tmp_path):
+    _, out = stage(tmp_path)
+    assert "land_use_weight_scan" not in out["secondary_fossil_only"] and "fit_quality_note" not in out["secondary_fossil_only"]
