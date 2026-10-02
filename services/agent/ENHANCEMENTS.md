@@ -550,3 +550,20 @@ conversation history); auth entirely via a Cloudflare Access login policy (Googl
 edge, zero app-level auth code. Sequenced as four feature branches (settings store, admin
 endpoints, frontend, Cloudflare/Mac Mini deploy) following this repo's usual
 one-section-per-branch convention -- this entry will be revised once each lands.
+
+---
+
+## Planned — Area 2 climate-context intents (root Release 21, Section 3; docs-first stub, 2026-10-01)
+
+**Status: Planned — not started; depends on `services/mcp-server`'s Area 2 tools** (see its
+`ENHANCEMENTS.md`) **and root `SPEC.md` §5.26.**
+
+- Intent routing between emissions-only, climate-context and combined questions; use the new
+  correlation tools when a query references warming, temperature, concentration or relationships.
+- Guardrails: distinguish correlation / physical science / application-model output; no direct
+  attribution of global temperature to one country; state whether an answer is global-aggregate,
+  country-level, historical or scenario-derived; surface source/baseline/coverage/uncertainty; the
+  OWID cumulative-CO₂ regression is the "headline" view and the EDGAR 1970+ pairing is the "recent
+  all-gas relationship" — never conflated or called TCRE interchangeably (root decision 4).
+- Ask page: Area 2 example prompts and follow-ups linking to Overview, Forecasts and Scenario Comparison.
+- A `SPEC.md` section (node/intent catalog additions) is written **before** implementation starts.

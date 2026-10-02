@@ -1,6 +1,6 @@
 # GHG Emissions Trend Analysis and Forecasting — Project Specification
 
-**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · Aug 2026 · v48**
+**IDEAS TIH Summer Internship 2026 · Mentor Reference Document · Aug 2026 · v55**
 
 ---
 
@@ -455,6 +455,7 @@ Sections to include:
 | v52 | Aug 2026 | `climate-dashboard-react/` gained a new `/ask` nav item (`AgentPage`) — the UI surface for `services/agent`, Stage 2 of the conversational-agent project `services/mcp-server` (Stage 1) began. Full design, node catalog, and release history live in [`services/agent/SPEC.md`](services/agent/SPEC.md) and [`services/agent/ENHANCEMENTS.md`](services/agent/ENHANCEMENTS.md) (a separate sub-project's docs, cross-referenced rather than duplicated here, same convention as v51's `services/mcp-server` reference). `vite.config.ts` gained a second dev/preview proxy entry (`services/agent`'s port 8766) alongside the existing `api/` one. Not an internship requirement change — see root `CLAUDE.md`'s scope note. |
 | v53 | Sep 2026 | Added §5.25 (Release 20, `ENHANCEMENTS.md`, **docs-first stage**): a Claude Design–derived landing page at `/`, a new emissions-globe component, and a restyled Overview moved to `/overview`, alongside a move to a dedicated sub-domain `climate-analytics.syena.io` served from the host root. Overview sections stay anchor-based (§5.19 unchanged). Not an internship requirement change. |
 | v54 | Sep 2026 | §5.25 post-ship follow-ups (Release 20, `ENHANCEMENTS.md`): the Landing globe's autoplay steps by decade (1990, 2000, 2010, 2020, then the latest year) via a new optional `stepYears` on `useYearAnimation` (default stays 5, so the Overview map is unchanged); the disputed zones `XJK`/`XAC`/`XAP` (no OWID data) are dissolved into India's geometry in the shared `design-system` world topology, fixing both the Landing globe and the Overview choropleth; the default theme for first-time visitors is Dark. Not an internship requirement change. |
+| v55 | Oct 2026 | Added §5.26 (Release 21, `ENHANCEMENTS.md`, **docs-first stage**): Area 2 climate-context layer — NOAA GML + ice-core concentration, EDGAR and Berkeley Earth ingestion via a new `pipeline/` (monthly cadence), a new domain-bounded `/api/correlation/*` API (seven endpoints, no BFF), a TCRE-style headline regression (OWID cumulative CO₂, HAC CI) kept distinct from the EDGAR 1970+ all-gas view, landing carousel, expanded Overview, correlation module, and agent/MCP support. Reverses Release 20's decade-stepped landing globe to a continuous 1970–2024 rotation. Not an internship requirement change. |
 
 ---
 
@@ -1932,6 +1933,31 @@ cutover checklist); not a curriculum change, same category as the rest of §5.
 | Not a curriculum scope change | Internship Weeks 1–5 and §§1–4 are unaffected; React/deploy only, same category as the rest of §5 |
 
 ---
+
+### 5.26 Area 2: Climate Context Layer (Release 21, Docs-first)
+
+> Mentor's post-internship expansion — **not internship scope**, not graded. Full plan, phase table,
+> effort assessment and open items: `ENHANCEMENTS.md` Release 21. Source requirements:
+> `climate_analytics_area2_requirements.docx`; where this section differs, **this section wins**.
+
+| Area | Specification |
+|---|---|
+| Narrative | Emissions → atmospheric concentration → radiative forcing → temperature anomaly, shown consistently on Landing, Overview, the correlation module, docs and agent responses. Descriptive analysis only — never presented as a climate model; correlation is context, not causal proof |
+| Sources | OWID CO₂ (existing, primary for country CO₂); EDGAR (total GHG/gases, 1970+); Berkeley Earth (temperature anomaly, 1850+); **NOAA GML Mauna Loa (1958+, monthly ppm) spliced to an ice-core record before 1958** — splice point and methodology note mandatory; PRIMAP-hist / Climate Watch optional and deferred. Provenance (source, retrieval date, release id, coverage, units, gas scope, methodology) stored per series |
+| Radiative forcing | Copy-only. No dataset, calculation or endpoint; §2.4 states this explicitly |
+| Reconciliation | OWID vs EDGAR fossil CO₂ are **not** forced to agree; ~5–8% directional differences (scope, bunkers, cement/process, methodology, vintage) disclosed as a footnote |
+| Ingestion | New top-level `pipeline/`: one versioned script per source writing to the store `api/` reads; ISO3 crosswalk built once; international bunkers excluded from country shares (separate line item); runs **monthly** (existing + new sources), with logs and alerting |
+| API | `GET /api/correlation/{meta,concentration,temperature,emissions-temperature,ghg-composition,country-share,scenario-temperature}`, models `Correlation{Resource}Response`. Domain-bounded only — **no** landing-summary, overview-combined or BFF endpoint; pages compose client-side. No new auth (same public read-only class as existing `/api/*`) |
+| Headline model | OLS of Berkeley Earth anomaly on OWID cumulative fossil CO₂, 1850+ (TCRE-style): slope in °C per 1,000 GtCO₂, R², **Newey-West HAC** CI, range/source/baseline, plain-language "not a climate model" note. EDGAR 1970+ total-GHG pairing is the separate "recent all-gas relationship" and is never called TCRE. Stability check: **block bootstrap** (§1.3.6) |
+| Validation | `edgar_total_ghg` + `preindustrial` → 4xx; `edgar_total_ghg` + `1990` → allowed with response warning; unsupported combinations are never silently substituted; source gaps return explicit nulls + notes, no silent interpolation |
+| Baseline offset | Berkeley 1951–1980 → 1850–1900 offset computed from Berkeley's own data; value and derivation published in `/meta` |
+| Scenarios | Illustrative, partial-coverage translation: OWID World cumulative CO₂ to 2024 + 40-country scenario pathways + rest-of-world at last-observed share, OWID CO₂ slope. Labelled implied outcomes, not projections |
+| Country view | Cumulative share of global (territorial) emissions beside the global temperature line; no per-country regression or attribution |
+| Frontend | Landing: four-step band + ≥2-banner carousel (keyboard accessible, no default auto-rotate); Overview: climate KPI strip, correlation chart, map/ranking, share section, pathways teaser, "Why emissions matter" card; new Temperature & GHG Correlation module; per-module baselines (§2.5 of the requirements) |
+| Globes | Landing globe: continuous rotation 1970–2024, year counter only during autoplay, full legend/labels revealed on pause (**reverses Release 20's decade steps**). Overview choropleth: decade stops 1970…2020, 2024 at ~1.5–2 s with synchronized cards, plus year-by-year scrubbing |
+| Agent / MCP | Tool wrappers over the same governed endpoints, intent routing (emissions / climate / combined), correlation-vs-causation and no-country-attribution guardrails; tracked in `services/mcp-server` and `services/agent` docs |
+| Not a scope change | Internship Weeks 1–5 and §§1–4 unaffected; existing OWID/ML 1990 baseline and all existing API contracts unchanged |
+
 
 ---
 

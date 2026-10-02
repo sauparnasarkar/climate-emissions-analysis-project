@@ -376,3 +376,21 @@ test added asserting both loopback hosts are present specifically for the deploy
 as its own `services/mcp-server` change rather than folded into `services/agent`'s PR, per this
 file's "no changes folded in unprompted" convention — `services/agent`'s own deploy doc
 (`SPEC.md`/`CLAUDE.md`) cross-references this entry rather than re-deriving it.
+
+---
+
+## Planned — Area 2 climate-context tools (root Release 21, Section 3; docs-first stub, 2026-10-01)
+
+**Status: Planned — not started; sequenced as the last phase of root `ENHANCEMENTS.md` Release 21**
+(after the `api/` `correlation` domain ships). Full design decisions live in root `SPEC.md` §5.26;
+this entry only records what this sub-project must add so Section 3 has its own tracking.
+
+- New hand-curated tools wrapping the governed `GET /api/correlation/*` endpoints (`concentration`,
+  `temperature`, `emissions-temperature`, `ghg-composition`, `country-share`, `scenario-temperature`,
+  `meta`) — over HTTP like any other consumer, never ad hoc external retrieval.
+- Tool results carry source/baseline/coverage/uncertainty metadata so callers can cite provenance;
+  chart-ready structures follow the dashboard's rendering contracts.
+- No aggregation tool beyond what the bounded endpoints provide (root decision 3).
+- A `SPEC.md` section (tool catalog additions + guardrail text: correlation ≠ causation, no
+  country-level temperature attribution, the headline model is not a climate model) is written
+  **before** implementation starts.

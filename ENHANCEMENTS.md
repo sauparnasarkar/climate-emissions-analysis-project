@@ -3575,3 +3575,92 @@ straight to `main` by instruction.
   blocked); an existing stored Bright/Dark choice still wins, so returning visitors see no change. Confirmed live.
 
 Revised again once each step ships.
+
+
+---
+
+## Release 21 — Area 2: Climate Context Layer (Emissions → Concentration → Forcing → Temperature)
+
+**Status: Planned (docs-first stage, 2026-10-01) — no implementation started.**
+
+Source requirements: `climate_analytics_area2_requirements.docx` (mentor's Drive, `ClimateAdvocacyDashboards/IDEAS TIH Internship/`).
+This release extends the platform with the emissions → atmospheric concentration → radiative forcing →
+temperature anomaly narrative, new data sources, a new `correlation` API domain, a landing carousel, an
+expanded Overview, a Temperature & GHG Correlation module, and agent/MCP support. Additive: no existing
+emissions, historical, forecast, scenario or agent contract changes. Not internship scope — same category
+as the rest of `SPEC.md` §5 (`SPEC.md` §5.26 is the durable reference).
+
+### Effort assessment
+
+Roughly Releases 17–20 combined: **11 phases (1.1–2.6) plus a Section 3 phase, ~20–28 PRs**, across
+`api/`, `pipeline/` (new), `climate-dashboard-react/`, `design-system` (sibling checkout) and, for Section 3,
+`services/mcp-server` and `services/agent`. Phase 1.1 (four new sources, harmonization) and 1.3 (methodology)
+carry the most risk.
+
+### Decisions (settled, 2026-10-01 — amend the requirements doc where they differ)
+
+| # | Decision |
+|---|---|
+| 1 | **Concentration source = NOAA GML Mauna Loa (1958–present, monthly, measured ppm), spliced to an ice-core record (Law Dome or the NOAA/NCEI composite) before 1958.** Added as a fourth row of the §1.1.1 source table. The 1958 splice point and a methodology note are mandatory, same pattern as the EDGAR/PRIMAP caveats. |
+| 2 | **Radiative forcing is copy-only.** §2.4's "not modeled" list gains: *"Radiative forcing appears only as a narrative/conceptual link in the causal-chain explainer; no forcing dataset, calculation, or endpoint exists in this phase."* |
+| 3 | **Domain-bounded endpoints only; no aggregation/BFF layer in this release.** Indicators split into `concentration` and `temperature`. The "landing-page summary" and "overview combined" endpoints from §1.4 are **dropped**: Landing/Overview compose bounded endpoints client-side. A BFF is re-evaluated only on a measured latency problem. The "agent-ready contract" is satisfied by MCP tool wrappers (Section 3), not a REST contract. |
+| 4 | **Headline slope = TCRE-style OLS of Berkeley Earth anomaly on OWID cumulative fossil CO₂, 1850+.** The EDGAR 1970+ total-GHG pairing is a secondary **"recent all-gas relationship"**, never called TCRE in any copy, chart title or agent response. Requires an edit to requirements §1.3.1 and to agent guardrail language implying one unified "headline" model. |
+| 5 | **Scenario→temperature (§1.3.5)** uses OWID World cumulative CO₂ to 2024 as the base, applies the scenario pathways only to the 40-country covered set, holds rest-of-world at its last-observed share, and applies the **OWID CO₂ slope from #4** (not the EDGAR slope). Always labelled *"illustrative, partial-coverage translation"*. |
+| 6 | **CIs:** Newey-West (HAC) standard errors for the headline CI (§1.3.1); **block bootstrap** for the §1.3.6 stability check. Two distinct requirements, not either/or. |
+| 7 | **Source/baseline matrix** below. `edgar_total_ghg` + `preindustrial` → hard 4xx validation error; `edgar_total_ghg` + `1990` → allowed with a warning note in the response. |
+| 8 | **Berkeley Earth baseline offset** (native 1951–1980 → 1850–1900) is computed from Berkeley Earth's own data and published, with its derivation method, in `GET /api/correlation/meta`. Not hardcoded from literature. |
+| 9 | **Harmonization rule (ingestion, not per-endpoint):** an ISO3-based country crosswalk built once at ingestion reconciles OWID vs EDGAR naming; international aviation/shipping are excluded from country cumulative-share calculations and reported only as a separate "international bunkers" line, so shares sum to 100% of territorial emissions. |
+| 10 | **Ingestion lives in a new top-level `pipeline/` directory** (separate from `api/` runtime and the intern notebooks): one versioned script per source (OWID, EDGAR, Berkeley Earth, NOAA GML), writing to the normalized store `api/` reads. The refresh job is extended with clear logs (records processed, deviations from norm) and alerting, and **moves from weekly to monthly for both existing and new sources**. |
+| 11 | **Section 3 (MCP/agent) is tracked as its own phase** with entries in `services/mcp-server/{SPEC,ENHANCEMENTS}.md` and `services/agent/{SPEC,ENHANCEMENTS}.md`, written before that phase starts. |
+| 12 | **Landing globe is reversed from Release 20's decade steps:** continuous rotation over **1970–2024** with a smoothly advancing year counter and colours changing over time; values/labels/legend are suppressed during autoplay and revealed on pause/completion. The Overview choropleth is the analytical counterpart: decade stops (1970, 1980, 1990, 2000, 2010, 2020, 2024) at ~1.5–2 s each with all values/cards synchronized, plus year-by-year scrubbing. |
+| 13 | **No auth added for `/api/correlation/*`** — read-only public data endpoints structurally identical to the existing public `/api/*` surface (see the "API has no auth yet" constraint: `/docs`, `/redoc`, `/openapi.json` stay unexposed). |
+
+### Endpoint list (net new; all `GET /api/correlation/*`, models `Correlation{Resource}Response`)
+
+```
+/meta                      /concentration            /temperature
+/emissions-temperature     /ghg-composition          /country-share
+/scenario-temperature
+```
+
+### Source/baseline validity matrix (`/emissions-temperature`)
+
+| source | `preindustrial` (1850) | `1970` | `1990` |
+|---|---|---|---|
+| `owid_co2` | ✅ headline TCRE view | ✅ | ✅ existing ML-module consistency |
+| `edgar_total_ghg` | ❌ 4xx (no pre-1970 data) | ✅ default | ⚠️ allowed, warning in response |
+
+### Phases (one branch + PR per phase or sub-phase; docs-first; visual preview before merge for frontend)
+
+| Phase | Scope | Size | PRs |
+|---|---|---|---|
+| **1.1** Data acquisition | `pipeline/` + four sources (OWID retained, EDGAR, Berkeley Earth, NOAA GML + ice-core splice), optional PRIMAP-hist/Climate Watch deferred; ISO3 crosswalk; provenance metadata store; monthly refresh with logs/alerting | L | 3–4 |
+| **1.2** Harmonized layer | Year keys, units, global vs country indicators, indexed/rolling/baseline-relative derivations, provenance carried through | M | 2 |
+| **1.3** Correlation analytics | TCRE OLS + HAC CI + R², recent all-gas relationship, composition (AR5 GWP), cumulative share, scenario translation, bootstrap stability check; lag analysis stays stretch | L | 3–4 |
+| **1.4** API | The seven endpoints above, Pydantic models, validation (matrix), explicit nulls, tests incl. 4xx/503 paths | M | 2–3 |
+| **1.5** Performance & reliability | Pre-aggregate/cache; missing-year, unit and source-update validation. Cross-cutting: its checks are also acceptance criteria of every phase above | S | 1 |
+| **2.1** Landing | Four-step band, ≥2-banner carousel (keyboard accessible, auto-rotate off by default), Banner 1 climate signal, Banner 2 existing hero, 1970–2024 continuous globe behaviour per decision 12 | M | 2 |
+| **2.2** Overview | Five content blocks, "Why emissions matter" card (matches the "Since 1990" card treatment), anchors; needs a stub route for the 2.4 link | L | 3 |
+| **2.3** UX & content | Copy/tone, visual-purpose and traceability review for every new chart/KPI (duplicated text in the requirements doc is one requirement). Cross-cutting with 2.1/2.2 | S | 1 |
+| **2.4** Correlation module | New page: causal-chain explainer, global vs country-responsibility views, methodology notes and attribution in-module | L | 3–4 |
+| **2.5** Baseline rules | Per-module baselines (1990 = 100 / full OWID history / 1970+ EDGAR / pre-industrial CO₂-only), exposing baseline year, reference period, formula, range and excluded years | S–M | 1–2 |
+| **2.6** Globe & choropleth | Distinct animation behaviours per decision 12; Overview synchronization | M | 2 |
+| **3** MCP & agent | Tool wrappers, intent routing (emissions / climate / combined), guardrails, Ask-page prompts; own docs per decision 11 | L | 4–6 |
+
+Known ordering friction (accepted, user's order kept): 2.1 links to an Overview anchor 2.2 creates; 2.2 links to the module 2.4 builds (stub first); 2.6 reopens pages 2.1/2.2 changed.
+
+### Open items (resolve in the relevant phase's docs-first step)
+
+1. **"Rest of world held flat at last-observed share" (decision 5)** is read as: RoW's *share of global emissions* is held at its 2024 value, so RoW scales with the covered set's pathway (not frozen in absolute terms). Confirm at 1.3's review.
+2. **Bunkers vs the regression (decision 9).** OWID's World row includes international transport; the country sum does not. Shares use the territorial sum as denominator (as decided). Recommendation: the TCRE regression keeps the full World total (bunkers included), since temperature responds to all emissions — excluding them biases the slope slightly upward. Confirm at 1.3.
+3. **Comparability caveat.** OWID fossil CO₂ excludes land-use change and the slope absorbs non-CO₂ forcing, so the result will not match the IPCC's TCRE; copy must say so and not compare numbers directly.
+4. **`baseline` parameter semantics.** Define explicitly whether it sets the emissions index base, the temperature reference period, or both (and `preindustrial` = 1850–1900 via decision 8's offset).
+5. **Monthly cadence (decision 10) changes the existing weekly Mac Mini job** (launchd + the `ghg-data-refresh` skill); coordinate as an operational change in 1.1.
+6. **Requirements doc** itself is unchanged; the decisions above are the amendments (§1.1.1 fourth source row, §1.3.1/§1.3.5 framing, §1.4 endpoint list, §2.4 forcing line, §2.6 globe).
+7. `ARCHITECTURE.md` gets updated when `pipeline/` and the `correlation` domain land (new data flow), not now.
+
+### Progress
+
+- Docs-first stage written (this entry, `SPEC.md` §5.26, sub-project pointers). Phase 1.1 not started.
+
+Revised again once each phase ships.
