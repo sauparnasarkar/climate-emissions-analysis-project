@@ -63,3 +63,61 @@ class CorrelationMetaResponse(CorrelationEnvelope):
     outputs: dict[str, dict[str, Any]]
     pipeline_last_run: dict[str, Any] | None = None
     endpoints: list[str]
+
+
+class PairPoint(BaseModel):
+    year: int
+    cumulative_emissions: float
+    temperature: float
+
+
+class OmittedYear(BaseModel):
+    year: int
+    reason: str
+
+
+class CorrelationEmissionsTemperatureResponse(CorrelationEnvelope):
+    source: str
+    variant: str | None = None
+    baseline: str
+    window: list[int]
+    x: IndicatorInfo
+    y: IndicatorInfo
+    n_years: int
+    points: list[PairPoint]
+    omitted_years: list[OmittedYear] = []
+    fit: dict[str, Any] | None = None
+    fit_context: dict[str, Any] = {}
+    warnings: list[str] = []
+    notes: list[str] = []
+
+
+class GasValue(BaseModel):
+    gas: str
+    name: str
+    mtco2e: float | None = None
+    share_pct: float | None = None
+
+
+class CompositionYear(BaseModel):
+    year: int
+    gases_included: list[str]
+    components_total_mtco2e: float | None = None
+    national_total_mtco2e: float | None = None
+    residual_pct: float | None = None
+    values: list[GasValue]
+
+
+class CorrelationGhgCompositionResponse(CorrelationEnvelope):
+    name: str
+    basis: str
+    units: str
+    gases: list[dict[str, Any]]
+    coverage: list[int] | None = None
+    start_year: int | None = None
+    end_year: int | None = None
+    year: int | None = None
+    years: list[CompositionYear]
+    reconciliation: dict[str, Any] | None = None
+    excluded_incomplete_years: list[int] = []
+    notes: list[str] = []

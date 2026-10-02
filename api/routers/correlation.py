@@ -9,7 +9,19 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
 from .. import climate_loaders as cl
-from ..schemas_correlation import CorrelationConcentrationResponse, CorrelationMetaResponse, CorrelationTemperatureResponse, IndicatorInfo, SeriesPoint
+from ..schemas_correlation import (
+    CompositionYear,
+    CorrelationConcentrationResponse,
+    CorrelationEmissionsTemperatureResponse,
+    CorrelationGhgCompositionResponse,
+    CorrelationMetaResponse,
+    CorrelationTemperatureResponse,
+    GasValue,
+    IndicatorInfo,
+    OmittedYear,
+    PairPoint,
+    SeriesPoint,
+)
 
 router = APIRouter(prefix="/correlation")
 
@@ -18,6 +30,12 @@ IndexBaseline = Literal["preindustrial", "1970", "1990"]
 Resolution = Literal["annual", "monthly"]
 TemperatureView = Literal["level", "mean5y"]
 TemperatureBaseline = Literal["1850_1900", "1951_1980"]
+PairSource = Literal["owid_co2", "primap_ghg"]
+PairBaseline = Literal["preindustrial", "1970", "1990"]
+PairVariant = Literal["total", "fossil"]
+PAIR_START = {"preindustrial": 1850, "1970": 1970, "1990": 1990}
+PAIR_X = {("owid_co2", "total"): "owid_total_co2_world_cumulative_mt", ("owid_co2", "fossil"): "owid_co2_world_cumulative_mt", ("primap_ghg", "total"): "primap_ghg_total_cumulative_mtco2e"}
+PAIR_Y = "temperature_anomaly_1850_1900_c"
 
 CONCENTRATION_NOTE = ("Atmospheric CO2 concentration: NOAA GML Mauna Loa measurements from 1959, spliced to the Law Dome ice-core/firn spline before 1959 (different "
                       "stations and hemispheres; the splice and the measured overlap gap are in `details`). A measured quantity, not a model output.")
@@ -39,7 +57,7 @@ MATRIX = [
 ]
 OUTPUT_FILES = ("indicator_catalog.json", "correlation_headline.json", "correlation_all_gas.json", "correlation_composition.json", "correlation_country_share.json",
                 "correlation_scenario_temperature.json")
-IMPLEMENTED_ENDPOINTS = ["/api/correlation/meta", "/api/correlation/concentration", "/api/correlation/temperature"]
+IMPLEMENTED_ENDPOINTS = ["/api/correlation/meta", "/api/correlation/concentration", "/api/correlation/temperature", "/api/correlation/emissions-temperature", "/api/correlation/ghg-composition"]
 SOURCE_KEYS = ("source", "license", "coverage", "retrieved_at", "source_release", "update_cadence", "units", "geography", "gas_scope", "caveats", "citations",
                "required_citation_format", "land_use_license_note", "methodology", "source_urls")
 
@@ -210,3 +228,120 @@ def get_meta():
                    "temperature": {"native": "1951-1980", "preindustrial": "1850-1900 (computed from Berkeley Earth's own early record, not taken from the literature)"}},
         temperature_offset=temp.get("preindustrial_offset"), two_global_totals=TWO_GLOBAL_TOTALS, source_baseline_matrix=MATRIX, indicators=indicators,
         outputs={n: _output_status(n) for n in OUTPUT_FILES}, pipeline_last_run=_last_run(), endpoints=IMPLEMENTED_ENDPOINTS)
+
+
+# ------------------------------------------------------------------ /emissions-temperature (decision 48)
+
+
+def _fit_block(source: str, variant: str):
+    """(the pipeline output file, the block inside it that holds the fits) for a source and variant."""
+    if source == "primap_ghg":
+        return "correlation_all_gas.json", "recent_all_gas"
+    return "correlation_headline.json", "headline" if variant == "total" else "secondary_fossil_only"
+
+
+@router.get("/emissions-temperature", response_model=CorrelationEmissionsTemperatureResponse)
+def get_emissions_temperature(source: PairSource = "owid_co2", baseline: PairBaseline | None = None, variant: PairVariant | None = None):
+    if source == "primap_ghg" and variant is not None:
+        raise HTTPException(status_code=422, detail="variant applies only to source=owid_co2 (the all-gas relationship has a single definition)")
+    baseline = baseline or ("1970" if source == "primap_ghg" else "preindustrial")
+    if source == "primap_ghg" and baseline == "preindustrial":
+        raise HTTPException(status_code=422, detail="source=primap_ghg with baseline=preindustrial is not supported: the all-gas relationship is defined from 1970 and no 1850-based fit exists")
+    variant = variant or "total"
+    start = PAIR_START[baseline]
+    try:
+        xid = PAIR_X[("owid_co2" if source == "owid_co2" else "primap_ghg", variant if source == "owid_co2" else "total")]
+        x, y = cl.indicator_series(xid), cl.indicator_series(PAIR_Y)
+        out_file, block_key = _fit_block(source, variant)
+        doc = cl.load_json(out_file)
+        block = doc.get(block_key)
+        if not isinstance(block, dict):
+            raise cl.ClimateDataUnavailable(f"{out_file} has no {block_key} block")
+        last = int(min(x.index.max(), y.index.max()))
+        points, omitted = [], []
+        for yr in range(start, last + 1):
+            hx, hy = yr in x.index and pd.notna(x[yr]), yr in y.index and pd.notna(y[yr])
+            if hx and hy:
+                points.append(PairPoint(year=yr, cumulative_emissions=float(x[yr]), temperature=float(y[yr])))
+            else:
+                omitted.append(OmittedYear(year=yr, reason="both series missing" if not hx and not hy else ("emissions missing" if not hx else "temperature missing")))
+        window = [points[0].year, points[-1].year] if points else [start, last]
+        notes, warnings = [], []
+        if omitted:
+            notes.append(f"{len(omitted)} year(s) in {start}-{last} are omitted because a series has no value; nothing is interpolated")
+        fit, ctx = None, {}
+        match = next((w for w in block.get("windows", []) if isinstance(w, dict) and w.get("start") == window[0] and w.get("end") == window[1] and w.get("n_years") == len(points)), None)
+        if match is not None:
+            fit = {k: match.get(k) for k in ("start", "end", "n_years", "slope", "ci95_hac", "r_squared", "maxlags")}
+            fit["unit"], fit["label"] = block.get("unit"), block.get("label")
+            if block.get("range") and block["range"][0] == window[0]:  # the primary window: the full published context
+                ctx = {"definition": doc.get("definition") if isinstance(doc.get("definition"), str) else None, "method": doc.get("method"), "methodology": doc.get("methodology"),
+                       "stability": block.get("stability"), "hac_sensitivity": block.get("hac_sensitivity"), "fit": block.get("fit")}
+                if source == "owid_co2":
+                    ctx["vs_ar6"], ctx["ar6_reference"] = block.get("vs_ar6"), doc.get("ar6_reference")
+                    if variant == "total":
+                        ctx["fit_quality_note"] = block.get("fit_quality_note")
+                        ctx["land_use_sensitivity"], ctx["land_use_weight_scan"] = block.get("land_use_sensitivity"), block.get("land_use_weight_scan")
+            else:
+                ctx = {"note": "stability, uncertainty-method comparison and the AR6 comparison are published for the primary window only"}
+        else:
+            notes.append(f"no fit is published for the {window[0]}-{window[1]} window of {len(points)} year(s), so none is shown (the pair is returned without one; nothing is computed on the fly)")
+        if baseline == "1990":
+            warnings.append(f"a {window[1] - window[0] + 1}-year window is short for this relationship; read the pair as context only")
+        entry_x, entry_y = cl.catalog_entry(xid), cl.catalog_entry(PAIR_Y)
+        prov = cl.load_provenance()
+        sids = list(dict.fromkeys([entry_x.get("source_series"), entry_y.get("source_series")]))
+        caveats = list(dict.fromkeys(_strings(doc.get("caveats")) + [c for s in sids for c in _strings((prov.get(s) or {}).get("caveats"))]))
+        if source == "primap_ghg":
+            caveats.append("The all-gas relationship is a descriptive regression, never called TCRE and never compared with the AR6 range.")
+        return CorrelationEmissionsTemperatureResponse(
+            schema_version=doc.get("schema_version", 1), generated_at=doc.get("generated_at"), note=doc.get("note") or "", caveats=caveats, attribution=_attribution(sids),
+            source_vintage=doc.get("temperature_source_vintage") if isinstance(doc.get("temperature_source_vintage"), dict) else None, source=source,
+            variant=variant if source == "owid_co2" else None, baseline=baseline, window=window, x=_info(entry_x), y=_info(entry_y), n_years=len(points), points=points,
+            omitted_years=omitted, fit=fit, fit_context=ctx, warnings=warnings, notes=notes)
+    except cl.ClimateDataUnavailable as e:
+        raise _unavailable(e)
+
+
+# ------------------------------------------------------------------ /ghg-composition (decision 49)
+
+
+@router.get("/ghg-composition", response_model=CorrelationGhgCompositionResponse)
+def get_ghg_composition(start_year: int | None = Query(None, ge=0), end_year: int | None = Query(None, ge=0), year: int | None = Query(None, ge=0)):
+    if year is not None and (start_year is not None or end_year is not None):
+        raise HTTPException(status_code=422, detail="year cannot be combined with start_year/end_year")
+    _check_years(start_year, end_year)
+    try:
+        doc = cl.load_json("correlation_composition.json")
+        df = cl.load_csv("correlation_composition_annual.csv")
+        if not {"year", "gas", "gas_name", "mtco2e", "share_pct"} <= set(df.columns):
+            raise cl.ClimateDataUnavailable("correlation_composition_annual.csv lacks year/gas/gas_name/mtco2e/share_pct columns")
+        cov = doc.get("coverage")
+        per_year = {int(y["year"]): y for y in doc.get("years", []) if isinstance(y, dict) and "year" in y}
+        lo, hi = (year, year) if year is not None else (start_year, end_year)
+        years = sorted(per_year)
+        sel = [y for y in years if (lo is None or y >= lo) and (hi is None or y <= hi)]
+        by_year = {int(y): g for y, g in df.groupby("year")}
+        out, notes = [], []
+        for y in sel:
+            meta = per_year[y]
+            g = by_year.get(y)
+            if g is None:
+                raise cl.ClimateDataUnavailable(f"correlation_composition_annual.csv has no rows for {y}, which correlation_composition.json lists")
+            order = {gid: i for i, gid in enumerate(x.get("id") for x in doc.get("gases", []) if isinstance(x, dict))}
+            rows = sorted(g.itertuples(), key=lambda r: order.get(r.gas, 99))
+            out.append(CompositionYear(year=y, gases_included=_strings(meta.get("gases_included")), components_total_mtco2e=meta.get("components_total_mtco2e"),
+                                       national_total_mtco2e=meta.get("national_total_mtco2e"), residual_pct=meta.get("residual_pct"),
+                                       values=[GasValue(gas=r.gas, name=r.gas_name, mtco2e=_value(r.mtco2e), share_pct=_value(r.share_pct)) for r in rows]))
+        if not out:
+            notes.append(f"no data in the requested range: coverage is {cov[0]}-{cov[1]}" if isinstance(cov, list) and len(cov) == 2 else "no data in the requested range")
+        if any("fgas" not in y.gases_included for y in out):
+            notes.append("years where a gas has no value return it as null and omit it from gases_included; shares are over the gases included")
+        return CorrelationGhgCompositionResponse(
+            schema_version=doc.get("schema_version", 1), generated_at=doc.get("generated_at"), note=doc.get("basis") or "", caveats=_strings(doc.get("caveats")),
+            attribution=_attribution(["primap_global_composition_annual"]), name=doc.get("name") or "Global greenhouse-gas composition", basis=doc.get("basis") or "",
+            units=doc.get("units") or "", gases=[g for g in doc.get("gases", []) if isinstance(g, dict)], coverage=cov if isinstance(cov, list) else None, start_year=start_year,
+            end_year=end_year, year=year, years=out, reconciliation=doc.get("reconciliation"), excluded_incomplete_years=[int(v) for v in doc.get("excluded_incomplete_years", [])],
+            notes=notes)
+    except cl.ClimateDataUnavailable as e:
+        raise _unavailable(e)
