@@ -270,3 +270,73 @@ def test_crosswalk_with_code_only_source_names():
     cw = build_crosswalk({"AAA": None, "XXX": None}, owid_df(), source_label="primap").set_index("iso3")
     assert cw.loc["AAA", "match"] == "iso3_exact" and not cw.loc["AAA", "name_differs"]
     assert cw.loc["XXX", "match"] == "primap_only" and "primap_name" in cw.columns
+
+
+# ---------------------------------------------------------------- author-notification record (pipeline/source_notices.json)
+
+
+def write_notices(tmp_path, version="v9.9", sent_at="2026-10-02T06:27:27Z", replies=None, name="notices.json"):
+    p = tmp_path / name
+    p.write_text(json.dumps({"primap_hist": {"notifications": [{
+        "type": "notification_of_use", "sent_at": sent_at, "to": "nc-support@example.test",
+        "dataset_version_at_notification": version, "status": "sent", "replies": replies or []}]}}))
+    return str(p)
+
+
+def run_with_notices(tmp_path, notices_path, today=date(2026, 10, 2)):
+    return ph.run(fetcher_for(make_csv()), out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today=today,
+                  owid=owid_df(), notices_path=notices_path)
+
+
+def test_notification_record_is_copied_into_provenance_every_run(tmp_path):
+    rep = run_with_notices(tmp_path, write_notices(tmp_path))
+    n = json.loads((tmp_path / "p.json").read_text())["primap_global_composition_annual"]["author_notification"]
+    assert n["covers_current_version"] is True and n["requested_by_provider"] is True
+    assert n["notices"][0]["sent_at"] == "2026-10-02T06:27:27Z" and n["notices"][0]["to"] == "nc-support@example.test"
+    assert not any("notifying" in d for d in rep.deviations)
+    # and in the country series too (both entries carry it)
+    assert json.loads((tmp_path / "p.json").read_text())["primap_country_annual"]["author_notification"]["covers_current_version"] is True
+
+
+def test_missing_record_is_an_alert_because_the_provider_asks_to_be_notified(tmp_path):
+    rep = run_with_notices(tmp_path, str(tmp_path / "does_not_exist.json"))
+    assert any("no record of notifying the PRIMAP-hist authors" in d for d in rep.deviations)
+    assert json.loads((tmp_path / "p.json").read_text())["primap_global_composition_annual"]["author_notification"]["notices"] == []
+
+
+def test_new_release_not_covered_by_the_notification_is_a_note_not_an_alert(tmp_path):
+    rep = run_with_notices(tmp_path, write_notices(tmp_path, version="v2.8"))  # release in the test is v9.9
+    assert any("notifications on file cover ['v2.8']" in n and "consider notifying" in n for n in rep.notes)
+    assert not any("notifying" in d for d in rep.deviations)
+    assert json.loads((tmp_path / "p.json").read_text())["primap_global_composition_annual"]["author_notification"]["covers_current_version"] is False
+
+
+def test_unanswered_notification_after_60_days_is_noted_not_alerted(tmp_path):
+    p = write_notices(tmp_path)
+    assert not any("no recorded reply" in n for n in run_with_notices(tmp_path, p, today=date(2026, 11, 1)).notes)  # 30 days
+    rep = run_with_notices(tmp_path, p, today=date(2026, 12, 15))  # 74 days
+    assert any("has had no recorded reply for 74 days" in n for n in rep.notes) and not any("reply" in d for d in rep.deviations)
+    answered = write_notices(tmp_path, replies=[{"received_at": "2026-10-05T00:00:00Z", "summary": "ok"}], name="answered.json")
+    assert not any("no recorded reply" in n for n in run_with_notices(tmp_path, answered, today=date(2026, 12, 15)).notes)
+
+
+def test_malformed_notices_raise_instead_of_silently_dropping_the_record(tmp_path):
+    bad = tmp_path / "bad.json"
+    bad.write_text(json.dumps({"primap_hist": {"notifications": [{"type": "notification_of_use", "to": "x"}]}}))
+    with pytest.raises(ValueError, match="missing sent_at"):
+        run_with_notices(tmp_path, str(bad))
+    badtime = tmp_path / "badtime.json"
+    badtime.write_text(json.dumps({"primap_hist": {"notifications": [{"type": "t", "sent_at": "yesterday", "to": "x", "dataset_version_at_notification": "v1", "status": "s"}]}}))
+    with pytest.raises(ValueError, match="invalid sent_at"):
+        run_with_notices(tmp_path, str(badtime))
+
+
+def test_the_real_tracked_notices_file_records_the_2026_10_02_notification():
+    from pipeline.common import NOTICES_PATH, load_source_notices
+
+    n = load_source_notices("primap_hist", NOTICES_PATH)
+    assert len(n) == 1
+    assert n[0]["sent_at"] == "2026-10-02T06:27:27Z" and n[0]["to"] == "nc-support@johannes-guetschow.de"
+    assert n[0]["dataset_version_at_notification"] == "v2.8" and n[0]["dataset_doi"] == "10.5281/zenodo.22876287"
+    assert len(n[0]["questions"]) == 2 and n[0]["replies"] == []
+    assert load_source_notices("noaa_gml", NOTICES_PATH) == []  # a source with no entry has none

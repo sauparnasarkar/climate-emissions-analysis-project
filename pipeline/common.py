@@ -30,6 +30,7 @@ PROVENANCE_PATH = os.path.join(CLIMATE_DIR, "provenance.json")
 # Sources that are shelved for publication (e.g. EDGAR, pending licence) write here, never to CLIMATE_DIR,
 # so nothing the API reads can contain them.
 INTERNAL_DIR = os.path.join(ROOT, "data", "internal")
+NOTICES_PATH = os.path.join(ROOT, "pipeline", "source_notices.json")  # tracked: notices sent to data providers
 
 log = logging.getLogger("pipeline")
 
@@ -147,6 +148,27 @@ def weighted_coverage(wide: pd.DataFrame) -> pd.Series:
         den = prev.sum()
         cov[years[i]] = prev.where(cur.notna(), 0).sum() / den if den > 0 else np.nan
     return pd.Series(cov, dtype=float)
+
+
+NOTICE_REQUIRED_KEYS = ("type", "sent_at", "to", "dataset_version_at_notification", "status")
+
+
+def load_source_notices(source: str, path: str = NOTICES_PATH) -> list[dict]:
+    """The notices recorded for `source` in the tracked notices file ([] if none / no file). A malformed
+    entry raises rather than being dropped: a record that silently vanished from provenance is exactly
+    the failure this file exists to prevent."""
+    if not os.path.exists(path):
+        return []
+    entries = json.load(open(path)).get(source, {}).get("notifications", [])
+    for i, n in enumerate(entries):
+        missing = [k for k in NOTICE_REQUIRED_KEYS if k not in n]
+        if missing:
+            raise ValueError(f"{path}: {source} notification #{i} is missing {', '.join(missing)}")
+        try:
+            datetime.fromisoformat(str(n["sent_at"]).replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"{path}: {source} notification #{i} has an invalid sent_at {n['sent_at']!r}") from exc
+    return entries
 
 
 def write_json_atomic(obj, path: str) -> None:
