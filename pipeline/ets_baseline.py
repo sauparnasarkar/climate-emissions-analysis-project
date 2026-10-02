@@ -77,7 +77,7 @@ def fit_forecast(series: pd.Series, steps: int) -> tuple[np.ndarray, dict]:
 
 def anomalies(series: pd.Series) -> list[dict]:
     """Single-year values more than ANOMALY_RATIO times above or below the centred ANOMALY_WINDOW-year median (flag only)."""
-    med = series.rolling(ANOMALY_WINDOW, center=True, min_periods=ANOMALY_WINDOW - 2).median()
+    med = series.rolling(ANOMALY_WINDOW, center=True, min_periods=ANOMALY_WINDOW // 2 + 1).median()
     ratio = series / med
     return [{"year": int(y), "value_mt": float(series.loc[y]), "ratio_to_local_median": float(r)} for y, r in ratio.items() if np.isfinite(r) and (r > ANOMALY_RATIO or r < 1 / ANOMALY_RATIO)]
 
@@ -86,7 +86,7 @@ def _series_by_country(owid: pd.DataFrame, countries: list[str], first: int, las
     out, problems = {}, []
     for c in countries:
         s = owid[(owid["country"] == c) & (owid["year"] >= first) & (owid["year"] <= last)].set_index("year")["co2"].sort_index()
-        if len(s) != last - first + 1 or s.isna().any() or not np.isfinite(s.to_numpy(dtype=float)).all() or (s <= 0).any():
+        if s.index.tolist() != list(range(first, last + 1)) or s.isna().any() or not np.isfinite(s.to_numpy(dtype=float)).all() or (s <= 0).any():
             problems.append(c)
         out[c] = s
     if problems:
@@ -124,8 +124,11 @@ def _metadata(climate_dir: str) -> tuple[list[str], dict]:
     caveats = ["This is a statistical extrapolation of each country's own history, not a model of policy or technology; it is the BAU pathway's starting point, and the scenarios are derived from it.",
                *SCOPE_LIMITS]
     pp = os.path.join(climate_dir, "provenance.json")
-    prov = (json.load(open(pp)).get("owid_world_co2_annual") or {}) if os.path.exists(pp) else {}
-    return caveats, {k: prov[k] for k in ("source", "license", "citations") if k in prov}
+    with open(pp) as f:
+        prov = json.load(f).get("owid_world_co2_annual")
+    if not isinstance(prov, dict) or any(not prov.get(k) for k in ("source", "license", "citations")):
+        raise Unavailable("OWID provenance is missing source, license or citations")
+    return caveats, {k: prov[k] for k in ("source", "license", "citations")}
 
 
 def _skeleton(caveats: list[str], attribution: dict) -> dict:
