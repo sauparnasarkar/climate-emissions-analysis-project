@@ -1,4 +1,4 @@
-"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|owid|harmonize|correlate|composition|country_share|all]`.
+"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|owid|harmonize|correlate|composition|country_share|ets_baseline|all]`.
 
 `all` runs the active (publishable) sources, then the derived stages (the harmonized layer), only. Shelved sources (`edgar`) run only when named explicitly
 and write to `data/internal/`, never `data/climate/`.
@@ -17,7 +17,7 @@ import os
 import sys
 import traceback
 
-from . import berkeley_earth, composition, correlation, country_share, edgar, harmonize, noaa_gml, owid, primap_hist
+from . import berkeley_earth, composition, correlation, country_share, edgar, ets_baseline, harmonize, noaa_gml, owid, primap_hist
 from .common import CLIMATE_DIR, check_reshape_environment, utc_now, write_json_atomic, write_text_atomic
 
 ACTIVE_SOURCES = {
@@ -36,12 +36,13 @@ DERIVED_SOURCES = {
     "correlate": correlation.run,
     "composition": composition.run,
     "country_share": country_share.run,
+    "ets_baseline": ets_baseline.run,
 }
 SOURCES = {**ACTIVE_SOURCES, **DERIVED_SOURCES, **INTERNAL_SOURCES}
 # A derived stage that consumes one upstream stage's artifact as a whole must not run when that stage failed in the same run: it would build a
 # fresh-looking result (new generated_at) from the previous run's artifact. `correlate` reads exactly what `harmonize` wrote. (harmonize itself is
 # deliberately NOT gated on the sources: it merges several independent sources, a partial update is normal, and each source's age is in its provenance.)
-DEPENDS_ON = {"correlate": ("harmonize",), "composition": ("primap_hist",), "country_share": ("owid", "primap_hist")}  # composition reads the primap_hist artifact as a whole
+DEPENDS_ON = {"correlate": ("harmonize",), "composition": ("primap_hist",), "country_share": ("owid", "primap_hist"), "ets_baseline": ("owid",)}  # composition reads the primap_hist artifact as a whole
 
 
 def build_notification(summary: dict) -> tuple[str, str, str]:
