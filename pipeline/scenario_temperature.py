@@ -213,7 +213,8 @@ def build(climate_dir: str, notices_path: str, scenario_path: str, owid_path: st
         if not (np.isfinite(covered_t0) and np.isfinite(world_t0) and 0 < covered_t0 < world_t0):
             raise Unavailable(f"the covered countries ({covered_t0:,.0f} Mt) are not a proper part of the World total ({world_t0:,.0f} Mt) in {t0}")
 
-        luc_flat = float(w["land_use_change_co2_mt"].loc[t0 - LUC_FLAT_WINDOW + 1:t0].mean())
+        luc_window = w["land_use_change_co2_mt"].loc[t0 - LUC_FLAT_WINDOW + 1:t0]
+        luc_flat = float(luc_window.mean(skipna=False)) if len(luc_window) == LUC_FLAT_WINDOW else float("nan")
         temp = pd.read_csv(os.path.join(climate_dir, "temperature_anomaly_annual.csv")).set_index("year")["anomaly_1850_1900_c"]
         out["inputs"]["temperature_anomaly_annual.csv"] = {"available": True}
         window = temp.loc[t0 - ANCHOR_WINDOW + 1:t0]
