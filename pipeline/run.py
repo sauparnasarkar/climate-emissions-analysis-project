@@ -1,4 +1,4 @@
-"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|all]`.
+"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|owid|all]`.
 
 `all` runs the active (publishable) sources only. Shelved sources (`edgar`) run only when named explicitly
 and write to `data/internal/`, never `data/climate/`.
@@ -17,19 +17,44 @@ import os
 import sys
 import traceback
 
-from . import berkeley_earth, edgar, noaa_gml, primap_hist
-from .common import CLIMATE_DIR, utc_now, write_json_atomic
+from . import berkeley_earth, edgar, noaa_gml, owid, primap_hist
+from .common import CLIMATE_DIR, utc_now, write_json_atomic, write_text_atomic
 
 ACTIVE_SOURCES = {
     "noaa_gml": noaa_gml.run,
     "berkeley_earth": berkeley_earth.run,
     "primap_hist": primap_hist.run,
+    "owid": owid.run,
 }
 # Shelved for publication (licence): explicit opt-in only, internal output directory.
 INTERNAL_SOURCES = {
     "edgar": edgar.run,
 }
 SOURCES = {**ACTIVE_SOURCES, **INTERNAL_SOURCES}
+
+
+def build_notification(summary: dict) -> tuple[str, str, str]:
+    """(priority, title, message) for the refresh job's ntfy push, so the shell script needs no JSON
+    parsing. urgent = a source failed outright; high = deviations from norm; default = clean."""
+    n_ok, n_fail = len(summary["sources"]), len(summary["failures"])
+    devs = [(s, d) for s, r in summary["sources"].items() for d in r["deviations"]]
+    if n_fail:
+        priority, title = "urgent", "Area 2 pipeline: FAILED"
+    elif devs:
+        priority, title = "high", "Area 2 pipeline: deviations flagged"
+    else:
+        priority, title = "default", "Area 2 pipeline: OK"
+    lines = [f"{n_ok} source(s) ok, {n_fail} failed, {len(devs)} deviation(s)."]
+    for name, err in summary["failures"].items():
+        lines.append(f"FAILED {name}: {err[:240]}")
+    for name, d in devs:
+        lines.append(f"DEVIATION {name}: {d[:240]}")
+    rec = "; ".join(f"{s} " + "/".join(str(n) for n in r["records"].values()) for s, r in summary["sources"].items() if r["records"])
+    if rec:
+        lines.append(f"Rows: {rec}.")
+    n_notes = sum(len(r.get("notes", [])) for r in summary["sources"].values())
+    lines.append(f"{n_notes} note(s) in data/climate/last_run.json.")
+    return priority, title, "\n".join(lines)[:3500]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -53,6 +78,9 @@ def main(argv: list[str] | None = None) -> int:
 
     os.makedirs(CLIMATE_DIR, exist_ok=True)
     write_json_atomic(summary, os.path.join(CLIMATE_DIR, "last_run.json"))
+    priority, title, message = build_notification(summary)
+    for name, value in (("priority", priority), ("title", title), ("message", message)):
+        write_text_atomic(value + "\n", os.path.join(CLIMATE_DIR, f"last_run.{name}"))
     n_dev = sum(len(s["deviations"]) for s in summary["sources"].values())
     print(f"pipeline: {len(summary['sources'])} ok, {len(summary['failures'])} failed, {n_dev} deviation(s)")
     return 1 if summary["failures"] else 0
