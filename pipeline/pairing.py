@@ -122,6 +122,8 @@ def align_pair(h: Harmonized, a: str, b: str, start: int | None = None, end: int
         if ma or mb:
             omitted.append({"year": int(y), "reason": "both missing" if ma and mb else f"{'a' if ma else 'b'} missing"})
     n_used = int(both.sum())
+    if min_overlap < 1:
+        raise ValueError("min_overlap must be at least 1")
     if n_used < min_overlap:
         raise ValueError(f"only {n_used} shared year(s) for {a} and {b} in {lo}-{hi}; at least {min_overlap} are required for a pairing to mean anything")
 
