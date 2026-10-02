@@ -82,10 +82,14 @@ def parse_law_dome_co2(text: str) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["year", "co2_ppm"])
 
 
+def validate_monthly(df: pd.DataFrame) -> None:
+    if df.empty:
+        raise ValueError("monthly series is empty")
     first = df.iloc[0]
     if (int(first["year"]), int(first["month"])) != (1958, 3):
         raise ValueError("monthly series does not start at 1958-03")
     idx = df["year"] * 12 + (df["month"] - 1)
+    missing = set(range(int(idx.min()), int(idx.max()) + 1)) - set(idx)
     if missing:
         first = sorted(missing)[0]
         raise ValueError(f"monthly series: {len(missing)} missing month(s), first {first // 12}-{first % 12 + 1:02d}")
