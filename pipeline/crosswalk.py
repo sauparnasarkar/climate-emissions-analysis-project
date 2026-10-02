@@ -22,8 +22,9 @@ import pandas as pd
 BUNKER_CODES = {"AIR": "International aviation", "SEA": "International shipping"}
 
 
-def build_crosswalk(edgar_names: dict[str, str], owid: pd.DataFrame, expanded: list[str] | None = None) -> pd.DataFrame:
-    """`edgar_names`: ISO3 -> EDGAR entity name. `owid`: needs columns `country`, `iso_code`.
+def build_crosswalk(edgar_names: dict[str, str | None], owid: pd.DataFrame, expanded: list[str] | None = None, source_label: str = "edgar") -> pd.DataFrame:
+    """`edgar_names`: ISO3 -> source entity name (None when the source gives codes only, as PRIMAP-hist does);
+    `source_label` names the column (`<label>_name`). `owid`: needs columns `country`, `iso_code`.
     `expanded`: OWID country names of the expanded set, used to flag coverage of the countries
     the platform actually analyses."""
     coded = owid.dropna(subset=["iso_code"]).drop_duplicates("iso_code")
@@ -38,26 +39,29 @@ def build_crosswalk(edgar_names: dict[str, str], owid: pd.DataFrame, expanded: l
         if code in BUNKER_CODES:
             oname = BUNKER_CODES[code]
             rows.append(
-                dict(iso3=code, edgar_name=ename, owid_name=oname if oname in owid_names else None, entity_type="bunker", match="bunker",
-                     name_differs=False, note="International bunker: excluded from country totals and cumulative-share denominators.")
+                {"iso3": code, f"{source_label}_name": ename, "owid_name": oname if oname in owid_names else None, "entity_type": "bunker", "match": "bunker",
+                 "name_differs": False, "note": "International bunker: excluded from country totals and cumulative-share denominators."}
             )
         elif code in owid_iso:
             rows.append(
-                dict(iso3=code, edgar_name=ename, owid_name=owid_iso[code], entity_type="country", match="iso3_exact",
-                     name_differs=ename.strip().lower() != owid_iso[code].strip().lower(), note="")
+                {"iso3": code, f"{source_label}_name": ename, "owid_name": owid_iso[code], "entity_type": "country", "match": "iso3_exact",
+                 "name_differs": bool(ename) and ename.strip().lower() != owid_iso[code].strip().lower(), "note": ""}
             )
         else:
-            rows.append(dict(iso3=code, edgar_name=ename, owid_name=None, entity_type="country", match="edgar_only", name_differs=False, note=""))
+            rows.append({"iso3": code, f"{source_label}_name": ename, "owid_name": None, "entity_type": "country", "match": f"{source_label}_only", "name_differs": False, "note": ""})
     owid_only = {c: n for c, n in owid_iso.items() if c not in edgar_names}
     for code, oname in owid_only.items():
-        rows.append(dict(iso3=code, edgar_name=None, owid_name=oname, entity_type="country", match="owid_only", name_differs=False, note=""))
+        rows.append({"iso3": code, f"{source_label}_name": None, "owid_name": oname, "entity_type": "country", "match": "owid_only", "name_differs": False, "note": ""})
 
     df = pd.DataFrame(rows)
     # Many-to-one cases revealed by names alone (e.g. EDGAR "Serbia and Montenegro" vs OWID Serbia + Montenegro).
-    for i, r in df[df["match"] == "edgar_only"].iterrows():
-        parts = [n for n in owid_only.values() if n.lower() in r["edgar_name"].lower()]
+    for i, r in df[df["match"] == f"{source_label}_only"].iterrows():
+        name = r[f"{source_label}_name"]
+        if not name:
+            continue
+        parts = [n for n in owid_only.values() if n.lower() in name.lower()]
         if len(parts) >= 2:
-            df.at[i, "note"] = f"EDGAR reports one entity covering {', '.join(sorted(parts))}, which OWID reports separately; not directly comparable."
+            df.at[i, "note"] = f"{source_label.upper()} reports one entity covering {', '.join(sorted(parts))}, which OWID reports separately; not directly comparable."
     df = df.assign(expanded=df["owid_name"].isin(expanded or []))
     df = df.sort_values(["match", "iso3"]).reset_index(drop=True)
     df.attrs["excluded_owid_codes"] = excluded

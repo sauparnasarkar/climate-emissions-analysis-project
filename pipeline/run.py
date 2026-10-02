@@ -1,4 +1,4 @@
-"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|all]`.
+"""Run Area 2 ingestion: `python -m pipeline.run [--source noaa_gml|berkeley_earth|primap_hist|all]`.
 
 `all` runs the active (publishable) sources only. Shelved sources (`edgar`) run only when named explicitly
 and write to `data/internal/`, never `data/climate/`.
@@ -17,12 +17,13 @@ import os
 import sys
 import traceback
 
-from . import berkeley_earth, edgar, noaa_gml
+from . import berkeley_earth, edgar, noaa_gml, primap_hist
 from .common import CLIMATE_DIR, utc_now, write_json_atomic
 
 ACTIVE_SOURCES = {
     "noaa_gml": noaa_gml.run,
     "berkeley_earth": berkeley_earth.run,
+    "primap_hist": primap_hist.run,
 }
 # Shelved for publication (licence): explicit opt-in only, internal output directory.
 INTERNAL_SOURCES = {
