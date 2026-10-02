@@ -171,9 +171,26 @@ def build(h: Harmonized | None, climate_dir: str, notices_path: str, report: Run
     """The output is always complete in its metadata (method, caveats, vintage, attribution, inputs): an unavailable result is explicit
     nulls with a reason, never a missing field, a stale file, or a crash. Metadata comes from provenance.json and module constants, so it
     does not depend on the harmonized catalog having loaded."""
-    vintage = _vintage(climate_dir, notices_path)
-    attribution = {k: v for k, v in _provenance(climate_dir, "owid_world_co2_annual").items()
-                   if k in ("citations", "attribution_required", "required_citation_format", "land_use_license_note")}
+    metadata_errors = []
+    try:
+        vintage = _vintage(climate_dir, notices_path)
+    except Exception as e:  # noqa: BLE001 -- metadata failures must not prevent the explicit-null output from being written
+        logging.exception("correlate: unable to load temperature vintage metadata")
+        metadata_errors.append(f"temperature vintage metadata: {type(e).__name__}: {e}")
+        vintage = {
+            "file_last_modified": None,
+            "reconciled": False,
+            "caveat": f"Berkeley Earth vintage metadata could not be read: {type(e).__name__}: {e}",
+        }
+    try:
+        attribution = {k: v for k, v in _provenance(climate_dir, "owid_world_co2_annual").items()
+                       if k in ("citations", "attribution_required", "required_citation_format", "land_use_license_note")}
+    except Exception as e:  # noqa: BLE001 -- preserve the output contract when provenance is malformed or unavailable
+        logging.exception("correlate: unable to load attribution metadata")
+        metadata_errors.append(f"attribution metadata: {type(e).__name__}: {e}")
+        attribution = {}
+    for error in metadata_errors:
+        report.deviate(f"correlation metadata unavailable: {error}")
     caveats = [PLAIN_LANGUAGE, METHODOLOGY, DENOMINATOR_NOTE, _LUC_UNCERTAINTY, _LUC_LICENSE] + ([vintage["caveat"]] if vintage["caveat"] else [])
     inputs = {}
     for i in INPUT_IDS:
@@ -185,7 +202,9 @@ def build(h: Harmonized | None, climate_dir: str, notices_path: str, report: Run
            "temperature_source_vintage": vintage, "attribution": attribution, "caveats": caveats, "inputs": inputs}
     for key, spec in VARIANTS.items():
         reason = None
-        if h is None:
+        if metadata_errors:
+            reason = f"correlation metadata unavailable: {'; '.join(metadata_errors)}"
+        elif h is None:
             reason = f"harmonized layer unavailable: {load_error}"
         elif (missing := [i for i in spec["needs"] if i not in h.catalog]):
             reason = f"missing indicators: {', '.join(missing)}"

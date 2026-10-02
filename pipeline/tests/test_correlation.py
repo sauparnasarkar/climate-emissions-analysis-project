@@ -383,3 +383,28 @@ def test_an_unexpected_exception_in_a_variant_still_rewrites_the_output_with_nul
     assert out["headline"] is None and "unexpected error: RuntimeError: boom" in out["headline_unavailable_reason"] and len(rep.deviations) == 2
     assert any("unexpected error computing" in r.message for r in caplog.records)  # the traceback is logged, not swallowed silently
     assert_full_metadata(out)
+
+
+@pytest.mark.parametrize(
+    "metadata_file,contents,reason,attribution_available",
+    [
+        ("provenance.json", "{", "attribution metadata", False),
+        ("notices.json", "{", "temperature vintage metadata", True),
+    ],
+)
+def test_malformed_metadata_rewrites_stale_output_with_nulls_and_a_deviation(
+    tmp_path, metadata_file, contents, reason, attribution_available
+):
+    _, good = stage(tmp_path)
+    assert good["headline"] is not None and good["secondary_fossil_only"] is not None
+    (tmp_path / metadata_file).write_text(contents)
+
+    rep = C.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"))
+    out = json.loads((tmp_path / "correlation_headline.json").read_text())
+
+    assert out["headline"] is None and out["secondary_fossil_only"] is None
+    assert reason in out["headline_unavailable_reason"]
+    assert any("correlation metadata unavailable" in d for d in rep.deviations)
+    assert out["temperature_source_vintage"]["caveat"] in out["caveats"]
+    assert bool(out["attribution"]) is attribution_available
+    assert METADATA_KEYS <= set(out)
