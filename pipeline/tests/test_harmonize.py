@@ -321,3 +321,40 @@ def test_missing_total_column_skips_the_total_indicators_with_deviations_not_a_c
     assert any("owid_total_co2_world_cumulative_mt" in d and "not built" in d for d in rep.deviations)
     _, _, cat = read(tmp_path)
     assert "owid_co2_world_cumulative_mt" in {e["id"] for e in cat["indicators"]}  # the fossil-only series is unaffected
+
+
+def test_land_use_cumulative_is_built_from_1850_and_the_total_is_the_sum_of_the_two_cumulatives(tmp_path):
+    run(tmp_path)
+    g, _, cat = read(tmp_path)
+    ids = {e["id"]: e for e in cat["indicators"]}
+    assert ids["owid_luc_co2_world_cumulative_mt"]["kind"] == "cumulative" and ids["owid_luc_co2_world_cumulative_mt"]["coverage"] == [1850, 2024]
+    s = lambda i: g[g.indicator_id == i].set_index("year")["value"]
+    luc_cum, tot_cum = s("owid_luc_co2_world_cumulative_mt"), s("owid_total_co2_world_cumulative_mt")
+    assert luc_cum[1850] == pytest.approx(3.0) and luc_cum[1900] == pytest.approx(sum(3.0 * (y - 1849) for y in range(1850, 1901)), rel=1e-9)
+    fossil_from_1850 = {y: sum(10.0 * (v - 1749) for v in range(1850, y + 1)) for y in (1900, 2024)}
+    for y in (1900, 2024):
+        assert tot_cum[y] == pytest.approx(fossil_from_1850[y] + luc_cum[y], rel=1e-9)
+    assert "+/-0.7 GtC/yr" in " ".join(ids["owid_luc_co2_world_cumulative_mt"]["caveats"])
+
+
+def test_attribution_fields_travel_in_every_land_use_indicators_provenance_link_base_and_derived(tmp_path):
+    prov_path = write_inputs(tmp_path)
+    prov = json.loads(open(prov_path).read())
+    prov["owid_world_co2_annual"].update({"citations": ["Our World in Data ...", "Required by the GCP: Global Carbon Project. (<year>) ..."],
+                                          "attribution_required": True, "required_citation_format": "Global Carbon Project. (<year>) ...", "land_use_license_note": "No formal license (e.g., CC BY) is stated"})
+    open(prov_path, "w").write(json.dumps(prov))
+    harmonize.run(str(tmp_path), prov_path)
+    _, _, cat = read(tmp_path)
+    land_use = [e for e in cat["indicators"] if "luc" in e["id"] or "total_co2" in e["id"]]
+    assert len(land_use) >= 8  # base + derived
+    base = [e for e in land_use if e["kind"] != "derived"]
+    assert {e["id"] for e in base} == {"owid_luc_co2_world_mt", "owid_luc_co2_world_cumulative_mt", "owid_total_co2_world_mt", "owid_total_co2_world_cumulative_mt"}
+    for e in base:
+        pl = e["provenance"]
+        assert pl["attribution_required"] is True and pl["required_citation_format"].startswith("Global Carbon Project") and len(pl["citations"]) == 2
+        assert pl["land_use_license_note"].startswith("No formal license")
+    # derived entries point at their base, whose provenance carries the attribution; they inherit the licence caveat text itself
+    for e in (x for x in land_use if x["kind"] == "derived"):
+        assert e["derived_from"] in {b["id"] for b in base} and "No formal license" in " ".join(e["caveats"])
+    # a source that records no attribution fields gets none added (no noise)
+    assert "citations" not in {x["id"]: x for x in cat["indicators"]}["temperature_anomaly_1850_1900_c"]["provenance"]

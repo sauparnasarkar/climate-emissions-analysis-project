@@ -48,6 +48,7 @@ DATA_PATH = os.path.join(ROOT, "data", "owid-co2-data.csv")
 REQUIRED_COLUMNS = ["country", "year", "iso_code", "co2", "cumulative_co2", "methane", "nitrous_oxide"]
 # Needed for the headline (total anthropogenic CO2) but not for the fossil series, so a rename upstream raises a deviation instead of stopping the whole step.
 LAND_USE_COLUMN = "land_use_change_co2"
+LAND_USE_START = 1850  # the headline cumulative is labelled "since 1850"; a later first year would silently change the period
 INTERNATIONAL_TRANSPORT = ("International aviation", "International shipping")
 
 COVERAGE_MIN = 0.98
@@ -198,6 +199,9 @@ def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str 
         report.deviate(f"OWID column {LAND_USE_COLUMN!r} is missing or empty: the headline regression (total anthropogenic CO2) is unavailable; the fossil-only series is unaffected")
     else:
         lo, hi = int(luc.index.min()), int(luc.index.max())
+        expected_start = max(LAND_USE_START, int(world.index.min()))
+        if lo > expected_start:
+            report.deviate(f"OWID World land-use CO2 starts in {lo}, after {expected_start}: the cumulative total \"since {LAND_USE_START}\" would silently start later")
         gaps = [y for y in range(lo, min(hi, last) + 1) if y not in luc.index]
         if gaps:
             report.deviate(f"OWID World land-use CO2 has interior gap(s) {gaps[:5]}{'...' if len(gaps) > 5 else ''}: the cumulative total would be too small from {gaps[0]}")

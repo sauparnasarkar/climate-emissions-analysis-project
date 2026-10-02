@@ -11,7 +11,7 @@ from pipeline import owid
 TODAY = date(2025, 10, 2)  # the synthetic data ends in 2024, so 'today' is a year later (lag within limits)
 
 
-def make_df(years=range(1990, 2025), partial_last=False, jump_last=False, drop_bbb_before=None, no_cum=False, luc=True, luc_end=None, luc_gap=None):
+def make_df(years=range(1990, 2025), partial_last=False, jump_last=False, drop_bbb_before=None, no_cum=False, luc=True, luc_end=None, luc_gap=None, luc_start=None):
     rows = []
     cum = 0.0
     for y in years:
@@ -32,7 +32,7 @@ def make_df(years=range(1990, 2025), partial_last=False, jump_last=False, drop_b
         rows.append(("International aviation", y, np.nan, air, np.nan, np.nan, np.nan, np.nan))
         rows.append(("International shipping", y, np.nan, ship, np.nan, np.nan, np.nan, np.nan))
         luc_v = 400.0 + 2 * (y - 1990)  # land-use CO2 (Mt): a separate World column, not part of `co2`
-        if not luc or (luc_end and y > luc_end) or (luc_gap and y == luc_gap):
+        if not luc or (luc_end and y > luc_end) or (luc_gap and y == luc_gap) or (luc_start and y < luc_start):
             luc_v = np.nan
         rows.append(("World", y, np.nan, world, np.nan if no_cum else cum, 1.0, 1.0, luc_v))
         rows.append(("Europe", y, np.nan, 5.0, np.nan, np.nan, np.nan, np.nan))  # an aggregate without iso: must be ignored for countries
@@ -205,3 +205,10 @@ def test_land_use_series_ending_before_the_last_year_and_interior_gaps_are_devia
     assert s.loc[2022, "total_co2_incl_luc_mt"] > 0 and pd.isna(s.loc[2023, "total_co2_incl_luc_mt"])  # no total where a component is absent
     rep2 = run(tmp_path, write(tmp_path, make_df(luc_gap=2005, ), name="g.csv"))
     assert any("interior gap" in d and "2005" in d for d in rep2.deviations)
+
+
+def test_land_use_series_starting_late_is_a_deviation_not_a_silently_shorter_period(tmp_path):
+    rep = run(tmp_path, write(tmp_path, make_df(luc_start=2000)))
+    assert any("land-use CO2 starts in 2000, after 1990" in d and "silently start later" in d for d in rep.deviations)
+    rep_ok = run(tmp_path, write(tmp_path, make_df(), name="ok.csv"))  # starting with the CO2 series (or 1850, whichever is later) is fine
+    assert not any("starts in" in d for d in rep_ok.deviations)

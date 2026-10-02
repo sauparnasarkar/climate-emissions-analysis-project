@@ -92,6 +92,9 @@ GLOBAL_SPECS: list[Spec] = [
     Spec("owid_luc_co2_world_mt", "World land-use-change CO2 emissions", "Mt CO2", "level", "global", "owid_world_co2_annual.csv", "land_use_change_co2_mt",
          "owid_world_co2_annual", "OWID/Global Carbon Project World land-use-change CO2 (bookkeeping-model average), 1850 onward; a separate column from the fossil + cement total.", 0, "1990",
          caveats=[_LUC_UNCERTAINTY, _LUC_LICENSE]),
+    Spec("owid_luc_co2_world_cumulative_mt", "World cumulative land-use-change CO2 since 1850", "Mt CO2", "cumulative", "global", "owid_world_co2_annual.csv", None,
+         "owid_world_co2_annual", "Running total of OWID/Global Carbon Project land-use-change CO2 from 1850, the first year of the series (the land-use part of the headline X-variable).", 0,
+         from_id="owid_luc_co2_world_mt", caveats=[_LUC_UNCERTAINTY, _LUC_LICENSE]),
     Spec("owid_total_co2_world_mt", "World total anthropogenic CO2 emissions (fossil + cement + land-use)", "Mt CO2", "level", "global", "owid_world_co2_annual.csv", "total_co2_incl_luc_mt",
          "owid_world_co2_annual", "Fossil + cement (incl. international aviation and shipping) plus land-use-change CO2: the annual flow behind the headline regression's X-variable.", 0, "1990",
          caveats=[_LUC_UNCERTAINTY, _LUC_LICENSE]),
@@ -135,6 +138,9 @@ COUNTRY_SPECS: list[Spec] = [
 ]
 
 
+_ATTRIBUTION_FIELDS = ("citations", "attribution_required", "required_citation_format", "land_use_license_note")
+
+
 def _provenance_link(prov: dict, series_id: str) -> dict | None:
     e = prov.get(series_id)
     if not e:
@@ -143,7 +149,9 @@ def _provenance_link(prov: dict, series_id: str) -> dict | None:
     return {"series": series_id, "source": e.get("source"), "retrieved_at": e.get("retrieved_at"), "coverage": e.get("coverage"),
             "license": e.get("license"), "source_release": rel if isinstance(rel, (dict, str)) else None,
             # the exact source artifacts: raw-file checksums (and the provider's own, where verified) travel with every indicator
-            "raw_sha256": e.get("raw_sha256"), "checksum_verified": e.get("checksum_verified"), "source_urls": e.get("source_urls")}
+            "raw_sha256": e.get("raw_sha256"), "checksum_verified": e.get("checksum_verified"), "source_urls": e.get("source_urls"),
+            # attribution travels with the indicator too (a licence string can say "see land_use_license_note"): only the fields a source actually records
+            **{k: e[k] for k in _ATTRIBUTION_FIELDS if k in e}}
 
 
 def _derived_entries(spec: Spec, series: pd.Series) -> tuple[list[dict], dict[str, pd.Series], dict[str, str]]:
