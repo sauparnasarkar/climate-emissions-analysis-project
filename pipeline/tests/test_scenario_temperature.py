@@ -16,7 +16,9 @@ WORLD_T0 = 1_250_000.0  # so the rest-of-world share is 0.2
 LUC = 100_000.0  # Mt/yr of land-use CO2 in each of the last five years
 ANOM = {1996: 1.00, 1997: 1.10, 1998: 1.20, 1999: 1.30, 2000: 1.90}  # the anchor is the 5-year mean (1.30), not the last year (1.90)
 FIRST = T0 + 1
+# the stage requires exactly BAU, Moderate and Aggressive; the first-year covered totals are 1,100,000 (+10%), 1,030,000 (+3%) and 960,000 (-4%) against 1,000,000 observed
 PATH = {"BAU": {"Aland": [660_000, 700_000, 740_000], "Bland": [440_000, 460_000, 480_000]},
+        "Moderate": {"Aland": [620_000, 620_000, 620_000], "Bland": [410_000, 400_000, 390_000]},
         "Aggressive": {"Aland": [580_000, 520_000, 460_000], "Bland": [380_000, 340_000, 300_000]}}
 
 
@@ -125,9 +127,9 @@ def test_the_anchor_is_the_trailing_five_year_mean_not_the_last_year_and_the_cur
 
 def test_scenarios_are_translated_independently_and_ordered_by_their_emissions(tmp_path):
     _, out = go(tmp_path)
-    assert sorted(out["scenarios"]) == ["Aggressive", "BAU"] and out["scenario_source"]["scenarios"] == ["Aggressive", "BAU"]
+    assert sorted(out["scenarios"]) == ["Aggressive", "BAU", "Moderate"] and out["scenario_source"]["scenarios"] == ["Aggressive", "BAU", "Moderate"]
     last = {sc: rows[-1]["headline"]["level_c"] for sc, rows in out["scenarios"].items()}
-    assert last["BAU"] > last["Aggressive"]
+    assert last["BAU"] > last["Moderate"] > last["Aggressive"]  # ordered by their emissions
 
 
 def test_base_block_states_the_last_observed_totals_and_the_cumulative_base(tmp_path):
@@ -236,20 +238,22 @@ def test_the_vintage_caveat_is_removed_only_when_the_owner_records_a_reconciliat
 
 
 def test_scenarios_that_start_at_different_levels_are_each_reported(tmp_path):
-    _, out = go(tmp_path)  # synthetic: BAU starts at 1,100,000 (+10%), Aggressive at 960,000 (-4%) against 1,000,000 observed
+    _, out = go(tmp_path)  # synthetic: BAU starts at 1,100,000 (+10%), Moderate 1,030,000 (+3%), Aggressive 960,000 (-4%) against 1,000,000 observed
     b = out["base"]
-    assert b["first_scenario_year_covered_mt"] == {"Aggressive": pytest.approx(960_000.0), "BAU": pytest.approx(1_100_000.0)}
-    assert b["first_scenario_year_vs_last_observed_pct"] == {"Aggressive": pytest.approx(-4.0), "BAU": pytest.approx(10.0)}
+    assert b["first_scenario_year_covered_mt"] == {"Aggressive": pytest.approx(960_000.0), "BAU": pytest.approx(1_100_000.0), "Moderate": pytest.approx(1_030_000.0)}
+    assert b["first_scenario_year_vs_last_observed_pct"] == {"Aggressive": pytest.approx(-4.0), "BAU": pytest.approx(10.0), "Moderate": pytest.approx(3.0)}
     text = [c for c in out["caveats"] if c.startswith("The scenario pathways start ")]
-    assert len(text) == 1 and "Aggressive -4.0%, BAU +10.0%" in text[0] and "(1,000,000 Mt in 2000; Aggressive 960,000 Mt, BAU 1,100,000 Mt in 2001)" in text[0]
+    assert len(text) == 1 and "Aggressive -4.0%, BAU +10.0%, Moderate +3.0%" in text[0]
+    assert "(1,000,000 Mt in 2000; Aggressive 960,000 Mt, BAU 1,100,000 Mt, Moderate 1,030,000 Mt in 2001)" in text[0]
     assert "each scenario carries that step" in text[0]
 
 
 def test_when_every_scenario_starts_at_the_same_level_the_caveat_says_so_once(tmp_path):
     def same_start(p):
         q = p.copy()
-        q.loc[(q.year == FIRST) & (q.scenario == "Aggressive") & (q.country == "Aland"), "co2_projected"] = 660_000.0
-        q.loc[(q.year == FIRST) & (q.scenario == "Aggressive") & (q.country == "Bland"), "co2_projected"] = 440_000.0
+        for sc in ("Moderate", "Aggressive"):  # every scenario starts where BAU does
+            q.loc[(q.year == FIRST) & (q.scenario == sc) & (q.country == "Aland"), "co2_projected"] = 660_000.0
+            q.loc[(q.year == FIRST) & (q.scenario == sc) & (q.country == "Bland"), "co2_projected"] = 440_000.0
         return q
 
     _, out = go(tmp_path, scenario_edit=lambda p: same_start(p.reset_index(drop=True)))
@@ -271,7 +275,7 @@ def test_scenario_source_provenance_matches_the_file_bytes(tmp_path):
     _, out = go(tmp_path)
     raw = (tmp_path / "scenario_projections.csv").read_bytes()
     s = out["scenario_source"]
-    assert s["sha256"] == hashlib.sha256(raw).hexdigest() and s["file"] == "scenario_projections.csv" and s["rows"] == 12 and s["years"] == [FIRST, FIRST + 2]
+    assert s["sha256"] == hashlib.sha256(raw).hexdigest() and s["file"] == "scenario_projections.csv" and s["rows"] == 18 and s["years"] == [FIRST, FIRST + 2]  # 3 scenarios x 2 countries x 3 years
     assert out["attribution"]["required_citation_format"].startswith("Global Carbon Project")
 
 
@@ -438,3 +442,76 @@ def test_a_failure_after_the_translation_is_filled_in_still_leaves_no_partial_re
     assert out["scenarios"] is None and out["base"] is None and out["covered_countries"] is None
     assert "boom after the translation was filled in" in out["unavailable_reason"]
     strict_json(tmp_path / "correlation_scenario_temperature.json")
+
+
+# ---------------------------------------------------------------- the owner's review edits on #218 (applied on GitHub after the last commit)
+
+
+@pytest.mark.parametrize("name,edit,found", [
+    ("Moderate missing", lambda p: p[p.scenario != "Moderate"], "['Aggressive', 'BAU']"),
+    ("Aggressive missing", lambda p: p[p.scenario != "Aggressive"], "['BAU', 'Moderate']"),
+    ("an extra scenario", lambda p: pd.concat([p, p[p.scenario == "BAU"].assign(scenario="Extreme")]), "['Aggressive', 'BAU', 'Extreme', 'Moderate']"),
+    ("a renamed scenario", lambda p: p.assign(scenario=p.scenario.replace({"Moderate": "Medium"})), "['Aggressive', 'BAU', 'Medium']"),
+    ("a lower-case scenario", lambda p: p.assign(scenario=p.scenario.replace({"BAU": "bau"})), "['Aggressive', 'Moderate', 'bau']"),
+])
+def test_the_scenario_file_must_contain_exactly_bau_moderate_and_aggressive(tmp_path, name, edit, found):
+    rep, out = go(tmp_path, scenario_edit=lambda p: edit(p.reset_index(drop=True)))
+    assert out["scenarios"] is None and f"scenario_projections.csv must contain exactly BAU, Moderate and Aggressive; found {found}" in out["unavailable_reason"]
+    assert any("translation unavailable" in d for d in rep.deviations)
+    strict_json(tmp_path / "correlation_scenario_temperature.json")
+
+
+def test_the_three_scenarios_translate_together_when_present(tmp_path):
+    rep, out = go(tmp_path)
+    assert rep.deviations == [] and sorted(out["scenarios"]) == ["Aggressive", "BAU", "Moderate"] and all(len(rows) == 3 for rows in out["scenarios"].values())
+
+
+def test_the_land_use_mean_needs_every_year_of_its_window(tmp_path):
+    """A mean over fewer than five years (a gap, or NaN inside the window) is refused instead of quietly averaging what is left."""
+    _, a = go(tmp_path, world_edit=lambda w: w.assign(land_use_change_co2_mt=np.where(w.year == T0 - 2, np.nan, w.land_use_change_co2_mt)))
+    assert a["scenarios"] is None and "land-use" in a["unavailable_reason"] and "not all available up to 2000" in a["unavailable_reason"]
+    x = tmp_path / "short"
+    x.mkdir()
+    _, b = go(x, world_edit=lambda w: w[w.year != T0 - 1])  # a missing year: only four in the window
+    assert b["scenarios"] is None and "not all available up to 2000" in b["unavailable_reason"]
+    y = tmp_path / "ok"
+    y.mkdir()
+    _, c = go(y)
+    assert c["scenarios"] is not None and c["assumptions"]["land_use"]["mt_per_year"] == LUC
+
+
+def test_a_nan_in_the_cumulative_total_is_refused_not_skipped(tmp_path):
+    _, out = go(tmp_path, world_edit=lambda w: w.assign(total_co2_incl_luc_mt=np.where(w.year == 1900, np.nan, w.total_co2_incl_luc_mt)))
+    assert out["scenarios"] is None and "non-finite number" in out["unavailable_reason"] and "world_cumulative_total_co2_since_1850_mt" in out["unavailable_reason"]
+    strict_json(tmp_path / "correlation_scenario_temperature.json")
+
+
+def test_the_finite_check_covers_the_attribution_and_the_slope_blocks(tmp_path):
+    write(tmp_path)
+    hj = json.loads((tmp_path / "correlation_headline.json").read_text())
+    hj["attribution"] = {"required_citation_format": "Global Carbon Project", "weight": float("inf")}
+    (tmp_path / "correlation_headline.json").write_text(json.dumps(hj))  # json.dumps writes Infinity, which json.load reads back as inf
+    T.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"), scenario_path=str(tmp_path / "scenario_projections.csv"), owid_path=str(tmp_path / "owid-co2-data.csv"))
+    out = strict_json(tmp_path / "correlation_scenario_temperature.json")
+    assert out["scenarios"] is None and "non-finite number" in out["unavailable_reason"] and "attribution" in out["unavailable_reason"]
+
+
+def test_a_non_finite_value_in_the_metadata_never_survives_into_an_unavailable_output(tmp_path):
+    """The rejected value is read into the output before the check refuses it, so the failure path must remove it: Infinity is not valid JSON."""
+    write(tmp_path)
+    hj = json.loads((tmp_path / "correlation_headline.json").read_text())
+    hj["attribution"] = {"citation": "GCP", "weights": [1.0, float("inf"), float("nan")]}
+    hj["headline"]["fit"]["ci95_hac"] = [0.4, float("inf")]
+    (tmp_path / "correlation_headline.json").write_text(json.dumps(hj))
+    rep = T.run(str(tmp_path), notices_path=str(tmp_path / "notices.json"), scenario_path=str(tmp_path / "scenario_projections.csv"), owid_path=str(tmp_path / "owid-co2-data.csv"))
+    out = strict_json(tmp_path / "correlation_scenario_temperature.json")  # parses under a strict parser
+    assert out["scenarios"] is None and out["attribution"]["weights"] == [1.0, None, None] and out["attribution"]["citation"] == "GCP"
+    assert "not finite numbers" in out["unavailable_reason"] or "non-finite" in out["unavailable_reason"]
+    assert any("translation unavailable" in d for d in rep.deviations)
+
+
+def test_the_scrub_replaces_only_non_finite_numbers_and_reports_their_paths():
+    clean, bad = T._scrub_non_finite({"a": 1.5, "b": [2.0, float("inf")], "c": {"d": float("nan"), "e": "x", "f": None, "g": 7}})
+    assert clean == {"a": 1.5, "b": [2.0, None], "c": {"d": None, "e": "x", "f": None, "g": 7}} and bad == ["output.b[1]", "output.c.d"]
+    same, none = T._scrub_non_finite({"a": [1.0, {"b": 2}]})
+    assert same == {"a": [1.0, {"b": 2}]} and none == []
