@@ -89,10 +89,12 @@ def load_harmonized(climate_dir: str = CLIMATE_DIR) -> Harmonized:
         raise ValueError(f"indicator_catalog.json: {len(bad)} malformed indicator entr{'y' if len(bad) == 1 else 'ies'}; first: {first_id} (missing {', '.join(first_missing)})")
     glob = pd.read_csv(os.path.join(climate_dir, "harmonized_global_annual.csv"))
     ctry = pd.read_csv(os.path.join(climate_dir, "harmonized_country_annual.csv"))
-    for name, df, required in (("harmonized_global_annual.csv", glob, GLOBAL_COLUMNS), ("harmonized_country_annual.csv", ctry, COUNTRY_COLUMNS)):
+    for name, df, required, keys in (("harmonized_global_annual.csv", glob, GLOBAL_COLUMNS, ("indicator_id", "year")), ("harmonized_country_annual.csv", ctry, COUNTRY_COLUMNS, ("indicator_id", "iso3", "year"))):
         missing = [c for c in required if c not in df.columns]
         if missing:  # a malformed table is a clear load error here, not a KeyError deep inside a regression
             raise ValueError(f"{name}: required column(s) missing: {', '.join(missing)}")
+        if df.duplicated(list(keys)).any():
+            raise ValueError(f"{name}: duplicate ({', '.join(keys)})")
     return Harmonized(
         catalog={e["id"]: e for e in doc["indicators"]},
         global_long=glob,
