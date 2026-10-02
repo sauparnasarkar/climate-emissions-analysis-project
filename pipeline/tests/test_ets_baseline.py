@@ -278,3 +278,58 @@ def test_the_output_is_deterministic_and_the_stage_is_registered_and_gated(tmp_p
         d.pop("generated_at")
     assert a == b and ca.equals(cb)
     assert "ets_baseline" in run.DERIVED_SOURCES and "ets_baseline" not in run.ACTIVE_SOURCES and run.DEPENDS_ON["ets_baseline"] == ("owid",)
+
+
+# ---------------------------------------------------------------- the owner's review edits on #219: year sequence, required provenance, anomaly window
+
+
+def test_a_series_with_the_right_number_of_rows_but_the_wrong_years_is_refused(tmp_path):
+    """A duplicated year and a missing one leave the row count correct; the check compares the years themselves."""
+    def swap_year(d):
+        d = d.reset_index(drop=True).copy()
+        idx = d.index[(d.country == "Bland") & (d.year == 2005)][0]
+        years = d["year"].to_numpy().copy()
+        years[idx] = 2004  # 2004 now appears twice and 2005 is missing; the count is unchanged
+        return pd.DataFrame({"country": d["country"].to_numpy(), "year": years, "co2": d["co2"].to_numpy()})
+
+    _, meta, csv = go(tmp_path, edit=swap_year)
+    assert meta["step_check"] is None and len(csv) == 0 and "Bland" in meta["unavailable_reason"] and "missing, non-finite or not positive" in meta["unavailable_reason"]
+
+
+@pytest.mark.parametrize("entry", [None, {}, {"source": "OWID", "license": "CC BY 4.0"}, {"source": "OWID", "citations": ["x"]}, {"license": "CC BY 4.0", "citations": ["x"]},
+                                   {"source": "", "license": "CC BY 4.0", "citations": ["x"]}, {"source": "OWID", "license": "CC BY 4.0", "citations": []}])
+def test_a_baseline_without_its_full_attribution_is_not_published(tmp_path, entry):
+    write(tmp_path)
+    prov = {} if entry is None else {"owid_world_co2_annual": entry}
+    (tmp_path / "provenance.json").write_text(json.dumps(prov))
+    rep = E.run(str(tmp_path), owid_path=str(tmp_path / "owid-co2-data.csv"), selected_path=str(tmp_path / "selected_countries.json"))
+    meta = json.loads((tmp_path / "ets_baseline_full_data.json").read_text())
+    assert meta["step_check"] is None and len(pd.read_csv(tmp_path / "ets_baseline_full_data.csv")) == 0
+    assert "baseline metadata unavailable" in meta["unavailable_reason"] and "OWID provenance is missing source, license or citations" in meta["unavailable_reason"]
+    assert any("ets_baseline unavailable" in d for d in rep.deviations) and len(meta["scope_limits"]) == 7
+
+
+def test_a_missing_provenance_file_is_also_an_unavailable_baseline_not_a_silent_one(tmp_path):
+    write(tmp_path)
+    os.remove(tmp_path / "provenance.json")
+    E.run(str(tmp_path), owid_path=str(tmp_path / "owid-co2-data.csv"), selected_path=str(tmp_path / "selected_countries.json"))
+    meta = json.loads((tmp_path / "ets_baseline_full_data.json").read_text())
+    assert meta["step_check"] is None and "baseline metadata unavailable" in meta["unavailable_reason"] and meta["attribution"] == {}
+
+
+def test_the_full_attribution_travels_with_the_published_baseline(tmp_path):
+    _, meta, csv = go(tmp_path)
+    assert meta["attribution"] == {"source": "OWID", "license": "CC BY 4.0", "citations": ["OWID", "GCP"]} and len(csv) > 0
+
+
+@pytest.mark.parametrize("year", [1990, 1991, 1992, 2022, 2023, 2024])
+def test_the_anomaly_check_reaches_the_first_and_last_years_of_a_series(year):
+    s = pd.Series(np.full(len(YEARS), 100.0), index=YEARS)
+    s.loc[year] = 400.0
+    flagged = E.anomalies(s)
+    assert [a["year"] for a in flagged] == [year] and flagged[0]["ratio_to_local_median"] == pytest.approx(4.0)
+
+
+def test_an_anomaly_in_the_first_year_is_flagged_in_the_output(tmp_path):
+    _, meta, _ = go(tmp_path, edit=lambda d: d.assign(co2=np.where((d.country == "Fland") & (d.year == 1990), 6000.0, d.co2)))
+    assert list(meta["data_anomalies"]) == ["Fland"] and meta["data_anomalies"]["Fland"][0]["year"] == 1990
