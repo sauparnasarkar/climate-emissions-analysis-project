@@ -212,3 +212,14 @@ def test_land_use_series_starting_late_is_a_deviation_not_a_silently_shorter_per
     assert any("land-use CO2 starts in 2000, after 1990" in d and "silently start later" in d for d in rep.deviations)
     rep_ok = run(tmp_path, write(tmp_path, make_df(), name="ok.csv"))  # starting with the CO2 series (or 1850, whichever is later) is fine
     assert not any("starts in" in d for d in rep_ok.deviations)
+
+
+def test_land_use_observations_before_the_start_year_are_ignored_not_accumulated(tmp_path, monkeypatch):
+    monkeypatch.setattr(owid, "LAND_USE_START", 2000)  # the synthetic data has land-use from 1990: 1990-1999 are 'before the start'
+    rep = run(tmp_path, write(tmp_path, make_df()))
+    s = pd.read_csv(tmp_path / "out" / "owid_world_co2_annual.csv").set_index("year")
+    assert s.loc[:1999, "land_use_change_co2_mt"].isna().all() and s.loc[:1999, "total_co2_incl_luc_mt"].isna().all()
+    assert s.loc[2000, "land_use_change_co2_mt"] == pytest.approx(400.0 + 2 * 10) and s.loc[2000:, "total_co2_incl_luc_mt"].notna().all()
+    assert any("10 observation(s) before 2000 (1990-1999); ignored" in n for n in rep.notes)
+    assert not any("land-use" in d.lower() for d in rep.deviations)  # trimmed, so no late-start or gap deviation either
+    assert s["co2_mt"].notna().all()  # the fossil series is untouched

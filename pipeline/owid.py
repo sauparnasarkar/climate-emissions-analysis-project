@@ -153,6 +153,12 @@ def run(path: str = DATA_PATH, out_dir: str = CLIMATE_DIR, provenance_path: str 
 
     luc = df[df["country"] == "World"].set_index("year")[LAND_USE_COLUMN].dropna() if LAND_USE_COLUMN in df.columns else pd.Series(dtype=float)
 
+    early = luc[luc.index < LAND_USE_START]
+    if len(early):
+        # the headline cumulative is "since 1850": observations before it are dropped, not accumulated, and the source change is noted
+        luc = luc[luc.index >= LAND_USE_START]
+        report.note(f"OWID World land-use CO2 has {len(early)} observation(s) before {LAND_USE_START} ({int(early.index.min())}-{int(early.index.max())}); ignored so the cumulative stays \"since {LAND_USE_START}\"")
+
     iso = df["iso_code"].fillna("").str.fullmatch(r"[A-Z]{3}")
     countries = df[iso]
     wide = countries.pivot_table(index="country", columns="year", values="co2", aggfunc="first")
