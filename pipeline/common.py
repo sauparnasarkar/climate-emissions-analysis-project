@@ -19,6 +19,9 @@ import time
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+
+import numpy as np
+import pandas as pd
 from email.utils import parsedate_to_datetime
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -134,12 +137,32 @@ def require_contiguous_years(years, first: int, last: int, label: str) -> None:
         raise ValueError(f"{label}: {len(missing)} missing year(s) in {first}-{last}: {shown}")
 
 
+def weighted_coverage(wide: pd.DataFrame) -> pd.Series:
+    """Per year: the share of the previous year's emissions held by areas that still report this
+    year. NaN where the previous year has no emissions (nothing to cover) -- such years pass."""
+    years = list(wide.columns)
+    cov = {}
+    for i in range(1, len(years)):
+        prev, cur = wide[years[i - 1]].clip(lower=0), wide[years[i]]
+        den = prev.sum()
+        cov[years[i]] = prev.where(cur.notna(), 0).sum() / den if den > 0 else np.nan
+    return pd.Series(cov, dtype=float)
+
+
 def write_json_atomic(obj, path: str) -> None:
     """Write-then-replace, so an interrupted run can't leave truncated JSON for monitoring to read."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
         json.dump(obj, f, indent=2)
+    os.replace(tmp, path)
+
+
+def write_text_atomic(text: str, path: str) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.write(text)
     os.replace(tmp, path)
 
 

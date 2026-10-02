@@ -41,6 +41,7 @@ from .common import (
     RunReport,
     fetch,
     require_contiguous_years,
+    weighted_coverage,
     write_csv_atomic,
     write_provenance,
 )
@@ -127,18 +128,6 @@ def parse_primap(csv_bytes: bytes) -> dict[str, pd.DataFrame]:
 
 
 # ---------------------------------------------------------------- completeness
-
-
-def weighted_coverage(wide: pd.DataFrame) -> pd.Series:
-    """Per year: the share of the previous year's emissions held by areas that still report this
-    year. NaN where the previous year has no emissions (nothing to cover) -- such years pass."""
-    years = list(wide.columns)
-    cov = {}
-    for i in range(1, len(years)):
-        prev, cur = wide[years[i - 1]].clip(lower=0), wide[years[i]]
-        den = prev.sum()
-        cov[years[i]] = prev.where(cur.notna(), 0).sum() / den if den > 0 else np.nan
-    return pd.Series(cov, dtype=float)
 
 
 def assess_years(wides: dict[str, pd.DataFrame]) -> pd.DataFrame:

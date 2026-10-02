@@ -91,12 +91,11 @@ def test_require_contiguous_years():
 def test_all_runs_active_sources_only_and_never_the_shelved_edgar(tmp_path, monkeypatch):
     monkeypatch.setattr(run, "CLIMATE_DIR", str(tmp_path))
     called = []
-    monkeypatch.setitem(run.SOURCES, "noaa_gml", lambda: called.append("noaa_gml") or common.RunReport("noaa_gml"))
-    monkeypatch.setitem(run.SOURCES, "berkeley_earth", lambda: called.append("berkeley_earth") or common.RunReport("berkeley_earth"))
-    monkeypatch.setitem(run.SOURCES, "edgar", lambda: called.append("edgar") or common.RunReport("edgar"))
+    for name in run.SOURCES:  # stub EVERY registered source: a source added later must not make this test hit the network/disk
+        monkeypatch.setitem(run.SOURCES, name, lambda n=name: called.append(n) or common.RunReport(n))
     assert run.main(["--source", "all"]) == 0
-    assert sorted(called) == ["berkeley_earth", "noaa_gml"]
-    assert "edgar" in run.INTERNAL_SOURCES and "edgar" not in run.ACTIVE_SOURCES
+    assert sorted(called) == sorted(run.ACTIVE_SOURCES)
+    assert "edgar" in run.INTERNAL_SOURCES and "edgar" not in run.ACTIVE_SOURCES and "edgar" not in called
 
 
 def test_explicit_edgar_run_warns_that_it_is_internal_only(tmp_path, monkeypatch, caplog):
@@ -116,3 +115,27 @@ def test_edgar_defaults_write_outside_the_published_store():
     for name in ("out_dir", "provenance_path"):
         default = params[name].default
         assert default.startswith(common.INTERNAL_DIR) and not default.startswith(common.CLIMATE_DIR)
+
+
+def test_build_notification_priorities_and_message():
+    ok = {"sources": {"noaa_gml": {"records": {"a": 276, "b": 822}, "deviations": [], "notes": ["n1"]}}, "failures": {}}
+    assert run.build_notification(ok)[:2] == ("default", "Area 2 pipeline: OK")
+    dev = {"sources": {"owid": {"records": {"x": 5}, "deviations": ["stale file"], "notes": []}}, "failures": {}}
+    p, t, m = run.build_notification(dev)
+    assert p == "high" and "deviations flagged" in t and "DEVIATION owid: stale file" in m and "owid 5" in m
+    bad = {"sources": {}, "failures": {"primap_hist": "ValueError: MD5 mismatch " + "x" * 400}}
+    p, t, m = run.build_notification(bad)
+    assert p == "urgent" and "FAILED" in t and "FAILED primap_hist" in m and len(m) < 3500
+    assert max(len(line) for line in m.splitlines()) < 300  # long errors are truncated for the push
+
+
+def test_main_writes_notification_files_atomically(tmp_path, monkeypatch):
+    monkeypatch.setattr(run, "CLIMATE_DIR", str(tmp_path))
+    rep = common.RunReport("noaa_gml")
+    rep.deviate("something off")
+    monkeypatch.setitem(run.SOURCES, "noaa_gml", lambda: rep)
+    assert run.main(["--source", "noaa_gml"]) == 0
+    assert (tmp_path / "last_run.priority").read_text().strip() == "high"
+    assert "deviations flagged" in (tmp_path / "last_run.title").read_text()
+    assert "DEVIATION noaa_gml: something off" in (tmp_path / "last_run.message").read_text()
+    assert not list(tmp_path.glob("*.tmp"))
