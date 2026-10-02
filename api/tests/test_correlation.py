@@ -653,6 +653,39 @@ def test_country_share_503_cases(api, climate):
     assert r.status_code == 503 and "OWID missing" in r.json()["detail"]
 
 
+@pytest.mark.parametrize("bad", ["", "nan", "inf", "-inf"])
+def test_a_blank_nan_or_infinite_value_in_the_share_csv_is_a_503_never_a_500(api, climate, bad):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    i = next(k for k, ln in enumerate(lines) if ln.startswith("AAA,2000,owid_co2,co2,"))
+    parts = lines[i].split(",")
+    parts[4] = bad
+    lines[i] = ",".join(parts)
+    (climate / "correlation_country_share.csv").write_text("\n".join(lines) + "\n")
+    cl.clear_caches()
+    for q in ("", "?year=1900", "?countries=BBB"):  # the whole combination is unusable, whichever view asks for it
+        r = api.get(CS + q)
+        assert r.status_code == 503 and "blank, NaN or infinite" in r.json()["detail"], (q, r.status_code)
+    assert api.get(CS + "?source=primap_hist").status_code == 200  # another combination is unaffected
+
+
+def test_a_share_series_whose_file_ends_before_the_published_coverage_is_a_503_not_an_older_ranking_as_latest(api, climate):
+    import pandas as pd
+    df = pd.read_csv(climate / "correlation_country_share.csv")
+    df[~((df["source"] == "owid_co2") & (df["year"] == 2000))].to_csv(climate / "correlation_country_share.csv", index=False)
+    cl.clear_caches()
+    r = api.get(CS)
+    assert r.status_code == 503 and "spans 1850-1999" in r.json()["detail"] and "publishes coverage 1850-2000" in r.json()["detail"]
+    assert api.get(CS + "?source=primap_hist").status_code == 200
+
+
+def test_a_share_series_that_starts_after_the_published_coverage_is_a_503(api, climate):
+    import pandas as pd
+    df = pd.read_csv(climate / "correlation_country_share.csv")
+    df[~((df["source"] == "owid_co2") & (df["year"] == 1850))].to_csv(climate / "correlation_country_share.csv", index=False)
+    cl.clear_caches()
+    assert api.get(CS + "?countries=AAA").status_code == 503
+
+
 def test_a_combination_published_as_available_with_no_csv_rows_is_a_503(api, climate):
     import pandas as pd
     df = pd.read_csv(climate / "correlation_country_share.csv")

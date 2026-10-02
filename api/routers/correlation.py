@@ -5,6 +5,7 @@ Read-only over the files `pipeline/` wrote; nothing is recomputed per request. P
 
 from typing import Literal
 
+import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
@@ -409,6 +410,13 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
         d = df[(df["source"] == source) & (df["gas_scope"] == gas_scope)]
         if d.empty:
             raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has no rows for source={source}, gas_scope={gas_scope}, which correlation_country_share.json publishes")
+        vals = d[["cumulative_mt", "share_pct"]].to_numpy(dtype=float)
+        if not np.isfinite(vals).all():
+            raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has {int((~np.isfinite(vals)).any(axis=1).sum())} row(s) with a blank, NaN or infinite value for source={source}, gas_scope={gas_scope}")
+        cov_pub = combo.get("coverage")
+        if isinstance(cov_pub, list) and len(cov_pub) == 2 and (int(d["year"].min()), int(d["year"].max())) != (cov_pub[0], cov_pub[1]):
+            raise cl.ClimateDataUnavailable(f"correlation_country_share.csv spans {int(d['year'].min())}-{int(d['year'].max())} for source={source}, gas_scope={gas_scope}, but correlation_country_share.json "
+                                            f"publishes coverage {cov_pub[0]}-{cov_pub[1]}: the two files are out of step")
         names = {c["iso3"]: c.get("name", c["iso3"]) for c in doc.get("countries", []) if isinstance(c, dict) and "iso3" in c}
         cov = combo.get("coverage") if isinstance(combo.get("coverage"), list) else None
         base = dict(schema_version=doc.get("schema_version", 1), generated_at=doc.get("generated_at"), note=doc.get("note") or "", caveats=_strings(doc.get("caveats")),
