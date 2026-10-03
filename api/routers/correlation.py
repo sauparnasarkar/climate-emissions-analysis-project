@@ -3,6 +3,7 @@
 Read-only over the files `pipeline/` wrote; nothing is recomputed per request. Phase 1.4a: `/meta`, `/concentration`, `/temperature`.
 """
 
+from datetime import datetime, timezone
 from typing import Literal
 
 import numpy as np
@@ -190,13 +191,36 @@ def get_temperature(view: TemperatureView = "level", baseline: TemperatureBaseli
         raise _unavailable(e)
 
 
+REFRESH_CADENCE_DAYS = 31  # the pipeline refresh runs monthly
+STALE_AFTER_DAYS = 45  # one cadence plus a grace period for a late or retried run
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _age_days(generated_at) -> float | None:
+    """Days since the output was generated, or None when the timestamp is absent or unparsable (freshness is then unknown, never assumed fresh)."""
+    if not isinstance(generated_at, str):
+        return None
+    try:
+        ts = datetime.fromisoformat(generated_at)
+    except ValueError:
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return max((_now() - ts).total_seconds() / 86400, 0.0)
+
+
 def _output_status(name: str) -> dict:
     if not cl.json_exists(name):
-        return {"status": "missing", "generated_at": None, "reason": "not generated yet"}
+        return {"status": "missing", "generated_at": None, "age_days": None, "stale": None, "reason": "not generated yet"}
     try:
-        return {"status": "available", "generated_at": cl.load_json(name).get("generated_at"), "reason": None}
+        gen = cl.load_json(name).get("generated_at")
     except cl.ClimateDataUnavailable as e:
-        return {"status": "unavailable", "generated_at": None, "reason": e.message}
+        return {"status": "unavailable", "generated_at": None, "age_days": None, "stale": None, "reason": e.message}
+    age = _age_days(gen)
+    return {"status": "available", "generated_at": gen, "age_days": None if age is None else round(age, 2), "stale": None if age is None else age > STALE_AFTER_DAYS, "reason": None}
 
 
 def _last_run() -> dict | None:
@@ -234,7 +258,8 @@ def get_meta():
         baselines={"index_baselines": cat.get("baselines"), "trailing_window_years": cat.get("trailing_window_years"),
                    "temperature": {"native": "1951-1980", "preindustrial": "1850-1900 (computed from Berkeley Earth's own early record, not taken from the literature)"}},
         temperature_offset=temp.get("preindustrial_offset"), two_global_totals=TWO_GLOBAL_TOTALS, source_baseline_matrix=MATRIX, indicators=indicators,
-        outputs={n: _output_status(n) for n in OUTPUT_FILES}, pipeline_last_run=_last_run(), endpoints=IMPLEMENTED_ENDPOINTS)
+        outputs={n: _output_status(n) for n in OUTPUT_FILES}, pipeline_last_run=_last_run(), endpoints=IMPLEMENTED_ENDPOINTS,
+        freshness={"refresh_cadence_days": REFRESH_CADENCE_DAYS, "stale_after_days": STALE_AFTER_DAYS, "checked_at": _now().isoformat()})
 
 
 # ------------------------------------------------------------------ /emissions-temperature (decision 48)

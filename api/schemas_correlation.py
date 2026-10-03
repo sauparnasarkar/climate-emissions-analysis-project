@@ -63,6 +63,7 @@ class CorrelationMetaResponse(CorrelationEnvelope):
     outputs: dict[str, dict[str, Any]]
     pipeline_last_run: dict[str, Any] | None = None
     endpoints: list[str]
+    freshness: dict[str, Any]
 
 
 class PairPoint(BaseModel):
