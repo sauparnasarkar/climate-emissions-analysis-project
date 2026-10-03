@@ -144,6 +144,44 @@ curl http://127.0.0.1:8081/api/correlation/meta       # sources, licences, basel
 `pytest api/tests` (the API tests build their data by running the real pipeline stages). On the Mac Mini the
 pipeline runs monthly via the refresh job in [`pipeline/ops/`](pipeline/ops/README.md).
 
+### 9. The monthly data refresh (Mac Mini)
+
+On the Mac Mini a launchd job runs [`~/bin/ghg-data-refresh.sh`](pipeline/ops/ghg-data-refresh.sh) **monthly, on day 10 at
+03:30** (after NOAA's monthly file and Berkeley Earth's update have landed; label `com.ghgemissions.datarefresh`,
+definition in [`pipeline/ops/`](pipeline/ops/README.md)). One run, in this order:
+
+1. **Back up and download** `data/owid-co2-data.csv` (`data/owid-co2-data.csv.bak-YYYYMMDD`); a download under ~5 MB restores the backup and stops.
+2. **Week 1** notebook with its validation against the backup. A hard failure restores the backup and skips the notebooks;
+   a soft flag (e.g. an unusual row-count change) continues and is reported.
+3. **Weeks 2–5** notebooks (features, models, forecasts, scenarios), executed in place.
+4. **Area 2 pipeline** (`python -m pipeline.run --source all`), after the notebooks so the scenario stage reads this run's
+   scenarios. It also runs after a notebook failure (its own failure domain).
+5. **API restart** (`com.ghgemissions.uvicorn` only, a few seconds of failed requests), so it loads the refreshed files:
+   after a validated notebook refresh, or after a week-1 failure when the Area 2 stage produced new files. Never after a
+   weeks 2–5 failure (partially regenerated CSVs).
+6. **Notification** (ntfy) with the outcome: priority `high` if anything was flagged, `urgent` if a notebook or a pipeline
+   source failed; the Area 2 deviations (e.g. the Berkeley Earth stale-source alert) are appended.
+
+**Run it on demand** (on the Mac Mini):
+
+```bash
+~/bin/ghg-data-refresh.sh                          # the full job, as scheduled
+GHG_SKIP_API_RESTART=1 ~/bin/ghg-data-refresh.sh   # same, but leave the running API alone
+launchctl kickstart gui/$(id -u)/com.ghgemissions.datarefresh   # or let launchd run it
+```
+
+**Read the result**: `~/.ghg-data-refresh/logs/YYYY-MM-DD.log` (and `launchd.out.log` / `launchd.err.log` beside it);
+`data/climate/last_run.json` has every note and deviation of the Area 2 stage; `/api/correlation/meta` shows each output's age and
+a `stale` flag (more than 45 days old). Confirm the restart with `launchctl list | grep ghgemissions.uvicorn` (a new PID).
+
+**Without the Mac Mini** (e.g. a laptop): `./run_notebooks.sh` then `python -m pipeline.run --source all`, as in steps 5 and 8.
+
+**Change the schedule or roll back**: edit `Day`/`Hour`/`Minute` in the plist, then
+`launchctl bootout gui/$(id -u)/com.ghgemissions.datarefresh` and
+`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.ghgemissions.datarefresh.plist` (`kickstart -k` would keep the
+old definition). Timestamped backups of the script and plist (`.bak-YYYYMMDD`) sit beside the live files; the
+[ops README](pipeline/ops/README.md) has the full deploy and rollback steps.
+
 ---
 
 ## Data Sources
