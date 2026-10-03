@@ -2,7 +2,9 @@
 
 **Started as a Reference Implementation for IDEAS TIH Summer Internship 2026 (Mentor: Sauparna Sarkar)**
 
-**Expanded to an end-to-end Analytic Pipeline, Visualization Dashboard and an AI Analytic Engine**
+**The Focus of the Reference Implementation was limited to the GHG emissions data, ML pipeline and Streamlit dashboard**
+
+**This was later expanded to an end-to-end Analytic Pipeline, Visualization Dashboard and an AI Analytic Engine with a cimate-context layer**
 
 ---
 
