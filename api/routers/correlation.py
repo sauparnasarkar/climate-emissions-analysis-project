@@ -5,6 +5,7 @@ Read-only over the files `pipeline/` wrote; nothing is recomputed per request. P
 
 from typing import Literal
 
+import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
@@ -12,15 +13,20 @@ from .. import climate_loaders as cl
 from ..schemas_correlation import (
     CompositionYear,
     CorrelationConcentrationResponse,
+    CorrelationCountryShareResponse,
     CorrelationEmissionsTemperatureResponse,
     CorrelationGhgCompositionResponse,
     CorrelationMetaResponse,
+    CorrelationScenarioTemperatureResponse,
     CorrelationTemperatureResponse,
     GasValue,
     IndicatorInfo,
     OmittedYear,
     PairPoint,
     SeriesPoint,
+    SharePoint,
+    ShareRow,
+    ShareSeries,
 )
 
 router = APIRouter(prefix="/correlation")
@@ -57,7 +63,8 @@ MATRIX = [
 ]
 OUTPUT_FILES = ("indicator_catalog.json", "correlation_headline.json", "correlation_all_gas.json", "correlation_composition.json", "correlation_country_share.json",
                 "correlation_scenario_temperature.json")
-IMPLEMENTED_ENDPOINTS = ["/api/correlation/meta", "/api/correlation/concentration", "/api/correlation/temperature", "/api/correlation/emissions-temperature", "/api/correlation/ghg-composition"]
+IMPLEMENTED_ENDPOINTS = ["/api/correlation/meta", "/api/correlation/concentration", "/api/correlation/temperature", "/api/correlation/emissions-temperature", "/api/correlation/ghg-composition",
+                         "/api/correlation/country-share", "/api/correlation/scenario-temperature"]
 SOURCE_KEYS = ("source", "license", "coverage", "retrieved_at", "source_release", "update_cadence", "units", "geography", "gas_scope", "caveats", "citations",
                "required_citation_format", "land_use_license_note", "methodology", "source_urls")
 
@@ -354,5 +361,144 @@ def get_ghg_composition(start_year: int | None = Query(None, ge=0), end_year: in
             units=doc.get("units") or "", gases=[g for g in doc.get("gases", []) if isinstance(g, dict)], coverage=cov if isinstance(cov, list) else None, start_year=start_year,
             end_year=end_year, year=year, years=out, reconciliation=doc.get("reconciliation"), excluded_incomplete_years=[int(v) for v in doc.get("excluded_incomplete_years", [])],
             notes=notes)
+    except cl.ClimateDataUnavailable as e:
+        raise _unavailable(e)
+
+
+# ------------------------------------------------------------------ /country-share (decision 50)
+
+SHARE_MAX_COUNTRIES = 10
+SHARE_MAX_LIMIT = 50
+SHARE_DEFAULT_LIMIT = 15
+
+
+def _attr_from_doc(attr, default_series: str) -> list[dict]:
+    """The pipeline's attribution is either {series: entry, ...} or one flat entry; the envelope carries a list of {series, ...}."""
+    if isinstance(attr, dict) and attr and all(isinstance(v, dict) for v in attr.values()):
+        return [{"series": k, **v} for k, v in attr.items()]
+    if isinstance(attr, dict) and attr:
+        return [{"series": default_series, **attr}]
+    return []
+
+
+def _share_combinations(doc: dict) -> list[dict]:
+    return [c for c in doc.get("combinations", []) if isinstance(c, dict) and c.get("available") is True and "source" in c and "gas_scope" in c]
+
+
+@router.get("/country-share", response_model=CorrelationCountryShareResponse)
+def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, year: int | None = Query(None, ge=0), limit: int = Query(SHARE_DEFAULT_LIMIT, ge=1, le=SHARE_MAX_LIMIT),
+                      countries: list[str] | None = Query(None), start_year: int | None = Query(None, ge=0), end_year: int | None = Query(None, ge=0)):
+    _check_years(start_year, end_year)
+    if countries and year is not None:
+        raise HTTPException(status_code=422, detail="year (a ranking) cannot be combined with countries (a series); use start_year/end_year with countries")
+    if not countries and (start_year is not None or end_year is not None):
+        raise HTTPException(status_code=422, detail="start_year/end_year apply to a countries series; use year for a ranking")
+    if countries and len(countries) > SHARE_MAX_COUNTRIES:
+        raise HTTPException(status_code=422, detail=f"at most {SHARE_MAX_COUNTRIES} countries per request ({len(countries)} given)")
+    try:
+        doc = cl.load_json("correlation_country_share.json")
+        combos = _share_combinations(doc)
+        valid = [f"source={c['source']}&gas_scope={c['gas_scope']}" for c in combos]
+        if gas_scope is None:
+            gas_scope = next((c["gas_scope"] for c in combos if c["source"] == source), None)
+        combo = next((c for c in combos if c["source"] == source and c["gas_scope"] == gas_scope), None)
+        if combo is None:
+            raise HTTPException(status_code=422, detail=f"unsupported combination source={source}, gas_scope={gas_scope}; the published combinations are: {'; '.join(valid)}")
+        df = cl.load_csv("correlation_country_share.csv")
+        if not {"country", "year", "source", "gas_scope", "cumulative_mt", "share_pct"} <= set(df.columns):
+            raise cl.ClimateDataUnavailable("correlation_country_share.csv lacks country/year/source/gas_scope/cumulative_mt/share_pct columns")
+        d = df[(df["source"] == source) & (df["gas_scope"] == gas_scope)]
+        if d.empty:
+            raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has no rows for source={source}, gas_scope={gas_scope}, which correlation_country_share.json publishes")
+        years = pd.to_numeric(d["year"], errors="coerce").to_numpy(dtype=float)
+        valid_years = np.isfinite(years) & (years >= 0) & (years < np.iinfo(np.int64).max) & (years == np.floor(years))
+        if not valid_years.all():
+            raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has {int((~valid_years).sum())} row(s) with a blank, non-numeric, non-finite or non-integer year for source={source}, gas_scope={gas_scope}")
+        d = d.copy()
+        d["year"] = years.astype(np.int64)
+        vals = d[["cumulative_mt", "share_pct"]].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)  # a non-numeric token becomes NaN and is refused below, not a 500
+        if not np.isfinite(vals).all():
+            raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has {int((~np.isfinite(vals)).any(axis=1).sum())} row(s) with a blank, non-numeric, NaN or infinite value for source={source}, gas_scope={gas_scope}")
+        cov_pub = combo.get("coverage")
+        if isinstance(cov_pub, list) and len(cov_pub) == 2 and (int(d["year"].min()), int(d["year"].max())) != (cov_pub[0], cov_pub[1]):
+            raise cl.ClimateDataUnavailable(f"correlation_country_share.csv spans {int(d['year'].min())}-{int(d['year'].max())} for source={source}, gas_scope={gas_scope}, but correlation_country_share.json "
+                                            f"publishes coverage {cov_pub[0]}-{cov_pub[1]}: the two files are out of step")
+        pub_rows, pub_countries = combo.get("n_rows"), combo.get("n_countries")
+        if (isinstance(pub_rows, int) and len(d) != pub_rows) or (isinstance(pub_countries, int) and d["country"].nunique() != pub_countries):
+            raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has {len(d)} rows for {d['country'].nunique()} countries for source={source}, gas_scope={gas_scope}, but "
+                                            f"correlation_country_share.json publishes {pub_rows} rows for {pub_countries} countries: the two files are out of step")
+        if d.duplicated(["country", "year"]).any():
+            raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has duplicate country/year rows for source={source}, gas_scope={gas_scope}")
+        names = {c["iso3"]: c.get("name", c["iso3"]) for c in doc.get("countries", []) if isinstance(c, dict) and "iso3" in c}
+        cov = combo.get("coverage") if isinstance(combo.get("coverage"), list) else None
+        base = dict(schema_version=doc.get("schema_version", 1), generated_at=doc.get("generated_at"), note=doc.get("note") or "", caveats=_strings(doc.get("caveats")),
+                    attribution=_attr_from_doc(doc.get("attribution"), "country_share"), name=doc.get("name") or "Country cumulative share of global emissions", method=doc.get("method") or "",
+                    source=source, gas_scope=gas_scope, label=combo.get("label") or "", unit=combo.get("unit") or "", coverage=cov, cumulative_from=combo.get("cumulative_from"),
+                    denominator=combo.get("denominator"), reconciliation=combo.get("reconciliation"),
+                    details={"gaps": combo.get("gaps"), "ended_before_last_year": combo.get("ended_before_last_year"), "published_from": doc.get("published_from")})
+        if countries:
+            codes = list(dict.fromkeys(c.strip().upper() for c in countries))
+            unknown = [c for c in codes if c not in names]
+            if unknown:
+                raise HTTPException(status_code=404, detail=f"unknown country code(s): {', '.join(unknown)} (ISO3 codes are listed in correlation_country_share.json)")
+            lo = start_year if start_year is not None else (cov[0] if cov else int(d["year"].min()))
+            hi = end_year if end_year is not None else (cov[1] if cov else int(d["year"].max()))
+            series, notes = [], []
+            for c in codes:
+                sub = d[(d["country"] == c) & (d["year"] >= lo) & (d["year"] <= hi)].sort_values("year")
+                if sub.empty:
+                    notes.append(f"{c} has no rows for this source and gas scope in {lo}-{hi}")
+                series.append(ShareSeries(country=c, name=names[c], points=[SharePoint(year=int(r.year), cumulative_mt=float(r.cumulative_mt), share_pct=float(r.share_pct)) for r in sub.itertuples()]))
+            return CorrelationCountryShareResponse(**base, mode="series", start_year=start_year, end_year=end_year, series=series, notes=notes)
+        latest = int(d["year"].max())
+        yr = year if year is not None else latest
+        sub = d[d["year"] == yr].sort_values(["share_pct", "country"], ascending=[False, True])
+        notes = []
+        if sub.empty:
+            notes.append(f"no data for {yr}: coverage is {cov[0]}-{cov[1]}" if cov else f"no data for {yr}")
+        rows = [ShareRow(rank=i + 1, country=r.country, name=names.get(r.country, r.country), cumulative_mt=float(r.cumulative_mt), share_pct=float(r.share_pct))
+                for i, r in enumerate(sub.head(limit).itertuples())]
+        total = float(sub["cumulative_mt"].sum()) if not sub.empty else None
+        return CorrelationCountryShareResponse(**base, mode="ranking", year=yr, limit=limit, total_cumulative_mt=total, rows=rows, notes=notes)
+    except cl.ClimateDataUnavailable as e:
+        raise _unavailable(e)
+
+
+# ------------------------------------------------------------------ /scenario-temperature (decision 51)
+
+ScenarioName = Literal["BAU", "Moderate", "Aggressive"]
+ScenarioLine = Literal["both", "headline", "fossil_only"]
+
+
+@router.get("/scenario-temperature", response_model=CorrelationScenarioTemperatureResponse)
+def get_scenario_temperature(scenario: list[ScenarioName] | None = Query(None), line: ScenarioLine = "both"):
+    try:
+        doc = cl.load_json("correlation_scenario_temperature.json")
+        scen = doc.get("scenarios")
+        if not isinstance(scen, dict) or not scen:
+            raise cl.ClimateDataUnavailable("correlation_scenario_temperature.json has no scenarios")
+        for key in ("assumptions", "base"):
+            if not isinstance(doc.get(key), dict):
+                raise cl.ClimateDataUnavailable(f"correlation_scenario_temperature.json has no {key} block")
+        chosen = [s for s in sorted(scen) if not scenario or s in scenario]
+        missing = [s for s in (scenario or []) if s not in scen]
+        if missing:
+            raise cl.ClimateDataUnavailable(f"correlation_scenario_temperature.json has no {', '.join(missing)} scenario")
+        drop = {"headline": "fossil_only", "fossil_only": "headline"}.get(line)
+        out = {s: [{k: v for k, v in row.items() if k != drop} for row in scen[s]] for s in chosen}
+        notes = []
+        if scenario and len(chosen) != len(scen):
+            notes.append("`spread` and `reading_note` describe all published scenarios, not only the ones selected here")
+        if line == "headline":
+            notes.append("the fossil-only line is omitted from every row")
+        if line == "fossil_only":
+            notes.append("the headline line is omitted from every row; `spread` and `reading_note` are defined on the headline line")
+        return CorrelationScenarioTemperatureResponse(
+            schema_version=doc.get("schema_version", 1), generated_at=doc.get("generated_at"), note=doc.get("note") or "", caveats=_strings(doc.get("caveats")),
+            attribution=_attr_from_doc(doc.get("attribution"), "owid_world_co2_annual"),
+            source_vintage=doc.get("temperature_source_vintage") if isinstance(doc.get("temperature_source_vintage"), dict) else None, name=doc.get("name") or "Scenario temperature translation",
+            method=doc.get("method") or "", labels=_strings(doc.get("labels")), line=line, selected_scenarios=chosen, scenarios=out, assumptions=doc["assumptions"], base=doc["base"],
+            covered_countries=[c for c in doc.get("covered_countries", []) if isinstance(c, dict)], scenario_source=doc.get("scenario_source") if isinstance(doc.get("scenario_source"), dict) else None,
+            spread=doc.get("spread") if isinstance(doc.get("spread"), dict) else None, reading_note=doc.get("reading_note") if isinstance(doc.get("reading_note"), str) else None, notes=notes)
     except cl.ClimateDataUnavailable as e:
         raise _unavailable(e)

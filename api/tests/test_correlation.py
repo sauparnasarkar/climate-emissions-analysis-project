@@ -14,7 +14,9 @@ from fastapi.testclient import TestClient
 
 from api import climate_loaders as cl
 from api.main import app
+from pipeline.tests.test_country_share import go as share_go
 from pipeline.tests.test_harmonize import run as run_harmonize
+from pipeline.tests.test_scenario_temperature import go as scen_go
 
 
 def _windows(starts, end, slope, n_of):
@@ -77,6 +79,13 @@ def built(tmp_path_factory):
     (d / "correlation_headline.json").write_text(json.dumps(headline_doc()))
     (d / "correlation_all_gas.json").write_text(json.dumps(all_gas_doc()))
     write_composition(d)
+    # contract fixtures: the REAL country-share and scenario-temperature stages run on the pipeline tests' stubbed inputs
+    share_dir, scen_dir = tmp_path_factory.mktemp("share"), tmp_path_factory.mktemp("scenario")
+    share_go(share_dir)
+    scen_go(scen_dir)
+    for name in ("correlation_country_share.json", "correlation_country_share.csv"):
+        shutil.copy(share_dir / name, d / name)
+    shutil.copy(scen_dir / "correlation_scenario_temperature.json", d / "correlation_scenario_temperature.json")
     return d
 
 
@@ -569,3 +578,282 @@ def test_a_year_with_no_included_gas_is_a_503_even_when_every_csv_value_and_shar
     cl.clear_caches()
     r = api.get(GC + "?year=2024")
     assert r.status_code == 503 and "non-empty" in r.json()["detail"] and api.get(GC + "?year=2023").status_code == 200
+
+
+# ------------------------------------------------------------------ /country-share (decision 50)
+
+CS = "/api/correlation/country-share"
+
+
+def test_the_default_is_the_latest_year_ranking_for_the_first_owid_combination(api):
+    j = strict(api.get(CS))
+    assert (j["mode"], j["source"], j["gas_scope"], j["year"], j["limit"], j["coverage"]) == ("ranking", "owid_co2", "co2", 2000, 15, [1850, 2000])
+    rows = j["rows"]
+    assert [r["rank"] for r in rows] == [1, 2, 3, 4] and [r["country"] for r in rows][0] == "AAA" and rows[0]["name"] == "Aland"
+    assert [r["share_pct"] for r in rows] == sorted((r["share_pct"] for r in rows), reverse=True) and sum(r["share_pct"] for r in rows) == pytest.approx(100.0, abs=1e-6)
+    assert j["total_cumulative_mt"] == pytest.approx(sum(r["cumulative_mt"] for r in rows)) and j["unit"] == "Mt CO2" and j["label"]
+    assert "not a measure of responsibility" in j["note"] and j["denominator"]["definition"] and j["reconciliation"]["tolerance"] == 1e-06 and j["caveats"]
+    assert {a["series"] for a in j["attribution"]} == {"owid", "primap_hist"} and j["cumulative_from"] == 1840 and j["details"]["published_from"] == 1850
+
+
+def test_a_ranking_honours_year_and_limit_and_orders_ties_by_country(api):
+    j = api.get(CS + "?year=1900&limit=2").json()
+    assert j["year"] == 1900 and j["limit"] == 2 and len(j["rows"]) == 2 and [r["rank"] for r in j["rows"]] == [1, 2]
+    e = api.get(CS + "?year=1700").json()
+    assert e["rows"] == [] and e["total_cumulative_mt"] is None and any("no data for 1700: coverage is 1850-2000" in n for n in e["notes"])
+
+
+@pytest.mark.parametrize("q,scope,unit", [("source=primap_hist", "co2", "Mt CO2"), ("source=primap_hist&gas_scope=total_ghg", "total_ghg", "MtCO2e"), ("source=owid_co2&gas_scope=co2", "co2", "Mt CO2")])
+def test_each_published_combination_is_served_with_its_own_unit(api, q, scope, unit):
+    j = api.get(CS + "?" + q).json()
+    assert j["gas_scope"] == scope and j["unit"] == unit and j["rows"] and j["source"] == q.split("&")[0].split("=")[1]
+
+
+def test_unsupported_combinations_are_422_listing_the_published_ones_never_substituted(api):
+    for q in ("source=edgar", "source=owid_co2&gas_scope=total_ghg", "source=primap_hist&gas_scope=ch4"):
+        r = api.get(CS + "?" + q)
+        assert r.status_code == 422 and "the published combinations are" in r.text and "source=primap_hist&gas_scope=total_ghg" in r.text, (q, r.text)
+
+
+def test_a_countries_series_is_per_country_points_with_names_and_is_case_insensitive(api):
+    j = strict(api.get(CS + "?countries=aaa&countries=BBB&countries=AAA&start_year=1998"))
+    assert j["mode"] == "series" and j["rows"] == [] and [s["country"] for s in j["series"]] == ["AAA", "BBB"]  # a repeated code is served once
+    assert [s["name"] for s in j["series"]] == ["Aland", "Bland"] and [p["year"] for p in j["series"][0]["points"]] == [1998, 1999, 2000]
+    assert j["start_year"] == 1998 and j["series"][0]["points"][0]["share_pct"] > j["series"][1]["points"][0]["share_pct"]
+
+
+def test_unknown_country_codes_are_404_and_a_known_country_without_rows_is_an_empty_series_with_a_note(api, climate):
+    r = api.get(CS + "?countries=AAA&countries=ZZZ&countries=QQQ")
+    assert r.status_code == 404 and "ZZZ, QQQ" in r.json()["detail"]
+    j = api.get(CS + "?countries=AAA&start_year=3000").json()
+    assert j["series"][0]["points"] == [] and any("AAA has no rows" in n for n in j["notes"])
+
+
+def test_country_share_validation_rules(api):
+    cs11 = "&".join(f"countries=C{i:02d}" for i in range(11))
+    for q, frag in [("countries=AAA&year=1990", "cannot be combined"), ("start_year=1990", "apply to a countries series"), (cs11, "at most 10 countries"), ("limit=0", "greater than or equal to 1"),
+                    ("limit=51", "less than or equal to 50"), ("countries=AAA&start_year=2000&end_year=1990", "after end_year")]:
+        r = api.get(CS + "?" + q)
+        assert r.status_code == 422 and frag in r.text, (q, r.text)
+    assert api.get(CS + "?" + "&".join(f"countries=AAA{i}" for i in range(10))).status_code == 404  # exactly 10 is allowed (and then unknown)
+
+
+def test_country_share_503_cases(api, climate):
+    (climate / "correlation_country_share.csv").write_text("country,year\nAAA,2000\n")
+    cl.clear_caches()
+    assert api.get(CS).status_code == 503
+    (climate / "correlation_country_share.csv").unlink()
+    cl.clear_caches()
+    assert api.get(CS).status_code == 503
+    doc = json.loads((climate / "correlation_country_share.json").read_text())
+    doc["unavailable_reason"] = "OWID missing"
+    (climate / "correlation_country_share.json").write_text(json.dumps(doc))
+    cl.clear_caches()
+    r = api.get(CS)
+    assert r.status_code == 503 and "OWID missing" in r.json()["detail"]
+
+
+@pytest.mark.parametrize("bad", ["", "nan", "inf", "-inf"])
+def test_a_blank_nan_or_infinite_value_in_the_share_csv_is_a_503_never_a_500(api, climate, bad):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    i = next(k for k, ln in enumerate(lines) if ln.startswith("AAA,2000,owid_co2,co2,"))
+    parts = lines[i].split(",")
+    parts[4] = bad
+    lines[i] = ",".join(parts)
+    (climate / "correlation_country_share.csv").write_text("\n".join(lines) + "\n")
+    cl.clear_caches()
+    for q in ("", "?year=1900", "?countries=BBB"):  # the whole combination is unusable, whichever view asks for it
+        r = api.get(CS + q)
+        assert r.status_code == 503 and "NaN or infinite" in r.json()["detail"], (q, r.status_code)
+    assert api.get(CS + "?source=primap_hist").status_code == 200  # another combination is unaffected
+
+
+def test_a_share_series_whose_file_ends_before_the_published_coverage_is_a_503_not_an_older_ranking_as_latest(api, climate):
+    import pandas as pd
+    df = pd.read_csv(climate / "correlation_country_share.csv")
+    df[~((df["source"] == "owid_co2") & (df["year"] == 2000))].to_csv(climate / "correlation_country_share.csv", index=False)
+    cl.clear_caches()
+    r = api.get(CS)
+    assert r.status_code == 503 and "spans 1850-1999" in r.json()["detail"] and "publishes coverage 1850-2000" in r.json()["detail"]
+    assert api.get(CS + "?source=primap_hist").status_code == 200
+
+
+@pytest.mark.parametrize("col", [4, 5])
+def test_a_non_numeric_token_in_a_numeric_share_column_is_a_503_never_a_500(api, climate, col):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    i = next(k for k, ln in enumerate(lines) if ln.startswith("BBB,1900,owid_co2,co2,"))
+    parts = lines[i].split(",")
+    parts[col] = "abc"
+    lines[i] = ",".join(parts)
+    (climate / "correlation_country_share.csv").write_text("\n".join(lines) + "\n")
+    cl.clear_caches()
+    for q in ("", "?year=1900", "?countries=AAA"):
+        r = api.get(CS + q)
+        assert r.status_code == 503 and "non-numeric" in r.json()["detail"], (q, r.status_code)
+
+
+@pytest.mark.parametrize("bad_year", ["", "abc", "inf", "1900.5", "-1"])
+def test_a_malformed_year_in_the_share_csv_is_a_503_never_a_500(api, climate, bad_year):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    i = next(k for k, ln in enumerate(lines) if ln.startswith("BBB,1900,owid_co2,co2,"))
+    parts = lines[i].split(",")
+    parts[1] = bad_year
+    lines[i] = ",".join(parts)
+    (climate / "correlation_country_share.csv").write_text("\n".join(lines) + "\n")
+    cl.clear_caches()
+    for q in ("", "?countries=BBB"):
+        r = api.get(CS + q)
+        assert r.status_code == 503 and "non-integer year" in r.json()["detail"], (q, r.text)
+
+
+def test_an_interior_row_missing_while_the_year_bounds_still_match_is_a_503(api, climate):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    i = next(k for k, ln in enumerate(lines) if ln.startswith("AAA,1900,owid_co2,co2,"))
+    del lines[i]  # first/last year are untouched, one country-year is gone
+    (climate / "correlation_country_share.csv").write_text("\n".join(lines) + "\n")
+    cl.clear_caches()
+    for q in ("", "?countries=AAA"):
+        r = api.get(CS + q)
+        assert r.status_code == 503 and "publishes" in r.json()["detail"] and "rows for" in r.json()["detail"], (q, r.text)
+    assert api.get(CS + "?source=primap_hist").status_code == 200
+
+
+def test_a_missing_country_year_replaced_by_a_duplicate_row_is_a_503(api, climate):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    missing = next(k for k, ln in enumerate(lines) if ln.startswith("AAA,1900,owid_co2,co2,"))
+    duplicate = next(ln for ln in lines if ln.startswith("AAA,1901,owid_co2,co2,"))
+    lines[missing] = duplicate
+    (climate / "correlation_country_share.csv").write_text("\n".join(lines) + "\n")
+    cl.clear_caches()
+    for q in ("", "?countries=AAA"):
+        r = api.get(CS + q)
+        assert r.status_code == 503 and "duplicate country/year rows" in r.json()["detail"], (q, r.text)
+    assert api.get(CS + "?source=primap_hist").status_code == 200
+
+
+def test_a_country_relabelled_onto_another_keeps_the_row_count_but_fails_the_country_count(api, climate):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    out = [ln.replace("DDD,", "AAA,", 1) if ln.startswith("DDD,") and ",owid_co2," in ln else ln for ln in lines]
+    assert len(out) == len(lines) and out != lines
+    (climate / "correlation_country_share.csv").write_text("\n".join(out) + "\n")
+    cl.clear_caches()
+    r = api.get(CS)
+    assert r.status_code == 503 and "3 countries" in r.json()["detail"] and "for 4 countries" in r.json()["detail"]
+
+
+def test_a_country_missing_entirely_is_a_503_via_the_country_count(api, climate):
+    import pandas as pd
+    df = pd.read_csv(climate / "correlation_country_share.csv")
+    df[~((df["source"] == "owid_co2") & (df["country"] == "DDD"))].to_csv(climate / "correlation_country_share.csv", index=False)
+    cl.clear_caches()
+    r = api.get(CS)
+    assert r.status_code == 503 and "countries" in r.json()["detail"]
+
+
+def test_a_share_series_that_starts_after_the_published_coverage_is_a_503(api, climate):
+    import pandas as pd
+    df = pd.read_csv(climate / "correlation_country_share.csv")
+    df[~((df["source"] == "owid_co2") & (df["year"] == 1850))].to_csv(climate / "correlation_country_share.csv", index=False)
+    cl.clear_caches()
+    assert api.get(CS + "?countries=AAA").status_code == 503
+
+
+def test_a_combination_published_as_available_with_no_csv_rows_is_a_503(api, climate):
+    import pandas as pd
+    df = pd.read_csv(climate / "correlation_country_share.csv")
+    df[df["gas_scope"] != "total_ghg"].to_csv(climate / "correlation_country_share.csv", index=False)
+    cl.clear_caches()
+    r = api.get(CS + "?source=primap_hist&gas_scope=total_ghg")
+    assert r.status_code == 503 and "no rows for source=primap_hist, gas_scope=total_ghg" in r.json()["detail"] and api.get(CS).status_code == 200
+
+
+def test_an_unavailable_combination_is_not_offered(api, climate):
+    doc = json.loads((climate / "correlation_country_share.json").read_text())
+    for c in doc["combinations"]:
+        if c["source"] == "primap_hist":
+            c["available"] = False
+    (climate / "correlation_country_share.json").write_text(json.dumps(doc))
+    cl.clear_caches()
+    r = api.get(CS + "?source=primap_hist")
+    assert r.status_code == 422 and "source=owid_co2&gas_scope=co2" in r.text and "primap_hist" not in r.text.split("published combinations are:")[1]
+
+
+# ------------------------------------------------------------------ /scenario-temperature (decision 51)
+
+ST = "/api/correlation/scenario-temperature"
+
+
+def test_scenario_temperature_serves_the_translation_with_every_mandatory_label_and_block(api):
+    j = strict(api.get(ST))
+    assert j["selected_scenarios"] == ["Aggressive", "BAU", "Moderate"] and j["line"] == "both" and sorted(j["scenarios"]) == ["Aggressive", "BAU", "Moderate"]
+    assert j["labels"] == ["illustrative, partial-coverage translation", "Implied temperature outcomes", "Dependent on the selected regression period, emissions source and model assumptions",
+                           "Illustrative analytical translations, not formal climate-model projections"]
+    row = j["scenarios"]["BAU"][0]
+    assert {"year", "covered_mt", "global_fossil_mt", "cumulative_increment_mt", "headline", "fossil_only"} <= set(row) and row["headline"]["level_c"] and len(row["headline"]["level_ci95"]) == 2
+    assert {"rest_of_world", "land_use", "slope"} <= set(j["assumptions"]) and {"anchor", "step_check", "pathway_baseline", "first_scenario_year_vs_last_observed_pct"} <= set(j["base"])
+    assert j["spread"]["per_year"] and j["reading_note"].startswith("Scenarios diverge sharply") and j["covered_countries"] and j["scenario_source"]["scenarios"] == ["Aggressive", "BAU", "Moderate"]
+    assert "not proof of causation" in j["note"]
+    assert j["source_vintage"] and j["attribution"] and j["attribution"][0]["series"] == "owid_world_co2_annual" and j["caveats"] and j["notes"] == []
+
+
+def test_the_scenario_filter_keeps_only_the_named_scenarios_and_says_the_spread_is_unfiltered(api):
+    j = api.get(ST + "?scenario=BAU&scenario=Aggressive").json()
+    assert j["selected_scenarios"] == ["Aggressive", "BAU"] and sorted(j["scenarios"]) == ["Aggressive", "BAU"]
+    assert any("`spread` and `reading_note` describe all published scenarios" in n for n in j["notes"]) and j["spread"] and j["reading_note"]
+    assert api.get(ST + "?scenario=BAU&scenario=Moderate&scenario=Aggressive").json()["notes"] == []
+
+
+@pytest.mark.parametrize("line,present,absent", [("headline", "headline", "fossil_only"), ("fossil_only", "fossil_only", "headline"), ("both", "headline", None)])
+def test_the_line_filter_drops_the_other_temperature_line_from_every_row(api, line, present, absent):
+    j = api.get(ST + f"?line={line}").json()
+    for rows in j["scenarios"].values():
+        for row in rows:
+            assert present in row and (absent is None or absent not in row) and ("fossil_only" in row if line == "both" else True)
+    assert j["line"] == line and (line == "both" or j["notes"])
+
+
+def test_scenario_validation_is_422_with_the_allowed_values(api):
+    for q, frag in [("scenario=Nope", "BAU"), ("line=net", "headline"), ("scenario=bau", "BAU")]:
+        r = api.get(ST + "?" + q)
+        assert r.status_code == 422 and frag in r.text, (q, r.text)
+
+
+def test_a_stale_or_failed_translation_is_a_503_with_the_reason(api, climate):
+    doc = json.loads((climate / "correlation_scenario_temperature.json").read_text())
+    doc["unavailable_reason"] = "scenario file is stale"
+    (climate / "correlation_scenario_temperature.json").write_text(json.dumps(doc))
+    cl.clear_caches()
+    r = api.get(ST)
+    assert r.status_code == 503 and "scenario file is stale" in r.json()["detail"]
+    (climate / "correlation_scenario_temperature.json").unlink()
+    cl.clear_caches()
+    assert api.get(ST).status_code == 503
+
+
+def test_a_malformed_translation_file_is_a_503_not_a_500(api, climate):
+    good = json.loads((climate / "correlation_scenario_temperature.json").read_text())
+    for mutate in (lambda d: d.pop("scenarios"), lambda d: d.update(scenarios={}), lambda d: d.pop("assumptions"), lambda d: d.pop("base")):
+        d = json.loads(json.dumps(good))
+        mutate(d)
+        (climate / "correlation_scenario_temperature.json").write_text(json.dumps(d))
+        cl.clear_caches()
+        assert api.get(ST).status_code == 503
+
+
+def test_a_selected_scenario_the_file_lacks_is_a_503(api, climate):
+    doc = json.loads((climate / "correlation_scenario_temperature.json").read_text())
+    del doc["scenarios"]["Moderate"]
+    (climate / "correlation_scenario_temperature.json").write_text(json.dumps(doc))
+    cl.clear_caches()
+    r = api.get(ST + "?scenario=Moderate")
+    assert r.status_code == 503 and "no Moderate scenario" in r.json()["detail"] and api.get(ST + "?scenario=BAU").status_code == 200
+
+
+def test_the_final_contract_every_endpoint_is_strict_json_with_the_envelope_and_listed_in_meta(api):
+    meta = api.get("/api/correlation/meta").json()
+    assert set(meta["endpoints"]) == {f"/api/correlation/{n}" for n in ("meta", "concentration", "temperature", "emissions-temperature", "ghg-composition", "country-share", "scenario-temperature")}
+    for url in meta["endpoints"]:
+        r = api.get(url)
+        j = strict(r)
+        assert r.status_code == 200 and j["note"] is not None and "attribution" in j and "caveats" in j and j["schema_version"] == 1, url
+        assert url == "/api/correlation/meta" or j["generated_at"], url
