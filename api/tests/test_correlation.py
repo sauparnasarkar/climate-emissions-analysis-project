@@ -259,9 +259,9 @@ def test_meta_reports_each_output_as_available_missing_or_unavailable(api, clima
     (climate / "correlation_composition.json").unlink()
     cl.clear_caches()
     o = api.get("/api/correlation/meta").json()["outputs"]
-    assert o["correlation_headline.json"] == {"status": "available", "generated_at": "2026-10-02T01:00:00+00:00", "reason": None}
+    assert {k: v for k, v in o["correlation_headline.json"].items() if k not in ("age_days", "stale")} == {"status": "available", "generated_at": "2026-10-02T01:00:00+00:00", "reason": None}
     assert o["correlation_all_gas.json"]["status"] == "unavailable" and "PRIMAP missing" in o["correlation_all_gas.json"]["reason"]
-    assert o["correlation_composition.json"] == {"status": "missing", "generated_at": None, "reason": "not generated yet"}
+    assert o["correlation_composition.json"] == {"status": "missing", "generated_at": None, "age_days": None, "stale": None, "reason": "not generated yet"}
 
 
 def test_meta_summarises_the_last_pipeline_run_without_dumping_deviation_text(api):
@@ -857,3 +857,94 @@ def test_the_final_contract_every_endpoint_is_strict_json_with_the_envelope_and_
         j = strict(r)
         assert r.status_code == 200 and j["note"] is not None and "attribution" in j and "caveats" in j and j["schema_version"] == 1, url
         assert url == "/api/correlation/meta" or j["generated_at"], url
+
+
+# ------------------------------------------------------------------ Phase 1.5: freshness, caching and unit consistency
+
+
+def _at(monkeypatch, iso):
+    from datetime import datetime
+
+    from api.routers import correlation as router
+    monkeypatch.setattr(router, "_now", lambda: datetime.fromisoformat(iso))
+
+
+def test_meta_flags_an_output_older_than_the_stale_threshold_and_reports_its_age(api, climate, monkeypatch):
+    _at(monkeypatch, "2026-10-12T01:00:00+00:00")  # headline generated 2026-10-02T01:00:00 -> exactly 10 days
+    j = api.get("/api/correlation/meta").json()
+    h = j["outputs"]["correlation_headline.json"]
+    assert h["age_days"] == 10.0 and h["stale"] is False and j["freshness"]["stale_after_days"] == 45 and j["freshness"]["refresh_cadence_days"] == 31
+    assert j["freshness"]["checked_at"].startswith("2026-10-12")
+    _at(monkeypatch, "2026-11-16T01:00:00+00:00")  # 45 days: not yet stale (the threshold is exclusive)
+    assert api.get("/api/correlation/meta").json()["outputs"]["correlation_headline.json"]["stale"] is False
+    _at(monkeypatch, "2026-11-16T01:01:00+00:00")  # just over 45 days
+    j = api.get("/api/correlation/meta").json()
+    assert j["outputs"]["correlation_headline.json"]["stale"] is True and j["outputs"]["correlation_headline.json"]["age_days"] >= 45.0  # the reported age is rounded to 2 decimals; the flag uses the exact age
+
+
+def test_freshness_is_unknown_never_assumed_fresh_when_the_timestamp_is_missing_or_unparsable(api, climate, monkeypatch):
+    _at(monkeypatch, "2026-10-12T00:00:00+00:00")
+    for bad in (None, "not a date", 12345):
+        doc = json.loads((climate / "correlation_headline.json").read_text())
+        doc["generated_at"] = bad
+        (climate / "correlation_headline.json").write_text(json.dumps(doc))
+        cl.clear_caches()
+        h = api.get("/api/correlation/meta").json()["outputs"]["correlation_headline.json"]
+        assert h["status"] == "available" and h["age_days"] is None and h["stale"] is None, bad
+
+
+def test_a_future_or_naive_timestamp_does_not_produce_a_negative_age(api, climate, monkeypatch):
+    _at(monkeypatch, "2026-10-01T00:00:00+00:00")  # the file claims to be from the future
+    assert api.get("/api/correlation/meta").json()["outputs"]["correlation_headline.json"]["age_days"] == 0.0
+    doc = json.loads((climate / "correlation_headline.json").read_text())
+    doc["generated_at"] = "2026-09-20T00:00:00"  # no timezone: read as UTC
+    (climate / "correlation_headline.json").write_text(json.dumps(doc))
+    cl.clear_caches()
+    assert api.get("/api/correlation/meta").json()["outputs"]["correlation_headline.json"]["age_days"] == 11.0
+
+
+def test_missing_and_unavailable_outputs_have_no_freshness(api, climate):
+    (climate / "correlation_all_gas.json").write_text(json.dumps({"schema_version": 1, "unavailable_reason": "x"}))
+    (climate / "correlation_composition.json").unlink()
+    cl.clear_caches()
+    o = api.get("/api/correlation/meta").json()["outputs"]
+    for n in ("correlation_all_gas.json", "correlation_composition.json"):
+        assert o[n]["age_days"] is None and o[n]["stale"] is None
+
+
+def test_a_second_request_reads_no_file_again(api, monkeypatch):
+    import builtins
+    import pandas as pd
+    urls = ["/meta", "/concentration", "/concentration?resolution=monthly", "/temperature", "/emissions-temperature", "/emissions-temperature?source=primap_ghg", "/ghg-composition",
+            "/country-share", "/country-share?countries=AAA", "/scenario-temperature"]
+    for u in urls:
+        assert api.get("/api/correlation" + u).status_code == 200  # warm every cache
+    opened, csv_reads = [], []
+    real_open, real_read_csv = builtins.open, pd.read_csv
+    monkeypatch.setattr(builtins, "open", lambda f, *a, **k: (opened.append(str(f)) if str(f).endswith((".json", ".csv")) else None, real_open(f, *a, **k))[1])
+    monkeypatch.setattr(pd, "read_csv", lambda *a, **k: (csv_reads.append(str(a[0])), real_read_csv(*a, **k))[1])
+    for u in urls:
+        api.get("/api/correlation" + u)
+    # /meta reads last_run.json and checks output files each time (it reports live status); no data series file is re-read
+    assert csv_reads == [] and sorted(set(opened)) == sorted({o for o in opened if o.endswith("last_run.json")}), (csv_reads, opened)
+
+
+def test_every_series_response_unit_equals_its_catalog_unit_and_catalog_units_are_known(api):
+    cat = {i["id"]: i for i in api.get("/api/correlation/meta").json()["indicators"]}
+    known = {"ppm", "°C", "Mt CO2", "MtCO2e", "%", "index (1990 = 100)", "index (1970 = 100)", "index (1850 = 100)"}  # the catalog's whole unit vocabulary
+    unknown = {i["id"]: i["unit"] for i in cat.values() if i["unit"] not in known}
+    assert unknown == {}, f"units outside the known vocabulary: {unknown}"
+    for url in ("/concentration", "/concentration?view=yoy_pct", "/concentration?view=index&baseline=1990", "/temperature", "/temperature?view=mean5y", "/temperature?baseline=1951_1980"):
+        j = api.get("/api/correlation" + url).json()
+        assert j["indicator"]["unit"] == cat[j["indicator"]["id"]]["unit"] and j["indicator"]["unit"], url
+    for url in ("/emissions-temperature", "/emissions-temperature?source=primap_ghg"):
+        j = api.get("/api/correlation" + url).json()
+        assert j["x"]["unit"] == cat[j["x"]["id"]]["unit"] and j["y"]["unit"] == "°C" and j["fit"]["unit"], url
+
+
+def test_the_series_endpoints_never_serve_a_year_outside_the_data_coverage(api):
+    for url in ("/concentration", "/temperature", "/emissions-temperature"):
+        j = api.get("/api/correlation" + url + ("?start_year=0&end_year=9999" if "emissions" not in url else "")).json()
+        years = [p["year"] for p in j["points"]]
+        lo, hi = (j["coverage"] if "coverage" in j else j["window"])
+        assert years == sorted(set(years)) and years[0] >= lo and years[-1] <= hi, url
