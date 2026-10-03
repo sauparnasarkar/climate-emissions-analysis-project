@@ -410,6 +410,12 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
         d = df[(df["source"] == source) & (df["gas_scope"] == gas_scope)]
         if d.empty:
             raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has no rows for source={source}, gas_scope={gas_scope}, which correlation_country_share.json publishes")
+        years = pd.to_numeric(d["year"], errors="coerce").to_numpy(dtype=float)
+        valid_years = np.isfinite(years) & (years >= 0) & (years < np.iinfo(np.int64).max) & (years == np.floor(years))
+        if not valid_years.all():
+            raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has {int((~valid_years).sum())} row(s) with a blank, non-numeric, non-finite or non-integer year for source={source}, gas_scope={gas_scope}")
+        d = d.copy()
+        d["year"] = years.astype(np.int64)
         vals = d[["cumulative_mt", "share_pct"]].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)  # a non-numeric token becomes NaN and is refused below, not a 500
         if not np.isfinite(vals).all():
             raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has {int((~np.isfinite(vals)).any(axis=1).sum())} row(s) with a blank, non-numeric, NaN or infinite value for source={source}, gas_scope={gas_scope}")

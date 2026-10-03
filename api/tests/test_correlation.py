@@ -692,6 +692,20 @@ def test_a_non_numeric_token_in_a_numeric_share_column_is_a_503_never_a_500(api,
         assert r.status_code == 503 and "non-numeric" in r.json()["detail"], (q, r.status_code)
 
 
+@pytest.mark.parametrize("bad_year", ["", "abc", "inf", "1900.5", "-1"])
+def test_a_malformed_year_in_the_share_csv_is_a_503_never_a_500(api, climate, bad_year):
+    lines = (climate / "correlation_country_share.csv").read_text().splitlines()
+    i = next(k for k, ln in enumerate(lines) if ln.startswith("BBB,1900,owid_co2,co2,"))
+    parts = lines[i].split(",")
+    parts[1] = bad_year
+    lines[i] = ",".join(parts)
+    (climate / "correlation_country_share.csv").write_text("\n".join(lines) + "\n")
+    cl.clear_caches()
+    for q in ("", "?countries=BBB"):
+        r = api.get(CS + q)
+        assert r.status_code == 503 and "non-integer year" in r.json()["detail"], (q, r.text)
+
+
 def test_an_interior_row_missing_while_the_year_bounds_still_match_is_a_503(api, climate):
     lines = (climate / "correlation_country_share.csv").read_text().splitlines()
     i = next(k for k, ln in enumerate(lines) if ln.startswith("AAA,1900,owid_co2,co2,"))
