@@ -72,6 +72,12 @@ Area 2 pipeline: not run -- missing $PY or $REPO_DIR/pipeline."
   rc=$?
   PIPE_PRIORITY=$(cat "$out_dir/last_run.priority" 2>/dev/null)
   PIPE_OK=0
+  # pipeline.run writes the summary files one after another, so an interrupted run can leave only some of them: a stage counts as complete (and
+  # may gate an API restart) only with a zero exit AND all three files present and non-empty. Anything else fails closed.
+  local complete=0
+  if [ "$rc" -eq 0 ] && [ -n "$PIPE_PRIORITY" ] && [ -s "$out_dir/last_run.title" ] && [ -s "$out_dir/last_run.message" ]; then
+    complete=1
+  fi
   if [ -z "$PIPE_PRIORITY" ]; then
     PIPE_PRIORITY="urgent"
     PIPE_SECTION="
@@ -83,6 +89,13 @@ $(tail -n 8 "$LOG_FILE")"
 
 $(cat "$out_dir/last_run.title")
 $(cat "$out_dir/last_run.message")"
+  fi
+  if [ "$complete" -eq 0 ] && [ "$PIPE_PRIORITY" != "urgent" ]; then
+    # a non-urgent summary from a run that exited non-zero or left its summary incomplete is not trustworthy: report it as a failure
+    PIPE_PRIORITY="urgent"
+    PIPE_SECTION="${PIPE_SECTION}
+
+Area 2 pipeline: the run exited $rc or left an incomplete summary, so it is treated as failed."
   fi
   case "$PIPE_PRIORITY" in
     urgent) PIPE_TITLE_SUFFIX=" + pipeline FAILED" ;;

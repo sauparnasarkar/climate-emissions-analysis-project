@@ -67,6 +67,44 @@ def test_pipe_ok_is_set_only_when_the_stage_produced_a_non_urgent_summary(tmp_pa
     assert f"OK={ok}" in out
 
 
+STUB_PRIORITY_ONLY = """
+d="$PWD/data/climate"
+printf 'default\\n' > "$d/last_run.priority"
+exit 0
+"""
+STUB_NO_MESSAGE = """
+d="$PWD/data/climate"
+printf 'default\\n' > "$d/last_run.priority"
+printf 'Area 2 pipeline: clean\\n' > "$d/last_run.title"
+exit 0
+"""
+STUB_NO_TITLE = """
+d="$PWD/data/climate"
+printf 'default\\n' > "$d/last_run.priority"
+printf '4 source(s) ok, 0 failed, 0 deviation(s).\\n' > "$d/last_run.message"
+exit 0
+"""
+STUB_EMPTY_MESSAGE = STUB_OK.replace("printf '4 source(s) ok, 0 failed, 1 deviation(s).\\nDEVIATION owid: stale\\n'", "printf ''")
+STUB_NONZERO_NON_URGENT = STUB_OK.replace("exit 0", "exit 4")
+
+
+@pytest.mark.parametrize("stub", [STUB_PRIORITY_ONLY, STUB_NO_MESSAGE, STUB_NO_TITLE, STUB_EMPTY_MESSAGE, STUB_NONZERO_NON_URGENT])
+def test_an_incomplete_summary_or_a_nonzero_exit_fails_closed_never_gating_a_restart(tmp_path, stub):
+    out, log = run_stage(tmp_path, stub)
+    assert "OK=0" in out and "PRIORITY=urgent" in out and "SUFFIX= + pipeline FAILED" in out and "treated as failed" in out
+
+
+def test_a_genuine_urgent_summary_keeps_its_own_detail_instead_of_the_generic_message(tmp_path):
+    stub = STUB_URGENT.replace("exit 0", "exit 1")  # a failed source: exit 1 with a complete urgent summary
+    out, _ = run_stage(tmp_path, stub)
+    assert "OK=0" in out and "PRIORITY=urgent" in out and "DEVIATION owid: stale" in out and "treated as failed" not in out
+
+
+def test_a_complete_summary_with_a_zero_exit_is_still_ok(tmp_path):
+    out, _ = run_stage(tmp_path, STUB_CLEAN)
+    assert "OK=1" in out and "PRIORITY=default" in out and "treated as failed" not in out
+
+
 def test_pipe_ok_is_zero_when_the_stage_could_not_run(tmp_path):
     out, _ = run_stage(tmp_path, "exit 0\n", make_py=False)
     assert "OK=0" in out
