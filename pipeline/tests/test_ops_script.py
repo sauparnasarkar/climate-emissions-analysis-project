@@ -38,6 +38,7 @@ log() {{ echo "$1" >> "$LOG_FILE"; }}
 pipeline_stage
 echo "PRIORITY=$PIPE_PRIORITY"
 echo "SUFFIX=$PIPE_TITLE_SUFFIX"
+echo "OK=$PIPE_OK"
 echo "SECTION<<$PIPE_SECTION>>"
 echo "MAX1=$(max_priority default high) MAX2=$(max_priority urgent high) MAX3=$(max_priority default default) MAX4=$(max_priority high urgent)"
 '''
@@ -54,6 +55,59 @@ printf 'Area 2 pipeline: deviations flagged\\n' > "$d/last_run.title"
 printf '4 source(s) ok, 0 failed, 1 deviation(s).\\nDEVIATION owid: stale\\n' > "$d/last_run.message"
 exit 0
 """
+
+
+STUB_URGENT = STUB_OK.replace("printf 'high", "printf 'urgent")
+STUB_CLEAN = STUB_OK.replace("printf 'high", "printf 'default")
+
+
+@pytest.mark.parametrize("stub,ok", [(STUB_OK, "1"), (STUB_CLEAN, "1"), (STUB_URGENT, "0"), ("exit 3\n", "0")])
+def test_pipe_ok_is_set_only_when_the_stage_produced_a_non_urgent_summary(tmp_path, stub, ok):
+    out, _ = run_stage(tmp_path, stub)
+    assert f"OK={ok}" in out
+
+
+STUB_PRIORITY_ONLY = """
+d="$PWD/data/climate"
+printf 'default\\n' > "$d/last_run.priority"
+exit 0
+"""
+STUB_NO_MESSAGE = """
+d="$PWD/data/climate"
+printf 'default\\n' > "$d/last_run.priority"
+printf 'Area 2 pipeline: clean\\n' > "$d/last_run.title"
+exit 0
+"""
+STUB_NO_TITLE = """
+d="$PWD/data/climate"
+printf 'default\\n' > "$d/last_run.priority"
+printf '4 source(s) ok, 0 failed, 0 deviation(s).\\n' > "$d/last_run.message"
+exit 0
+"""
+STUB_EMPTY_MESSAGE = STUB_OK.replace("printf '4 source(s) ok, 0 failed, 1 deviation(s).\\nDEVIATION owid: stale\\n'", "printf ''")
+STUB_NONZERO_NON_URGENT = STUB_OK.replace("exit 0", "exit 4")
+
+
+@pytest.mark.parametrize("stub", [STUB_PRIORITY_ONLY, STUB_NO_MESSAGE, STUB_NO_TITLE, STUB_EMPTY_MESSAGE, STUB_NONZERO_NON_URGENT])
+def test_an_incomplete_summary_or_a_nonzero_exit_fails_closed_never_gating_a_restart(tmp_path, stub):
+    out, log = run_stage(tmp_path, stub)
+    assert "OK=0" in out and "PRIORITY=urgent" in out and "SUFFIX= + pipeline FAILED" in out and "treated as failed" in out
+
+
+def test_a_genuine_urgent_summary_keeps_its_own_detail_instead_of_the_generic_message(tmp_path):
+    stub = STUB_URGENT.replace("exit 0", "exit 1")  # a failed source: exit 1 with a complete urgent summary
+    out, _ = run_stage(tmp_path, stub)
+    assert "OK=0" in out and "PRIORITY=urgent" in out and "DEVIATION owid: stale" in out and "treated as failed" not in out
+
+
+def test_a_complete_summary_with_a_zero_exit_is_still_ok(tmp_path):
+    out, _ = run_stage(tmp_path, STUB_CLEAN)
+    assert "OK=1" in out and "PRIORITY=default" in out and "treated as failed" not in out
+
+
+def test_pipe_ok_is_zero_when_the_stage_could_not_run(tmp_path):
+    out, _ = run_stage(tmp_path, "exit 0\n", make_py=False)
+    assert "OK=0" in out
 
 
 def test_stage_reports_summary_and_priority(tmp_path):
@@ -84,11 +138,24 @@ def test_max_priority_ordering(tmp_path):
 def test_script_syntax_and_wiring():
     assert subprocess.run(["bash", "-n", SCRIPT]).returncode == 0
     text = open(SCRIPT).read()
-    # the stage runs after week1 succeeds and after a week1 failure restores the backup, and every notification carries it
-    calls = re.findall(r"^\s*pipeline_stage\b(?!\()", text, re.M)  # call sites; the definition is "pipeline_stage() {"
-    assert len(calls) == 2  # week-1 failure branch (after the restore) + the success path
+    # every notification carries the stage's section
+    calls = [m.start() for m in re.finditer(r"^\s*pipeline_stage\b(?!\()", text, re.M)]  # call sites; the definition is "pipeline_stage() {"
+    assert len(calls) == 3  # week-1 failure branch (after the restore), weeks 2-5 failure branch, and the success path
     assert text.count("${PIPE_SECTION}") >= 5
     assert 'max_priority default "$PIPE_PRIORITY"' in text and 'max_priority high "$PIPE_PRIORITY"' in text
+
+
+def test_the_stage_runs_after_the_notebook_weeks_so_the_scenario_stage_reads_this_runs_scenario_file():
+    text = open(SCRIPT).read()
+    weeks_loop, week1_ok, failed_branch, step4b = text.index("for wk in week2_features"), text.index('log "week1 status: $STATUS"'), text.index('if [ -n "$FAILED_WEEK" ]'), text.index("# --- Step 4b")
+    calls = [m.start() for m in re.finditer(r"^\s*pipeline_stage\b(?!\()", text, re.M)]
+    # no call between a successful week 1 and the weeks loop (it used to be there, one month behind on the scenario file)
+    assert not [c for c in calls if week1_ok < c < weeks_loop]
+    # a call in the weeks-failure branch and one after the loop that precedes the restart
+    assert any(failed_branch < c < failed_branch + 400 for c in calls) and any(failed_branch + 400 < c < step4b + 5 for c in calls)
+    assert max(calls) < text.index("clean|soft_flag:*) restart_api")
+    # week 1's failure branch still runs it (the other sources are independent of OWID)
+    assert any(text.index("week1_eda.ipynb FAILED") < c < week1_ok for c in calls)
 
 
 # ---------------------------------------------------------------- API restart (mirrors the Allocation Monitor's)
@@ -155,14 +222,54 @@ def test_skip_env_var_does_not_touch_launchctl(tmp_path):
     assert "restart skipped" in out and "PRIORITY=default" in out and "skipped (GHG_SKIP_API_RESTART=1)" in log
 
 
-def test_restart_only_runs_on_a_validated_successful_refresh():
+def test_restart_only_runs_on_a_validated_refresh_or_after_a_week1_failure_with_new_area2_files():
     text = open(SCRIPT).read()
     call = text.index("clean|soft_flag:*) restart_api")
-    assert text.count("restart_api") >= 3 and text.count(") restart_api") == 1  # exactly one call site
-    # after the weeks 2-5 failure exit, before the notification; never in a restored-backup failure branch
+    assert text.count(") restart_api") == 1  # exactly one direct call site (the validated notebook refresh)
+    # after the weeks 2-5 failure exit, before the notification
     assert text.index('if [ -n "$FAILED_WEEK" ]') < call < text.index("# --- Step 5")
     assert "unrecognized status marker" in text  # an unknown marker is not restarted, and says so
-    assert text.count("exit 1") >= 4 and all("restart_api" not in blk for blk in re.findall(r'FAILED[^\n]*\n(?:.*\n){0,8}?\s*exit 1', text))
+    # the weeks 2-5 failure branch never restarts (partially regenerated CSVs must not be loaded) and says so
+    failed = text[text.index('if [ -n "$FAILED_WEEK" ]'):text.index("# --- Step 4a")]
+    assert "restart_api" not in failed and "restart_if_pipeline_ok" not in failed and "not restarted" in failed and "partially regenerated" in failed
+    # week 1's failure branch restarts only through the pipeline-gated helper
+    w1 = text[text.index("week1_eda.ipynb FAILED"):text.index("exit 1", text.index("week1_eda.ipynb FAILED"))]
+    assert "restart_if_pipeline_ok" in w1 and "restart_api\n" not in w1.replace("restart_if_pipeline_ok", "")
+
+
+def run_gated(tmp_path, pipe_ok):
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    args_file = tmp_path / "launchctl.args"
+    (bindir / "launchctl").write_text("#!/bin/bash\n" + f'echo "$@" > "{args_file}"\nexit 0\n')
+    (bindir / "id").write_text("#!/bin/bash\necho 501\n")
+    for f in bindir.iterdir():
+        f.chmod(0o755)
+    log = tmp_path / "log"
+    script = f'''
+PATH="{bindir}:$PATH"
+LOG_FILE="{log}"
+log() {{ echo "$1" >> "$LOG_FILE"; }}
+{stage_source()}
+PIPE_OK={pipe_ok}
+{restart_source()}
+restart_if_pipeline_ok
+echo "SECTION<<$PIPE_SECTION>>"
+'''
+    out = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    return out.stdout, (args_file.read_text().strip() if args_file.exists() else None), (log.read_text() if log.exists() else "")
+
+
+def test_the_gated_restart_restarts_the_api_when_the_pipeline_stage_produced_files(tmp_path):
+    out, args, log = run_gated(tmp_path, 1)
+    assert args == "kickstart -k gui/501/com.ghgemissions.uvicorn" and "API: restarted com.ghgemissions.uvicorn" in out
+
+
+def test_the_gated_restart_does_nothing_and_says_so_when_the_pipeline_stage_did_not_complete(tmp_path):
+    out, args, log = run_gated(tmp_path, 0)
+    assert args is None  # launchctl never invoked
+    assert "API: not restarted -- the Area 2 pipeline stage did not complete" in out and "API not restarted: the Area 2 pipeline stage did not complete." in log
 
 
 # ---------------------------------------------------------------- OWID_URL single source of truth

@@ -3,7 +3,7 @@
 The data-refresh job runs on the **Mac Mini** (`sauparnasarkar@Sauparnas-Mac-mini.local`), outside this
 repo: `~/bin/ghg-data-refresh.sh`, scheduled by `~/Library/LaunchAgents/com.ghgemissions.datarefresh.plist`
 (see the `ghg-data-refresh` skill). These are **versioned copies of the proposed new versions** — nothing here
-is deployed by merging the PR. They differ from what is live in exactly three ways:
+is deployed by merging the PR. They differ from the original (pre-Release 21) job in exactly four ways (the first three were installed on 2026-10-02; the fourth is the 2026-10-03 fix):
 
 1. **Schedule: weekly (Sunday 03:30) → monthly (day 10, 03:30).** `Weekday` is replaced by `Day = 10`. Annual-release
    datasets (PRIMAP-hist, OWID) don't need a weekly cycle (`SPEC.md` §5.26 decision 10); day 10 lets NOAA's
@@ -32,8 +32,16 @@ is deployed by merging the PR. They differ from what is live in exactly three wa
    successful refresh into a failed run. Only the API is restarted: the agent keeps per-conversation state in memory
    that a restart would wipe, the MCP server holds no data cache, and `vitepreview` serves static files off disk.
    Set `GHG_SKIP_API_RESTART=1` to skip it (e.g. an on-demand run you don't want to interrupt the API for).
-   *Known limit:* it triggers on the notebook refresh path only; when Phase 1.4 makes the API serve
-   `data/climate/*`, a pipeline-only refresh (notebooks failed or skipped) will need the same trigger.
+   *Updated 2026-10-03 (Phase 1.4 made the API serve `data/climate/*`)*: the restart also fires after a **week-1 failure
+   (backup restored)** when the Area 2 stage produced a summary that is not `urgent` (`PIPE_OK=1`), because the notebook CSVs
+   are untouched there but the new Area 2 files are only served after a restart (`restart_if_pipeline_ok`). It never
+   fires after a **weeks 2-5 failure**: those CSVs may be partially regenerated and a restart would load them (the
+   notification says so).
+
+4. **The Area 2 stage runs after the notebook weeks, not after week 1.** Its `scenario_temperature` stage reads
+   `data/scenario_projections.csv`, which week 5 regenerates; run before the weeks it translated the *previous* month's
+   scenarios (one month behind, and unavailable via the stale-scenario guard whenever OWID gained a year). It still runs
+   in both failure branches (its own failure domain), so Area 2 files are refreshed even when a notebook fails.
 
 The OWID step **does not download**: the script's existing backup → download → week-1 validation → restore
 flow stays the single authority for that file; `pipeline/owid.py` only verifies and registers what is on disk

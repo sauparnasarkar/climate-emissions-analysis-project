@@ -43,6 +43,7 @@ log() {
 PIPE_PRIORITY="default"
 PIPE_SECTION=""
 PIPE_TITLE_SUFFIX=""
+PIPE_OK=0  # 1 once the stage produced a summary that is not "urgent" (every source ran; the Area 2 files are new and usable)
 
 max_priority() {  # max_priority <a> <b>   (default < high < urgent)
   case "$1$2" in
@@ -58,6 +59,7 @@ pipeline_stage() {
   rm -f "$out_dir/last_run.priority" "$out_dir/last_run.title" "$out_dir/last_run.message"
   if [ ! -x "$PY" ] || [ ! -d "$REPO_DIR/pipeline" ]; then
     PIPE_PRIORITY="urgent"
+    PIPE_OK=0
     PIPE_TITLE_SUFFIX=" + pipeline NOT RUN"
     PIPE_SECTION="
 
@@ -69,6 +71,13 @@ Area 2 pipeline: not run -- missing $PY or $REPO_DIR/pipeline."
   (cd "$REPO_DIR" && "$PY" -m pipeline.run --source all) >> "$LOG_FILE" 2>&1
   rc=$?
   PIPE_PRIORITY=$(cat "$out_dir/last_run.priority" 2>/dev/null)
+  PIPE_OK=0
+  # pipeline.run writes the summary files one after another, so an interrupted run can leave only some of them: a stage counts as complete (and
+  # may gate an API restart) only with a zero exit AND all three files present and non-empty. Anything else fails closed.
+  local complete=0
+  if [ "$rc" -eq 0 ] && [ -n "$PIPE_PRIORITY" ] && [ -s "$out_dir/last_run.title" ] && [ -s "$out_dir/last_run.message" ]; then
+    complete=1
+  fi
   if [ -z "$PIPE_PRIORITY" ]; then
     PIPE_PRIORITY="urgent"
     PIPE_SECTION="
@@ -81,9 +90,17 @@ $(tail -n 8 "$LOG_FILE")"
 $(cat "$out_dir/last_run.title")
 $(cat "$out_dir/last_run.message")"
   fi
+  if [ "$complete" -eq 0 ] && [ "$PIPE_PRIORITY" != "urgent" ]; then
+    # a non-urgent summary from a run that exited non-zero or left its summary incomplete is not trustworthy: report it as a failure
+    PIPE_PRIORITY="urgent"
+    PIPE_SECTION="${PIPE_SECTION}
+
+Area 2 pipeline: the run exited $rc or left an incomplete summary, so it is treated as failed."
+  fi
   case "$PIPE_PRIORITY" in
     urgent) PIPE_TITLE_SUFFIX=" + pipeline FAILED" ;;
-    high) PIPE_TITLE_SUFFIX=" + pipeline flagged" ;;
+    high) PIPE_TITLE_SUFFIX=" + pipeline flagged"; PIPE_OK=1 ;;
+    *) PIPE_OK=1 ;;
   esac
   log "pipeline stage: priority=$PIPE_PRIORITY exit=$rc"
 }
@@ -122,6 +139,20 @@ API: FAILED to restart $API_LABEL (exit $rc): $out -- it keeps serving the previ
     PIPE_SECTION="${PIPE_SECTION}
 
 API: restarted $API_LABEL to load the refreshed data."
+  fi
+}
+# After the pipeline stage the API also serves data/climate/* (Phase 1.4), so a refresh whose notebooks did NOT complete (week 1 failed and
+# the backup was restored: the notebook CSVs are untouched) must still restart the API when the Area 2 stage produced new files. Not when the
+# pipeline stage itself failed (nothing usable is new). Never used after a weeks 2-5 failure: those CSVs may be partially regenerated, and a
+# restart would load them.
+restart_if_pipeline_ok() {
+  if [ "$PIPE_OK" = "1" ]; then
+    restart_api
+  else
+    log "API not restarted: the Area 2 pipeline stage did not complete."
+    PIPE_SECTION="${PIPE_SECTION}
+
+API: not restarted -- the Area 2 pipeline stage did not complete, so there is nothing new to load."
   fi
 }
 # <<< restart_api
@@ -181,6 +212,7 @@ if ! (cd notebook && "$JUPYTER" nbconvert --to notebook --execute --inplace week
   log "week1_eda.ipynb FAILED -- restoring backup, skipping weeks 2-5."
   cp -p "$TODAY_BACKUP" "$DATA_FILE"
   pipeline_stage  # the OWID file is final again (restored); the other sources are independent
+  restart_if_pipeline_ok  # the notebook CSVs are untouched, but the API serves the new Area 2 files only after a restart
   TAIL=$(tail -n 15 "$LOG_FILE")
   notify "GHG data refresh: FAILED -- old data restored" "urgent" \
     "week1 validation/execution failed. Old data restored. Tail of log:
@@ -190,7 +222,6 @@ fi
 
 STATUS=$(cat data/.refresh_status 2>/dev/null || echo "clean")
 log "week1 status: $STATUS"
-pipeline_stage
 # Row-level diff (added/removed/updated/no-change) -- written by week1_eda.ipynb's
 # validation cell (see its own comment there), keyed on (country, year). Purely
 # informational: absence (e.g. first-ever run, no prior backup) just means no line gets
@@ -209,12 +240,19 @@ for wk in week2_features week3_regression week4_ets_forecasting week5_scenarios;
 done
 
 if [ -n "$FAILED_WEEK" ]; then
+  pipeline_stage  # its own failure domain: the Area 2 files are independent of the notebooks, so they are still refreshed
+  PIPE_SECTION="${PIPE_SECTION}
+
+API: not restarted -- $FAILED_WEEK failed partway, so the notebook CSVs may be partially regenerated and must not be loaded; it keeps serving the previous data."
   TAIL=$(tail -n 15 "$LOG_FILE")
   notify "GHG data refresh: FAILED at $FAILED_WEEK" "urgent" \
     "New owid-co2-data.csv passed validation, but $FAILED_WEEK failed to execute. Some derived CSVs may be partially regenerated -- check manually. Tail of log:
 $TAIL${PIPE_SECTION}"
   exit 1
 fi
+
+# --- Step 4a: the Area 2 pipeline runs AFTER the notebook weeks: its scenario stage reads data/scenario_projections.csv, which week 5 just regenerated ---
+pipeline_stage
 
 # --- Step 4b: restart the API so its @lru_cache loaders pick up the refreshed CSVs ---
 # Only for a validated refresh (clean / soft_flag): a hard-fail already exited above with the backup restored.
