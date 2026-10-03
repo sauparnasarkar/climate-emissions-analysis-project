@@ -234,7 +234,7 @@ internals, and the Mac Mini deploy topology — see [`ARCHITECTURE.md`](ARCHITEC
 
 ---
 
-## Weekly Commit Schedule
+## IDEAS TIH Summer Internship 2026 Weekly Commit Schedule
 
 Commit that week's notebook to GitHub at the end of every week using a clear message:
 
