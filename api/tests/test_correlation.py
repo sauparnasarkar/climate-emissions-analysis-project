@@ -931,8 +931,9 @@ def test_a_second_request_reads_no_file_again(api, monkeypatch):
 
 def test_every_series_response_unit_equals_its_catalog_unit_and_catalog_units_are_known(api):
     cat = {i["id"]: i for i in api.get("/api/correlation/meta").json()["indicators"]}
-    known = {"ppm", "°C", "Mt CO2", "MtCO2e", "%", "index (base year = 100)"}
-    assert all(i["unit"] in known or i["kind"] == "derived" or i["unit"] for i in cat.values())
+    known = {"ppm", "°C", "Mt CO2", "MtCO2e", "%", "index (1990 = 100)", "index (1970 = 100)", "index (1850 = 100)"}  # the catalog's whole unit vocabulary
+    unknown = {i["id"]: i["unit"] for i in cat.values() if i["unit"] not in known}
+    assert unknown == {}, f"units outside the known vocabulary: {unknown}"
     for url in ("/concentration", "/concentration?view=yoy_pct", "/concentration?view=index&baseline=1990", "/temperature", "/temperature?view=mean5y", "/temperature?baseline=1951_1980"):
         j = api.get("/api/correlation" + url).json()
         assert j["indicator"]["unit"] == cat[j["indicator"]["id"]]["unit"] and j["indicator"]["unit"], url
