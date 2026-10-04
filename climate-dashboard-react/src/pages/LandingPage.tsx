@@ -4,6 +4,7 @@ import { Button, Globe, Icon, InlineAlert, Slider } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
+import { useViewportHeight } from '../hooks/useViewportHeight';
 import { useYearAnimation } from '../hooks/useYearAnimation';
 import { RankRace } from '../components/landing/RankRace';
 import { CLIMATE_BANNER_STYLES, ClimateSignalBanner } from '../components/landing/ClimateSignalBanner';
@@ -44,14 +45,14 @@ const AGENT_EXAMPLE = 'How has India’s emissions grown compared to other count
 const STYLES = `
 .landing { --landing-pad-x: clamp(20px, 5.5vw, 80px); --landing-pad-y: clamp(48px, 6vw, 88px); }
 .landing-h2 { font-size: clamp(1.75rem, 3.2vw, 2.75rem); line-height: 1.1; font-weight: 600; }
-.landing-hero { display: flex; gap: clamp(32px, 4vw, 56px); align-items: center; padding: clamp(32px, 4vw, 56px) var(--landing-pad-x); }
-.landing-hero__text { flex: 0 0 min(540px, 46%); min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+.landing-hero { display: flex; gap: clamp(32px, 4vw, 56px); align-items: center; padding: clamp(16px, 3vh, 48px) var(--landing-pad-x); }
+.landing-hero__text { flex: 0 0 min(540px, 46%); min-width: 0; display: flex; flex-direction: column; gap: clamp(12px, 2.2vh, 24px); }
 .landing-hero__globe { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .landing-hero__controls { width: 100%; max-width: 624px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .landing-globe-title--block { display: none; width: 100%; max-width: 624px; }
 .landing-hero__globe { container-type: inline-size; }
 /* Holds the height of the canvas plus the legend/controls, which are hidden while the globe plays, so the page below does not jump when they return. */
-.landing-globe-slot { width: 100%; min-height: calc(min(100cqw, 600px) + 130px); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
+.landing-globe-slot { width: 100%; min-height: calc(min(100cqw, var(--globe-max, 600px)) + 100px); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
 .landing-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--__s9cmpx-static-divider-weak); margin-top: 8px; }
 .landing-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .landing-race { display: flex; gap: clamp(32px, 5vw, 80px); align-items: flex-start; }
@@ -97,6 +98,10 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
   const yearIdx = currentYear - minYear;
   const all = overview.all_countries;
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
+  // Size the globe so the slide plus the carousel controls fit above the fold on a laptop: the viewport minus the 68 px
+  // header, ~64 px of carousel controls, the section's own padding, the reserved legend/controls space and the Pause row.
+  const viewportHeight = useViewportHeight();
+  const globeMax = Math.max(300, Math.min(600, viewportHeight - 68 - 64 - 56 - 100 - 52));
   const totals = useMemo(() => worldTotals(globe), [globe]);
   const yearTotal = totals[yearIdx];
   // The current year and world total. On wide screens it overlays the globe's top-left corner; on a phone the globe is
@@ -124,7 +129,7 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
         <div className="__s9cmpx-label3" style={{ letterSpacing: '0.08em', lineHeight: 1.5, textTransform: 'uppercase', color: 'var(--__s9cmpx-static-text-accent, inherit)' }}>
           Our World in Data CO₂ · {minYear}–{maxYear} · {all.countries_count} countries
         </div>
-        <h1 id="landing-title" style={{ margin: 0, fontSize: 'clamp(2.25rem, 4.6vw, 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
+        <h1 id="landing-title" style={{ margin: 0, fontSize: 'clamp(2rem, min(4.6vw, 5.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
           Where the world’s CO₂ comes from — and where it’s heading.
         </h1>
         <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
@@ -143,7 +148,7 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
         </div>
       </div>
 
-      <div className="landing-hero__globe" ref={globeRef}>
+      <div className="landing-hero__globe" ref={globeRef} style={{ ['--globe-max' as string]: `${globeMax}px` }}>
         <div className="landing-globe-title--block">{globeHeading}</div>
         <div className="landing-globe-slot">
         <Globe
@@ -174,7 +179,7 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           showLabels={!isPlaying}
           showLegend={!isPlaying}
           showControls={!isPlaying}
-          maxSize={600}
+          maxSize={globeMax}
           transparent
           title={<div className="landing-globe-title--overlay">{globeHeading}</div>}
         />

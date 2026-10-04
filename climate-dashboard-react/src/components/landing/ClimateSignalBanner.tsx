@@ -12,7 +12,7 @@ import { ClimateScatter, ScatterLegend } from './ClimateScatter';
 // emissions set that year's temperature.
 
 export const CLIMATE_BANNER_STYLES = `
-.climate-banner { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 4vw, 56px); align-items: center; padding: clamp(32px, 4vw, 56px) var(--landing-pad-x); }
+.climate-banner { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 4vw, 56px); align-items: center; padding: clamp(16px, 3vh, 48px) var(--landing-pad-x); }
 .climate-banner__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--__s9cmpx-static-divider-weak); border-bottom: 1px solid var(--__s9cmpx-static-divider-weak); }
 .climate-banner__metrics > div { padding: 14px 14px 14px 0; }
 .climate-banner__metrics > div + div { padding-left: 14px; border-left: 1px solid var(--__s9cmpx-static-divider-weak); }
@@ -43,11 +43,11 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
   const { fit, temperature, concentration } = signal;
   return (
     <div className="climate-banner">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'clamp(12px, 2.2vh, 24px)', minWidth: 0 }}>
         <div className="__s9cmpx-label3" style={{ letterSpacing: '0.08em', lineHeight: 1.5, textTransform: 'uppercase', color: 'var(--__s9cmpx-static-text-accent, inherit)' }}>
           Climate signal · Global · {fit.start}–{fit.end}
         </div>
-        <h1 id={headingId} style={{ margin: 0, fontSize: 'clamp(2.25rem, 4.6vw, 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
+        <h1 id={headingId} style={{ margin: 0, fontSize: 'clamp(2rem, min(4.6vw, 5.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
           Global temperature has risen with the CO₂ we have accumulated.
         </h1>
         <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>

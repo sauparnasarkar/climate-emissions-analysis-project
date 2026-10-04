@@ -28,7 +28,7 @@ export function ClimateScatter({ signal }: { signal: ClimateSignal }) {
   const labelRight = sx(last.gt) > W - 120;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby={titleId} style={{ width: '100%', height: 'auto', display: 'block' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby={titleId} style={{ width: '100%', height: 'auto', maxHeight: 'min(56vh, 520px)', display: 'block' }}>
       <title id={titleId}>{summary}</title>
       {niceTicks(yMax, 0.5, yMin).map((t) => (
         <g key={`y${t}`}>
