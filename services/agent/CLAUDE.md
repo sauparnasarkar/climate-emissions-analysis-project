@@ -50,7 +50,7 @@ design changes here, not just this file.
   for the model comparison, correctness/latency findings, and why this doesn't yet supersede the
   Sonnet default documented here.
 - **Admin LLM switch (`SPEC.md` §14).** Which of the two validated provider/model combos is live
-  is now a runtime, admin-panel-controlled setting, not just an env var — `GET`/`POST /admin/llm`,
+  is a runtime, admin-panel-controlled setting, not just an env var — `GET`/`POST /admin/llm`,
   gated at the edge by a Cloudflare Access login policy (Google IdP, one allow-listed account;
   root `ARCHITECTURE.md` §8), with zero app-level auth code. `get_llm()` itself stays
   env-var-only; the admin path calls it with an explicit `provider=`/`model=` override instead.
@@ -79,9 +79,9 @@ design changes here, not just this file.
   against a real `services/mcp-server` subprocess, not a hand-built fake tool — see `SPEC.md`
   "Corrections applied" #10 for how this one was actually caught.
 - **Progress events come from `graph.astream(..., stream_mode="updates")`, not a callback.**
-  `graph.py` has no `on_progress` parameter — it was removed after Step 2's design didn't survive
-  contact with Step 3's serving shape (one graph built at startup, reused across every request; a
-  callback bound at construction time would leak between concurrent requests). `server.py`'s
+  `graph.py` has no `on_progress` parameter: the graph is built once at startup and reused across
+  every request, so a callback bound at construction time would leak between concurrent
+  requests. `server.py`'s
   `stream_query` reads each `ToolCallRecord.progress_label` straight off the `tools` node's
   per-superstep update instead. See `SPEC.md` "Corrections applied" #12.
 - **The checkpointer's serde must register `ToolCallRecord`/`WidgetSpec`** — a bare
@@ -91,9 +91,8 @@ design changes here, not just this file.
 - **`thread_id` is a real input-validation boundary, not a UUID nicety** — `server.py`'s
   `/query` is public and unauthenticated, and `MemorySaver` never evicts. Any change to
   `_validate_and_register_thread_id` needs a direct unit test on the cap/registration behavior,
-  not just an HTTP-level test — the one real bug found here (freshly-minted ids skipping
-  registration entirely) was invisible at the HTTP level and only caught by testing the function
-  directly. See `SPEC.md` "Corrections applied" #14.
+  not just an HTTP-level test — a registration bug (freshly-minted ids skipping registration
+  entirely) is invisible at the HTTP level and only a direct unit test catches it. See `SPEC.md` "Corrections applied" #14.
 - **`stream_query`'s `error` event never carries a raw exception's own text.** `except Exception`
   logs the real exception via `logger.exception` and yields the fixed `QUERY_STREAM_ERROR_MESSAGE`
   to the client instead — same reasoning as `thread_id` validation above: a public, unauthenticated
@@ -103,13 +102,13 @@ design changes here, not just this file.
   `vite.config.ts`'s `agentProxyEntry` proxy key (`${base}agent`, pointed at this service's own
   port 8766) — Vite's dev proxy matches by path prefix, so a page route literally named `/agent`
   would itself get proxied to this backend instead of ever rendering the SPA. Confirmed live, not
-  hypothetical: navigating to a `/agent` page route threw `ECONNREFUSED` against this service
-  before it was even running. The backend's own proxy prefix (`agent`) stays as-is — it matches
+  hypothetical: navigating to a `/agent` page route gets `ECONNREFUSED` from this service's port
+  whenever the service isn't running. The backend's own proxy prefix (`agent`) stays as-is — it matches
   the already-decided production Cloudflare route `labs.syena.io/ghg-emissions-analysis/agent`.
-- **`get_top_emitters`'s "now vs. forecast" query no longer produces a `treemap`.** Found while
-  building the Step 4 renderer: the tool's real result carries one metric (`co2`), so there's no
-  second dimension for a treemap's tile color to encode — see `SPEC.md` "Corrections applied"
-  #17. `WidgetSpec.chart_kind`'s `Literal` no longer includes `"treemap"` at all.
+- **`get_top_emitters`'s "now vs. forecast" query produces no `treemap`.** The tool's real
+  result carries one metric (`co2`), so there's no second dimension for a treemap's tile color
+  to encode — see `SPEC.md` "Corrections applied" #17. `WidgetSpec.chart_kind`'s `Literal`
+  excludes `"treemap"`.
 - **Scope:** classical build discipline, same as the rest of this repo — no scope creep beyond
   `SPEC.md`'s node catalog and UI-intent schema.
 

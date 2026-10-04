@@ -7,11 +7,14 @@ node-routing/wiring tests (Step 2) free of a real `ANTHROPIC_API_KEY` requiremen
 injected in those tests instead. Exactly one test (`tests/test_llm_smoke.py`) makes a real call,
 and skips itself when `ANTHROPIC_API_KEY` is unset.
 
-`LLM_PROVIDER=ollama` is a **local experiment seam only**, not a supported deployment mode --
-CLAUDE.md's "Model: Claude Sonnet 5 ... for every LLM node" decision still holds for the deployed
-Mac Mini instance. `guardrail_router` is this agent's safety boundary for a public unauthenticated
-endpoint; a small local model misclassifying off-topic input into `data_query` there is a real
-problem. Leave `LLM_PROVIDER` unset in any deployed environment. `langchain_openai` is a regular
+`LLM_PROVIDER` / `LOCAL_LLM_MODEL` only set the startup default (Claude Sonnet 5 unless
+overridden). On the deployed Mac Mini instance the live provider/model is switched at runtime from
+the admin panel (https://climate-analytics.syena.io/admin, SPEC.md §14), which calls `get_llm()`
+with an explicit `provider=`/`model=` -- so the `ollama` branch below is a real deployment path,
+not just a local experiment seam. `guardrail_router` is this agent's safety boundary for a public
+unauthenticated endpoint; a local model misclassifying off-topic input into `data_query` there is
+a real problem, so check a candidate model's off-topic classification (see
+`OLLAMA_EVALUATION.md`) before making it the live choice. `langchain_openai` is a regular
 (non-optional) dependency in `pyproject.toml`, but still imported lazily inside the `ollama`
 branch as defense-in-depth: a venv where `pyproject.toml` changed but `pip install` hasn't been
 rerun yet shouldn't break the default anthropic path, or any anthropic-path test, just by this
