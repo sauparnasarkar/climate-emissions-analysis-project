@@ -93,6 +93,16 @@ describe('api client', () => {
   });
 });
 
+describe('api client — world map series', () => {
+  it('asks for the default range with no query, and for an earlier start year when given one', async () => {
+    mockFetchOnce({});
+    await api.worldMapSeries();
+    expect(fetch).toHaveBeenLastCalledWith('/api/overview/world-map-series');
+    await api.worldMapSeries(1970);
+    expect(fetch).toHaveBeenLastCalledWith('/api/overview/world-map-series?start_year=1970');
+  });
+});
+
 describe('api client — correlation domain', () => {
   it('calls bare endpoints with no query string when no options are given', async () => {
     mockFetchOnce({});

@@ -10,6 +10,8 @@ import { CLIMATE_BANNER_STYLES, ClimateSignalBanner } from '../components/landin
 import { CAROUSEL_STYLES, HeroCarousel } from '../components/landing/HeroCarousel';
 import { ctaClass } from '../components/landing/cta';
 import { buildClimateSignal } from '../lib/climateSignal';
+import { sliceMapSeries, worldTotals } from '../lib/mapSeries';
+import { ChainBand } from '../components/landing/ChainBand';
 import {
   FORECAST_END_YEAR, MAX_SELECTED_COUNTRIES, NEGATIVE_COLOR, POSITIVE_COLOR, SCENARIO_END_YEAR, SCENARIO_START_YEAR,
 } from '../constants';
@@ -23,11 +25,14 @@ import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 // own responses (/overview, /overview/world-map-series) -- nothing is typed in -- so a weekly data
 // refresh that moves the latest year or country counts updates the page with no code change.
 
-// One globe rotation per year-step. The globe jumps by decade (1990, 2000, 2010, 2020, then the latest year),
-// ~40s for a full pass.
-// Slowed from 5s to 8s after review: at 5s the spin was too quick to read the countries as they passed.
-const GLOBE_STEP_MS = 8000;
-const GLOBE_STEP_YEARS = 10;
+// The landing globe is ambient (requirements §2.6, ENHANCEMENTS.md decision 12): it turns once, continuously, while the year
+// advances one at a time from GLOBE_START_YEAR to the latest, blending colours between years so the change reads as smooth
+// rather than stepped. ~700 ms a year, ~40 s for the whole pass. (Release 20's decade-by-decade steps are replaced.)
+const GLOBE_START_YEAR = 1970;
+const GLOBE_STEP_MS = 700;
+const GLOBE_STEP_YEARS = 1;
+// The rest of the landing page (stories, rank race, KPIs) still reads from 1990, the project's baseline year.
+const BASELINE_YEAR = 1990;
 
 // How long the page waits, once the overview and map are ready, for the optional climate-signal data before settling on
 // the existing hero alone (api/client.ts's fetch has no timeout, so a stalled request must not hold the page back).
@@ -44,6 +49,9 @@ const STYLES = `
 .landing-hero__globe { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .landing-hero__controls { width: 100%; max-width: 624px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .landing-globe-title--block { display: none; width: 100%; max-width: 624px; }
+.landing-hero__globe { container-type: inline-size; }
+/* Holds the height of the canvas plus the legend/controls, which are hidden while the globe plays, so the page below does not jump when they return. */
+.landing-globe-slot { width: 100%; min-height: calc(min(100cqw, 600px) + 130px); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
 .landing-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--__s9cmpx-static-divider-weak); margin-top: 8px; }
 .landing-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .landing-race { display: flex; gap: clamp(32px, 5vw, 80px); align-items: flex-start; }
@@ -78,16 +86,19 @@ function Kpi({ value, label, color, border }: { value: string; label: string; co
 }
 
 // Own component so the ~5s year-steps re-render only the hero, never the stories/race/feature cards.
-function Hero({ overview, map, active = true }: { overview: OverviewResponse; map: WorldMapTimeSeries; active?: boolean }) {
-  const minYear = map.years[0];
-  const maxYear = map.years[map.years.length - 1];
+function Hero({ overview, map, globe, active = true }: { overview: OverviewResponse; map: WorldMapTimeSeries; globe: WorldMapTimeSeries; active?: boolean }) {
+  // `map` is the 1990-based view the KPIs and "change since" use; `globe` is the longer 1970 series the animation plays.
+  const baselineYear = map.years[0];
+  const minYear = globe.years[0];
+  const maxYear = globe.years[globe.years.length - 1];
   // Autoplay begins when the globe scrolls into view, not on page load (e.g. below the fold on a phone).
   const globeRef = useRef<HTMLDivElement>(null);
   const { currentYear, isPlaying, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS, stepYears: GLOBE_STEP_YEARS, startWhenVisible: globeRef, enabled: active });
   const yearIdx = currentYear - minYear;
   const all = overview.all_countries;
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
-  const yearTotal = all.co2_by_year[yearIdx];
+  const totals = useMemo(() => worldTotals(globe), [globe]);
+  const yearTotal = totals[yearIdx];
   // The current year and world total. On wide screens it overlays the globe's top-left corner; on a phone the globe is
   // small and centred, so the overlay would sit on the dark disc (dark text on a dark ocean) -- there it is shown
   // above the globe instead (CSS below swaps which copy is displayed; the hidden one is display:none, so it is not
@@ -95,7 +106,8 @@ function Hero({ overview, map, active = true }: { overview: OverviewResponse; ma
   const globeHeading = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={{ fontSize: 28, fontWeight: 600, lineHeight: 1, fontVariantNumeric: 'tabular-nums', color: 'var(--__s9cmpx-static-text-strong)' }}>{currentYear}</span>
-        {yearTotal != null && (
+        {/* While the globe plays only the year shows (requirements §2.6); the total returns on pause. */}
+        {!isPlaying && yearTotal != null && (
           // Two short lines rather than one long one: the overlay sits in the globe box's top-left corner, and
           // "22,899 MtCO₂ · all countries" at this size ran into the disc's edge.
           <>
@@ -116,7 +128,7 @@ function Hero({ overview, map, active = true }: { overview: OverviewResponse; ma
           Where the world’s CO₂ comes from — and where it’s heading.
         </h1>
         <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
-          {map.years.length} years of emissions for {all.countries_count} countries, regression and Random Forest models, ETS(A,Ad,N) forecasts to {FORECAST_END_YEAR}, and scenario pathways to {SCENARIO_END_YEAR} — with an AI agent that answers questions from the same data.
+          Emissions for {all.countries_count} countries since {minYear}, ETS(A,Ad,N) forecasts to {FORECAST_END_YEAR} and scenario pathways to {SCENARIO_END_YEAR} — with an AI agent that answers questions from the same data.
         </p>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <Link to="/overview" className={ctaClass('primary')} style={{ textDecoration: 'none' }}>
@@ -126,20 +138,21 @@ function Hero({ overview, map, active = true }: { overview: OverviewResponse; ma
         </div>
         <div className="landing-kpis">
           <Kpi border={false} value={fmtInt(all.latest_co2_total)} label={`MtCO₂ in ${all.latest_year}, all countries`} />
-          <Kpi border value={fmtPct(all.pct_change_since_1990)} label={`Change since ${minYear}`} color={all.pct_change_since_1990 >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR} />
+          <Kpi border value={fmtPct(all.pct_change_since_1990)} label={`Change since ${baselineYear}`} color={all.pct_change_since_1990 >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR} />
           <Kpi border value={String(overview.expanded_countries.countries_count)} label="Countries in the Expanded set" />
         </div>
       </div>
 
       <div className="landing-hero__globe" ref={globeRef}>
         <div className="landing-globe-title--block">{globeHeading}</div>
+        <div className="landing-globe-slot">
         <Globe
-          isoCodes={map.iso_codes}
-          locationNames={map.countries}
-          years={map.years}
-          values={map.values}
+          isoCodes={globe.iso_codes}
+          locationNames={globe.countries}
+          years={globe.years}
+          values={globe.values}
           yearIndex={yearIdx}
-          colorRange={map.value_range}
+          colorRange={globe.value_range}
           colorScale={MAGNITUDE_SCALE}
           zLog
           noDataColor={noDataColorHex}
@@ -153,16 +166,27 @@ function Hero({ overview, map, active = true }: { overview: OverviewResponse; ma
           // With Reduce Motion on there is no autoplay, but the user's own Play press is a request for movement:
           // the globe spins while it runs (colour blending stays off, years just step).
           allowSpinWithReducedMotion
-          rotationPeriodMs={GLOBE_STEP_MS}
+          // One full turn across the whole pass, so the rotation is continuous rather than one turn per year-step.
+          rotationPeriodMs={Math.max(1, globe.years.length - 1) * GLOBE_STEP_MS}
+          // Colours blend over the whole year-step (none under reduced motion, which Globe forces itself).
+          blendMs={GLOBE_STEP_MS}
+          // Ambient while playing: only the colours and the year counter (§2.6). Labels, legend and controls return on pause.
+          showLabels={!isPlaying}
+          showLegend={!isPlaying}
+          showControls={!isPlaying}
           maxSize={600}
           transparent
           title={<div className="landing-globe-title--overlay">{globeHeading}</div>}
         />
+        </div>
         <div className="landing-hero__controls">
           <Button variant="ghost-blue" onClick={toggle}>{isPlaying ? 'Pause' : 'Play'}</Button>
-          <div style={{ flex: 1 }}>
-            <Slider label="Year" min={minYear} max={maxYear} step={1} value={currentYear} onChange={seek} showValue={false} showRangeLabels />
-          </div>
+          {/* Manual year selection is not part of the ambient globe; the slider appears once it is paused, with the details. */}
+          {!isPlaying && (
+            <div style={{ flex: 1 }}>
+              <Slider label="Year" min={minYear} max={maxYear} step={1} value={currentYear} onChange={seek} showValue={false} showRangeLabels />
+            </div>
+          )}
         </div>
       </div>
     </section>
@@ -300,7 +324,10 @@ function ClosingCta({ expandedCount }: { expandedCount: number }) {
 
 export default function LandingPage() {
   const overview = useAsync(() => api.overview(), []);
-  const map = useAsync(() => api.worldMapSeries(), []);
+  // One request, for the globe's longer range; the 1990-based view the rest of the page uses is sliced from it.
+  const globeQuery = useAsync(() => api.worldMapSeries(GLOBE_START_YEAR), []);
+  const globe = globeQuery.data;
+  const map = useMemo(() => (globe ? sliceMapSeries(globe, BASELINE_YEAR) : null), [globe]);
   // The climate-signal banner (Area 2) is additive: if any of its three series is missing or fails to load, the page is
   // the existing hero on its own -- never a banner with zeros or gaps. Waited for (settled either way) before the hero
   // mounts, so the hero never remounts -- and the globe never restarts -- when the carousel appears.
@@ -312,14 +339,14 @@ export default function LandingPage() {
     ]);
     return buildClimateSignal(pair, temperature, concentration);
   }, []);
-  const coreReady = Boolean(overview.data && map.data);
+  const coreReady = Boolean(overview.data && globe);
   const [climateGaveUp, setClimateGaveUp] = useState(false);
   useEffect(() => {
     if (!coreReady || !climate.loading) return;
     const id = setTimeout(() => setClimateGaveUp(true), CLIMATE_WAIT_MS);
     return () => clearTimeout(id);
   }, [coreReady, climate.loading]);
-  const error = overview.error ?? map.error;
+  const error = overview.error ?? globeQuery.error;
   const ready = coreReady && (!climate.loading || climateGaveUp);
   // Once given up on, a late answer is ignored for good: adding the carousel then would remount the hero and restart the globe.
   const signal = climateGaveUp ? null : climate.data;
@@ -333,15 +360,26 @@ export default function LandingPage() {
             <HeroCarousel
               slides={[
                 { id: 'climate-signal', label: 'Climate signal', render: () => <ClimateSignalBanner signal={signal} headingId="climate-signal-title" /> },
-                { id: 'where-co2-comes-from', label: 'Where CO₂ comes from', render: (active) => <Hero overview={overview.data!} map={map.data!} active={active} /> },
+                { id: 'where-co2-comes-from', label: 'Where CO₂ comes from', render: (active) => <Hero overview={overview.data!} map={map!} globe={globe!} active={active} /> },
               ]}
             />
           ) : (
-            <Hero overview={overview.data!} map={map.data!} />
+            <Hero overview={overview.data!} map={map!} globe={globe!} />
           )}
-          <Stories overview={overview.data!} map={map.data!} />
-          <RankRace series={map.data!} worldTotals={overview.data!.all_countries.co2_by_year} expandedCount={overview.data!.expanded_countries.countries_count} />
-          <Features overview={overview.data!} map={map.data!} />
+          {signal && (
+            <ChainBand
+              signal={signal}
+              emissions={{
+                year: overview.data!.all_countries.latest_year,
+                total: overview.data!.all_countries.latest_co2_total,
+                // Annual world totals over the globe's whole range, from the same series the globe plays.
+                series: worldTotals(globe!).map((value, i) => ({ year: globe!.years[i], value })),
+              }}
+            />
+          )}
+          <Stories overview={overview.data!} map={map!} />
+          <RankRace series={map!} worldTotals={overview.data!.all_countries.co2_by_year} expandedCount={overview.data!.expanded_countries.countries_count} />
+          <Features overview={overview.data!} map={map!} />
           <BuiltOn />
           <ClosingCta expandedCount={overview.data!.expanded_countries.countries_count} />
         </>

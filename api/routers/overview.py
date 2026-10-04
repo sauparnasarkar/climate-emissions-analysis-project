@@ -174,13 +174,16 @@ def get_overview(countries: list[str] | None = Query(None)):
 
 
 @router.get("/overview/world-map-series", response_model=WorldMapTimeSeries)
-def get_world_map_series():
+def get_world_map_series(start_year: int = Query(WORLD_MAP_YEAR_START, ge=1900, le=WORLD_MAP_YEAR_END)):
     """SPEC.md §5.17 -- the animated choropleth's full year-by-year payload. Selection-invariant
     (no `countries` param): served on its own route rather than folded into /overview, which
     re-fetches on every country-selection change and would otherwise ship this ~50KB columnar
-    payload on every one of those re-fetches for no reason."""
+    payload on every one of those re-fetches for no reason.
+
+    `start_year` (default 1990, the existing contract) lets the Area 2 globe/map ask for the
+    1970-2024 range its requirements specify; the response shape is unchanged."""
     try:
-        series = load_world_map_series()
+        series = load_world_map_series(start_year)
     except DataNotFoundError as e:
         raise HTTPException(status_code=503, detail=e.message)
     return WorldMapTimeSeries(**series)

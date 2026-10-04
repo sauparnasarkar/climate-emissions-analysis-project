@@ -101,10 +101,11 @@ def load_raw_sovereign() -> pd.DataFrame:
     return df_r[df_r["iso_code"].notna() & (df_r["year"] >= 1990)].copy()
 
 
-@lru_cache(maxsize=1)
-def load_world_map_series() -> dict:
-    """SPEC.md §5.17.1 -- the animated choropleth's full WORLD_MAP_YEAR_START..END payload,
-    pivoted into a columnar shape once and cached (this data is selection-invariant, so it's
+@lru_cache(maxsize=4)
+def load_world_map_series(start_year: int = WORLD_MAP_YEAR_START) -> dict:
+    """SPEC.md §5.17.1 -- the animated choropleth's full `start_year`..WORLD_MAP_YEAR_END payload
+    (`start_year` defaults to WORLD_MAP_YEAR_START, 1990; the Area 2 globe and map ask for 1970,
+    requirements §2.6), pivoted into a columnar shape once per start year and cached (this data is selection-invariant, so it's
     fetched once by the frontend regardless of country-selection changes, unlike
     load_raw_sovereign() which backs the selection-scoped /overview endpoint).
 
@@ -132,14 +133,14 @@ def load_world_map_series() -> dict:
     df_r = pd.read_csv(path, usecols=cols)
     df_r = df_r[
         df_r["iso_code"].notna()
-        & (df_r["year"] >= WORLD_MAP_YEAR_START)
+        & (df_r["year"] >= start_year)
         & (df_r["year"] <= WORLD_MAP_YEAR_END)
     ]
 
     country_meta = df_r[["iso_code", "country"]].drop_duplicates(subset="iso_code").sort_values("iso_code")
     iso_codes = country_meta["iso_code"].tolist()
     countries = country_meta["country"].tolist()
-    years = list(range(WORLD_MAP_YEAR_START, WORLD_MAP_YEAR_END + 1))
+    years = list(range(start_year, WORLD_MAP_YEAR_END + 1))
 
     pivot = df_r.pivot(index="year", columns="iso_code", values="co2").reindex(index=years, columns=iso_codes)
     values = [[None if pd.isna(v) else float(v) for v in row] for row in pivot.to_numpy()]

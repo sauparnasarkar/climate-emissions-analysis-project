@@ -74,7 +74,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
           <BaselineChip baseline="1850–1900" source="Berkeley Earth" />
           <span className="__s9cmpx-body4">Global series. Long-term co-movement. {NOT_A_CLIMATE_MODEL}</span>
         </div>
-        <SourceNote sources={['Berkeley Earth', 'OWID + Global Carbon Project', 'NOAA GML + Law Dome']} />
+        <SourceNote sources={['Berkeley Earth', 'OWID + Global Carbon Project', 'NOAA GML + Law Dome']}>{signal.vintageCaveat ?? undefined}</SourceNote>
       </figure>
     </div>
   );
