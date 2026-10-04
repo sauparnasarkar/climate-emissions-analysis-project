@@ -277,3 +277,53 @@ def test_a_share_sum_violation_makes_the_combination_unavailable_instead_of_publ
     rep, meta, long = go(tmp_path)
     assert all(not c["available"] and "shares sum to" in c["unavailable_reason"] for c in meta["combinations"]) and len(long) == 0
     assert len([d for d in rep.deviations if "country shares unavailable" in d]) == 3
+
+
+# ---------------------------------------------------------------- annual values (decision 60)
+
+
+def annual_expected(country, y):
+    return annual(country, y) or 0.0
+
+
+def test_annual_columns_match_hand_calculation(tmp_path):
+    _, _, long = go(tmp_path)
+    assert {"annual_mt", "annual_share_pct"} <= set(long.columns)
+    for year in (1900, 1951, 1953, 2000):  # 1951 is inside CCC's missing run (counted as zero); 2000 is after DDD's record ends
+        total = sum(annual_expected(c, year) for c in COUNTRIES)
+        for c in COUNTRIES:
+            r = row(long, "owid_co2", "co2", c, year)
+            assert r.annual_mt == pytest.approx(annual_expected(c, year), abs=1e-6)
+            assert r.annual_share_pct == pytest.approx(annual_expected(c, year) / total * 100, abs=1e-8)
+
+
+def test_annual_shares_sum_to_100_per_year_and_annual_sum_reconciles_to_the_national_series(tmp_path):
+    _, _, long = go(tmp_path)
+    for (source, scope), g in long.groupby(["source", "gas_scope"]):
+        assert (g.groupby("year")["annual_share_pct"].sum() - 100).abs().max() < 1e-6
+    owid = long[(long.source == "owid_co2")].groupby("year")["annual_mt"].sum()
+    national = pd.read_csv(tmp_path / "owid_world_co2_annual.csv").set_index("year")["national_sum_mt"]
+    common = owid.index.intersection(national.index)
+    assert np.allclose(owid.loc[common].to_numpy(), national.loc[common].to_numpy(), atol=1e-6)
+
+
+def test_primap_total_ghg_annual_uses_its_own_column(tmp_path):
+    _, _, long = go(tmp_path)
+    r = row(long, "primap_hist", "total_ghg", "AAA", 1990)
+    assert r.annual_mt == pytest.approx(2 * annual_expected("AAA", 1990), abs=1e-6)
+
+
+def test_a_year_with_a_zero_annual_total_makes_the_combination_unavailable_not_a_division_error(tmp_path):
+    # every country reports 0 in 1990: cumulative totals stay positive (earlier years), annual shares are undefined
+    rep, meta, long = go(tmp_path, owid_edit=lambda raw: raw.assign(co2=np.where(raw["year"] == 1990, 0.0, raw["co2"])))
+    assert not combo(meta, "owid_co2", "co2")["available"]
+    assert any("zero annual total" in m for m in rep.deviations)
+    assert len(long[long.source == "owid_co2"]) == 0
+
+
+def test_metadata_defines_both_the_cumulative_and_the_annual_share(tmp_path):
+    _, meta, _ = go(tmp_path)
+    assert "share_pct" in meta["method"] and "annual_share_pct" in meta["method"] and "in that year" in meta["method"]
+    denominator = next(c for c in meta["caveats"] if "annual share" in c)
+    assert "cumulative share" in denominator and "national sum" in denominator
+    assert "cumulative and annual" in meta["note"] and "not a measure of responsibility" in meta["note"]

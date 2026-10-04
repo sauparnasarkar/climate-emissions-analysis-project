@@ -2,7 +2,7 @@
 
 A derived stage writing two files the API (Phase 1.4) only reads:
 
-- `correlation_country_share.csv` -- the long file: country (ISO3), year, source, gas_scope, cumulative (Mt, MtCO2e) and share (%).
+- `correlation_country_share.csv` -- the long file: country (ISO3), year, source, gas_scope, cumulative (Mt, MtCO2e) and share (%), plus the year's own emissions and annual share (decision 60).
 - `correlation_country_share.json` -- per combination: coverage, the denominator and how it reconciles, the countries with gaps, the latest top
   emitters, plus the caveats and attribution the numbers need.
 
@@ -36,7 +36,7 @@ from .owid import DATA_PATH as OWID_PATH
 SCHEMA_VERSION = 1
 OUTPUT_CSV = "correlation_country_share.csv"
 OUTPUT_JSON = "correlation_country_share.json"
-CSV_COLUMNS = ["country", "year", "source", "gas_scope", "cumulative_mt", "share_pct"]
+CSV_COLUMNS = ["country", "year", "source", "gas_scope", "cumulative_mt", "share_pct", "annual_mt", "annual_share_pct"]
 SHARE_START = 1850
 SHARE_SUM_TOL = 1e-6  # percentage points, on the unrounded values
 RECONCILE_REL_TOL = 1e-6
@@ -48,11 +48,12 @@ COMBOS = {
     ("primap_hist", "total_ghg"): {"label": "PRIMAP-hist total greenhouse gases (CO2-equivalent, AR5 GWP-100)", "unit": "MtCO2e"},
 }
 
-NO_ATTRIBUTION = ("Cumulative emissions shares describe where emissions occurred over time. They are not a measure of responsibility for warming or a causal "
+NO_ATTRIBUTION = ("Emissions shares (cumulative and annual) describe where emissions occurred over time. They are not a measure of responsibility for warming or a causal "
                   "attribution, and no country's emissions are regressed against the global temperature series.")
-DENOMINATOR_NOTE = ("Each share is a country's cumulative emissions divided by the sum of all countries' cumulative emissions (the national sum, which excludes international "
-                    "aviation and shipping), so shares sum to 100% of national emissions. This differs by design from the World series, which includes international transport, "
-                    "used for the headline regression.")
+DENOMINATOR_NOTE = ("A cumulative share (`share_pct`) is a country's cumulative emissions divided by the sum of all countries' cumulative emissions; an annual share "
+                    "(`annual_share_pct`) is the country's emissions in that one year divided by the sum of all countries' emissions in the same year. Both denominators are the "
+                    "national sum, which excludes international aviation and shipping, so each set of shares sums to 100% of national emissions in its year. This differs by design "
+                    "from the World series, which includes international transport, used for the headline regression.")
 TERRITORIAL_NOTE = ("Emissions are territorial (where they occurred), not adjusted for trade or consumption. Emissions before a country existed in its current borders are "
                     "allocated to it by the data provider; this platform does not re-allocate them.")
 GAP_NOTE = ("A year missing from a country's record is counted as zero and listed under `gaps`, not interpolated; a series that ends before the last year stops growing and is "
@@ -99,10 +100,20 @@ def shares_rows(c: dict, source: str, gas_scope: str) -> tuple[pd.DataFrame, np.
     sums = share[visible].sum(axis=1)
     if np.abs(sums - 100).max() > SHARE_SUM_TOL:
         raise ValueError(f"{source}/{gas_scope}: shares sum to {sums[np.abs(sums - 100).argmax()]!r}, not 100")
+    # The same national-sum denominator, for the year's own emissions (decision 60): the "flow" beside the cumulative "stock".
+    annual = c["annual"]
+    aden = annual.sum(axis=1)
+    if not np.all(aden[visible] > 0):
+        raise ValueError(f"{source}/{gas_scope}: a published year has a zero annual total, so annual shares are undefined")
+    ashare = annual / aden[:, None] * 100
+    asums = ashare[visible].sum(axis=1)
+    if np.abs(asums - 100).max() > SHARE_SUM_TOL:
+        raise ValueError(f"{source}/{gas_scope}: annual shares sum to {asums[np.abs(asums - 100).argmax()]!r}, not 100")
     start = np.array([max(c["first_obs"][k] or 10**9, SHARE_START) for k in ids])
     mask = (years[:, None] >= start[None, :])
     yi, ci = np.nonzero(mask)
-    rows = pd.DataFrame({"country": np.array(ids)[ci], "year": years[yi], "source": source, "gas_scope": gas_scope, "cumulative_mt": cum[yi, ci], "share_pct": share[yi, ci]})
+    rows = pd.DataFrame({"country": np.array(ids)[ci], "year": years[yi], "source": source, "gas_scope": gas_scope, "cumulative_mt": cum[yi, ci], "share_pct": share[yi, ci],
+                         "annual_mt": annual[yi, ci], "annual_share_pct": ashare[yi, ci]})
     return rows, sums
 
 
@@ -242,9 +253,11 @@ def run(climate_dir: str = CLIMATE_DIR, out_dir: str | None = None, owid_path: s
     if prim_lic:
         caveats.append(f"PRIMAP-hist licence: {prim_lic}")
     meta = {"schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "name": "Country cumulative share of global emissions", "note": NO_ATTRIBUTION,
-            "method": "share = country cumulative emissions / sum of all countries' cumulative emissions", "published_from": SHARE_START,
+            "method": ("cumulative share (share_pct) = country cumulative emissions / sum of all countries' cumulative emissions; "
+                      "annual share (annual_share_pct) = country emissions in the year / sum of all countries' emissions in that year"), "published_from": SHARE_START,
             "combinations": metas, "countries": countries, "caveats": caveats, "attribution": attribution}
-    write_csv_atomic(long.assign(cumulative_mt=pd.to_numeric(long["cumulative_mt"]).round(6), share_pct=pd.to_numeric(long["share_pct"]).round(10)), os.path.join(out_dir, OUTPUT_CSV))
+    write_csv_atomic(long.assign(cumulative_mt=pd.to_numeric(long["cumulative_mt"]).round(6), share_pct=pd.to_numeric(long["share_pct"]).round(10),
+                                 annual_mt=pd.to_numeric(long["annual_mt"]).round(6), annual_share_pct=pd.to_numeric(long["annual_share_pct"]).round(10)), os.path.join(out_dir, OUTPUT_CSV))
     write_json_atomic(meta, os.path.join(out_dir, OUTPUT_JSON))
     report.count("correlation_country_share", len(long))
     for m in metas:

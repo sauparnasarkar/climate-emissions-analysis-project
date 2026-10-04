@@ -124,6 +124,17 @@ describe('api client — correlation domain', () => {
     expect(Object.fromEntries(new URLSearchParams(query))).toEqual({ year: '2024', limit: '50', gas_scope: 'co2' });
   });
 
+  it('country-share allCountries sends all_countries=true alongside the year, and omits it when false', async () => {
+    mockFetchOnce({});
+    await api.correlationCountryShare({ year: 2024, allCountries: true });
+    let query = (vi.mocked(fetch).mock.calls[0][0] as string).split('?')[1];
+    expect(Object.fromEntries(new URLSearchParams(query))).toEqual({ year: '2024', all_countries: 'true' });
+    mockFetchOnce({});
+    await api.correlationCountryShare({ year: 2024, allCountries: false });
+    query = (vi.mocked(fetch).mock.calls[0][0] as string).split('?')[1];
+    expect(new URLSearchParams(query).has('all_countries')).toBe(false);
+  });
+
   it('scenario-temperature sends each scenario as a repeated `scenario` param', async () => {
     mockFetchOnce({});
     await api.correlationScenarioTemperature({ scenarios: ['BAU', 'Aggressive'], line: 'headline' });

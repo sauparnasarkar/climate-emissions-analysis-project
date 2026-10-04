@@ -172,15 +172,16 @@ export const api = {
       withParams('/correlation/ghg-composition', [['start_year', opts.startYear], ['end_year', opts.endYear], ['year', opts.year]]),
     ),
 
-  // A ranking for one `year`, or a series for `countries` (at most 10, optionally bounded by
-  // start/end year) -- the API rejects combining the two.
+  // A ranking for one `year` (`limit` ≤ 50, or `allCountries` for every country), or a series for
+  // `countries` (at most 10, optionally bounded by start/end year) -- the API rejects combining them.
   correlationCountryShare: (
-    opts: { source?: string; gasScope?: string; year?: number; limit?: number; countries?: string[]; startYear?: number; endYear?: number } = {},
+    opts: { source?: string; gasScope?: string; year?: number; limit?: number; allCountries?: boolean; countries?: string[]; startYear?: number; endYear?: number } = {},
   ) => {
     const params = new URLSearchParams();
     const set = (k: string, v: string | number | undefined) => v !== undefined && params.set(k, String(v));
     set('source', opts.source); set('gas_scope', opts.gasScope); set('year', opts.year); set('limit', opts.limit);
     set('start_year', opts.startYear); set('end_year', opts.endYear);
+    if (opts.allCountries) params.set('all_countries', 'true');
     opts.countries?.forEach((c) => params.append('countries', c));
     const qs = params.toString();
     return get<CorrelationCountryShareResponse>(qs ? `/correlation/country-share?${qs}` : '/correlation/country-share');

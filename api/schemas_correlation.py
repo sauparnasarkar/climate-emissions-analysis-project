@@ -130,12 +130,17 @@ class ShareRow(BaseModel):
     name: str
     cumulative_mt: float
     share_pct: float
+    # The year's own emissions and share of the national sum (decision 60); null when the pipeline output predates the columns.
+    annual_mt: float | None = None
+    annual_share_pct: float | None = None
 
 
 class SharePoint(BaseModel):
     year: int
     cumulative_mt: float
     share_pct: float
+    annual_mt: float | None = None
+    annual_share_pct: float | None = None
 
 
 class ShareSeries(BaseModel):
@@ -159,6 +164,7 @@ class CorrelationCountryShareResponse(CorrelationEnvelope):
     coverage: list[int] | None = None
     cumulative_from: int | None = None
     total_cumulative_mt: float | None = None
+    annual_total_mt: float | None = None
     rows: list[ShareRow] = []
     series: list[ShareSeries] = []
     denominator: dict[str, Any] | None = None
