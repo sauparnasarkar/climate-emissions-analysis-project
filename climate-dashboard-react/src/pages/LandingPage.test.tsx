@@ -218,6 +218,6 @@ describe('LandingPage', () => {
     mount();
     const features = (await screen.findByRole('heading', { name: 'Everything you need to read the trend' })).closest('section')!;
     const hrefs = within(features).getAllByRole('link').map((a) => a.getAttribute('href'));
-    expect(hrefs).toEqual(['/overview', '/historical', '/country-profile', '/data-explorer', '/forecasts', '/scenarios', '/ask']);
+    expect(hrefs).toEqual(['/overview', '/historical', '/country-profile', '/data-explorer', '/climate-correlation', '/forecasts', '/scenarios', '/ask']);
   });
 });

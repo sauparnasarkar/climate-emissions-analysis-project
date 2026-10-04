@@ -7,7 +7,7 @@ import { AskAgentLink } from '../components/AskAgentLink';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
-import { NAV_ITEMS } from '../navigation';
+import { FOOTER_COPYRIGHT, LANDING_NAV_FOOTER_IDS, NAV_ITEMS, PRODUCT_NAME } from '../navigation';
 
 const linkStyle = { color: 'inherit', textDecoration: 'none', fontSize: 14 } as const;
 
@@ -30,7 +30,14 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
     return () => document.removeEventListener('keydown', onKey);
   }, [menuOpen]);
 
-  const navLinks = NAV_ITEMS.map((item) => (
+  // Desktop top nav omits the pages the footer carries; the phone menu below lists them all.
+  const topNavItems = NAV_ITEMS.filter((item) => !(LANDING_NAV_FOOTER_IDS as readonly string[]).includes(item.id));
+  const footerLinks = NAV_ITEMS.filter((item) => (LANDING_NAV_FOOTER_IDS as readonly string[]).includes(item.id)).map((item) => ({
+    label: item.label,
+    // Footer renders plain anchors, not router Links, so the base path (basename) is added here.
+    href: `${import.meta.env.BASE_URL}${item.path.slice(1)}`,
+  }));
+  const navLinks = topNavItems.map((item) => (
     <Link key={item.id} to={item.path} style={linkStyle}>{item.label}</Link>
   ));
   const askLink = <AskAgentLink />;
@@ -78,7 +85,7 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
         }}
       >
         <Link to="/" style={{ ...linkStyle, display: 'flex', alignItems: 'center', gap: 10, fontWeight: 600, fontSize: 'clamp(1rem, 4vw, 1.0625rem)' }}>
-          <span aria-hidden="true">🌍</span> GHG Emissions Analytics
+          <span aria-hidden="true">🌍</span> {PRODUCT_NAME}
         </Link>
         {isMobile ? (
           <div style={{ marginLeft: 'auto' }}>
@@ -115,7 +122,7 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
       <main id="main-content" ref={mainRef} tabIndex={-1} style={{ flex: 1, minWidth: 0 }}>
         <Outlet />
       </main>
-      <Footer copyright="Greenhouse Gas Emissions Analytics Platform · Sauparna Sarkar" links={[]} />
+      <Footer copyright={FOOTER_COPYRIGHT} links={footerLinks} />
       <BackToTop targetId="main-content" avoidSelector="footer" />
     </div>
   );

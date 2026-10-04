@@ -14,6 +14,7 @@ import DataExplorerPage from './pages/DataExplorerPage';
 import AboutPage from './pages/AboutPage';
 import AdminPage from './pages/AdminPage';
 import { AgentPage } from './pages/AgentPage';
+import ClimateCorrelationPage from './pages/ClimateCorrelationPage';
 
 function App() {
   // Read from localStorage in the initializer (not a useEffect) so a returning Dark user
@@ -62,6 +63,7 @@ function App() {
           <Route path="/forecasts" element={<ForecastsPage />} />
           <Route path="/scenarios" element={<ScenarioComparisonPage />} />
           <Route path="/data-explorer" element={<DataExplorerPage />} />
+          <Route path="/climate-correlation" element={<ClimateCorrelationPage />} />
           <Route path="/about" element={<AboutPage />} />
           {/* Unlisted -- absent from NAV_ITEMS and SidebarNav.persistentAction, deliberately
               reachable by URL only (root ARCHITECTURE.md §8's admin capability, gated at the

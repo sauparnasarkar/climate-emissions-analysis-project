@@ -36,19 +36,26 @@ describe('App routing (Release 20)', () => {
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
     const nav = screen.getByRole('navigation', { name: 'Primary' });
     // Every dashboard page is reachable from the landing nav, with the app's exact labels.
-    for (const label of ['Overview', 'Historical Trends', 'Country Profile', 'Data Explorer', 'Forecasts', 'Scenario Comparison', 'About']) {
+    for (const label of ['Overview', 'Historical Trends', 'Country Profile', 'Climate Correlation', 'Forecasts', 'Scenario Comparison']) {
       expect(within(nav).getByRole('link', { name: label })).toBeInTheDocument();
     }
     expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/overview');
     expect(screen.queryByText('Overview page stub')).not.toBeInTheDocument();
-    expect(document.title).toBe('GHG Emissions Analytics');
+    expect(document.title).toBe('Climate Analytics Platform');
+    // Data Explorer and About sit in the footer, not the top nav, so the nav fits one line (Area 2 design).
+    expect(within(nav).queryByRole('link', { name: 'Data Explorer' })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: 'About' })).not.toBeInTheDocument();
+    const footer = screen.getByRole('contentinfo');
+    expect(within(footer).getByText('Climate Analytics Platform · Sauparna Sarkar')).toBeInTheDocument();
+    expect(within(footer).getByRole('link', { name: 'Data Explorer' })).toHaveAttribute('href', '/data-explorer');
+    expect(within(footer).getByRole('link', { name: 'About' })).toHaveAttribute('href', '/about');
   });
 
   it('moved the Overview from "/" to "/overview", inside the dashboard shell', () => {
     renderAt('/overview');
     expect(screen.getByText('Overview page stub')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: /where the world’s co₂/i })).not.toBeInTheDocument();
-    expect(document.title).toBe('Overview — GHG Emissions Trend Analysis and Forecasting');
+    expect(document.title).toBe('Overview — Climate Analytics Platform');
   });
 
   it('has a Home sidebar item that returns to "/" and an Overview item that opens "/overview"', () => {
@@ -178,5 +185,20 @@ describe('Dashboard header actions (same place as the landing header)', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('link', { name: 'Ask the Agent' }));
     expect(screen.getByText('Agent page stub')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('Area 2 foundation (Release 21)', () => {
+  it('routes /climate-correlation to the correlation module inside the dashboard shell', () => {
+    renderAt('/climate-correlation');
+    expect(screen.getByRole('heading', { level: 1, name: /temperature & ghg correlation/i })).toBeInTheDocument();
+    expect(document.title).toBe('Climate Correlation — Climate Analytics Platform');
+    expect(screen.getByRole('menuitem', { name: 'Climate Correlation' })).toHaveAttribute('href', '/climate-correlation');
+  });
+
+  it('shows the product name in the dashboard header and footer', () => {
+    renderAt('/historical');
+    expect(screen.getByText(/Climate Analytics Platform/, { selector: 'span' })).toBeInTheDocument();
+    expect(within(screen.getByRole('contentinfo')).getByText('Climate Analytics Platform · Sauparna Sarkar')).toBeInTheDocument();
   });
 });
