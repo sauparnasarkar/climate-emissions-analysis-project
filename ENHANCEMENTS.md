@@ -3771,11 +3771,17 @@ the AR6 0.27–0.63 range; top-5 leading-emitter ranking for all countries stays
 | 61 | **`design-system` gains a secondary y-axis and a vertical reference line for `SyChart` (G3; spike 2026-10-04, by reading `SyChart.tsx`, not a prototype).** `SyChart` has one `yaxis`, `referenceY` only, no `referenceX`. The Overview relationship chart (bars + line on two axes) needs the first; the 1959 splice markers and the 2025 scenario start need the second. Per-point colours (`pointColors`), stacked/percent area, horizontal stacked bars and point annotations already exist and cover the scatter, composition and Share bars. Separate small PR in the sibling `design-system` repo, before the pages that use it. |
 | 62 | **Globe (G5) is checked in Step 2 of the sequence.** Whether `Globe` supports hiding values/legend while playing and the continuous 1970–2024 rotation is read from `Globe.tsx` first; any gap becomes a `design-system` PR. |
 
-**Requirements-doc amendments needed** (not made; the Drive `.docx` read on 2026-10-04 has no tracked
-changes and still says fossil + cement in §1.3.1/§2.4 — open item 18 below says the decision-40
-amendment was applied, so check whether the Drive copy synced): §1.3.1/§2.4 headline = total CO₂
-incl. land use; §1.3.2 lag analysis out of scope; §2.1 carousel autoplay per decision 59; product
-name per decision 58; §2.2 block 3 ranking retained (design decision C).
+**Requirements-doc amendments — applied 2026-10-04 as tracked changes (author Claude) to the Drive
+`.docx`; the pre-edit file is kept beside it as `*.bak-20261004.docx`.** The Drive file read on
+2026-10-04 had no tracked changes, i.e. the amendment open item 18 records as done on 2026-10-02 was
+not in it (cause unknown), so the decision-40 changes were re-applied here. Changes: a 2026-10-04
+revision note; product name (Purpose); §1.3.1 headline = total anthropogenic CO₂ incl. land use with
+the fossil-only fit as a labelled secondary and the AR6 range shown with both; methodology note
+replaced with decision 40's copy plus a land-use sensitivity bullet; §1.3.2 lag analysis out of scope;
+§1.3.5 land-use held flat after the last observed year and a fossil-only second line; §2.1 carousel
+rate-limited autoplay with Pause/Play (decision 59); §2.4 headline wording. Validated against the
+schema. **Not added:** decision 41's fit-quality copy (to be added when the owner asks, per decision
+41) and the API-level details of decisions 30–39 (as in item 18).
 
 **Implementation sequence** (one branch + PR per step; visual preview confirmed before each frontend merge;
 `npm run build` is the deploy point of no return, so build only at deploy):
