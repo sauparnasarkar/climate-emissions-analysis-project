@@ -105,9 +105,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg'],
       manifest: {
-        name: 'GHG Emissions Trend Analysis and Forecasting',
-        short_name: 'GHG Emissions',
-        description: 'An end-to-end analysis of greenhouse gas emissions for major emitting countries using the OWID CO₂ dataset, regression models, and ETS(A,Ad,N) forecasting.',
+        name: 'Climate Analytics Platform',
+        short_name: 'Climate Analytics',
+        description: 'Country CO₂ emissions, forecasts and scenarios, set in the context of atmospheric CO₂ and global warming.',
         theme_color: APP_BACKGROUND,
         background_color: APP_BACKGROUND,
         display: 'standalone',

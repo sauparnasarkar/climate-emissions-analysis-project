@@ -8,7 +8,7 @@ import { AskAgentLink } from '../components/AskAgentLink';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
-import { HOME_ITEM, NAV_ITEMS } from '../navigation';
+import { FOOTER_COPYRIGHT, HOME_ITEM, NAV_ITEMS, PRODUCT_NAME } from '../navigation';
 
 /** The dashboard shell (header, sidebar, footer, back-to-top) around every page under it; the
  * landing page at '/' uses LandingLayout instead. Theme state lives in App so both layouts share it. */
@@ -134,7 +134,7 @@ export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme
                 textOverflow: 'ellipsis',
               }}
             >
-              🌍 GHG Emissions Analytics Platform
+              🌍 {PRODUCT_NAME}
             </span>
           </span>
         }
@@ -204,7 +204,7 @@ export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme
       {/* Footer's default `links` renders a "Policies" placeholder pointing at
           href="#" — this app has no policies page, so suppress it rather than
           ship a dead link. */}
-      <Footer copyright="Greenhouse Gas Emissions Analytics Platform · Sauparna Sarkar" links={[]} />
+      <Footer copyright={FOOTER_COPYRIGHT} links={[]} />
       {/* Page-agnostic (SPEC.md §5.20), unlike JumpLinks -- wired once here rather than per page.
           targetId reuses the same #main-content landmark the route-change effect above already
           focuses on in-app navigation, so a back-to-top click lands focus in the same place.

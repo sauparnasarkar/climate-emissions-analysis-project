@@ -234,6 +234,7 @@ function featureText(id: string, overview: OverviewResponse, map: WorldMapTimeSe
     case 'historical': return `Compare up to ${MAX_SELECTED_COUNTRIES} countries across ${first}–${last}, with gas composition by decade.`;
     case 'country-profile': return 'Total, per-capita and year-on-year CO₂ for one country, with key statistics.';
     case 'data-explorer': return 'Browse and filter the underlying dataset, with summary statistics.';
+    case 'climate-correlation': return 'Emissions, atmospheric CO₂ and global temperature side by side: how they move together over time, shown as context rather than a climate model.';
     case 'forecasts': return `ETS(A,Ad,N) forecasts to ${FORECAST_END_YEAR} for all ${expanded} Expanded countries, with 95% confidence bands, benchmarked against Linear Regression and Random Forest.`;
     case 'scenarios': return `BAU, Moderate and Aggressive pathways to ${SCENARIO_END_YEAR}, with cumulative ${SCENARIO_START_YEAR}–${SCENARIO_END_YEAR} totals.`;
     default: return '';

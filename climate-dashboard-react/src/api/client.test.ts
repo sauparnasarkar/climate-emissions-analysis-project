@@ -92,3 +92,48 @@ describe('api client', () => {
     await expect(api.overview()).rejects.toMatchObject({ message: 'Internal Server Error' });
   });
 });
+
+describe('api client — correlation domain', () => {
+  it('calls bare endpoints with no query string when no options are given', async () => {
+    mockFetchOnce({});
+    await api.correlationMeta();
+    expect(fetch).toHaveBeenLastCalledWith('/api/correlation/meta');
+    await api.correlationConcentration();
+    expect(fetch).toHaveBeenLastCalledWith('/api/correlation/concentration');
+    await api.correlationEmissionsTemperature();
+    expect(fetch).toHaveBeenLastCalledWith('/api/correlation/emissions-temperature');
+  });
+
+  it('sends only the options that were set, using the API\'s snake_case names', async () => {
+    mockFetchOnce({});
+    await api.correlationConcentration({ view: 'index', baseline: '1990', startYear: 1990 });
+    const url = vi.mocked(fetch).mock.calls[0][0] as string;
+    const [path, query] = url.split('?');
+    expect(path).toBe('/api/correlation/concentration');
+    expect(Object.fromEntries(new URLSearchParams(query))).toEqual({ view: 'index', baseline: '1990', start_year: '1990' });
+  });
+
+  it('country-share encodes countries as repeated params and a ranking as year + limit', async () => {
+    mockFetchOnce({});
+    await api.correlationCountryShare({ countries: ['USA', 'CHN'], startYear: 1970 });
+    let query = (vi.mocked(fetch).mock.calls[0][0] as string).split('?')[1];
+    expect(new URLSearchParams(query).getAll('countries')).toEqual(['USA', 'CHN']);
+    mockFetchOnce({});
+    await api.correlationCountryShare({ year: 2024, limit: 50, gasScope: 'co2' });
+    query = (vi.mocked(fetch).mock.calls[0][0] as string).split('?')[1];
+    expect(Object.fromEntries(new URLSearchParams(query))).toEqual({ year: '2024', limit: '50', gas_scope: 'co2' });
+  });
+
+  it('scenario-temperature sends each scenario as a repeated `scenario` param', async () => {
+    mockFetchOnce({});
+    await api.correlationScenarioTemperature({ scenarios: ['BAU', 'Aggressive'], line: 'headline' });
+    const query = (vi.mocked(fetch).mock.calls[0][0] as string).split('?')[1];
+    expect(new URLSearchParams(query).getAll('scenario')).toEqual(['BAU', 'Aggressive']);
+    expect(new URLSearchParams(query).get('line')).toBe('headline');
+  });
+
+  it('surfaces a 422 validation error (unsupported source/baseline) as an ApiError with its detail', async () => {
+    mockFetchOnce({ detail: 'unsupported combination' }, { ok: false, status: 422, statusText: 'Unprocessable Entity' });
+    await expect(api.correlationEmissionsTemperature({ source: 'primap_ghg', baseline: 'preindustrial' })).rejects.toMatchObject({ status: 422 });
+  });
+});
