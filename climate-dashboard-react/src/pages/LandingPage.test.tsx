@@ -1,14 +1,17 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import { ApiError } from '../api/types';
 import type { MoverRow, OverviewResponse, OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
+import type { CorrelationConcentrationResponse, CorrelationEmissionsTemperatureResponse, CorrelationTemperatureResponse, SeriesPoint } from '../api/correlationTypes';
 import { useYearAnimation } from '../hooks/useYearAnimation';
 import { FORECAST_END_YEAR, SCENARIO_END_YEAR } from '../constants';
 import LandingPage from './LandingPage';
 
-vi.mock('../api/client', () => ({ api: { overview: vi.fn(), worldMapSeries: vi.fn() } }));
+vi.mock('../api/client', () => ({
+  api: { overview: vi.fn(), worldMapSeries: vi.fn(), correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn(), correlationConcentration: vi.fn() },
+}));
 vi.mock('../hooks/useYearAnimation');
 
 // Globe's canvas/d3 rendering is design-system's own concern (its own stories) -- stubbed, but it
@@ -219,5 +222,104 @@ describe('LandingPage', () => {
     const features = (await screen.findByRole('heading', { name: 'Everything you need to read the trend' })).closest('section')!;
     const hrefs = within(features).getAllByRole('link').map((a) => a.getAttribute('href'));
     expect(hrefs).toEqual(['/overview', '/historical', '/country-profile', '/data-explorer', '/climate-correlation', '/forecasts', '/scenarios', '/ask']);
+  });
+});
+
+
+// ---------------------------------------------------------------- Area 2: climate-signal carousel (Release 21, Phase 2.1)
+
+const env = { schema_version: 1, generated_at: null, note: '', caveats: [], attribution: [], source_vintage: null };
+const sp = (year: number, value: number | null): SeriesPoint => ({ year, month: null, value, uncertainty: null, deseasonalized: null });
+const indicator = { id: 'i', name: 'i', unit: 'u', kind: 'level', decimals: null, description: null };
+const PAIR: CorrelationEmissionsTemperatureResponse = {
+  ...env, source: 'owid_co2', variant: 'total', baseline: 'preindustrial', window: [1850, 2024], x: indicator, y: indicator, n_years: 175,
+  points: [{ year: 1850, cumulative_emissions: 2_910, temperature: -0.13 }, { year: 1950, cumulative_emissions: 900_000, temperature: 0.1 }, { year: 2024, cumulative_emissions: 2_751_504, temperature: 1.62 }],
+  omitted_years: [], fit: { slope: 0.5196, ci95_hac: [0.48, 0.559], r_squared: 0.9, n_years: 175, start: 1850, end: 2024, unit: '°C per 1,000 GtCO2' }, fit_context: {}, warnings: [], notes: [],
+};
+const SERIES = (points: SeriesPoint[]): CorrelationTemperatureResponse & CorrelationConcentrationResponse => ({
+  ...env, indicator, view: 'level', baseline: null, resolution: 'annual', start_year: null, end_year: null, coverage: null, points, notes: [], details: {},
+});
+
+function mountWithClimate() {
+  vi.mocked(api.correlationEmissionsTemperature).mockResolvedValue(PAIR);
+  vi.mocked(api.correlationTemperature).mockResolvedValue(SERIES([sp(2023, 1.5), sp(2024, 1.617)]));
+  vi.mocked(api.correlationConcentration).mockResolvedValue(SERIES([sp(2024, 424.6), sp(2025, 427.35)]));
+  return mount();
+}
+
+describe('LandingPage — climate-signal carousel', () => {
+  it('shows a two-slide carousel: the climate signal first (figures from the API, each with its own year), the existing hero second', async () => {
+    mountWithClimate();
+    const region = await screen.findByRole('region', { name: 'Featured' });
+    expect(region).toHaveAttribute('aria-roledescription', 'carousel');
+    const slides = within(region).getAllByRole('group', { hidden: true });
+    expect(slides.map((s) => s.getAttribute('aria-label'))).toEqual(['1 of 2: Climate signal', '2 of 2: Where CO₂ comes from']);
+    expect(screen.getByRole('heading', { level: 1, name: /global temperature has risen with the co₂ we have accumulated/i })).toBeInTheDocument();
+    expect(screen.getByText('+1.62 °C')).toBeInTheDocument();
+    expect(screen.getByText('2024, vs 1850–1900')).toBeInTheDocument();
+    expect(screen.getByText('427.4 ppm')).toBeInTheDocument();
+    expect(screen.getByText('Atmospheric CO₂, 2025')).toBeInTheDocument();
+    expect(screen.getByText('0.52 °C')).toBeInTheDocument();
+    expect(screen.getByText(/over 175 years, warming has followed the cumulative total, not any single year’s emissions/i)).toBeInTheDocument();
+    // the slide hidden from assistive technology is the second (its own H1 is not exposed)
+    expect(screen.queryByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).not.toBeInTheDocument();
+  });
+
+  it('Banner 1 sends the primary CTA to the Overview climate signal and keeps Explore the data and Forecasts as secondary paths', async () => {
+    mountWithClimate();
+    const primary = await screen.findByRole('link', { name: 'See the climate signal' });
+    expect(primary).toHaveAttribute('href', '/overview#climate-signal');
+    expect(screen.getByRole('link', { name: 'Explore the data' })).toHaveAttribute('href', '/overview');
+    expect(screen.getByRole('link', { name: `Forecasts to ${FORECAST_END_YEAR} →` })).toHaveAttribute('href', '/forecasts');
+  });
+
+  it('states the baseline, the sources and that the chart is context, not a climate model', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    expect(screen.getByText('Baseline 1850–1900 · Berkeley Earth')).toBeInTheDocument();
+    expect(screen.getByText(/shown as context from observed data; not a climate model/i)).toBeInTheDocument();
+    expect(screen.getByText(/Source: Berkeley Earth/)).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /scatter chart, one dot per year from 1850 to 2024/i })).toBeInTheDocument();
+  });
+
+  it('has a Pause button first in tab order; any manual change stops autoplay and shows the existing hero', async () => {
+    mountWithClimate();
+    const region = await screen.findByRole('region', { name: 'Featured' });
+    const buttons = within(region).getAllByRole('button');
+    expect(buttons[0]).toHaveAccessibleName('Pause automatic rotation');
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
+    expect(screen.getByRole('button', { name: 'Start automatic rotation' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: /global temperature has risen/i })).not.toBeInTheDocument();
+  });
+
+  it('switches slides with the tab buttons and the arrow keys', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    fireEvent.click(screen.getByRole('button', { name: /02\s*Where CO₂ comes from/ }));
+    expect(screen.getByRole('button', { name: /02\s*Where CO₂ comes from/ })).toHaveAttribute('aria-current', 'true');
+    fireEvent.keyDown(screen.getByRole('region', { name: 'Featured' }), { key: 'ArrowLeft' });
+    expect(screen.getByRole('button', { name: /01\s*Climate signal/ })).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByRole('heading', { level: 1, name: /global temperature has risen/i })).toBeInTheDocument();
+  });
+
+  it('holds the globe animation off while its slide is hidden, and on once it is shown', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    const enabledFlags = () => vi.mocked(useYearAnimation).mock.calls.map(([o]) => o.enabled);
+    expect(enabledFlags().at(-1)).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
+    expect(enabledFlags().at(-1)).toBe(true);
+  });
+
+  it('falls back to the existing hero alone, with no carousel, when the climate data fails or is incomplete', async () => {
+    vi.mocked(api.correlationEmissionsTemperature).mockRejectedValue(new ApiError(503, 'climate data missing'));
+    vi.mocked(api.correlationTemperature).mockResolvedValue(SERIES([sp(2024, 1.6)]));
+    vi.mocked(api.correlationConcentration).mockResolvedValue(SERIES([sp(2024, 424)]));
+    mount();
+    await screen.findByTestId('globe'); // the hero itself (the loading placeholder shares its headline)
+    expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Featured' })).not.toBeInTheDocument();
+    expect(screen.queryByText('+1.62 °C')).not.toBeInTheDocument();
   });
 });

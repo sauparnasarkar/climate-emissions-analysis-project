@@ -241,3 +241,28 @@ describe('useYearAnimation', () => {
     });
   });
 });
+
+describe('useYearAnimation `enabled`', () => {
+  it('holds a disabled animation paused and ignores Play, then autoplays once enabled (never user-driven)', () => {
+    mockReducedMotion(false);
+    const { result, rerender } = renderHook(({ enabled }) => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500, enabled }), { initialProps: { enabled: false } });
+    expect(result.current.isPlaying).toBe(false);
+    act(() => result.current.play());
+    expect(result.current.isPlaying).toBe(false);
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(result.current.currentYear).toBe(1990);
+    // Turning it on does not by itself start playback when no IntersectionObserver gate is in use and it was off at mount:
+    // the explicit Play now works.
+    rerender({ enabled: true });
+    act(() => result.current.play());
+    expect(result.current.isPlaying).toBe(true);
+  });
+
+  it('pauses a playing animation when it becomes disabled', () => {
+    mockReducedMotion(false);
+    const { result, rerender } = renderHook(({ enabled }) => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500, enabled }), { initialProps: { enabled: true } });
+    expect(result.current.isPlaying).toBe(true);
+    rerender({ enabled: false });
+    expect(result.current.isPlaying).toBe(false);
+  });
+});

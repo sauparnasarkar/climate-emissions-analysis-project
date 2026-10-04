@@ -14,6 +14,10 @@ export interface UseYearAnimationOptions {
    * Play/Pause or scrubbed, and never for reduced motion. Falls back to starting on mount where
    * IntersectionObserver doesn't exist. */
   startWhenVisible?: RefObject<Element | null>;
+  /** When false the animation is held paused (and never auto-starts) without counting as the user driving it --
+   * e.g. a carousel slide that isn't showing. Turning it back on lets a not-yet-user-driven autoplay start/resume
+   * (waiting for `startWhenVisible` again). Default true. */
+  enabled?: boolean;
 }
 
 /** Default autoplay step: every 5 years (minYear, minYear+5, ..., then maxYear). */
@@ -56,7 +60,7 @@ function computeAutoplayStops(minYear: number, maxYear: number, stepYears: numbe
  * Consumers still use `reducedMotion` to tone down the *kind* of motion (no globe spin, no colour
  * blending -- years just step).
  */
-export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYears = DEFAULT_STEP_YEARS, startWhenVisible }: UseYearAnimationOptions): UseYearAnimationResult {
+export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYears = DEFAULT_STEP_YEARS, startWhenVisible, enabled = true }: UseYearAnimationOptions): UseYearAnimationResult {
   const reducedMotion = useReducedMotion();
   const stops = useMemo(() => computeAutoplayStops(minYear, maxYear, stepYears), [minYear, maxYear, stepYears]);
   const [currentYear, setCurrentYear] = useState(reducedMotion ? maxYear : stops[0]);
@@ -76,6 +80,12 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYear
   useEffect(() => {
     if (reducedMotion) setIsPlaying(false);
   }, [reducedMotion]);
+
+  // Held paused while disabled. Deliberately not `userDriven`: when it is enabled again an autoplay the user never
+  // touched may start/resume (the observer effect below re-arms on `enabled`).
+  useEffect(() => {
+    if (!enabled) setIsPlaying(false);
+  }, [enabled]);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -103,7 +113,7 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYear
   // First time the element is (mostly) on screen: begin the autoplay from the first stop.
   useEffect(() => {
     const el = startWhenVisible?.current;
-    if (!deferAutoplay.current || !el || reducedMotion) return;
+    if (!deferAutoplay.current || !el || reducedMotion || !enabled) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (!entries.some((e) => e.isIntersecting)) return;
@@ -114,9 +124,10 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYear
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [startWhenVisible, reducedMotion]);
+  }, [startWhenVisible, reducedMotion, enabled]);
 
   const play = () => {
+    if (!enabled) return;
     userDriven.current = true;
     if (currentYearRef.current >= maxYear) setCurrentYear(stops[0]);
     setIsPlaying(true);
