@@ -948,3 +948,68 @@ def test_the_series_endpoints_never_serve_a_year_outside_the_data_coverage(api):
         years = [p["year"] for p in j["points"]]
         lo, hi = (j["coverage"] if "coverage" in j else j["window"])
         assert years == sorted(set(years)) and years[0] >= lo and years[-1] <= hi, url
+
+
+# ------------------------------------------------------------------ /country-share: all_countries snapshot + annual values (decision 60)
+
+
+def test_ranking_rows_and_series_points_carry_the_years_own_emissions_and_share(api):
+    j = strict(api.get(CS))
+    by = {r["country"]: r for r in j["rows"]}
+    # fixture, year 2000: AAA 10/yr, BBB 5/yr, CCC 1/yr, DDD's record ended in 1970 (annual 0)
+    assert [by[c]["annual_mt"] for c in ("AAA", "BBB", "CCC", "DDD")] == [10.0, 5.0, 1.0, 0.0]
+    assert by["AAA"]["annual_share_pct"] == pytest.approx(10 / 16 * 100, abs=1e-6) and sum(r["annual_share_pct"] for r in j["rows"]) == pytest.approx(100.0, abs=1e-6)
+    assert j["annual_total_mt"] == pytest.approx(16.0)
+    s = strict(api.get(CS + "?countries=AAA&countries=BBB&start_year=1999")).get("series")
+    assert [p["annual_mt"] for p in s[0]["points"]] == [10.0, 10.0] and [p["annual_mt"] for p in s[1]["points"]] == [5.0, 5.0]
+    assert s[0]["points"][0]["annual_share_pct"] == pytest.approx(10 / 16 * 100, abs=1e-6)
+
+
+def test_all_countries_returns_every_country_ranked_with_no_limit(api):
+    j = strict(api.get(CS + "?all_countries=true&year=1900"))
+    assert j["mode"] == "ranking" and j["limit"] is None and j["year"] == 1900
+    assert sorted(r["country"] for r in j["rows"]) == ["AAA", "BBB", "CCC", "DDD"]
+    assert [r["rank"] for r in j["rows"]] == [1, 2, 3, 4] and [r["share_pct"] for r in j["rows"]] == sorted((r["share_pct"] for r in j["rows"]), reverse=True)
+    assert j["total_cumulative_mt"] == pytest.approx(sum(r["cumulative_mt"] for r in j["rows"]))
+    assert len(api.get(CS + "?year=1900&limit=2").json()["rows"]) == 2  # the existing limited form is unchanged
+    assert api.get(CS + "?all_countries=false").json()["limit"] == 15
+
+
+def test_all_countries_defaults_to_the_latest_year_and_serves_each_combination(api):
+    j = api.get(CS + "?all_countries=true&source=primap_hist&gas_scope=total_ghg").json()
+    assert j["year"] == 2000 and j["unit"] == "MtCO2e" and len(j["rows"]) == 4 and j["rows"][0]["annual_mt"] is not None
+
+
+def test_all_countries_cannot_be_combined_with_countries_or_limit(api):
+    for q, frag in [("all_countries=true&countries=AAA", "cannot be combined with countries"), ("all_countries=true&limit=5", "cannot be combined with limit"),
+                    ("all_countries=true&start_year=1990", "apply to a countries series")]:
+        r = api.get(CS + "?" + q)
+        assert r.status_code == 422 and frag in r.text, (q, r.text)
+
+
+def test_an_output_that_predates_the_annual_columns_still_serves_with_null_annual_fields_and_a_note(api, climate):
+    import pandas as pd
+    p = climate / "correlation_country_share.csv"
+    pd.read_csv(p).drop(columns=["annual_mt", "annual_share_pct"]).to_csv(p, index=False)
+    cl.clear_caches()
+    j = api.get(CS + "?all_countries=true").json()
+    assert len(j["rows"]) == 4 and all(r["annual_mt"] is None and r["annual_share_pct"] is None for r in j["rows"])
+    assert j["annual_total_mt"] is None and any("predates those columns" in n for n in j["notes"])
+    s = api.get(CS + "?countries=AAA&start_year=1999").json()
+    assert s["series"][0]["points"][0]["annual_mt"] is None and any("predates those columns" in n for n in s["notes"])
+
+
+def test_malformed_annual_columns_are_a_503_never_a_500(api, climate):
+    import pandas as pd
+    p = climate / "correlation_country_share.csv"
+    good = pd.read_csv(p)
+    good.drop(columns=["annual_share_pct"]).to_csv(p, index=False)  # only one of the pair
+    cl.clear_caches()
+    r = api.get(CS)
+    assert r.status_code == 503 and "written together" in r.json()["detail"]
+    bad = good.copy()
+    bad.loc[(bad["country"] == "AAA") & (bad["year"] == 2000) & (bad["source"] == "owid_co2"), "annual_mt"] = float("nan")
+    bad.to_csv(p, index=False)
+    cl.clear_caches()
+    r = api.get(CS)
+    assert r.status_code == 503 and "annual_mt/annual_share_pct" in r.json()["detail"]

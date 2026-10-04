@@ -395,6 +395,7 @@ def get_ghg_composition(start_year: int | None = Query(None, ge=0), end_year: in
 SHARE_MAX_COUNTRIES = 10
 SHARE_MAX_LIMIT = 50
 SHARE_DEFAULT_LIMIT = 15
+ANNUAL_PREDATES_NOTE = "annual_mt and annual_share_pct are null: the pipeline output predates those columns (a pipeline run adds them)"
 
 
 def _attr_from_doc(attr, default_series: str) -> list[dict]:
@@ -411,9 +412,13 @@ def _share_combinations(doc: dict) -> list[dict]:
 
 
 @router.get("/country-share", response_model=CorrelationCountryShareResponse)
-def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, year: int | None = Query(None, ge=0), limit: int = Query(SHARE_DEFAULT_LIMIT, ge=1, le=SHARE_MAX_LIMIT),
-                      countries: list[str] | None = Query(None), start_year: int | None = Query(None, ge=0), end_year: int | None = Query(None, ge=0)):
+def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, year: int | None = Query(None, ge=0), limit: int | None = Query(None, ge=1, le=SHARE_MAX_LIMIT),
+                      all_countries: bool = False, countries: list[str] | None = Query(None), start_year: int | None = Query(None, ge=0), end_year: int | None = Query(None, ge=0)):
     _check_years(start_year, end_year)
+    if all_countries and countries:
+        raise HTTPException(status_code=422, detail="all_countries (a ranking of every country) cannot be combined with countries (a series)")
+    if all_countries and limit is not None:
+        raise HTTPException(status_code=422, detail="all_countries returns every country; it cannot be combined with limit")
     if countries and year is not None:
         raise HTTPException(status_code=422, detail="year (a ranking) cannot be combined with countries (a series); use start_year/end_year with countries")
     if not countries and (start_year is not None or end_year is not None):
@@ -444,6 +449,16 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
         vals = d[["cumulative_mt", "share_pct"]].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)  # a non-numeric token becomes NaN and is refused below, not a 500
         if not np.isfinite(vals).all():
             raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has {int((~np.isfinite(vals)).any(axis=1).sum())} row(s) with a blank, non-numeric, NaN or infinite value for source={source}, gas_scope={gas_scope}")
+        # The annual columns are additive (decision 60): an output that predates them still serves, with null annual fields; one that has them must have them whole.
+        annual_cols = {"annual_mt", "annual_share_pct"} & set(df.columns)
+        if len(annual_cols) == 1:
+            raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has only one of annual_mt/annual_share_pct ({next(iter(annual_cols))}); the two are written together")
+        has_annual = len(annual_cols) == 2
+        if has_annual:
+            avals = d[["annual_mt", "annual_share_pct"]].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+            if not np.isfinite(avals).all():
+                raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has {int((~np.isfinite(avals)).any(axis=1).sum())} row(s) with a blank, non-numeric, NaN or infinite annual_mt/annual_share_pct for source={source}, gas_scope={gas_scope}")
+            d["annual_mt"], d["annual_share_pct"] = avals[:, 0], avals[:, 1]
         cov_pub = combo.get("coverage")
         if isinstance(cov_pub, list) and len(cov_pub) == 2 and (int(d["year"].min()), int(d["year"].max())) != (cov_pub[0], cov_pub[1]):
             raise cl.ClimateDataUnavailable(f"correlation_country_share.csv spans {int(d['year'].min())}-{int(d['year'].max())} for source={source}, gas_scope={gas_scope}, but correlation_country_share.json "
@@ -473,7 +488,10 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
                 sub = d[(d["country"] == c) & (d["year"] >= lo) & (d["year"] <= hi)].sort_values("year")
                 if sub.empty:
                     notes.append(f"{c} has no rows for this source and gas scope in {lo}-{hi}")
-                series.append(ShareSeries(country=c, name=names[c], points=[SharePoint(year=int(r.year), cumulative_mt=float(r.cumulative_mt), share_pct=float(r.share_pct)) for r in sub.itertuples()]))
+                series.append(ShareSeries(country=c, name=names[c], points=[SharePoint(year=int(r.year), cumulative_mt=float(r.cumulative_mt), share_pct=float(r.share_pct),
+                                                                                       **({"annual_mt": float(r.annual_mt), "annual_share_pct": float(r.annual_share_pct)} if has_annual else {})) for r in sub.itertuples()]))
+            if not has_annual:
+                notes.append(ANNUAL_PREDATES_NOTE)
             return CorrelationCountryShareResponse(**base, mode="series", start_year=start_year, end_year=end_year, series=series, notes=notes)
         latest = int(d["year"].max())
         yr = year if year is not None else latest
@@ -481,10 +499,16 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
         notes = []
         if sub.empty:
             notes.append(f"no data for {yr}: coverage is {cov[0]}-{cov[1]}" if cov else f"no data for {yr}")
-        rows = [ShareRow(rank=i + 1, country=r.country, name=names.get(r.country, r.country), cumulative_mt=float(r.cumulative_mt), share_pct=float(r.share_pct))
-                for i, r in enumerate(sub.head(limit).itertuples())]
+        shown = sub if all_countries else sub.head(limit if limit is not None else SHARE_DEFAULT_LIMIT)
+        rows = [ShareRow(rank=i + 1, country=r.country, name=names.get(r.country, r.country), cumulative_mt=float(r.cumulative_mt), share_pct=float(r.share_pct),
+                         **({"annual_mt": float(r.annual_mt), "annual_share_pct": float(r.annual_share_pct)} if has_annual else {}))
+                for i, r in enumerate(shown.itertuples())]
         total = float(sub["cumulative_mt"].sum()) if not sub.empty else None
-        return CorrelationCountryShareResponse(**base, mode="ranking", year=yr, limit=limit, total_cumulative_mt=total, rows=rows, notes=notes)
+        annual_total = float(sub["annual_mt"].sum()) if has_annual and not sub.empty else None
+        if not has_annual:
+            notes.append(ANNUAL_PREDATES_NOTE)
+        return CorrelationCountryShareResponse(**base, mode="ranking", year=yr, limit=None if all_countries else (limit if limit is not None else SHARE_DEFAULT_LIMIT),
+                                               total_cumulative_mt=total, annual_total_mt=annual_total, rows=rows, notes=notes)
     except cl.ClimateDataUnavailable as e:
         raise _unavailable(e)
 

@@ -122,12 +122,17 @@ export interface ShareRow {
   name: string;
   cumulative_mt: number;
   share_pct: number;
+  /** The year's own emissions and share of the national sum; null when the pipeline output predates them (decision 60). */
+  annual_mt: number | null;
+  annual_share_pct: number | null;
 }
 
 export interface SharePoint {
   year: number;
   cumulative_mt: number;
   share_pct: number;
+  annual_mt: number | null;
+  annual_share_pct: number | null;
 }
 
 export interface ShareSeries {
@@ -151,6 +156,7 @@ export interface CorrelationCountryShareResponse extends CorrelationEnvelope {
   coverage: number[] | null;
   cumulative_from: number | null;
   total_cumulative_mt: number | null;
+  annual_total_mt: number | null;
   rows: ShareRow[];
   series: ShareSeries[];
   denominator: Record<string, unknown> | null;
