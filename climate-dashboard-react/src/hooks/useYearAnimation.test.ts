@@ -241,3 +241,69 @@ describe('useYearAnimation', () => {
     });
   });
 });
+
+describe('useYearAnimation `enabled`', () => {
+  it('holds a disabled animation paused and ignores Play, then autoplays once enabled (never user-driven)', () => {
+    mockReducedMotion(false);
+    const { result, rerender } = renderHook(({ enabled }) => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500, enabled }), { initialProps: { enabled: false } });
+    expect(result.current.isPlaying).toBe(false);
+    act(() => result.current.play());
+    expect(result.current.isPlaying).toBe(false);
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(result.current.currentYear).toBe(1990);
+    // Turning it on does not by itself start playback when no IntersectionObserver gate is in use and it was off at mount:
+    // the explicit Play now works.
+    rerender({ enabled: true });
+    act(() => result.current.play());
+    expect(result.current.isPlaying).toBe(true);
+  });
+
+  it('pauses a playing animation when it becomes disabled', () => {
+    mockReducedMotion(false);
+    const { result, rerender } = renderHook(({ enabled }) => useYearAnimation({ minYear: 1990, maxYear: 2024, intervalMs: 500, enabled }), { initialProps: { enabled: true } });
+    expect(result.current.isPlaying).toBe(true);
+    rerender({ enabled: false });
+    expect(result.current.isPlaying).toBe(false);
+  });
+});
+
+describe('useYearAnimation — a finished animation is not re-armed', () => {
+  class FireImmediatelyIO {
+    cb: (entries: Array<{ isIntersecting: boolean }>) => void;
+    constructor(cb: (entries: Array<{ isIntersecting: boolean }>) => void) { this.cb = cb; }
+    observe() { this.cb([{ isIntersecting: true }]); }
+    disconnect() {}
+  }
+
+  it('does not start playing again when it is re-enabled after having played through to maxYear', () => {
+    mockReducedMotion(false);
+    vi.stubGlobal('IntersectionObserver', FireImmediatelyIO);
+    const el = document.createElement('div');
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useYearAnimation({ minYear: 1990, maxYear: 2000, stepYears: 5, intervalMs: 100, startWhenVisible: { current: el }, enabled }),
+      { initialProps: { enabled: true } },
+    );
+    expect(result.current.isPlaying).toBe(true);
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(result.current.currentYear).toBe(2000);
+    expect(result.current.isPlaying).toBe(false);
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+    expect(result.current.isPlaying).toBe(false); // no interval left running at the last year
+    expect(result.current.currentYear).toBe(2000);
+  });
+
+  it('still resumes an unfinished, never-touched animation when it is re-enabled', () => {
+    mockReducedMotion(false);
+    vi.stubGlobal('IntersectionObserver', FireImmediatelyIO);
+    const el = document.createElement('div');
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useYearAnimation({ minYear: 1990, maxYear: 2024, stepYears: 5, intervalMs: 100, startWhenVisible: { current: el }, enabled }),
+      { initialProps: { enabled: true } },
+    );
+    rerender({ enabled: false });
+    expect(result.current.isPlaying).toBe(false);
+    rerender({ enabled: true });
+    expect(result.current.isPlaying).toBe(true);
+  });
+});

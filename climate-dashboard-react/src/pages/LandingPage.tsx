@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Globe, Icon, InlineAlert, Slider } from 'design-system';
 import { api } from '../api/client';
@@ -6,6 +6,10 @@ import { useAsync } from '../hooks/useAsync';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
 import { useYearAnimation } from '../hooks/useYearAnimation';
 import { RankRace } from '../components/landing/RankRace';
+import { CLIMATE_BANNER_STYLES, ClimateSignalBanner } from '../components/landing/ClimateSignalBanner';
+import { CAROUSEL_STYLES, HeroCarousel } from '../components/landing/HeroCarousel';
+import { ctaClass } from '../components/landing/cta';
+import { buildClimateSignal } from '../lib/climateSignal';
 import {
   FORECAST_END_YEAR, MAX_SELECTED_COUNTRIES, NEGATIVE_COLOR, POSITIVE_COLOR, SCENARIO_END_YEAR, SCENARIO_START_YEAR,
 } from '../constants';
@@ -24,6 +28,10 @@ import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 // Slowed from 5s to 8s after review: at 5s the spin was too quick to read the countries as they passed.
 const GLOBE_STEP_MS = 8000;
 const GLOBE_STEP_YEARS = 10;
+
+// How long the page waits, once the overview and map are ready, for the optional climate-signal data before settling on
+// the existing hero alone (api/client.ts's fetch has no timeout, so a stalled request must not hold the page back).
+const CLIMATE_WAIT_MS = 3000;
 
 // Same starter the agent page offers, so this card promises something the agent demonstrably does.
 const AGENT_EXAMPLE = 'How has India’s emissions grown compared to other countries?';
@@ -60,10 +68,6 @@ const cardStyle = {
   border: '1px solid var(--__s9cmpx-static-divider-weak)', display: 'flex', flexDirection: 'column', gap: 12,
 } as const;
 
-function ctaClass(variant: 'primary' | 'secondary') {
-  return `__s9cmpx-button __s9cmpx-button--${variant} __s9cmpx-button--l`;
-}
-
 function Kpi({ value, label, color, border }: { value: string; label: string; color?: string; border: boolean }) {
   return (
     <div style={{ padding: border ? '20px 16px 0 20px' : '20px 16px 0 0', borderLeft: border ? '1px solid var(--__s9cmpx-static-divider-weak)' : undefined, minWidth: 0 }}>
@@ -74,12 +78,12 @@ function Kpi({ value, label, color, border }: { value: string; label: string; co
 }
 
 // Own component so the ~5s year-steps re-render only the hero, never the stories/race/feature cards.
-function Hero({ overview, map }: { overview: OverviewResponse; map: WorldMapTimeSeries }) {
+function Hero({ overview, map, active = true }: { overview: OverviewResponse; map: WorldMapTimeSeries; active?: boolean }) {
   const minYear = map.years[0];
   const maxYear = map.years[map.years.length - 1];
   // Autoplay begins when the globe scrolls into view, not on page load (e.g. below the fold on a phone).
   const globeRef = useRef<HTMLDivElement>(null);
-  const { currentYear, isPlaying, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS, stepYears: GLOBE_STEP_YEARS, startWhenVisible: globeRef });
+  const { currentYear, isPlaying, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS, stepYears: GLOBE_STEP_YEARS, startWhenVisible: globeRef, enabled: active });
   const yearIdx = currentYear - minYear;
   const all = overview.all_countries;
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
@@ -297,15 +301,44 @@ function ClosingCta({ expandedCount }: { expandedCount: number }) {
 export default function LandingPage() {
   const overview = useAsync(() => api.overview(), []);
   const map = useAsync(() => api.worldMapSeries(), []);
+  // The climate-signal banner (Area 2) is additive: if any of its three series is missing or fails to load, the page is
+  // the existing hero on its own -- never a banner with zeros or gaps. Waited for (settled either way) before the hero
+  // mounts, so the hero never remounts -- and the globe never restarts -- when the carousel appears.
+  const climate = useAsync(async () => {
+    const [pair, temperature, concentration] = await Promise.all([
+      api.correlationEmissionsTemperature(),
+      api.correlationTemperature({ baseline: '1850_1900' }),
+      api.correlationConcentration(),
+    ]);
+    return buildClimateSignal(pair, temperature, concentration);
+  }, []);
+  const coreReady = Boolean(overview.data && map.data);
+  const [climateGaveUp, setClimateGaveUp] = useState(false);
+  useEffect(() => {
+    if (!coreReady || !climate.loading) return;
+    const id = setTimeout(() => setClimateGaveUp(true), CLIMATE_WAIT_MS);
+    return () => clearTimeout(id);
+  }, [coreReady, climate.loading]);
   const error = overview.error ?? map.error;
-  const ready = overview.data && map.data;
+  const ready = coreReady && (!climate.loading || climateGaveUp);
+  // Once given up on, a late answer is ignored for good: adding the carousel then would remount the hero and restart the globe.
+  const signal = climateGaveUp ? null : climate.data;
 
   return (
     <div className="landing">
-      <style>{STYLES}</style>
+      <style>{STYLES + CAROUSEL_STYLES + CLIMATE_BANNER_STYLES}</style>
       {ready ? (
         <>
-          <Hero overview={overview.data!} map={map.data!} />
+          {signal ? (
+            <HeroCarousel
+              slides={[
+                { id: 'climate-signal', label: 'Climate signal', render: () => <ClimateSignalBanner signal={signal} headingId="climate-signal-title" /> },
+                { id: 'where-co2-comes-from', label: 'Where CO₂ comes from', render: (active) => <Hero overview={overview.data!} map={map.data!} active={active} /> },
+              ]}
+            />
+          ) : (
+            <Hero overview={overview.data!} map={map.data!} />
+          )}
           <Stories overview={overview.data!} map={map.data!} />
           <RankRace series={map.data!} worldTotals={overview.data!.all_countries.co2_by_year} expandedCount={overview.data!.expanded_countries.countries_count} />
           <Features overview={overview.data!} map={map.data!} />

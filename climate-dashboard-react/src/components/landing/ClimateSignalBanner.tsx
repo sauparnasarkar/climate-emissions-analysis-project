@@ -1,0 +1,81 @@
+import { Link } from 'react-router-dom';
+import { FORECAST_END_YEAR } from '../../constants';
+import { fmtAnomaly, type ClimateSignal } from '../../lib/climateSignal';
+import { NOT_A_CLIMATE_MODEL } from '../../lib/climateCopy';
+import { BaselineChip } from '../climate/BaselineChip';
+import { SourceNote } from '../climate/SourceNote';
+import { ctaClass } from './cta';
+import { ClimateScatter, ScatterLegend } from './ClimateScatter';
+
+// Banner 1 of the landing carousel (Area 2, requirements §2.1): the climate signal, read from the correlation
+// API. It states a long-run, global, cumulative relationship -- never that one country's or one year's
+// emissions set that year's temperature.
+
+export const CLIMATE_BANNER_STYLES = `
+.climate-banner { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 4vw, 56px); align-items: center; padding: clamp(32px, 4vw, 56px) var(--landing-pad-x); }
+.climate-banner__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--__s9cmpx-static-divider-weak); border-bottom: 1px solid var(--__s9cmpx-static-divider-weak); }
+.climate-banner__metrics > div { padding: 14px 14px 14px 0; }
+.climate-banner__metrics > div + div { padding-left: 14px; border-left: 1px solid var(--__s9cmpx-static-divider-weak); }
+.climate-chart-panel { border-radius: 12px; padding: 16px 18px; background: #182746; color: #d7e0f0; display: flex; flex-direction: column; gap: 10px; }
+[data-theme="analytics-bright-tidewater"] .climate-chart-panel { background: #061E28; }
+/* Text on the page background (not on the dark chart panel): the design's per-theme series colours. */
+.climate-metric--temperature { color: #f2637e; }
+.climate-metric--concentration { color: #5ecbf5; }
+[data-theme="analytics-bright-tidewater"] .climate-metric--temperature { color: #B3261E; }
+[data-theme="analytics-bright-tidewater"] .climate-metric--concentration { color: #0A6E8C; }
+@media (max-width: 1100px) { .climate-banner { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .climate-banner__metrics { grid-template-columns: 1fr; }
+  .climate-banner__metrics > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--__s9cmpx-static-divider-weak); }
+}
+`;
+
+function Metric({ value, caption, tone }: { value: string; caption: string; tone?: 'temperature' | 'concentration' }) {
+  return (
+    <div>
+      <div className={tone ? `climate-metric--${tone}` : undefined} style={{ fontSize: 'clamp(1.25rem, 2.2vw, 1.75rem)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...(tone ? {} : { color: 'var(--__s9cmpx-static-text-strong)' }) }}>{value}</div>
+      <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{caption}</div>
+    </div>
+  );
+}
+
+export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSignal; headingId: string }) {
+  const { fit, temperature, concentration } = signal;
+  return (
+    <div className="climate-banner">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24, minWidth: 0 }}>
+        <div className="__s9cmpx-label3" style={{ letterSpacing: '0.08em', lineHeight: 1.5, textTransform: 'uppercase', color: 'var(--__s9cmpx-static-text-accent, inherit)' }}>
+          Climate signal · Global · {fit.start}–{fit.end}
+        </div>
+        <h1 id={headingId} style={{ margin: 0, fontSize: 'clamp(2.25rem, 4.6vw, 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
+          Global temperature has risen with the CO₂ we have accumulated.
+        </h1>
+        <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
+          Emissions set off a chain reaction: CO₂ builds up in the atmosphere, traps more heat, and the planet warms. Over {fit.nYears} years, warming has followed the cumulative total, not any single year’s emissions.
+        </p>
+        <div className="climate-banner__metrics">
+          <Metric value={fmtAnomaly(temperature.value)} caption={`${temperature.year}, vs 1850–1900`} tone="temperature" />
+          <Metric value={`${concentration.value.toFixed(1)} ppm`} caption={`Atmospheric CO₂, ${concentration.year}`} tone="concentration" />
+          <Metric value={`${fit.slope.toFixed(2)} °C`} caption="per 1,000 GtCO₂ emitted" />
+        </div>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Link to="/overview#climate-signal" className={ctaClass('primary')} style={{ textDecoration: 'none' }}>See the climate signal</Link>
+          <Link to="/overview" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>Explore the data</Link>
+          <Link to="/forecasts" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>Forecasts to {FORECAST_END_YEAR} →</Link>
+        </div>
+      </div>
+      <figure className="climate-chart-panel" style={{ margin: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+          <figcaption style={{ fontWeight: 600 }}>Temperature anomaly vs cumulative CO₂</figcaption>
+          <ScatterLegend />
+        </div>
+        <ClimateScatter signal={signal} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <BaselineChip baseline="1850–1900" source="Berkeley Earth" />
+          <span className="__s9cmpx-body4">Global series. Long-term co-movement. {NOT_A_CLIMATE_MODEL}</span>
+        </div>
+        <SourceNote sources={['Berkeley Earth', 'OWID + Global Carbon Project', 'NOAA GML + Law Dome']} />
+      </figure>
+    </div>
+  );
+}
