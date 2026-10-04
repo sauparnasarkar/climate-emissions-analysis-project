@@ -11,8 +11,8 @@ export const NAV_ITEMS: Array<Omit<SidebarNavItem, 'active'> & { path: string; g
   { id: 'historical', label: 'Historical Trends', icon: 'document', path: '/historical', group: 'Exploration' },
   { id: 'country-profile', label: 'Country Profile', icon: 'user', path: '/country-profile', group: 'Exploration' },
   { id: 'data-explorer', label: 'Data Explorer', icon: 'search', path: '/data-explorer', group: 'Exploration' },
-  // Release 21 Area 2 (ENHANCEMENTS.md decision 57). Placeholder icon until design-system has a chart glyph.
-  { id: 'climate-correlation', label: 'Climate Correlation', icon: 'sparkle', path: '/climate-correlation', group: 'Exploration' },
+  // Release 21 Area 2 (ENHANCEMENTS.md decision 57). The NEW badge is the design's tag for a recently added page.
+  { id: 'climate-correlation', label: 'Climate Correlation', icon: 'chart', path: '/climate-correlation', group: 'Exploration', badge: 'NEW' },
   { id: 'forecasts', label: 'Forecasts', icon: 'calendar', path: '/forecasts', group: 'Projection' },
   { id: 'scenarios', label: 'Scenario Comparison', icon: 'grid', path: '/scenarios', group: 'Projection' },
   { id: 'about', label: 'About', icon: 'info', path: '/about' },
