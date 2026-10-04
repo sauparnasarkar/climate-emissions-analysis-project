@@ -319,3 +319,11 @@ def test_a_year_with_a_zero_annual_total_makes_the_combination_unavailable_not_a
     assert not combo(meta, "owid_co2", "co2")["available"]
     assert any("zero annual total" in m for m in rep.deviations)
     assert len(long[long.source == "owid_co2"]) == 0
+
+
+def test_metadata_defines_both_the_cumulative_and_the_annual_share(tmp_path):
+    _, meta, _ = go(tmp_path)
+    assert "share_pct" in meta["method"] and "annual_share_pct" in meta["method"] and "in that year" in meta["method"]
+    denominator = next(c for c in meta["caveats"] if "annual share" in c)
+    assert "cumulative share" in denominator and "national sum" in denominator
+    assert "cumulative and annual" in meta["note"] and "not a measure of responsibility" in meta["note"]

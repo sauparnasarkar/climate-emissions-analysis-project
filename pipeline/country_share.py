@@ -48,11 +48,12 @@ COMBOS = {
     ("primap_hist", "total_ghg"): {"label": "PRIMAP-hist total greenhouse gases (CO2-equivalent, AR5 GWP-100)", "unit": "MtCO2e"},
 }
 
-NO_ATTRIBUTION = ("Cumulative emissions shares describe where emissions occurred over time. They are not a measure of responsibility for warming or a causal "
+NO_ATTRIBUTION = ("Emissions shares (cumulative and annual) describe where emissions occurred over time. They are not a measure of responsibility for warming or a causal "
                   "attribution, and no country's emissions are regressed against the global temperature series.")
-DENOMINATOR_NOTE = ("Each share is a country's cumulative emissions divided by the sum of all countries' cumulative emissions (the national sum, which excludes international "
-                    "aviation and shipping), so shares sum to 100% of national emissions. This differs by design from the World series, which includes international transport, "
-                    "used for the headline regression.")
+DENOMINATOR_NOTE = ("A cumulative share (`share_pct`) is a country's cumulative emissions divided by the sum of all countries' cumulative emissions; an annual share "
+                    "(`annual_share_pct`) is the country's emissions in that one year divided by the sum of all countries' emissions in the same year. Both denominators are the "
+                    "national sum, which excludes international aviation and shipping, so each set of shares sums to 100% of national emissions in its year. This differs by design "
+                    "from the World series, which includes international transport, used for the headline regression.")
 TERRITORIAL_NOTE = ("Emissions are territorial (where they occurred), not adjusted for trade or consumption. Emissions before a country existed in its current borders are "
                     "allocated to it by the data provider; this platform does not re-allocate them.")
 GAP_NOTE = ("A year missing from a country's record is counted as zero and listed under `gaps`, not interpolated; a series that ends before the last year stops growing and is "
@@ -252,7 +253,8 @@ def run(climate_dir: str = CLIMATE_DIR, out_dir: str | None = None, owid_path: s
     if prim_lic:
         caveats.append(f"PRIMAP-hist licence: {prim_lic}")
     meta = {"schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "name": "Country cumulative share of global emissions", "note": NO_ATTRIBUTION,
-            "method": "share = country cumulative emissions / sum of all countries' cumulative emissions", "published_from": SHARE_START,
+            "method": ("cumulative share (share_pct) = country cumulative emissions / sum of all countries' cumulative emissions; "
+                      "annual share (annual_share_pct) = country emissions in the year / sum of all countries' emissions in that year"), "published_from": SHARE_START,
             "combinations": metas, "countries": countries, "caveats": caveats, "attribution": attribution}
     write_csv_atomic(long.assign(cumulative_mt=pd.to_numeric(long["cumulative_mt"]).round(6), share_pct=pd.to_numeric(long["share_pct"]).round(10),
                                  annual_mt=pd.to_numeric(long["annual_mt"]).round(6), annual_share_pct=pd.to_numeric(long["annual_share_pct"]).round(10)), os.path.join(out_dir, OUTPUT_CSV))
