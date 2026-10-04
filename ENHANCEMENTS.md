@@ -3747,9 +3747,61 @@ Known ordering friction (accepted, user's order kept): 2.1 links to an Overview 
 17. ~~**Global Carbon Project dataset licence is not stated on its page**~~ — **decided by the owner 2026-10-02: include the land-use series, with the citation requirement satisfied in the attribution metadata and the licence/provenance note worded, not defaulted to CC BY.** Recorded verbatim in provenance (`land_use_license_note`, PR #211): *"Land-use CO2 data originates from the Global Carbon Project via OWID. No formal license (e.g., CC BY) is stated on the Global Carbon Project's data page; use is conditional on citing the original source per their stated terms. The required citation is included in this platform's data attribution. No non-commercial, no-derivatives, or share-alike restrictions were found."* A test guards that the note never claims a CC BY licence. Still to do when the headline ships (1.4/Section 2): carry the GCP citation (`required_citation_format`, edition matching what OWID republishes) in the API's attribution metadata and the UI's data-sources panel. A written licence from the Global Carbon Project remains an optional future step.
 18. ~~**The requirements `.docx` needs an amendment for decision 40**~~ — **done 2026-10-02 (owner asked):** tracked changes (author Claude) applied to the Drive file: §1.3.1 headline redefined to total anthropogenic CO₂ with the fossil-only variant as a labelled secondary and the AR6 range (0.27–0.63) shown with both; methodology note rewritten (land-use now included, residual gap expected), land-use sensitivity and attribution wording (verbatim, decision 40) added; §1.3.5 land-use-after-last-year assumption and fossil-only second line; summary, agent-guardrail and acceptance-criterion lines updated; a second 2026-10-02 revision note. Validated against the schema; the previous version is kept locally. **Not yet reflected in the .docx:** the API-level details of decisions 30–39 (window grid, bootstrap method, HAC lag, scenario anchor) — those are design choices recorded here, to be added when Phase 1.4 fixes the endpoint contracts.
 
+### Section 2 (Frontend) — implementation plan (docs-first, 2026-10-04)
+
+**Sources of truth.** Requirements doc §§2.1–2.6 and the Claude Design handoff
+(`Area 2 Final Design.dc.html` + README, artboards L1 Landing desktop, L2 Landing mobile, O1/O2
+Overview desktop/mobile, M1 Correlation module). **The final design supersedes the README's
+option tables** (its body still describes earlier options: e.g. the top-5 ranking "removed", older
+anchor lists). Where the final design and the requirements doc differ, the final design wins and
+the doc is amended (list below). The design renders and matches its SPEC NOTES (checked in a
+browser 2026-10-04: L1, O1 viewed; the rest read from the artboard text). Chart values in the
+design marked `[mock]` are placeholders; every figure ships from pipeline/API output, never
+hard-coded. Design decisions A–D (confirmed by the owner 2026-10-04): headline = total CO₂ incl.
+land use (0.520), fossil + cement (0.797) as the labelled comparison; IPCC comparator 0.45 within
+the AR6 0.27–0.63 range; top-5 leading-emitter ranking for all countries stays beside the map;
+§1.3.2 lag analysis is out of scope.
+
+| # | Decision |
+|---|---|
+| 57 | **Anchors and order (final design).** Overview: `#climate-signal → #relationship → #top-emitters → #share → #by-country → #percent-change → #pathways`; the anchor row sticks on scroll. Module sections: causal chain, long-run relationship (headline), recent all-gas relationship 1970+ (tagged NOT TCRE), gas composition, country responsibility, scenarios, methodology & sources. |
+| 58 | **Product name is "Climate Analytics Platform" everywhere** (landing nav, inner header, tab titles, footer, meta/OG tags, PWA manifest). Nav gains **Climate Correlation**; Data Explorer and About move to the footer and menu so the nav fits one line at 1280px. |
+| 59 | **Landing carousel auto-plays, with controls (owner decision 2026-10-04; amends the design's "manual only").** Rate-limited per requirements doc §2.1 ("disabled by default or carefully rate-limited"): ~8 s dwell; a visible Pause/Play button first in tab order (WCAG 2.2.2); any manual action (arrow, tab, ←/→, Pause) stops autoplay until the user presses Play; pauses while the pointer is over it or focus is inside it, and while the browser tab is hidden; starts paused under `prefers-reduced-motion`; stops after one full cycle (two banners, then holds); the slide region is `aria-live="off"` while auto-rotating and `polite` after a manual change; 300 ms crossfade, nothing moves position. Built app-local (`CardCarousel` in `design-system` is a paged card row, not a hero carousel); promote to `design-system` only if reused. The globe keeps its own play/pause; the carousel control governs slides only. |
+| 60 | **Country-share API gains an all-countries snapshot and annual values (owner decision 2026-10-04; additive, read-only).** (G1) `/country-share` rankings are capped at `limit ≤ 50` while the data has ~215 countries; the Cumulative choropleth and the Cumulative columns of the All/Expanded tiers need every country at one year. (G2) `SharePoint` carries only cumulative values; the Share section's "flow" bar needs `annual_mt` and `annual_share_pct` for all three measures (OWID CO₂, PRIMAP CO₂, PRIMAP total GHG). Existing responses and validation are unchanged. Pytest covers the new paths and their 4xx/503 cases. |
+| 61 | **`design-system` gains a secondary y-axis and a vertical reference line for `SyChart` (G3; spike 2026-10-04, by reading `SyChart.tsx`, not a prototype).** `SyChart` has one `yaxis`, `referenceY` only, no `referenceX`. The Overview relationship chart (bars + line on two axes) needs the first; the 1959 splice markers and the 2025 scenario start need the second. Per-point colours (`pointColors`), stacked/percent area, horizontal stacked bars and point annotations already exist and cover the scatter, composition and Share bars. Separate small PR in the sibling `design-system` repo, before the pages that use it. |
+| 62 | **Globe (G5) is checked in Step 2 of the sequence.** Whether `Globe` supports hiding values/legend while playing and the continuous 1970–2024 rotation is read from `Globe.tsx` first; any gap becomes a `design-system` PR. |
+
+**Requirements-doc amendments needed** (not made; the Drive `.docx` read on 2026-10-04 has no tracked
+changes and still says fossil + cement in §1.3.1/§2.4 — open item 18 below says the decision-40
+amendment was applied, so check whether the Drive copy synced): §1.3.1/§2.4 headline = total CO₂
+incl. land use; §1.3.2 lag analysis out of scope; §2.1 carousel autoplay per decision 59; product
+name per decision 58; §2.2 block 3 ranking retained (design decision C).
+
+**Implementation sequence** (one branch + PR per step; visual preview confirmed before each frontend merge;
+`npm run build` is the deploy point of no return, so build only at deploy):
+
+| Step | Scope | Phase |
+|---|---|---|
+| 0 | This plan (docs only); dual-axis spike (decision 61) | – |
+| 1 | Foundation: rename, nav, `/climate-correlation` stub route, typed correlation client + hooks, shared pieces (baseline chip, ⓘ baseline panel, purpose line, source note, copy-guardrail constants) | 2.5 |
+| 1b | `design-system` PR: `SyChart` secondary axis + `referenceX`; check `Globe` (decision 62) | – |
+| 2 | API PR: decision 60 | – |
+| 3 | Landing: carousel (decision 59), Banner 1, Banner 2, four-step band (forcing copy-only), continuous globe | 2.1, 2.6 |
+| 4 | Overview A: sticky anchors, KPI strip + baseline panels, relationship chart + toggle, "Why emissions matter" | 2.2, 2.5 |
+| 5 | Overview B: map — Absolute/Cumulative, decade stops, tiers, ppm card, top-5 ranking, all synced to the year | 2.2, 2.6 |
+| 6 | Overview C: Share (stock vs flow, ~250 ms/year animation), Pathways, By Country / % Change anchors | 2.2 |
+| 7 | Module A: shell, causal chain, headline relationship, recent all-gas view | 2.4, 2.5 |
+| 8 | Module B: gas composition, country responsibility, scenarios + generated reading note | 2.4 |
+| 9 | Module C: methodology & sources (accordion), mobile pass | 2.4 |
+| 10 | Cross-cutting: copy and traceability audit, reduced motion, both themes, accessibility/PWA audit | 2.3 |
+
+Tests: Vitest per page/component with `SyChart` stubbed (existing pattern); carousel timer logic with
+fake timers (pause on interaction, hover/focus pause, reduced motion, one-cycle stop, hidden-tab pause).
+
 ### Progress
 
 - Docs-first stage written (this entry, `SPEC.md` §5.26, sub-project pointers).
+- **Section 2 (Frontend) — plan written 2026-10-04** (decisions 57–62, sequence above); no frontend code started.
 - **Phase 1.1a — merged (PR #201, 2026-10-02).** `pipeline/` foundation, NOAA/Law Dome CO₂ (276 annual rows, 1750–2025; 822 monthly), Berkeley Earth annual anomaly (175 rows, 1850–2024; computed 1850–1900 offset −0.306 °C). Copilot review: missing-year validation, monthly freshness and atomic `last_run.json` added.
 - **Phase 1.1b — PR #202 (EDGAR + ISO3 crosswalk), Copilot-clean, awaiting mentor merge.** Live EDGAR 2026: 224 entities × 56 years; per-gas sum vs combined total −0.47% … −0.38% (1990–2024); F-gas file has no 2025 or pre-1990 data. After review the scope changed (decision 20): EDGAR merges as a **dormant, internal-validation-only** source (excluded from `--source all`, output to `data/internal/edgar/`, `published: false`); its EDGAR outputs were purged from `data/climate/`.
 - **Phase 1.1b — merged (PR #202)** as a dormant, internal-validation-only EDGAR source (decision 20).
