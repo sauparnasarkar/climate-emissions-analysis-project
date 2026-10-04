@@ -118,13 +118,15 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYear
       (entries) => {
         if (!entries.some((e) => e.isIntersecting)) return;
         io.disconnect();
-        if (!userDriven.current) setIsPlaying(true);
+        // Not once it has already played through: re-showing a finished animation must not restart the timer and spin
+        // at the last year (the completion effect only runs when the year changes).
+        if (!userDriven.current && currentYearRef.current < maxYear) setIsPlaying(true);
       },
       { threshold: 0.2 },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [startWhenVisible, reducedMotion, enabled]);
+  }, [startWhenVisible, reducedMotion, enabled, maxYear]);
 
   const play = () => {
     if (!enabled) return;

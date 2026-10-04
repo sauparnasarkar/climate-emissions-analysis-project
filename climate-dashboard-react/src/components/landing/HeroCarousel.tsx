@@ -38,7 +38,11 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
       aria-label={ariaLabel}
       {...c.regionHandlers}
       onKeyDown={(e) => {
-        // ←/→ only when the user's focus is on the carousel's own controls or content, not on text fields.
+        // ←/→ switch slides only from the carousel's own controls (or the region itself). A key pressed inside a slide --
+        // the hero's Year slider, say -- keeps its own meaning, and an event something else already handled is left alone.
+        if (e.defaultPrevented) return;
+        const target = e.target as HTMLElement;
+        if (target !== e.currentTarget && !target.closest('.hero-carousel__controls')) return;
         if (e.key === 'ArrowRight') { e.preventDefault(); c.next(); }
         else if (e.key === 'ArrowLeft') { e.preventDefault(); c.prev(); }
       }}

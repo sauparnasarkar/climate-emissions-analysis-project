@@ -106,3 +106,29 @@ describe('useCarousel', () => {
     expect(result.current.index).toBe(0);
   });
 });
+
+describe('useCarousel — hover and focus are independent', () => {
+  it('stays paused when the pointer leaves while focus is still inside, and resumes only once focus leaves too', () => {
+    const { result } = renderHook(() => useCarousel({ count: 2 }));
+    act(() => result.current.regionHandlers.onMouseEnter());
+    act(() => result.current.regionHandlers.onFocusCapture());
+    act(() => result.current.regionHandlers.onMouseLeave());
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
+    expect(result.current.index).toBe(0);
+    act(() => result.current.regionHandlers.onBlurCapture(blurEvent(false)));
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
+    expect(result.current.index).toBe(1);
+  });
+
+  it('stays paused when focus leaves while the pointer is still over it, and resumes only once the pointer leaves too', () => {
+    const { result } = renderHook(() => useCarousel({ count: 2 }));
+    act(() => result.current.regionHandlers.onFocusCapture());
+    act(() => result.current.regionHandlers.onMouseEnter());
+    act(() => result.current.regionHandlers.onBlurCapture(blurEvent(false)));
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
+    expect(result.current.index).toBe(0);
+    act(() => result.current.regionHandlers.onMouseLeave());
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
+    expect(result.current.index).toBe(1);
+  });
+});

@@ -266,3 +266,44 @@ describe('useYearAnimation `enabled`', () => {
     expect(result.current.isPlaying).toBe(false);
   });
 });
+
+describe('useYearAnimation — a finished animation is not re-armed', () => {
+  class FireImmediatelyIO {
+    cb: (entries: Array<{ isIntersecting: boolean }>) => void;
+    constructor(cb: (entries: Array<{ isIntersecting: boolean }>) => void) { this.cb = cb; }
+    observe() { this.cb([{ isIntersecting: true }]); }
+    disconnect() {}
+  }
+
+  it('does not start playing again when it is re-enabled after having played through to maxYear', () => {
+    mockReducedMotion(false);
+    vi.stubGlobal('IntersectionObserver', FireImmediatelyIO);
+    const el = document.createElement('div');
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useYearAnimation({ minYear: 1990, maxYear: 2000, stepYears: 5, intervalMs: 100, startWhenVisible: { current: el }, enabled }),
+      { initialProps: { enabled: true } },
+    );
+    expect(result.current.isPlaying).toBe(true);
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(result.current.currentYear).toBe(2000);
+    expect(result.current.isPlaying).toBe(false);
+    rerender({ enabled: false });
+    rerender({ enabled: true });
+    expect(result.current.isPlaying).toBe(false); // no interval left running at the last year
+    expect(result.current.currentYear).toBe(2000);
+  });
+
+  it('still resumes an unfinished, never-touched animation when it is re-enabled', () => {
+    mockReducedMotion(false);
+    vi.stubGlobal('IntersectionObserver', FireImmediatelyIO);
+    const el = document.createElement('div');
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useYearAnimation({ minYear: 1990, maxYear: 2024, stepYears: 5, intervalMs: 100, startWhenVisible: { current: el }, enabled }),
+      { initialProps: { enabled: true } },
+    );
+    rerender({ enabled: false });
+    expect(result.current.isPlaying).toBe(false);
+    rerender({ enabled: true });
+    expect(result.current.isPlaying).toBe(true);
+  });
+});

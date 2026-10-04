@@ -38,7 +38,10 @@ export function useCarousel({ count, dwellMs = CAROUSEL_DWELL_MS }: UseCarouselO
   const reducedMotion = useReducedMotion();
   const [index, setIndex] = useState(0);
   const [stopped, setStopped] = useState(reducedMotion);
-  const [engaged, setEngaged] = useState(false);
+  // Pointer-over and focus-inside are tracked separately: leaving with the pointer while focus is still inside (or the
+  // reverse) must not let a slide disappear under someone who is still interacting with it.
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [tabHidden, setTabHidden] = useState(() => typeof document !== 'undefined' && document.hidden);
   // Auto advances since autoplay (re)started; a full cycle is count - 1 of them.
   const advances = useRef(0);
@@ -53,7 +56,7 @@ export function useCarousel({ count, dwellMs = CAROUSEL_DWELL_MS }: UseCarouselO
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
-  const running = !stopped && !engaged && !tabHidden && count > 1;
+  const running = !stopped && !hovered && !focused && !tabHidden && count > 1;
   useEffect(() => {
     if (!running) return;
     const id = setTimeout(() => {
@@ -77,12 +80,12 @@ export function useCarousel({ count, dwellMs = CAROUSEL_DWELL_MS }: UseCarouselO
   }, []);
 
   const regionHandlers = {
-    onMouseEnter: () => setEngaged(true),
-    onMouseLeave: () => setEngaged(false),
-    onFocusCapture: () => setEngaged(true),
+    onMouseEnter: () => setHovered(true),
+    onMouseLeave: () => setHovered(false),
+    onFocusCapture: () => setFocused(true),
     // Focus moving between two controls inside the region is not leaving it.
     onBlurCapture: (e: React.FocusEvent) => {
-      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setEngaged(false);
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
     },
   };
 

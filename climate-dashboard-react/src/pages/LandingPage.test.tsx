@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
@@ -303,6 +303,19 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('heading', { level: 1, name: /global temperature has risen/i })).toBeInTheDocument();
   });
 
+  it('ignores arrow keys pressed in the hero\'s Year slider: they scrub the year and do not switch slides', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' })); // the hero (with its slider) is now showing
+    const slider = screen.getByRole('slider');
+    fireEvent.keyDown(slider, { key: 'ArrowLeft' }); // the slider handles (and prevents) its own arrow keys
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    expect(screen.getByRole('button', { name: /02\s*Where CO₂ comes from/ })).toHaveAttribute('aria-current', 'true');
+    // the same key from the carousel's own controls does switch
+    fireEvent.keyDown(screen.getByRole('button', { name: /02\s*Where CO₂ comes from/ }), { key: 'ArrowLeft' });
+    expect(screen.getByRole('button', { name: /01\s*Climate signal/ })).toHaveAttribute('aria-current', 'true');
+  });
+
   it('holds the globe animation off while its slide is hidden, and on once it is shown', async () => {
     mountWithClimate();
     await screen.findByRole('region', { name: 'Featured' });
@@ -321,5 +334,26 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Featured' })).not.toBeInTheDocument();
     expect(screen.queryByText('+1.62 °C')).not.toBeInTheDocument();
+  });
+
+  it('stops waiting for a stalled climate request after a bound, shows the existing hero, and ignores a late answer', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveLate: (v: CorrelationEmissionsTemperatureResponse) => void = () => {};
+      vi.mocked(api.correlationEmissionsTemperature).mockReturnValue(new Promise((r) => { resolveLate = r; }));
+      vi.mocked(api.correlationTemperature).mockResolvedValue(SERIES([sp(2024, 1.6)]));
+      vi.mocked(api.correlationConcentration).mockResolvedValue(SERIES([sp(2024, 424)]));
+      mount();
+      await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+      expect(screen.queryByTestId('globe')).not.toBeInTheDocument(); // still inside the bound: waiting
+      await act(async () => { await vi.advanceTimersByTimeAsync(3100); });
+      expect(screen.getByTestId('globe')).toBeInTheDocument();
+      expect(screen.queryByRole('region', { name: 'Featured' })).not.toBeInTheDocument();
+      await act(async () => { resolveLate(PAIR); await vi.advanceTimersByTimeAsync(100); });
+      expect(screen.queryByRole('region', { name: 'Featured' })).not.toBeInTheDocument(); // no remount, the globe is not restarted
+      expect(screen.getAllByTestId('globe')).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

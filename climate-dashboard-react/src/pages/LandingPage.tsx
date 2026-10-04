@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Globe, Icon, InlineAlert, Slider } from 'design-system';
 import { api } from '../api/client';
@@ -28,6 +28,10 @@ import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 // Slowed from 5s to 8s after review: at 5s the spin was too quick to read the countries as they passed.
 const GLOBE_STEP_MS = 8000;
 const GLOBE_STEP_YEARS = 10;
+
+// How long the page waits, once the overview and map are ready, for the optional climate-signal data before settling on
+// the existing hero alone (api/client.ts's fetch has no timeout, so a stalled request must not hold the page back).
+const CLIMATE_WAIT_MS = 3000;
 
 // Same starter the agent page offers, so this card promises something the agent demonstrably does.
 const AGENT_EXAMPLE = 'How has India’s emissions grown compared to other countries?';
@@ -308,9 +312,17 @@ export default function LandingPage() {
     ]);
     return buildClimateSignal(pair, temperature, concentration);
   }, []);
+  const coreReady = Boolean(overview.data && map.data);
+  const [climateGaveUp, setClimateGaveUp] = useState(false);
+  useEffect(() => {
+    if (!coreReady || !climate.loading) return;
+    const id = setTimeout(() => setClimateGaveUp(true), CLIMATE_WAIT_MS);
+    return () => clearTimeout(id);
+  }, [coreReady, climate.loading]);
   const error = overview.error ?? map.error;
-  const ready = overview.data && map.data && !climate.loading;
-  const signal = climate.data;
+  const ready = coreReady && (!climate.loading || climateGaveUp);
+  // Once given up on, a late answer is ignored for good: adding the carousel then would remount the hero and restart the globe.
+  const signal = climateGaveUp ? null : climate.data;
 
   return (
     <div className="landing">
