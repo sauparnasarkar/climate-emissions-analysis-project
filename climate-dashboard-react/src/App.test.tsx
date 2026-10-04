@@ -193,7 +193,7 @@ describe('Area 2 foundation (Release 21)', () => {
     renderAt('/climate-correlation');
     expect(screen.getByRole('heading', { level: 1, name: /temperature & ghg correlation/i })).toBeInTheDocument();
     expect(document.title).toBe('Climate Correlation — Climate Analytics Platform');
-    expect(screen.getByRole('menuitem', { name: 'Climate Correlation' })).toHaveAttribute('href', '/climate-correlation');
+    expect(screen.getByRole('menuitem', { name: /Climate Correlation/ })).toHaveAttribute('href', '/climate-correlation');
   });
 
   it('shows the product name in the dashboard header and footer', () => {
