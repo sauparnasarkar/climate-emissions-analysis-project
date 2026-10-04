@@ -3784,7 +3784,8 @@ schema. **Not added:** decision 41's fit-quality copy (to be added when the owne
 41) and the API-level details of decisions 30–39 (as in item 18).
 
 **Implementation sequence** (one branch + PR per step; visual preview confirmed before each frontend merge;
-`npm run build` is the deploy point of no return, so build only at deploy):
+**no Mac Mini deploy until all of Section 2 is complete — owner decision 2026-10-04**, so no feature flag or
+production gate is used; `npm run build` is the deploy point of no return, so build only at that deploy):
 
 | Step | Scope | Phase |
 |---|---|---|
