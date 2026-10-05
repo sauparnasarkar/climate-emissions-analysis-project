@@ -2,15 +2,19 @@ import type { CorrelationScenarioTemperatureResponse } from '../api/correlationT
 
 const row = (year: number, mt: number, level: number) => ({ year, covered_mt: mt * 0.89, rest_of_world_mt: mt * 0.11, global_fossil_mt: mt, land_use_mt: 4658, headline: { delta_t_c: level - 1.39, level_c: level }, fossil_only: { delta_t_c: 0, level_c: level } });
 
+/** One scenario's rows for every year 2025..2040, linear between its first and last values (the real output has a row per year). */
+const path = (mt0: number, c0: number, mt1: number, c1: number) =>
+  Array.from({ length: 16 }, (_, i) => row(2025 + i, mt0 + ((mt1 - mt0) * i) / 15, c0 + ((c1 - c0) * i) / 15));
+
 /** A /scenario-temperature response shaped like the real one (2025 and 2040 rows per scenario, spread facts, 40 covered countries). */
 export const SCENARIO_TEMPERATURE = {
   schema_version: 1, generated_at: null, note: '', caveats: [], attribution: [], source_vintage: null,
   name: 'Scenario temperature translation', method: 'm',
   labels: ['illustrative, partial-coverage translation', 'Implied temperature outcomes', 'Dependent on the selected regression period, emissions source and model assumptions', 'Illustrative analytical translations, not formal climate-model projections'], line: 'both', selected_scenarios: ['BAU', 'Moderate', 'Aggressive'],
   scenarios: {
-    BAU: [row(2025, 38953, 1.41), row(2040, 44877, 1.78)],
-    Moderate: [row(2025, 38953, 1.41), row(2040, 33145, 1.73)],
-    Aggressive: [row(2025, 38953, 1.41), row(2040, 20791, 1.67)],
+    BAU: path(38953, 1.41, 44877, 1.78),
+    Moderate: path(38953, 1.41, 33145, 1.73),
+    Aggressive: path(38953, 1.41, 20791, 1.67),
   },
   assumptions: {
     rest_of_world: { share: 0.1067706691163598, year: 2024 },

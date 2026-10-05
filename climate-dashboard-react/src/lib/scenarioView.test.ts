@@ -15,7 +15,9 @@ describe('buildScenarioView', () => {
 
   it('takes the pathways\' emissions (Gt) and implied temperature from the response, in a fixed scenario order', () => {
     expect(v.pathways.map((p) => p.name)).toEqual(['BAU', 'Moderate', 'Aggressive']);
-    expect(v.pathways[0].emissions).toEqual([{ year: 2025, value: 38.953 }, { year: 2040, value: 44.877 }]);
+    expect(v.pathways[0].emissions).toHaveLength(16); // a value for every year 2025..2040
+    expect(v.pathways[0].emissions[0]).toEqual({ year: 2025, value: 38.953 });
+    expect(v.pathways[0].emissions.at(-1)).toEqual({ year: 2040, value: 44.877 });
     expect(v.pathways[2].temperature.at(-1)).toEqual({ year: 2040, value: 1.67 });
     expect([v.startYear, v.lastObservedYear, v.horizon]).toEqual([2025, 2024, 2040]);
   });
@@ -68,7 +70,7 @@ describe('buildScenarioView', () => {
     expect(years2).not.toContain(2021); // its step would span two years
   });
 
-  it('is null when any pathway does not span both its start year and the horizon, in emissions and in temperature', () => {
+  it('is null when any pathway does not cover every year from its start to the horizon, in emissions and in temperature', () => {
     const rows = SCENARIO_TEMPERATURE.scenarios as unknown as Record<string, Array<Record<string, unknown>>>;
     const make = (mut: (s: Record<string, Array<Record<string, unknown>>>) => void) => {
       const s = JSON.parse(JSON.stringify(rows)) as Record<string, Array<Record<string, unknown>>>;
@@ -77,6 +79,9 @@ describe('buildScenarioView', () => {
     };
     // only the horizon row for every scenario: three single dots, not pathways
     expect(buildScenarioView(make((s) => { for (const k of Object.keys(s)) s[k] = s[k].filter((r) => r.year === 2040); }), FOSSIL, TEMP, MEAN)).toBeNull();
+    // a missing intermediate year: the line would be drawn straight across it
+    expect(buildScenarioView(make((s) => { s.BAU = s.BAU.filter((r) => r.year !== 2031); }), FOSSIL, TEMP, MEAN)).toBeNull();
+    expect(buildScenarioView(make((s) => { s.Moderate[5].headline = {}; }), FOSSIL, TEMP, MEAN)).toBeNull();
     // one scenario lacks its start-year row
     expect(buildScenarioView(make((s) => { s.Moderate = s.Moderate.filter((r) => r.year !== 2025); }), FOSSIL, TEMP, MEAN)).toBeNull();
     // one scenario's start row has no emissions value; another's has no implied level

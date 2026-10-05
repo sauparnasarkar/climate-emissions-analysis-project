@@ -65,7 +65,8 @@ export function ScenarioSection({ view }: { view: ScenarioView }) {
             referenceX={[{ value: startYear, label: `${startYear} start` }, ...(horizonGapC !== null ? [{ value: horizon, label: `${horizonGapC.toFixed(2)} °C apart` }] : [])]}
             ariaLabel={[
               'Line chart of the temperature anomaly in °C above the 1850 to 1900 mean.',
-              observedTemperature.length ? `Observed annual ${span(observedTemperature)}${observedMean5y.length ? `, with its 5-year mean ${span(observedMean5y)}` : ''}.` : null,
+              observedTemperature.length ? `Observed annual ${span(observedTemperature)}.` : null,
+              observedMean5y.length ? `Observed 5-year mean ${span(observedMean5y)}.` : null,
               anchor ? `Anchored at ${anchor.value.toFixed(2)} °C in ${anchor.year}.` : null,
               `Implied level of each pathway, ${startYear} to ${horizon}.`,
               `In ${horizon}: ${pathways.map((p) => `${p.label} ${last(p.temperature).value.toFixed(2)} °C`).join(', ')}${horizonGapC !== null ? `; the pathways are ${horizonGapC.toFixed(2)} °C apart` : ''}.`,

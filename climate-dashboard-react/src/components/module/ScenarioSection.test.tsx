@@ -56,6 +56,14 @@ describe('ScenarioSection', () => {
     expect(earlyName).not.toMatch(/observed .*to 2024/i);
   });
 
+  it('describes the 5-year mean even when the annual series is unavailable, and each only when drawn', () => {
+    render(<ScenarioSection view={buildScenarioView(SCENARIO_TEMPERATURE, FOSSIL, [], years.slice(4).map((y) => ({ year: y, value: 1.2 })))!} />);
+    const name = screen.getAllByTestId('sychart')[1].getAttribute('aria-label')!;
+    expect(name).toMatch(/Observed 5-year mean 2017 to 2024\./);
+    expect(name).not.toMatch(/Observed annual/);
+    expect(JSON.parse(screen.getAllByTestId('sychart')[1].getAttribute('data-series')!).map((s: [string]) => s[0])).toContain('5-year mean'); // drawn, so described
+  });
+
   it('shows the API\'s reading note verbatim, and a 2040 table with a column header for each value', () => {
     render(<ScenarioSection view={view()} />);
     expect(screen.getByText(SCENARIO_TEMPERATURE.reading_note as string)).toBeInTheDocument();
