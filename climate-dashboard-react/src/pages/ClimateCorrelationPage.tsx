@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import { CausalChain } from '../components/module/CausalChain';
 import { CountryView } from '../components/module/CountryView';
 import { GasComposition } from '../components/module/GasComposition';
+import { ScenarioSection } from '../components/module/ScenarioSection';
 import { AllGasRelationship } from '../components/module/AllGasRelationship';
 import { HeadlineRelationship } from '../components/module/HeadlineRelationship';
 import { useAsync } from '../hooks/useAsync';
@@ -19,6 +20,7 @@ import { ALL_GAS_ANCHOR } from '../lib/allGas';
 import { GAS_COMPOSITION_ANCHOR } from '../lib/gasComposition';
 import { buildComposition } from '../lib/gasComposition';
 import { buildHeadline } from '../lib/headline';
+import { SCENARIOS_ANCHOR, buildScenarioView } from '../lib/scenarioView';
 import { latestWorldTotal } from '../lib/mapSeries';
 import { CLIMATE_SERIES_START_YEAR } from '../constants';
 
@@ -28,6 +30,7 @@ const JUMP_ROW_GAP_PX = 10;
 
 const CHAIN_JUMP: JumpLinkItem = { id: CAUSAL_CHAIN_ANCHOR, label: 'Causal chain', href: `#${CAUSAL_CHAIN_ANCHOR}` };
 const RELATIONSHIP_JUMP: JumpLinkItem = { id: GLOBAL_RELATIONSHIP_ANCHOR, label: 'Global relationship', href: `#${GLOBAL_RELATIONSHIP_ANCHOR}` };
+const SCENARIOS_JUMP: JumpLinkItem = { id: SCENARIOS_ANCHOR, label: 'Scenarios', href: `#${SCENARIOS_ANCHOR}` };
 const COUNTRY_JUMP: JumpLinkItem = { id: COUNTRY_VIEW_ANCHOR, label: 'Country view', href: `#${COUNTRY_VIEW_ANCHOR}` };
 
 /**
@@ -40,6 +43,7 @@ export default function ClimateCorrelationPage() {
   const fossil = useAsync(async () => api.correlationEmissionsTemperature({ variant: 'fossil' }), []);
   const allGasQuery = useAsync(async () => api.correlationEmissionsTemperature({ source: 'primap_ghg' }), []);
   const compositionQuery = useAsync(async () => api.correlationGhgComposition({ startYear: 1970 }), []);
+  const scenarioQuery = useAsync(async () => api.correlationScenarioTemperature(), []);
   const world = useAsync(async () => api.worldMapSeries(CLIMATE_SERIES_START_YEAR), []);
   const reduceMotion = useReducedMotion();
   const [stickyRow, setStickyRow] = useState<HTMLElement | null>(null);
@@ -51,6 +55,11 @@ export default function ClimateCorrelationPage() {
   const emissions = useMemo(() => (world.data ? latestWorldTotal(world.data) : null), [world.data]);
   const allGas = useMemo(() => buildAllGas(allGasQuery.data), [allGasQuery.data]);
   const composition = useMemo(() => buildComposition(compositionQuery.data), [compositionQuery.data]);
+  // The scenario output with the observed history it continues from: the fossil pair (the pathways' own basis) and the temperature series.
+  const scenarios = useMemo(
+    () => buildScenarioView(scenarioQuery.data, fossil.data, climate.temperatureSeries, climate.mean5ySeries),
+    [scenarioQuery.data, fossil.data, climate.temperatureSeries, climate.mean5ySeries],
+  );
   const headline = useMemo(() => (signal ? buildHeadline(signal, fossil.data) : null), [signal, fossil.data]);
 
   // A deep link waits for the first measurement of the anchor row (its height depends on whether it wrapped) and for the request behind its target:
@@ -60,9 +69,10 @@ export default function ClimateCorrelationPage() {
     hash === `#${ALL_GAS_ANCHOR}` ? !allGasQuery.loading
     : hash === `#${GAS_COMPOSITION_ANCHOR}` ? !compositionQuery.loading
     : hash === `#${COUNTRY_VIEW_ANCHOR}` ? true
+    : hash === `#${SCENARIOS_ANCHOR}` ? !scenarioQuery.loading
     : climate.done;
   useJumpToHashOnLoad(targetReady && stickyHeight !== null, reduceMotion);
-  const jumpItems = [...(signal ? [CHAIN_JUMP, RELATIONSHIP_JUMP] : []), COUNTRY_JUMP];
+  const jumpItems = [...(signal ? [CHAIN_JUMP, RELATIONSHIP_JUMP] : []), COUNTRY_JUMP, ...(scenarios ? [SCENARIOS_JUMP] : [])];
 
   return (
     <div className="climate-module">
@@ -90,6 +100,7 @@ export default function ClimateCorrelationPage() {
       {allGas && <AllGasRelationship allGas={allGas} />}
       {composition && <GasComposition composition={composition} />}
       <CountryView temperature={climate.temperatureSeries} mean5y={climate.mean5ySeries.length ? climate.mean5ySeries : null} />
+      {scenarios && <ScenarioSection view={scenarios} />}
     </div>
   );
 }
