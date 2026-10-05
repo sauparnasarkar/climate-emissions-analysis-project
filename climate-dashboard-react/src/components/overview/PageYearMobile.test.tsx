@@ -112,6 +112,21 @@ describe('PageYearMobile', () => {
     expect(within(dialog).getAllByRole('button')[0]).toHaveFocus();
   });
 
+  it('pins the body at the current scroll offset while open (iOS does not honour overflow alone) and restores position and scroll on close', () => {
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    Object.defineProperty(window, 'scrollY', { value: 640, configurable: true });
+    const { chip } = mount();
+    fireEvent.click(chip);
+    expect(document.body.style.position).toBe('fixed');
+    expect(document.body.style.top).toBe('-640px');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(document.body.style.position).toBe('');
+    expect(document.body.style.top).toBe('');
+    expect(scrollTo).toHaveBeenCalledWith(0, 640);
+    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
+  });
+
   it('lists a slider-chosen year that is not a stop, so the sheet never shows a stale value', () => {
     render(<PageYearMobile stops={STOPS} year={2013} isPlaying={false} onSelect={vi.fn()} onToggle={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /^Year 2013/ }));

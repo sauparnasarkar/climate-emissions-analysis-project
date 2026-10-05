@@ -29,8 +29,15 @@ export function PageYearMobile({ stops, year, isPlaying, onSelect, onToggle }: P
 
   useEffect(() => {
     if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    // Lock the page behind the sheet. overflow:hidden alone does not stop the root scroller on iOS Safari / standalone PWAs, so the body is also pinned
+    // (position:fixed at the current offset) and the scroll position restored on close.
+    const body = document.body;
+    const scrollY = window.scrollY;
+    const saved = { overflow: body.style.overflow, position: body.style.position, top: body.style.top, width: body.style.width };
+    body.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.width = '100%';
     const sheet = sheetRef.current;
     const focusables = () => Array.from(sheet?.querySelectorAll<HTMLElement>('button:not([disabled])') ?? []);
     focusables()[0]?.focus();
@@ -53,7 +60,11 @@ export function PageYearMobile({ stops, year, isPlaying, onSelect, onToggle }: P
     };
     document.addEventListener('keydown', onKey);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      body.style.overflow = saved.overflow;
+      body.style.position = saved.position;
+      body.style.top = saved.top;
+      body.style.width = saved.width;
+      window.scrollTo(0, scrollY);
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
@@ -76,7 +87,7 @@ export function PageYearMobile({ stops, year, isPlaying, onSelect, onToggle }: P
       {open &&
         createPortal(
           <div style={{ position: 'fixed', inset: 0, zIndex: 100 }}>
-            <div aria-hidden="true" onClick={close} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)' }} />
+            <div aria-hidden="true" onClick={close} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', touchAction: 'none' }} />
             <div
               ref={sheetRef}
               role="dialog"
