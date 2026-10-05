@@ -4,14 +4,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import { ApiError } from '../api/types';
 import type { WorldMapTimeSeries } from '../api/types';
-import { ALL_GAS_PAIR, COMPOSITION, CONCENTRATION, COUNTRY_SNAPSHOT, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
+import { ALL_GAS_PAIR, COMPOSITION, CONCENTRATION, COUNTRY_SNAPSHOT, META, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
 import { shareResponse } from '../test/shareFixtures';
 import { SCENARIO_TEMPERATURE } from '../test/scenarioFixtures';
 import ClimateCorrelationPage from './ClimateCorrelationPage';
 
 const scrollSpy = vi.hoisted(() => vi.fn());
 vi.mock('../api/client', () => ({
-  api: { correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn(), correlationConcentration: vi.fn(), worldMapSeries: vi.fn(), correlationGhgComposition: vi.fn(), correlationCountryShare: vi.fn(), correlationScenarioTemperature: vi.fn() },
+  api: { correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn(), correlationConcentration: vi.fn(), worldMapSeries: vi.fn(), correlationGhgComposition: vi.fn(), correlationCountryShare: vi.fn(), correlationScenarioTemperature: vi.fn(), correlationMeta: vi.fn() },
 }));
 vi.mock('design-system', async (orig) => ({
   ...(await orig<typeof import('design-system')>()),
@@ -29,6 +29,7 @@ beforeEach(() => {
   vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD);
   vi.mocked(api.correlationGhgComposition).mockResolvedValue(COMPOSITION);
   vi.mocked(api.correlationScenarioTemperature).mockResolvedValue(SCENARIO_TEMPERATURE);
+  vi.mocked(api.correlationMeta).mockResolvedValue(META);
   vi.mocked(api.correlationCountryShare).mockImplementation(async (o) => (o?.allCountries ? COUNTRY_SNAPSHOT : shareResponse([['USA', 'United States', [[1850, 4, 1], [2024, 24.1, 1]]]])));
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); window.history.replaceState(null, '', '/'); });
@@ -42,7 +43,7 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(await screen.findByRole('heading', { level: 2, name: 'Causal chain' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Global relationship' })).toBeInTheDocument();
     const nav = screen.getByRole('navigation', { name: 'Jump links' });
-    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#causal-chain', '#global-relationship', '#country-view', '#scenarios']);
+    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#causal-chain', '#global-relationship', '#country-view', '#scenarios', '#methodology']);
     expect((nav.closest('[style*="position: sticky"]') as HTMLElement)).not.toBeNull();
     expect(within(document.querySelector('.module-chain') as HTMLElement).getAllByRole('listitem')[0]).toHaveTextContent('37,398 MtCO₂ in 2024'); // world total from the series, not typed in
     expect(screen.getByText('Fossil + cement only')).toBeInTheDocument();
@@ -135,7 +136,7 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(screen.getByRole('heading', { level: 2, name: 'Country view' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Global relationship' })).toBeInTheDocument(); // a parent heading for the orphaned sections
     const nav = screen.getByRole('navigation', { name: 'Jump links' });
-    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#country-view', '#scenarios']); // the chain and relationship links are gone; the independent sections' remain
+    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#country-view', '#scenarios', '#methodology']); // the chain and relationship links are gone; the independent sections' remain
   });
 
   it('shows the scenario section last, from the scenario endpoint, and omits it with its anchor when that request fails', async () => {
@@ -165,6 +166,44 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(document.getElementById('scenarios')).not.toBeNull();
   });
 
+  it('ends with the methodology section, fed by /meta and the concentration splice, with the anchor always present', async () => {
+    mount();
+    const m = await screen.findByRole('heading', { level: 2, name: 'Methodology & sources' });
+    expect(api.correlationMeta).toHaveBeenCalledTimes(1);
+    const scenarios = await screen.findByRole('heading', { level: 2, name: /^Implied temperature by scenario/ });
+    expect(scenarios.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // after Scenarios, not just after the Country view
+    const sections = [...document.querySelectorAll('.climate-module section[id]')].map((s) => s.id);
+    expect(sections.at(-1)).toBe('methodology'); // and nothing follows it
+    expect(await screen.findByRole('table', { name: 'Sources' })).toBeInTheDocument();
+    expect(screen.getByText(/Two global totals/)).toBeInTheDocument();
+    cleanup();
+    vi.mocked(api.correlationMeta).mockRejectedValue(new ApiError(503, 'x'));
+    mount();
+    expect(await screen.findByText(/The sources, licences and data vintages could not be loaded right now/)).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: 'Jump links' });
+    expect(within(nav).getByRole('link', { name: 'Methodology' })).toBeInTheDocument();
+  });
+
+  it('shows the splice note from the concentration response even when the headline signal is unavailable', async () => {
+    vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => { if (o?.source === 'primap_ghg') return ALL_GAS_PAIR; throw new ApiError(503, 'x'); }); // no signal
+    mount();
+    expect(await screen.findByText(/climate data is unavailable right now/)).toBeInTheDocument();
+    expect(await screen.findByText('The 1959 splice')).toBeInTheDocument();
+    expect(screen.getByText(/Over the overlap years 1959–2004 the two records differ by up to 3\.9 ppm/)).toBeInTheDocument();
+  });
+
+  it('a #methodology deep link waits for /meta, then jumps once', async () => {
+    window.history.replaceState(null, '', '/climate-correlation#methodology');
+    let answer!: (r: typeof META) => void;
+    vi.mocked(api.correlationMeta).mockReturnValue(new Promise((r) => { answer = r; }));
+    mount('#methodology');
+    await screen.findByRole('heading', { level: 2, name: 'Country view' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(scrollSpy).not.toHaveBeenCalled();
+    await act(async () => answer(META));
+    await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('methodology'));
+  });
+
   it('asks for the temperature series once each (annual and 5-year mean), shared by the chain and the country view', async () => {
     mount();
     await screen.findByText(/Share of cumulative CO₂, 2024/);
@@ -177,7 +216,7 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     mount();
     expect(await screen.findByRole('heading', { level: 2, name: 'Country view' })).toBeInTheDocument();
     expect(await screen.findByText(/Share of cumulative CO₂, 2024/)).toBeInTheDocument();
-    expect(screen.queryByText('Global temperature anomaly')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Global temperature anomaly' })).not.toBeInTheDocument(); // the card (the sources table also says 'Global temperature anomaly')
   });
 
   it('keeps gas composition and the country view when only the fossil comparison fails', async () => {

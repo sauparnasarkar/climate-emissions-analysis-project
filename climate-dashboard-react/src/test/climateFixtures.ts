@@ -18,7 +18,7 @@ export const series = (points: SeriesPoint[], details: Record<string, unknown> =
 
 export const TEMPERATURE = series([sp(2022, 1.4), sp(2023, 1.5), sp(2024, 1.617)]);
 export const TEMPERATURE_MEAN5Y = series([sp(2023, 1.35), sp(2024, 1.39)]);
-export const CONCENTRATION = series([sp(1850, 286.8), sp(1959, 315.9), sp(1970, 325.68), sp(1980, 338.91), sp(1990, 354.45), sp(2024, 424.6)], { splice: { splice_year: 1959 } });
+export const CONCENTRATION = series([sp(1850, 286.8), sp(1959, 315.9), sp(1970, 325.68), sp(1980, 338.91), sp(1990, 354.45), sp(2024, 424.6)], { splice: { splice_year: 1959, overlap_years: [1959, 2004], gap_at_splice_ppm: -0.28, max_abs_overlap_gap_ppm: 3.9, mean_overlap_gap_ppm: -2.33 } });
 
 /** `/emissions-temperature?source=primap_ghg` shaped like the real response: 1970 onward, its own fit, stability and caveats. */
 export const ALL_GAS_PAIR = {
@@ -71,3 +71,22 @@ export const COUNTRY_SNAPSHOT = {
   coverage: [1850, 2024], cumulative_from: 1750, total_cumulative_mt: 1, annual_total_mt: 1, series: [], denominator: null, reconciliation: null, details: {}, notes: [],
   rows: [shareRow(1, 'USA', 'United States', 24.1), shareRow(2, 'CHN', 'China', 15.8), shareRow(3, 'RUS', 'Russia', 6.8), shareRow(4, 'DEU', 'Germany', 5.3), shareRow(5, 'GBR', 'United Kingdom', 4.4), shareRow(6, 'JPN', 'Japan', 3.9)],
 } as unknown as import('../api/correlationTypes').CorrelationCountryShareResponse;
+
+/** `/meta` shaped like the real response: dataset-level sources (two OWID rows, two PRIMAP rows, Berkeley, two NOAA/Law Dome, a derived crosswalk), baselines, offset, the totals note. */
+export const META = {
+  ...env, name: 'meta',
+  sources: [
+    { id: 'co2_concentration_annual', source: 'NOAA GML Mauna Loa (1959+) spliced to Law Dome ice-core/firn spline (pre-1959)', license: 'NOAA GML: public domain, citation requested. Law Dome: cite Etheridge et al. 2010.', coverage: [1750, 2025], retrieved_at: '2026-10-02T03:33:27+00:00', source_release: { noaa_last_modified: '2026-09-08T14:44:18+00:00' } },
+    { id: 'co2_concentration_monthly_mlo', source: 'NOAA GML Mauna Loa monthly mean', license: 'NOAA GML: public domain, citation requested.', coverage: [1958, 2026], retrieved_at: '2026-10-02T03:33:27+00:00', source_release: { noaa_last_modified: '2026-09-08T14:44:18+00:00' } },
+    { id: 'country_crosswalk', source: 'Derived: PRIMAP-hist area codes x OWID iso_code/country', license: 'Derived metadata', retrieved_at: '2026-10-02T13:40:57+00:00' },
+    { id: 'owid_country_co2', source: 'Our World in Data CO2 and GHG emissions dataset (OWID, from the Global Carbon Project)', license: "CC BY 4.0 for OWID's compilation. Cite OWID and the Global Carbon Budget.", coverage: [1750, 2024], retrieved_at: '2026-07-18T15:32:10+00:00' },
+    { id: 'owid_world_co2_annual', source: 'Our World in Data CO2 and GHG emissions dataset (OWID, from the Global Carbon Project)', license: "CC BY 4.0 for OWID's compilation. Cite OWID and the Global Carbon Budget.", coverage: [1750, 2024], retrieved_at: '2026-07-18T15:32:10+00:00' },
+    { id: 'primap_country_annual', source: 'PRIMAP-hist v2.8 (Gütschow & Pflüger)', license: 'CC BY-NC-SA 4.0. Non-commercial use only. Upstream sources have their own terms -- not yet verified.', coverage: [1750, 2024], retrieved_at: '2026-10-02T13:40:57+00:00', source_release: { published: '2026-09-29', version: 'v2.8' } },
+    { id: 'primap_global_composition_annual', source: 'PRIMAP-hist v2.8 (Gütschow & Pflüger)', license: 'CC BY-NC-SA 4.0. Non-commercial use only. Upstream sources have their own terms -- not yet verified.', coverage: [1750, 2024], retrieved_at: '2026-10-02T13:40:57+00:00', source_release: { published: '2026-09-29', version: 'v2.8' } },
+    { id: 'temperature_anomaly_annual', source: 'Berkeley Earth Land/Ocean global temperature (annual)', license: "CC BY-NC 4.0 International (Berkeley Earth's data page: 'in general ... for non-commercial use only'; commercial use needs a licence from admin@berkeleyearth.org). Attribution to Berkeley Earth, including a reference to www.berkeleyearth.org. Cite Rohde & Hausfather 2020, ESSD 12, 3469-3479, doi:10.5194/essd-12-3469-2020.", coverage: [1850, 2024], retrieved_at: '2026-10-02T03:33:28+00:00', source_release: { http_last_modified: '2025-01-10T04:48:46+00:00' } },
+  ],
+  baselines: {}, temperature_offset: { derivation: 'Mean of the annual anomaly over 1850-1900.', reference_period: [1850, 1900], std_c: 0.1252, value_c: -0.3062, years: 51 },
+  // the API's TWO_GLOBAL_TOTALS constant (api/routers/correlation.py), word for word
+  two_global_totals: "Two different global totals are used on purpose. The emissions-temperature regression's X-variable is OWID's full World row, which includes international aviation and shipping (they are real atmospheric loading, so excluding them would understate cumulative CO2). The country-share denominator is the sum of national emissions, which excludes those bunkers, so country shares sum to 100% of territorial emissions. The two totals therefore differ by the international transport line, published as its own indicator.",
+  source_baseline_matrix: [], indicators: [], outputs: {}, pipeline_last_run: null, endpoints: [], freshness: {},
+} as unknown as import('../api/correlationTypes').CorrelationMetaResponse;

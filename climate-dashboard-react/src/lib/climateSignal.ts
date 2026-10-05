@@ -121,6 +121,28 @@ export function buildClimateSignal(
   };
 }
 
+/** How the NOAA Mauna Loa record is joined to the Law Dome ice core, as the concentration response documents it; null when it publishes none. Read from the
+ * concentration response alone, so it is available even when the headline signal (which also needs the pair and the temperature) is not. */
+export interface SpliceInfo {
+  year: number;
+  overlapYears: [number, number] | null;
+  gapPpm: number | null;
+  maxAbsOverlapGapPpm: number | null;
+}
+
+export function spliceInfo(raw: unknown): SpliceInfo | null {
+  const s = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+  const year = num(s?.splice_year);
+  if (!s || year === null) return null;
+  const ov = Array.isArray(s.overlap_years) ? s.overlap_years.map(num) : [];
+  return {
+    year,
+    overlapYears: ov.length === 2 && ov[0] !== null && ov[1] !== null ? [ov[0], ov[1]] : null,
+    gapPpm: num(s.gap_at_splice_ppm),
+    maxAbsOverlapGapPpm: num(s.max_abs_overlap_gap_ppm),
+  };
+}
+
 function vintageCaveat(pair: CorrelationEmissionsTemperatureResponse): string | null {
   const v = pair.source_vintage;
   return v && v.reconciled === false && typeof v.caveat === 'string' && v.caveat ? v.caveat : null;
