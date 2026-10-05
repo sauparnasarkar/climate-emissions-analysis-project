@@ -596,8 +596,10 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // hook jumps once only. (Any other hash jumps as soon as the page renders, which is bounded by the timeout.)
   const { hash } = useLocation();
   const waitsForClimate = hash === `#${RELATIONSHIP_ANCHOR}`;
+  // Likewise #pathways: that section loads on its own request and only exists once it has answered.
+  const waitsForPathways = hash === `#${PATHWAYS_ANCHOR}`;
   // ...and for the sticky row's first measurement: the jump's offset depends on whether the Year control wrapped onto a second line.
-  useJumpToHashOnLoad(Boolean(data && worldMapSeries && climate.settled && (!waitsForClimate || climate.done) && stickyRowHeight !== null), reduceMotion);
+  useJumpToHashOnLoad(Boolean(data && worldMapSeries && climate.settled && (!waitsForClimate || climate.done) && (!waitsForPathways || !scenarioQuery.loading) && stickyRowHeight !== null), reduceMotion);
 
   // useAsync preserves the previous `data` while a refetch is in flight (only `loading`
   // flips), so only block on a spinner before anything has ever loaded — once `data`

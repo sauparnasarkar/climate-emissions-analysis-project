@@ -781,6 +781,32 @@ describe('OverviewPage — deep links', () => {
     }
   });
 
+  it('a #pathways deep link waits for the scenario request, then jumps once the section exists', async () => {
+    window.history.replaceState(null, '', '/overview#pathways');
+    let answer!: (r: typeof SCENARIO_TEMPERATURE) => void;
+    vi.mocked(api.correlationScenarioTemperature).mockReturnValue(new Promise((r) => { answer = r; }));
+    try {
+      mountFullRange(2024, '#pathways');
+      await screen.findByRole('heading', { level: 1, name: 'Overview' });
+      await new Promise((r) => setTimeout(r, 50));
+      expect(scrollSpy).not.toHaveBeenCalled(); // the target does not exist yet
+      expect(document.getElementById('pathways')).toBeNull();
+      await act(async () => answer(SCENARIO_TEMPERATURE));
+      await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('pathways'));
+      expect(document.getElementById('pathways')).not.toBeNull();
+      expect(scrollSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      scrollSpy.mockReset();
+    }
+  });
+
+  it('a #pathways deep link still jumps (to nothing) when the scenario request fails, instead of waiting forever', async () => {
+    window.history.replaceState(null, '', '/overview#pathways');
+    mountFullRange(2024, '#pathways'); // the default mock rejects
+    await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('pathways'));
+    scrollSpy.mockReset();
+  });
+
   it('a deep link scrolls only after the sticky row has been measured, so the first scroll clears a wrapped Year control', async () => {
     window.history.replaceState(null, '', '/overview#share');
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
@@ -881,7 +907,7 @@ const showCumulative = async () => {
   fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
 };
 
-function mountFullRange(currentYear: number) {
+function mountFullRange(currentYear: number, hash = '') {
   vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, currentYear });
   vi.mocked(api.listCountries).mockResolvedValue({ featured: ['China'], expanded: ['China', 'Vietnam'] });
   vi.mocked(api.overview).mockResolvedValue(FULL_RESPONSE);
@@ -890,7 +916,7 @@ function mountFullRange(currentYear: number) {
   vi.mocked(api.correlationTemperature).mockImplementation(async (o) => (o?.view === 'mean5y' ? TEMPERATURE_MEAN5Y : TEMPERATURE));
   vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
   vi.mocked(api.correlationCountryShare).mockResolvedValue(SHARE_SNAPSHOT);
-  return render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
+  return render(<MemoryRouter initialEntries={[`/overview?countries=China${hash}`]}><OverviewPage /></MemoryRouter>);
 }
 
 describe('OverviewPage — map 1970–2024 with decade stops', () => {
