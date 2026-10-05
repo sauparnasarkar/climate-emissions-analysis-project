@@ -99,6 +99,19 @@ describe('PageYearMobile', () => {
     expect(screen.getByTestId('themed').contains(screen.getByRole('dialog'))).toBe(true);
   });
 
+  it('keeps Tab inside the sheet when focus has fallen out of it (playback removed the focused year button)', () => {
+    const props = { stops: STOPS, isPlaying: true, onSelect: vi.fn(), onToggle: vi.fn() };
+    const { rerender } = render(<PageYearMobile {...props} year={1973} />);
+    fireEvent.click(screen.getByRole('button', { name: /^Year 1973/ }));
+    const dialog = screen.getByRole('dialog');
+    const gone = within(dialog).getByRole('button', { name: '1973' });
+    gone.focus();
+    rerender(<PageYearMobile {...props} year={1974} />); // 1973 is no longer a listed year; its button is removed
+    expect(dialog.contains(document.activeElement)).toBe(false);
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(within(dialog).getAllByRole('button')[0]).toHaveFocus();
+  });
+
   it('lists a slider-chosen year that is not a stop, so the sheet never shows a stale value', () => {
     render(<PageYearMobile stops={STOPS} year={2013} isPlaying={false} onSelect={vi.fn()} onToggle={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /^Year 2013/ }));

@@ -46,6 +46,8 @@ export function PageYearMobile({ stops, year, isPlaying, onSelect, onToggle }: P
       if (f.length === 0) return;
       const first = f[0];
       const last = f[f.length - 1];
+      // Focus can fall outside the sheet (e.g. playback replaced the focused year's button): bring Tab back in rather than into the page behind.
+      if (!sheet?.contains(document.activeElement)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); return; }
       if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
       else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     };

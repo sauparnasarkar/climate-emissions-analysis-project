@@ -34,15 +34,21 @@ export function AnchorScroll({ children }: { children: ReactNode }) {
     const reveal = () => {
       const current = el.querySelector<HTMLElement>('[aria-current="location"]');
       if (current && el.scrollWidth > el.clientWidth) {
+        // Position relative to the scroller itself (offsetLeft is relative to the offset parent, which can be the sticky row, so it would count the leading year chip too).
         // Only the row's own horizontal scroll: never move the page.
-        const left = current.offsetLeft - (el.clientWidth - current.offsetWidth) / 2;
+        const box = el.getBoundingClientRect();
+        const link = current.getBoundingClientRect();
+        const left = el.scrollLeft + (link.left - box.left) - (el.clientWidth - link.width) / 2;
         el.scrollTo({ left: Math.max(0, left) });
       }
     };
+    // Re-reveal when links are inserted (data arriving), when a link arrives already current, when the current one changes, and when the row's size changes (e.g. desktop -> phone).
     const mo = new MutationObserver(reveal);
-    mo.observe(el, { attributes: true, attributeFilter: ['aria-current'], subtree: true });
+    mo.observe(el, { attributes: true, attributeFilter: ['aria-current'], childList: true, subtree: true });
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(reveal) : null;
+    ro?.observe(el);
     reveal();
-    return () => mo.disconnect();
+    return () => { mo.disconnect(); ro?.disconnect(); };
   }, []);
   return <div ref={ref} className="area2-anchor-scroll">{children}</div>;
 }
