@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { useReducedMotion } from 'design-system';
+import { computeAutoplayStops } from '../lib/yearStops';
 
 export interface UseYearAnimationOptions {
   minYear: number;
@@ -33,22 +34,6 @@ export interface UseYearAnimationResult {
   /** Always pauses, then jumps straight to `year` (manual scrubbing, any year -- not stop-aligned). */
   seek: (year: number) => void;
   reducedMotion: boolean;
-}
-
-/**
- * Autoplay stops: minYear, then every `stepYears`-year boundary after it, then maxYear (if
- * maxYear isn't already one of those boundaries). Year-over-year change is gradual enough that
- * stepping through every single year makes the trend hard to notice; jumping every few years
- * makes it obvious at a glance, which is the point of the animation. Manual scrubbing (`seek`)
- * is unaffected -- it always allows any year in [minYear, maxYear], not just these stops.
- */
-function computeAutoplayStops(minYear: number, maxYear: number, stepYears: number): number[] {
-  const stops = [minYear];
-  for (let year = Math.ceil((minYear + 1) / stepYears) * stepYears; year < maxYear; year += stepYears) {
-    stops.push(year);
-  }
-  if (stops[stops.length - 1] !== maxYear) stops.push(maxYear);
-  return stops;
 }
 
 /**
