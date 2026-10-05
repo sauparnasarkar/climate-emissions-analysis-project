@@ -11,6 +11,7 @@ import { CONCENTRATION, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/cl
 import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
 import { buildCumulative } from '../lib/cumulative';
 import { shareResponse } from '../test/shareFixtures';
+import { SCENARIO_TEMPERATURE } from '../test/scenarioFixtures';
 import { CLIMATE_SIGNAL_ANCHOR, RELATIONSHIP_ANCHOR } from '../lib/climateCopy';
 
 const scrollSpy = vi.hoisted(() => vi.fn());
@@ -18,7 +19,7 @@ const scrollSpy = vi.hoisted(() => vi.fn());
 vi.mock('../api/client', () => ({
   api: {
     listCountries: vi.fn(), overview: vi.fn(), worldMapSeries: vi.fn(),
-    correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn(), correlationConcentration: vi.fn(), correlationCountryShare: vi.fn(),
+    correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn(), correlationConcentration: vi.fn(), correlationCountryShare: vi.fn(), correlationScenarioTemperature: vi.fn(),
   },
 }));
 
@@ -187,6 +188,8 @@ beforeEach(() => {
   vi.mocked(useYearAnimation).mockReturnValue(DEFAULT_ANIMATION);
   // The Share section requests its series on mount; tests that care about it set their own, the rest get an empty (no-data) series.
   vi.mocked(api.correlationCountryShare).mockResolvedValue(shareResponse([]));
+  // No scenario output unless a test supplies it: the Pathways section is then simply absent.
+  vi.mocked(api.correlationScenarioTemperature).mockRejectedValue(new ApiError(503, 'unavailable'));
   mockReducedMotion(false);
 });
 
@@ -494,7 +497,7 @@ describe('OverviewPage', () => {
     const links = within(nav).getAllByRole('link');
     // "Climate signal" always leads (the emissions KPIs stand on their own); "Relationship" only joins when the climate data is there.
     expect(links.map((l) => l.textContent)).toEqual(['Climate signal', 'Top emitters', 'Share', 'By Country', '% Change']);
-    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#top-emitters', '#share', '#by-country', '#pct-change']);
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#top-emitters', '#share', '#by-country', '#percent-change']);
     expect(document.getElementById('top-emitters')).not.toBeNull();
     expect(document.getElementById('map')).not.toBeNull(); // the old anchor still lands on the map
   });
@@ -624,7 +627,7 @@ describe('OverviewPage — climate signal', () => {
   it('has the #climate-signal and #relationship anchors the Landing CTA and the jump links point at, in order, with the jump links first', async () => {
     mountWithClimate();
     const nav = await screen.findByRole('navigation', { name: 'Jump links' });
-    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#relationship', '#top-emitters', '#share', '#by-country', '#pct-change']);
+    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#relationship', '#top-emitters', '#share', '#by-country', '#percent-change']);
     expect(CLIMATE_SIGNAL_ANCHOR).toBe('climate-signal'); // the Landing's primary CTA is /overview#climate-signal
     expect(document.getElementById(CLIMATE_SIGNAL_ANCHOR)).not.toBeNull();
     expect(document.getElementById(RELATIONSHIP_ANCHOR)).not.toBeNull();
@@ -946,6 +949,35 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
       expect(screen.getAllByText(`CO₂ Emissions by Country (${year})`)).toHaveLength(2);
       expect(screen.getByRole('heading', { name: /^Top Movers 1990 → / })).toBeInTheDocument();
     }
+  });
+
+  it('closes the page with the Pathways block from the scenario output, with a jump link and the illustrative label', async () => {
+    vi.mocked(api.correlationScenarioTemperature).mockResolvedValue(SCENARIO_TEMPERATURE);
+    mountFullRange(2024);
+    const section = await screen.findByRole('region', { name: "Where today's patterns lead" });
+    expect(section.id).toBe('pathways');
+    expect(within(section).getByText('Illustrative · implied outcomes, not projections')).toBeInTheDocument();
+    expect(within(section).getByText(/diverge 2\.2× in annual emissions, yet their implied temperatures differ by only 0\.11 °C/)).toBeInTheDocument();
+    for (const [label, temp, mt] of [['Business as usual', '1.78 °C', '44,877'], ['Moderate', '1.72 °C', '29,000'], ['Aggressive', '1.67 °C', '20,791']]) {
+      const card = within(section).getByText(label).parentElement as HTMLElement;
+      expect(within(card).getByText(temp)).toBeInTheDocument();
+      expect(within(card).getByText(`${mt} Mt a year`)).toBeInTheDocument();
+    }
+    expect(within(section).getByRole('link', { name: 'Forecasts to 2043 →' })).toHaveAttribute('href', '/forecasts');
+    expect(within(section).getByRole('link', { name: 'Scenario Comparison →' })).toHaveAttribute('href', '/scenarios');
+    const nav = screen.getByRole('navigation', { name: 'Jump links' });
+    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href')).at(-1)).toBe('#pathways');
+    // it sits after the % Change section
+    expect(document.getElementById('percent-change')!.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('omits the Pathways section and its jump link when the scenario output is unavailable, and keeps the old #pct-change id', async () => {
+    mountFullRange(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(screen.queryByRole('region', { name: "Where today's patterns lead" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Jump links' })).queryByRole('link', { name: 'Pathways' })).not.toBeInTheDocument();
+    expect(document.getElementById('percent-change')).not.toBeNull();
+    expect(document.getElementById('pct-change')).not.toBeNull(); // bookmarked links still land
   });
 
   it('puts a sticky Year control in the anchor bar that moves the same year as the map (one value, not two)', async () => {
