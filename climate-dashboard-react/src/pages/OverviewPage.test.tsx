@@ -769,3 +769,130 @@ describe('OverviewPage — deep links', () => {
     expect(document.querySelector('.overview-page style')?.textContent).toMatch(/scroll-margin-top: 120px/);
   });
 });
+
+
+// ---------------------------------------------------------------- Area 2: map 1970-2024, decade stops, ppm card (Release 21, Phase 2.6)
+
+// A contiguous 1970-2024 series (the real shape): China grows 800 -> 25,324 Mt, Vietnam 5 -> 370.
+const FULL_MAP: WorldMapTimeSeries = (() => {
+  const years = Array.from({ length: 55 }, (_, i) => 1970 + i);
+  return {
+    iso_codes: ['CHN', 'VNM'], countries: ['China', 'Vietnam'], years,
+    values: years.map((y) => [800 + (y - 1970) * ((25324 - 800) / 54), 5 + (y - 1970) * ((370 - 5) / 54)]),
+    value_range: [5, 25324],
+  };
+})();
+const chinaAt = (y: number) => 800 + (y - 1970) * ((25324 - 800) / 54);
+const vietnamAt = (y: number) => 5 + (y - 1970) * ((370 - 5) / 54);
+const fmt0 = (n: number) => Math.round(n).toLocaleString('en-US');
+
+// Realistic API tier totals: one value per year 1990-2024 (the real arrays are that long), rising linearly to the 2024 figures.
+const ramp = (from: number, to: number) => Array.from({ length: 35 }, (_, i) => from + (i * (to - from)) / 34);
+const FULL_RESPONSE: OverviewResponse = {
+  ...RESPONSE,
+  selected_country_list: ['China'],
+  all_countries: { ...RESPONSE.all_countries, co2_by_year: ramp(22184, 37406) },
+  expanded_countries: { ...RESPONSE.expanded_countries, co2_by_year: ramp(19686, 34477) },
+};
+const tierChanges = () => screen.getAllByText('% Chg. since 1990').map((label) => label.nextElementSibling?.textContent);
+const mapSide = () => document.querySelector('.overview-hero-right') as HTMLElement;
+
+function mountFullRange(currentYear: number) {
+  vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, currentYear });
+  vi.mocked(api.listCountries).mockResolvedValue({ featured: ['China'], expanded: ['China', 'Vietnam'] });
+  vi.mocked(api.overview).mockResolvedValue(FULL_RESPONSE);
+  vi.mocked(api.worldMapSeries).mockResolvedValue(FULL_MAP);
+  vi.mocked(api.correlationEmissionsTemperature).mockResolvedValue(PAIR);
+  vi.mocked(api.correlationTemperature).mockImplementation(async (o) => (o?.view === 'mean5y' ? TEMPERATURE_MEAN5Y : TEMPERATURE));
+  vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
+  return render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
+}
+
+describe('OverviewPage — map 1970–2024 with decade stops', () => {
+  it('asks for the 1970 range, plays it in decade stops (~1.75 s each) and spans 1970 to 2024', async () => {
+    mountFullRange(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(api.worldMapSeries).toHaveBeenCalledWith(1970);
+    const options = vi.mocked(useYearAnimation).mock.calls.at(-1)![0];
+    expect(options).toMatchObject({ minYear: 1970, maxYear: 2024, stepYears: 10, intervalMs: 1750 });
+    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuemin', '1970');
+    expect(screen.getByRole('slider')).toHaveAttribute('aria-valuemax', '2024');
+  });
+
+  it('shows a button per decade stop -- 1970 … 2020 and the latest year -- with the current one pressed, and a click seeks to it', async () => {
+    mountFullRange(2024);
+    const group = await screen.findByRole('group', { name: 'Jump to a year' });
+    const buttons = within(group).getAllByRole('button');
+    expect(buttons.map((b) => b.textContent)).toEqual(['1970', '1980', '1990', '2000', '2010', '2020', '2024']);
+    expect(within(group).getByRole('button', { name: '2024' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(group).getByRole('button', { name: '1990' })).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(within(group).getByRole('button', { name: '1980' }));
+    expect(DEFAULT_ANIMATION.seek).toHaveBeenCalledWith(1980);
+    expect(within(group).getByText('or drag the year slider, year by year')).toBeInTheDocument();
+  });
+
+  it('before 1990 the tiers are summed from the series itself and the "% since 1990" change is suppressed; from 1990 the API totals are used', async () => {
+    mountFullRange(1980);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const all1980 = chinaAt(1980) + vietnamAt(1980);
+    expect(screen.getAllByText(`${fmt0(all1980)} MtCO₂`).length).toBeGreaterThan(0); // All Countries (and Expanded: the same two countries), client-side
+    expect(screen.getByText(`${fmt0(chinaAt(1980))} MtCO₂`)).toBeInTheDocument(); // Selected = China
+    expect(tierChanges()).toEqual(['—', '—', '—']); // no change figure before the baseline, for any tier
+  });
+
+  it('at 1990 the All Countries and Expanded tiers read the API totals (22,184 / 19,686) and the change is still suppressed (the baseline)', async () => {
+    mountFullRange(1990);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(screen.getByText('22,184 MtCO₂')).toBeInTheDocument();
+    expect(screen.getByText('19,686 MtCO₂')).toBeInTheDocument();
+    expect(tierChanges()).toEqual(['—', '—', '—']);
+  });
+
+  it('after 1990 the change is measured against the 1990 baseline, not the 1970 start', async () => {
+    mountFullRange(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    // All Countries: 37,406 vs the 1990 total 22,184 -> +68.6% (not vs 1970's 805); Expanded 34,477 vs 19,686 -> +75.1%; Selected (China) 25,324 vs 1990
+    const chinaChange = ((chinaAt(2024) - chinaAt(1990)) / chinaAt(1990)) * 100;
+    expect(tierChanges()).toEqual(['+68.6%', '+75.1%', `+${chinaChange.toFixed(1)}%`]);
+  });
+});
+
+describe('OverviewPage — atmospheric CO₂ card on the map', () => {
+  it('shows the ppm for the map\'s own year with the change since 1850, the splice, and that it is global, not split by country', async () => {
+    mountFullRange(1990);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const card = within(mapSide()).getByText('Atmospheric CO₂ · 1990').closest('div')!.parentElement as HTMLElement;
+    expect(within(card).getByText(`${(354.45).toFixed(1)} ppm`)).toBeInTheDocument();
+    expect(within(card).getByText(`+${(354.45 - 286.8).toFixed(1)} ppm (+${(((354.45 - 286.8) / 286.8) * 100).toFixed(1)}%) since 1850`)).toBeInTheDocument();
+    expect(within(card).getByText(/Law Dome ice core to 1958 · NOAA Mauna Loa from 1959\. One global value: concentration is not split by country\./)).toBeInTheDocument();
+    expect(within(card).getByText('GLOBAL')).toBeInTheDocument();
+  });
+
+  it('follows the selected year, and shows a dash rather than a made-up figure when the year has no value', async () => {
+    mountFullRange(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(within(mapSide()).getByText('Atmospheric CO₂ · 2024')).toBeInTheDocument();
+    expect(within(mapSide()).getByText('424.6 ppm')).toBeInTheDocument();
+  });
+
+  it('shows a dash, not an invented figure, for a year the concentration series has no value for', async () => {
+    mountFullRange(2000); // the fixture series has no 2000 value
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const card = within(mapSide()).getByText('Atmospheric CO₂ · 2000').closest('div')!.parentElement as HTMLElement;
+    expect(within(card).getByText('—')).toBeInTheDocument();
+    expect(within(card).queryByText(/since 1850/)).not.toBeInTheDocument();
+  });
+
+  it('is left out when the climate data is missing', async () => {
+    vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, currentYear: 2024 });
+    vi.mocked(api.listCountries).mockResolvedValue({ featured: ['China'], expanded: ['China', 'Vietnam'] });
+    vi.mocked(api.overview).mockResolvedValue(FULL_RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(FULL_MAP);
+    vi.mocked(api.correlationEmissionsTemperature).mockRejectedValue(new ApiError(503, 'climate data missing'));
+    vi.mocked(api.correlationTemperature).mockResolvedValue(TEMPERATURE);
+    vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
+    render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(screen.queryByText(/Atmospheric CO₂ · /)).not.toBeInTheDocument();
+  });
+});

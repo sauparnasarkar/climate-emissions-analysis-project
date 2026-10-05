@@ -18,4 +18,4 @@ export const series = (points: SeriesPoint[], details: Record<string, unknown> =
 
 export const TEMPERATURE = series([sp(2022, 1.4), sp(2023, 1.5), sp(2024, 1.617)]);
 export const TEMPERATURE_MEAN5Y = series([sp(2023, 1.35), sp(2024, 1.39)]);
-export const CONCENTRATION = series([sp(1850, 286.8), sp(1959, 315.9), sp(2024, 424.6)], { splice: { splice_year: 1959 } });
+export const CONCENTRATION = series([sp(1850, 286.8), sp(1959, 315.9), sp(1970, 325.68), sp(1980, 338.91), sp(1990, 354.45), sp(2024, 424.6)], { splice: { splice_year: 1959 } });

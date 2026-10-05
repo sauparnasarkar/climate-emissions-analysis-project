@@ -4,7 +4,9 @@ import { ClimateKpiStrip } from '../components/overview/ClimateKpiStrip';
 import { RelationshipSection } from '../components/overview/RelationshipSection';
 import { useClimateSignal } from '../hooks/useClimateSignal';
 import { CLIMATE_SIGNAL_ANCHOR, RELATIONSHIP_ANCHOR } from '../lib/climateCopy';
-import { sliceMapSeries, worldTotals } from '../lib/mapSeries';
+import { worldTotals } from '../lib/mapSeries';
+import { computeAutoplayStops } from '../lib/yearStops';
+import { AtmosphericCo2Card, type ConcentrationContext } from '../components/overview/AtmosphericCo2Card';
 import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, Table, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
@@ -38,11 +40,12 @@ const JUMP_ROW_PX = 52;
 const CLIMATE_SIGNAL_JUMP: JumpLinkItem = { id: CLIMATE_SIGNAL_ANCHOR, label: 'Climate signal', href: `#${CLIMATE_SIGNAL_ANCHOR}` };
 const RELATIONSHIP_JUMP: JumpLinkItem = { id: RELATIONSHIP_ANCHOR, label: 'Relationship', href: `#${RELATIONSHIP_ANCHOR}` };
 
-// Dwell time at each autoplay stop (useYearAnimation steps every 5 years, not by year -- year-
-// over-year change is gradual enough to be hard to notice, while a multi-year jump is glaring).
-// The KPI tier numbers snap directly to their new value each stop rather than counting up --
-// no separate animation duration to coordinate with this one.
-const ANIMATION_STOP_MS = 1200;
+// The choropleth steps by decade (1970, 1980 … 2020, then the latest year; requirements §2.6) and dwells ~1.75 s at each stop with the
+// values, cards and the ppm panel all showing the same year. Year-over-year change is gradual enough to be hard to notice, while a
+// decade jump is glaring; the slider and the stop buttons still reach any year. The KPI tier numbers snap directly to their new value
+// each stop rather than counting up -- no separate animation duration to coordinate with this one.
+const ANIMATION_STOP_MS = 1750;
+const DECADE_STEP = 10;
 
 // A muted neutral clearly outside MAGNITUDE_SCALE's pale-yellow-to-deep-maroon ramp, so a
 // no-data country never gets mistaken for a real (if low) value. The old hardcoded '#4a4a4a'
@@ -102,16 +105,19 @@ interface TierRow {
 // Builds a TierRow from a per-year series and the currently-playing frame, rather than
 // reading OverviewResponse's static (always-latest-year) figures. countriesCount stays a
 // plain number -- it doesn't vary by year.
+// `baseIdx` is where the "% change since" baseline sits in `co2ByYear` (1990 on the real 1970 series; the first frame in a series that
+// starts at the baseline). The change is suppressed at and before the baseline: "since 1990" is trivially 0 at 1990 and meaningless before it.
 function animatedTierRow(
   title: string,
   countriesCount: number,
   co2ByYear: number[],
   yearIdx: number,
+  baseIdx = 0,
 ): TierRow {
   const co2Total = co2ByYear[yearIdx] ?? 0;
-  const base = co2ByYear[0] ?? 0;
+  const base = co2ByYear[baseIdx] ?? 0;
   const pctChange = base ? ((co2Total - base) / base) * 100 : 0;
-  return { tier: title, countries: countriesCount, co2Total, pctChange, suppressPctChange: yearIdx === 0 };
+  return { tier: title, countries: countriesCount, co2Total, pctChange, suppressPctChange: yearIdx <= baseIdx };
 }
 
 // Each tier gets a full-width heading line (its name, e.g. "Expanded (Coverage + ≥100 Mt)") above
@@ -203,15 +209,20 @@ function OverviewHeadline({ headlineMovers, scope }: { headlineMovers: MoverRow[
 function AnimatedWorldMap({
   worldMapSeries,
   selected,
+  expanded,
   allCountriesTier,
   expandedTier,
   headlineMovers,
+  concentration,
 }: {
+  /** The 1970-based series the map plays; the tiers' API totals cover its 1990-and-later part */
   worldMapSeries: WorldMapTimeSeries;
   selected: string[];
+  expanded: string[];
   allCountriesTier: OverviewTierMetrics;
   expandedTier: OverviewTierMetrics;
   headlineMovers: MoverRow[];
+  concentration: ConcentrationContext | null;
 }) {
   const minYear = worldMapSeries.years[0];
   const maxYear = worldMapSeries.years[worldMapSeries.years.length - 1];
@@ -228,9 +239,11 @@ function AnimatedWorldMap({
     minYear,
     maxYear,
     intervalMs: ANIMATION_STOP_MS,
+    stepYears: DECADE_STEP,
     startWhenVisible: mapRef,
   });
   const yearIdx = currentYear - minYear;
+  const stops = useMemo(() => computeAutoplayStops(minYear, maxYear, DECADE_STEP), [minYear, maxYear]);
   // Table view: an accessible, sortable alternative to the map (all countries, current year).
   const [tableView, setTableView] = useState(false);
 
@@ -274,6 +287,21 @@ function AnimatedWorldMap({
   const selectedCo2ByYear = useMemo(
     () => worldMapSeries.values.map((row) => selectedIndices.reduce((sum, idx) => sum + (row[idx] ?? 0), 0)),
     [worldMapSeries, selectedIndices],
+  );
+
+  // All Countries / Expanded per year across the whole 1970 series. The API's totals (`co2_by_year`) are authoritative and start at the
+  // baseline year; before that they are summed here from the same columnar series (the two agree where they overlap). `apiOffset` is where
+  // the API's first value sits in the series.
+  const apiOffset = Math.max(0, worldMapSeries.years.findIndex((y) => y >= BASELINE_YEAR));
+  const expandedIndices = useMemo(() => {
+    const names = new Set(expanded);
+    return worldMapSeries.countries.flatMap((c, i) => (names.has(c) ? [i] : []));
+  }, [worldMapSeries, expanded]);
+  const tierCo2 = (api: number[], clientSums: number[]) => clientSums.map((c, i) => (i >= apiOffset && api.length ? (api[i - apiOffset] ?? c) : c));
+  const allCo2ByYear = useMemo(() => tierCo2(allCountriesTier.co2_by_year, worldTotals(worldMapSeries)), [allCountriesTier, worldMapSeries]); // eslint-disable-line react-hooks/exhaustive-deps
+  const expandedCo2ByYear = useMemo(
+    () => tierCo2(expandedTier.co2_by_year, worldMapSeries.values.map((row) => expandedIndices.reduce((sum, idx) => sum + (row[idx] ?? 0), 0))),
+    [expandedTier, worldMapSeries, expandedIndices], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // ISO codes of the picker's selection, outlined on the map. Its own memo (and a separate SyChart
@@ -323,6 +351,15 @@ function AnimatedWorldMap({
           <Button variant="ghost-blue" onClick={() => setTableView((v) => !v)} aria-pressed={tableView}>
             {tableView ? 'Map view' : 'Table view'}
           </Button>
+        </div>
+        {/* Decade stops (§2.6): jump straight to one; Play steps through them. The slider above still scrubs year by year. */}
+        <div role="group" aria-label="Jump to a year" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          {stops.map((year) => (
+            <Button key={year} size="s" variant={year === currentYear ? 'primary' : 'secondary'} aria-pressed={year === currentYear} onClick={() => seek(year)}>
+              {year}
+            </Button>
+          ))}
+          <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>or drag the year slider, year by year</span>
         </div>
         {/* No explicit height here, expanded or not -- the choropleth's own ResizeObserver
             already recomputes height from container width alone (SPEC.md §5.10), so widening
@@ -379,13 +416,15 @@ function AnimatedWorldMap({
         <TierSummaryPanel
           year={currentYear}
           rows={[
-            animatedTierRow('All Countries', allCountriesTier.countries_count, allCountriesTier.co2_by_year, yearIdx),
-            animatedTierRow('Expanded (Coverage + ≥100 Mt)', expandedTier.countries_count, expandedTier.co2_by_year, yearIdx),
+            animatedTierRow('All Countries', allCountriesTier.countries_count, allCo2ByYear, yearIdx, apiOffset),
+            animatedTierRow('Expanded (Coverage + ≥100 Mt)', expandedTier.countries_count, expandedCo2ByYear, yearIdx, apiOffset),
             ...(selected.length > 0
-              ? [animatedTierRow('Selected', selected.length, selectedCo2ByYear, yearIdx)]
+              ? [animatedTierRow('Selected', selected.length, selectedCo2ByYear, yearIdx, apiOffset)]
               : []),
           ]}
         />
+        {/* Atmospheric CO₂ for the map's own year (a stock: one global value, unchanged by the Absolute/Cumulative mode, never split by country). */}
+        {concentration && <AtmosphericCo2Card year={currentYear} concentration={concentration} />}
       </div>
     </>
   );
@@ -408,8 +447,12 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // One request for the longer 1970 range (the climate chart and sparklines use it); the 1990-based series the map plays is sliced from it,
   // so the map itself is unchanged until its own step extends it.
   const { data: globeSeries, error: worldMapError, loading: worldMapLoading } = useAsync(() => api.worldMapSeries(CLIMATE_SERIES_START_YEAR), []);
-  const worldMapSeries = useMemo(() => (globeSeries ? sliceMapSeries(globeSeries, BASELINE_YEAR) : null), [globeSeries]);
+  const worldMapSeries = globeSeries ?? null;
   const climate = useClimateSignal();
+  const concentrationContext = useMemo<ConcentrationContext | null>(
+    () => (climate.signal ? { series: climate.signal.series.concentration, spliceYear: climate.signal.spliceYear, ppm1850: climate.signal.ppm1850 } : null),
+    [climate.signal],
+  );
   const emissionsSeries = useMemo(() => (globeSeries ? worldTotals(globeSeries).map((value, i) => ({ year: globeSeries.years[i], value })) : []), [globeSeries]);
   const reduceMotion = useReducedMotion();
   // Called here (unconditionally, ahead of the early returns below) rather than at the % Change
@@ -480,6 +523,8 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         <AnimatedWorldMap
           worldMapSeries={worldMapSeries}
           selected={selected}
+          expanded={expanded}
+          concentration={concentrationContext}
           allCountriesTier={data.all_countries}
           expandedTier={data.expanded_countries}
           headlineMovers={data.headline_movers}
