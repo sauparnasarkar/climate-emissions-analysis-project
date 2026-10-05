@@ -3,12 +3,14 @@ import { InlineAlert, JumpLinks, Spinner, useReducedMotion } from 'design-system
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { CausalChain } from '../components/module/CausalChain';
+import { AllGasRelationship } from '../components/module/AllGasRelationship';
 import { HeadlineRelationship } from '../components/module/HeadlineRelationship';
 import { useAsync } from '../hooks/useAsync';
 import { useClimateSignal } from '../hooks/useClimateSignal';
 import { useElementHeight } from '../hooks/useElementHeight';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { CAUSAL_CHAIN_ANCHOR, GLOBAL_RELATIONSHIP_ANCHOR, NOT_A_CLIMATE_MODEL } from '../lib/climateCopy';
+import { buildAllGas } from '../lib/allGas';
 import { buildHeadline } from '../lib/headline';
 import { latestWorldTotal } from '../lib/mapSeries';
 import { CLIMATE_SERIES_START_YEAR } from '../constants';
@@ -28,6 +30,7 @@ const RELATIONSHIP_JUMP: JumpLinkItem = { id: GLOBAL_RELATIONSHIP_ANCHOR, label:
 export default function ClimateCorrelationPage() {
   const climate = useClimateSignal();
   const fossil = useAsync(async () => api.correlationEmissionsTemperature({ variant: 'fossil' }), []);
+  const allGasQuery = useAsync(async () => api.correlationEmissionsTemperature({ source: 'primap_ghg' }), []);
   const world = useAsync(async () => api.worldMapSeries(CLIMATE_SERIES_START_YEAR), []);
   const reduceMotion = useReducedMotion();
   const [stickyRow, setStickyRow] = useState<HTMLElement | null>(null);
@@ -37,6 +40,7 @@ export default function ClimateCorrelationPage() {
   const signal = climate.signal;
   // The latest year that has data: an all-null final row is missing, not a world total of zero.
   const emissions = useMemo(() => (world.data ? latestWorldTotal(world.data) : null), [world.data]);
+  const allGas = useMemo(() => buildAllGas(allGasQuery.data), [allGasQuery.data]);
   const headline = useMemo(() => (signal ? buildHeadline(signal, fossil.data) : null), [signal, fossil.data]);
 
   // A deep link waits for the climate request and the first measurement of the anchor row (its height depends on whether it wrapped).
@@ -60,7 +64,8 @@ export default function ClimateCorrelationPage() {
             <JumpLinks items={[CHAIN_JUMP, RELATIONSHIP_JUMP]} />
           </div>
           <CausalChain signal={signal} emissions={emissions} />
-          <HeadlineRelationship signal={signal} headline={headline} />
+          <HeadlineRelationship signal={signal} headline={headline} hasAllGas={allGas !== null} />
+          {allGas && <AllGasRelationship allGas={allGas} />}
         </>
       )}
     </div>
