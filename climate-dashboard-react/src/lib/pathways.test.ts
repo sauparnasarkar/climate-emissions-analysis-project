@@ -21,6 +21,11 @@ describe('buildPathways', () => {
     expect(p.cards.map((c) => c.method)).toEqual(['ETS trend, 40 covered countries', '−2% a year from 2026', '−5% a year from 2026']);
   });
 
+  it('reports how far the first pathway year sits from the last observed total, when the response says', () => {
+    expect(buildPathways(SCENARIO_TEMPERATURE)!.startOffsetPct).toBeCloseTo(0.9185);
+    expect(buildPathways({ ...SCENARIO_TEMPERATURE, base: { last_observed_year: 2024 } } as unknown as CorrelationScenarioTemperatureResponse)!.startOffsetPct).toBeNull();
+  });
+
   it('writes the one-line reading from the published facts', () => {
     expect(buildPathways(SCENARIO_TEMPERATURE)!.summary).toBe('By 2040 the pathways diverge 2.2× in annual emissions, yet their implied temperatures differ by only 0.11 °C, because 78–83% of the 2040 implied level is warming already observed.');
   });

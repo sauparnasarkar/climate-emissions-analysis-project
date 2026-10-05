@@ -22,6 +22,9 @@ export interface Pathways {
   startYear: number;
   lastObservedYear: number;
   restOfWorldYear: number;
+  /** How far the pathways' first year sits from the last observed total of the covered countries, in % (positive = above); null if not published. All
+   * three start at the same level, so one figure serves. */
+  startOffsetPct: number | null;
   cards: PathwayCard[];
   /** The generated one-line reading, or null when the pathways do not diverge enough for the API to publish one. */
   summary: string | null;
@@ -46,6 +49,7 @@ export function buildPathways(resp: CorrelationScenarioTemperatureResponse | nul
   if (year === 0) return null;
   const startYear = Math.min(...ORDER.flatMap((n) => rows(n).map((r) => num(r.year) ?? Infinity)));
   const lastObservedYear = num(rec(resp.base)?.last_observed_year) ?? startYear - 1;
+  const startOffsetPct = num(rec(rec(resp.base)?.first_scenario_year_vs_last_observed_pct)?.BAU);
   const restOfWorldYear = num(rec(rec(resp.assumptions)?.rest_of_world)?.year) ?? lastObservedYear;
   const countries = Array.isArray(resp.covered_countries) ? resp.covered_countries.length || null : null;
   const cards: PathwayCard[] = [];
@@ -65,5 +69,5 @@ export function buildPathways(resp: CorrelationScenarioTemperatureResponse | nul
     const observed = range.length === 2 && range[0] !== null && range[1] !== null ? `, because ${Math.round(range[0])}–${Math.round(range[1])}% of the ${year} implied level is warming already observed` : '';
     summary = `By ${year} the pathways diverge ${ratio.toFixed(1)}× in annual emissions, yet their implied temperatures differ by only ${gap.toFixed(2)} °C${observed}.`;
   }
-  return { year, startYear, lastObservedYear, restOfWorldYear, cards, summary };
+  return { year, startYear, lastObservedYear, restOfWorldYear, startOffsetPct, cards, summary };
 }

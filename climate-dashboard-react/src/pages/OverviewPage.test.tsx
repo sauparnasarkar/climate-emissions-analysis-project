@@ -990,7 +990,7 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
       expect(within(card).getByText(temp)).toBeInTheDocument();
       expect(within(card).getByText(`${mt} Mt a year`)).toBeInTheDocument();
     }
-    expect(within(section).getByText(/Pathways start from the 2024 observed total and hold the rest of the world at its 2024 share/)).toBeInTheDocument();
+    expect(within(section).getByText(/Pathways start in 2025, 0\.9% above the 2024 observed total of the covered countries, and hold the rest of the world at its 2024 share/)).toBeInTheDocument();
     expect(within(section).getByRole('link', { name: 'Forecasts to 2043 →' })).toHaveAttribute('href', '/forecasts');
     expect(within(section).getByRole('link', { name: 'Scenario Comparison →' })).toHaveAttribute('href', '/scenarios');
     const nav = screen.getByRole('navigation', { name: 'Jump links' });

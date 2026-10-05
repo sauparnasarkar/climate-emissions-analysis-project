@@ -11,7 +11,7 @@ export const SCENARIO_TEMPERATURE = {
     Moderate: [row(2025, 38953, 1.41), row(2040, 33145, 1.73)],
     Aggressive: [row(2025, 38953, 1.41), row(2040, 20791, 1.67)],
   },
-  assumptions: { rest_of_world: { share: 0.1068, year: 2024 } }, base: { last_observed_year: 2024 }, covered_countries: Array.from({ length: 40 }, (_, i) => ({ country: `C${i}`, co2_mt_last_observed_year: 1 })),
+  assumptions: { rest_of_world: { share: 0.1068, year: 2024 } }, base: { last_observed_year: 2024, first_scenario_year_vs_last_observed_pct: { BAU: 0.9185, Moderate: 0.9185, Aggressive: 0.9185 } }, covered_countries: Array.from({ length: 40 }, (_, i) => ({ country: `C${i}`, co2_mt_last_observed_year: 1 })),
   scenario_source: null,
   spread: { per_year: [], min_ratio_for_reading_note: 1.25, reading_note_omitted_reason: null, reading_note_facts: { year: 2040, highest: 'BAU', lowest: 'Aggressive', emissions_ratio: 2.15847, already_observed_pct_range: [78.2, 83.2], gap_end_c: 0.107207 } },
   reading_note: 'long note', notes: [],

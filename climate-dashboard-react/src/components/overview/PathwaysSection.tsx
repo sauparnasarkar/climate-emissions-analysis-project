@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { FORECAST_END_YEAR } from '../../constants';
 import { SCENARIO_LABEL } from '../../lib/climateCopy';
 import { fmtInt } from '../../lib/landingData';
 import { PATHWAYS_ANCHOR, type Pathways } from '../../lib/pathways';
@@ -11,7 +12,12 @@ const panel = { background: 'var(--__s9cmpx-static-background-standard)', border
  * follow the page year -- the pathways run 2025 onward.
  */
 export function PathwaysSection({ pathways }: { pathways: Pathways }) {
-  const { year, cards, summary, lastObservedYear, restOfWorldYear } = pathways;
+  const { year, cards, summary, startYear, lastObservedYear, restOfWorldYear, startOffsetPct } = pathways;
+  // The pathways are fitted to history and begin one step on from it, so their first year is near -- not equal to -- the last observed total.
+  const start =
+    startOffsetPct === null
+      ? `Pathways start in ${startYear}`
+      : `Pathways start in ${startYear}, ${Math.abs(startOffsetPct).toFixed(1)}% ${startOffsetPct >= 0 ? 'above' : 'below'} the ${lastObservedYear} observed total of the covered countries`;
   return (
     <section id={PATHWAYS_ANCHOR} aria-labelledby="pathways-heading" style={{ marginTop: 24, marginBottom: 16 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 12px', marginBottom: 8 }}>
@@ -33,10 +39,10 @@ export function PathwaysSection({ pathways }: { pathways: Pathways }) {
         ))}
       </div>
       <p className="__s9cmpx-body4" style={{ margin: '10px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
-        Implied temperature = the observed 5-year-mean anchor plus the long-run slope × the emissions still to come; it is a translation of the pathways, not a climate model or a projection. Pathways start from the {lastObservedYear} observed total and hold the rest of the world at its {restOfWorldYear} share.
+        Implied temperature = the observed 5-year-mean anchor plus the long-run slope × the emissions still to come; it is a translation of the pathways, not a climate model or a projection. {start}, and hold the rest of the world at its {restOfWorldYear} share.
       </p>
       <p className="__s9cmpx-body3" style={{ margin: '8px 0 0', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-        <Link to="/forecasts">Forecasts to 2043 →</Link>
+        <Link to="/forecasts">Forecasts to {FORECAST_END_YEAR} →</Link>
         <Link to="/scenarios">Scenario Comparison →</Link>
         <Link to="/climate-correlation">Implied temperature in the Correlation module →</Link>
       </p>
