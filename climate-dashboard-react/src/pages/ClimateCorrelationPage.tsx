@@ -17,7 +17,7 @@ import { useClimateSignal } from '../hooks/useClimateSignal';
 import { useElementHeight } from '../hooks/useElementHeight';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { CAUSAL_CHAIN_ANCHOR, GLOBAL_RELATIONSHIP_ANCHOR, NOT_A_CLIMATE_MODEL } from '../lib/climateCopy';
-import { buildAllGas } from '../lib/allGas';
+import { ALL_GAS_START_YEAR, buildAllGas } from '../lib/allGas';
 import { COUNTRY_VIEW_ANCHOR } from '../lib/countryView';
 import { ALL_GAS_ANCHOR } from '../lib/allGas';
 import { GAS_COMPOSITION_ANCHOR } from '../lib/gasComposition';
@@ -47,7 +47,7 @@ export default function ClimateCorrelationPage() {
   const climate = useClimateSignal();
   const fossil = useAsync(async () => api.correlationEmissionsTemperature({ variant: 'fossil' }), []);
   const allGasQuery = useAsync(async () => api.correlationEmissionsTemperature({ source: 'primap_ghg' }), []);
-  const compositionQuery = useAsync(async () => api.correlationGhgComposition({ startYear: 1970 }), []);
+  const compositionQuery = useAsync(async () => api.correlationGhgComposition({ startYear: ALL_GAS_START_YEAR }), []);
   const metaQuery = useAsync(async () => api.correlationMeta(), []);
   const scenarioQuery = useAsync(async () => api.correlationScenarioTemperature(), []);
   const world = useAsync(async () => api.worldMapSeries(CLIMATE_SERIES_START_YEAR), []);

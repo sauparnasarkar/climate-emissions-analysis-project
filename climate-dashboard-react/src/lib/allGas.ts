@@ -32,6 +32,9 @@ export interface AllGas {
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const rec = (v: unknown): Record<string, unknown> | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 
+/** First year of the recent all-gas views (PRIMAP-hist; requirements §1.3.1): the one value behind the request, the copy and the methodology row. */
+export const ALL_GAS_START_YEAR = 1970;
+
 /** The recent all-gas relationship (PRIMAP-hist, 1970 onward; requirements §1.3.1, decision 35) from `/emissions-temperature?source=primap_ghg`, or null
  * when the fit or the points are missing so the view is left out rather than shown with gaps. Never called TCRE and never compared with the AR6 range. */
 export function buildAllGas(resp: CorrelationEmissionsTemperatureResponse | null | undefined): AllGas | null {

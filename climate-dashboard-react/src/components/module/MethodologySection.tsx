@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { InlineAlert } from 'design-system';
 import type { CorrelationMetaResponse } from '../../api/correlationTypes';
+import { ALL_GAS_START_YEAR } from '../../lib/allGas';
 import type { SpliceInfo } from '../../lib/climateSignal';
 import { METHODOLOGY_ANCHOR, buildSources, buildTemperatureOffset } from '../../lib/methodology';
 
@@ -14,7 +15,7 @@ const weak = { color: 'var(--__s9cmpx-static-text-weak)' } as const;
 const BASELINES: Array<[view: string, baseline: string, why: string]> = [
   ['Overview, Historical Trends, Scenario Comparison', '1990 = 100', 'Matches the machine-learning training window used across the platform'],
   ['Country Profile trend', 'Full OWID history', '1990 is shown as a marker, not as the start'],
-  ['All-gas relationship, gas composition', '1970 onward', 'Earlier PRIMAP-hist values are reconstructions'],
+  ['All-gas relationship, gas composition', `${ALL_GAS_START_YEAR} onward`, 'Earlier PRIMAP-hist values are reconstructions'],
   ['Long-run CO₂ relationship', '1850–1900 reference', 'Pre-industrial context; keeps early accumulation visible'],
   ['Global, non-ML totals', 'Full available range', 'No model-consistency constraint applies'],
 ];
