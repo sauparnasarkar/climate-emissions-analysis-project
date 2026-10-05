@@ -42,7 +42,9 @@ export function usePageYear(years: number[] | null): UseYearAnimationResult {
     if (!years) return;
     if (search !== lastSeen.current) {
       lastSeen.current = search;
-      if (search !== lastWritten.current) {
+      const ownWrite = search === lastWritten.current;
+      lastWritten.current = null;
+      if (!ownWrite) {
         const fromUrl = Math.min(Math.max(parseYearParam(search) ?? maxYear, minYear), maxYear);
         if (fromUrl !== currentYear) {
           seek(fromUrl);
