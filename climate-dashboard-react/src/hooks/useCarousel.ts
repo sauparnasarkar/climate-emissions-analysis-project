@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useReducedMotion } from 'design-system';
 
 /** Seconds a banner stays up before auto-rotating (ENHANCEMENTS.md decision 59). */
-export const CAROUSEL_DWELL_MS = 8000;
+export const CAROUSEL_DWELL_MS = 10000;
 
 export interface UseCarouselOptions {
   count: number;

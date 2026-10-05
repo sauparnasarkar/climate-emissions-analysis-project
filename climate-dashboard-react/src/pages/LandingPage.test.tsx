@@ -361,6 +361,17 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('button', { name: /01\s*Climate signal/ })).toHaveAttribute('aria-current', 'true');
   });
 
+  it('slides sideways: the next slide comes in from the right and the old one leaves left, and going back reverses it', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    const pos = () => [...document.querySelectorAll('.hero-carousel__slide')].map((s) => s.getAttribute('data-pos'));
+    expect(pos()).toEqual(['active', 'after']);
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
+    expect(pos()).toEqual(['before', 'active']);
+    fireEvent.click(screen.getByRole('button', { name: 'Previous slide' }));
+    expect(pos()).toEqual(['active', 'after']);
+  });
+
   it('holds the globe animation off while its slide is hidden, and on once it is shown', async () => {
     mountWithClimate();
     await screen.findByRole('region', { name: 'Featured' });

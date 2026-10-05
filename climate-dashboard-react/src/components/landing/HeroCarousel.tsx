@@ -3,7 +3,7 @@ import { Icon, useReducedMotion } from 'design-system';
 import { useCarousel } from '../../hooks/useCarousel';
 
 // The landing's top-of-fold carousel (Area 2, requirements §2.1; ENHANCEMENTS.md decision 59): two banners,
-// auto-rotate controlled only by an always-visible Pause/Play button, a 300 ms crossfade that never moves content.
+// auto-rotate controlled only by an always-visible Pause/Play button; slides slide in and out sideways (no motion under reduced-motion settings).
 
 export interface CarouselSlide {
   id: string;
@@ -15,9 +15,14 @@ export interface CarouselSlide {
 
 export const CAROUSEL_STYLES = `
 .hero-carousel { display: flex; flex-direction: column; }
-.hero-carousel__slides { display: grid; }
-.hero-carousel__slide { grid-area: 1 / 1; align-self: center; min-width: 0; transition: opacity 300ms ease, visibility 0s linear 300ms; opacity: 0; visibility: hidden; pointer-events: none; }
-.hero-carousel__slide[data-active="true"] { opacity: 1; visibility: visible; pointer-events: auto; transition: opacity 300ms ease, visibility 0s; }
+.hero-carousel__slides { display: grid; overflow: hidden; }
+/* Slides sit side by side in a row's worth of space: the active one at rest, earlier ones parked off to the left and later ones
+   to the right, so going forward enters from the right (and the old one leaves left) and going back does the reverse. */
+.hero-carousel__slide { grid-area: 1 / 1; align-self: center; min-width: 0; opacity: 0; visibility: hidden; pointer-events: none;
+  transition: transform 500ms cubic-bezier(.4, 0, .2, 1), opacity 500ms ease, visibility 0s linear 500ms; }
+.hero-carousel__slide[data-pos="before"] { transform: translateX(-100%); }
+.hero-carousel__slide[data-pos="after"] { transform: translateX(100%); }
+.hero-carousel__slide[data-pos="active"] { transform: none; opacity: 1; visibility: visible; pointer-events: auto; transition: transform 500ms cubic-bezier(.4, 0, .2, 1), opacity 500ms ease, visibility 0s; }
 .hero-carousel--static .hero-carousel__slide { transition: none; }
 .hero-carousel__controls { order: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 var(--landing-pad-x); padding: 10px 0 12px; border-top: 1px solid var(--__s9cmpx-static-divider-weak); }
 .hero-carousel__btn { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 12px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 14px; color: inherit; background: transparent; border: 1px solid var(--__s9cmpx-static-divider-standard, currentColor); }
@@ -64,7 +69,7 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
       </div>
       <div className="hero-carousel__slides" aria-live={c.autoplay ? 'off' : 'polite'}>
         {slides.map((s, i) => (
-          <div key={s.id} id={`${uid}-${s.id}`} className="hero-carousel__slide" role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}: ${s.label}`} data-active={i === c.index}
+          <div key={s.id} id={`${uid}-${s.id}`} className="hero-carousel__slide" role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}: ${s.label}`} data-active={i === c.index} data-pos={i === c.index ? 'active' : i < c.index ? 'before' : 'after'}
             // Hidden slides are also removed from the accessibility tree and made inert (CSS `visibility` alone would do the
             // same in a browser; this states it explicitly so focus and assistive tech can never reach a slide that isn't showing).
             aria-hidden={i !== c.index} inert={i !== c.index}>
