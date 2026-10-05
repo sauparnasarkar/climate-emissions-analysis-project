@@ -51,5 +51,5 @@ export function useClimateSignal(waitMs = 3000): ClimateSignalData {
     const id = setTimeout(() => setTimedOut(true), waitMs);
     return () => clearTimeout(id);
   }, [loading, waitMs]);
-  return { signal, mean5y: signal ? mean5yLatest : null, temperatureSeries, mean5ySeries, splice, headline: pair.data, settled: !loading || timedOut, done: !loading };
+  return { signal, mean5y: signal ? mean5yLatest : null, temperatureSeries, mean5ySeries, splice, headline: pair.data ?? null, settled: !loading || timedOut, done: !loading };
 }
