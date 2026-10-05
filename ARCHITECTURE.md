@@ -156,6 +156,28 @@ Explorer, About — `App.tsx`'s `NAV_ITEMS`), a typed fetch client (`src/api/`) 
 `api/schemas.py`, AG Grid for tabular data, Plotly (via design-system's `SyChart`) for
 charts.
 
+### Area 2 pages (Landing, Overview climate layer, `/climate-correlation`)
+
+Routes: `/` (Landing), `/overview`, `/climate-correlation` (see `SPEC.md` §5.26; decisions in
+`ENHANCEMENTS.md` Release 21). Patterns worth knowing before changing them:
+
+- **Every shown figure comes from `/api/correlation/*`.** Typed `lib/` builders turn responses into view models
+  (`climateSignal`, `headline`, `allGas`, `gasComposition`, `countryView`, `scenarioView`, `methodology`, `derivation`);
+  a missing value is omitted, never drawn as zero. Fixed copy is limited to baseline/source labels, the IPCC AR6
+  range and the methodology table. `lib/climateCopy.ts` holds the guardrail wording (descriptive, not a climate
+  model; the all-gas view is never called TCRE).
+- **Independent sections.** Each section renders from its own request state (`useAsync`; `useClimateSignal` runs
+  four independent requests), so one failing endpoint leaves the others on screen.
+- **One page year.** `usePageYear` owns the Overview's year (synced to `?year=`), shared by the map, tier cards,
+  share bars and By Country/Top Movers views (`lib/yearViews.ts`, computed client-side to match the API);
+  `useYearAnimation` drives Play. On phones the control is a chip + bottom sheet (`PageYearMobile`), chosen with
+  `useMediaQuery` so only one control exists in the DOM.
+- **Sticky anchor rows + deep links.** `StickyAnchorRow`/`AnchorScroll` give both pages one scrolling line on phones;
+  `useJumpToHashOnLoad` waits for the target and the measured row height before scrolling, so a hash lands correctly
+  after async content loads.
+- **Contrast.** The shared `--__s9cmpx-static-text-weak` token is retuned per theme in `design-system`; chart panels
+  stay dark in both themes (use the chart-surface token on them); the app adds only `--area2-warning`/`--area2-link`.
+
 ### Design-system integration
 
 Built on the **Analytics theme** (`data-theme="analytics"`, set once at `App.tsx`'s root)
