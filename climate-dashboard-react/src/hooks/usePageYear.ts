@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useYearAnimation, type UseYearAnimationResult } from './useYearAnimation';
 
@@ -32,18 +32,33 @@ export function usePageYear(years: number[] | null): UseYearAnimationResult {
     autoplay: false,
     initialYear: parseYearParam(search),
   });
-  const { currentYear } = anim;
+  const { currentYear, seek } = anim;
+  // The query string this hook last wrote, and the last one it looked at: a change to `search` that is not its own write came from outside
+  // (back/forward, or another link to /overview?year=… while this page stays mounted) and must move the year, not be overwritten by it.
+  const lastWritten = useRef<string | null>(null);
+  const lastSeen = useRef(search);
 
   useEffect(() => {
     if (!years) return;
+    if (search !== lastSeen.current) {
+      lastSeen.current = search;
+      if (search !== lastWritten.current) {
+        const fromUrl = Math.min(Math.max(parseYearParam(search) ?? maxYear, minYear), maxYear);
+        if (fromUrl !== currentYear) {
+          seek(fromUrl);
+          return;
+        }
+      }
+    }
     const params = new URLSearchParams(search);
     const want = currentYear === maxYear ? null : String(currentYear);
     if (params.get(PARAM) === want) return;
     if (want === null) params.delete(PARAM);
     else params.set(PARAM, want);
     const qs = params.toString();
+    lastWritten.current = qs ? `?${qs}` : '';
     navigate({ pathname, search: qs ? `?${qs}` : '', hash }, { replace: true });
-  }, [years, currentYear, maxYear, search, hash, pathname, navigate]);
+  }, [years, currentYear, minYear, maxYear, seek, search, hash, pathname, navigate]);
 
   return anim;
 }

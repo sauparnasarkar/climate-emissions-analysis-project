@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseYearParam, usePageYear } from './usePageYear';
 
@@ -56,6 +56,20 @@ describe('usePageYear', () => {
     expect(result.current.year.currentYear).toBe(2024);
     expect(result.current.year.isPlaying).toBe(false);
     expect(result.current.loc.search).toBe('');
+  });
+
+  it('follows the URL when it changes from outside while the page stays mounted (back/forward, another deep link), without overwriting it', () => {
+    const { result } = renderHook(() => ({ year: usePageYear(YEARS), loc: useLocation(), nav: useNavigate() }), { wrapper: wrap('/overview?year=2010') });
+    expect(result.current.year.currentYear).toBe(2010);
+    act(() => result.current.nav('/overview?year=1990&countries=China'));
+    expect(result.current.year.currentYear).toBe(1990);
+    expect(result.current.loc.search).toBe('?year=1990&countries=China'); // not rewritten back to 2010
+    act(() => result.current.nav('/overview')); // a link to the bare page = the latest year
+    expect(result.current.year.currentYear).toBe(2024);
+    expect(result.current.loc.search).toBe('');
+    act(() => result.current.nav(-1)); // back
+    expect(result.current.year.currentYear).toBe(1990);
+    expect(result.current.loc.search).toBe('?year=1990&countries=China');
   });
 
   it('does not touch the URL until the series has loaded (the year is unknown until then)', () => {
