@@ -3,8 +3,6 @@ import { SCENARIO_LABEL } from '../../lib/climateCopy';
 import { fmtInt } from '../../lib/landingData';
 import { PATHWAYS_ANCHOR, type Pathways } from '../../lib/pathways';
 
-export { PATHWAYS_ANCHOR };
-
 const panel = { background: 'var(--__s9cmpx-static-background-standard)', border: '1px solid var(--__s9cmpx-static-divider-weak)', borderRadius: 8 } as const;
 
 /**
@@ -13,7 +11,7 @@ const panel = { background: 'var(--__s9cmpx-static-background-standard)', border
  * follow the page year -- the pathways run 2025 onward.
  */
 export function PathwaysSection({ pathways }: { pathways: Pathways }) {
-  const { year, cards, summary } = pathways;
+  const { year, cards, summary, lastObservedYear, restOfWorldYear } = pathways;
   return (
     <section id={PATHWAYS_ANCHOR} aria-labelledby="pathways-heading" style={{ marginTop: 24, marginBottom: 16 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 12px', marginBottom: 8 }}>
@@ -35,7 +33,7 @@ export function PathwaysSection({ pathways }: { pathways: Pathways }) {
         ))}
       </div>
       <p className="__s9cmpx-body4" style={{ margin: '10px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
-        Implied temperature = the observed 5-year-mean anchor plus the long-run slope × the emissions still to come; it is a translation of the pathways, not a climate model or a projection. Pathways start from the 2024 observed total and hold the rest of the world at its 2024 share.
+        Implied temperature = the observed 5-year-mean anchor plus the long-run slope × the emissions still to come; it is a translation of the pathways, not a climate model or a projection. Pathways start from the {lastObservedYear} observed total and hold the rest of the world at its {restOfWorldYear} share.
       </p>
       <p className="__s9cmpx-body3" style={{ margin: '8px 0 0', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
         <Link to="/forecasts">Forecasts to 2043 →</Link>

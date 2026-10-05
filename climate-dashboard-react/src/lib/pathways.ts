@@ -16,16 +16,21 @@ export interface PathwayCard {
 }
 
 export interface Pathways {
+  /** The horizon year the cards describe. */
   year: number;
+  /** First scenario year, the last observed year the pathways start from, and the year the rest of the world's share is held at -- all read from the response. */
+  startYear: number;
+  lastObservedYear: number;
+  restOfWorldYear: number;
   cards: PathwayCard[];
   /** The generated one-line reading, or null when the pathways do not diverge enough for the API to publish one. */
   summary: string | null;
 }
 
-const META: Record<PathwayName, { label: string; method: (countries: number | null) => string; color: string }> = {
+const META: Record<PathwayName, { label: string; method: (countries: number | null, startYear: number) => string; color: string }> = {
   BAU: { label: 'Business as usual', method: (n) => `ETS trend, ${n ?? 'all'} covered countries`, color: '#B07A10' },
-  Moderate: { label: 'Moderate', method: () => '−2% a year from 2025', color: '#0A6E8C' },
-  Aggressive: { label: 'Aggressive', method: () => '−5% a year from 2025', color: '#1D726B' },
+  Moderate: { label: 'Moderate', method: (_, from) => `−2% a year from ${from}`, color: '#0A6E8C' },
+  Aggressive: { label: 'Aggressive', method: (_, from) => `−5% a year from ${from}`, color: '#1D726B' },
 };
 const ORDER: PathwayName[] = ['BAU', 'Moderate', 'Aggressive'];
 
@@ -39,6 +44,9 @@ export function buildPathways(resp: CorrelationScenarioTemperatureResponse | nul
   const rows = (name: PathwayName) => (resp.scenarios?.[name] ?? []).flatMap((r) => (rec(r) ? [rec(r)!] : []));
   const year = Math.max(0, ...ORDER.flatMap((n) => rows(n).map((r) => num(r.year) ?? 0)));
   if (year === 0) return null;
+  const startYear = Math.min(...ORDER.flatMap((n) => rows(n).map((r) => num(r.year) ?? Infinity)));
+  const lastObservedYear = num(rec(resp.base)?.last_observed_year) ?? startYear - 1;
+  const restOfWorldYear = num(rec(rec(resp.assumptions)?.rest_of_world)?.year) ?? lastObservedYear;
   const countries = Array.isArray(resp.covered_countries) ? resp.covered_countries.length || null : null;
   const cards: PathwayCard[] = [];
   for (const name of ORDER) {
@@ -46,7 +54,7 @@ export function buildPathways(resp: CorrelationScenarioTemperatureResponse | nul
     const emissionsMt = num(row?.global_fossil_mt);
     const levelC = num(rec(row?.headline)?.level_c);
     if (emissionsMt === null || levelC === null) return null; // a scenario without its horizon figures: show nothing rather than a partial comparison
-    cards.push({ name, label: META[name].label, method: META[name].method(countries), emissionsMt, levelC, color: META[name].color });
+    cards.push({ name, label: META[name].label, method: META[name].method(countries, startYear), emissionsMt, levelC, color: META[name].color });
   }
   const facts = rec(resp.spread?.reading_note_facts);
   const ratio = num(facts?.emissions_ratio);
@@ -57,5 +65,5 @@ export function buildPathways(resp: CorrelationScenarioTemperatureResponse | nul
     const observed = range.length === 2 && range[0] !== null && range[1] !== null ? `, because ${Math.round(range[0])}–${Math.round(range[1])}% of the ${year} implied level is warming already observed` : '';
     summary = `By ${year} the pathways diverge ${ratio.toFixed(1)}× in annual emissions, yet their implied temperatures differ by only ${gap.toFixed(2)} °C${observed}.`;
   }
-  return { year, cards, summary };
+  return { year, startYear, lastObservedYear, restOfWorldYear, cards, summary };
 }

@@ -9,8 +9,16 @@ describe('buildPathways', () => {
   it('reads the horizon year\'s emissions and implied temperature for the three scenarios, in a fixed order', () => {
     const p = buildPathways(SCENARIO_TEMPERATURE)!;
     expect(p.year).toBe(2040);
-    expect(p.cards.map((c) => [c.name, c.emissionsMt, c.levelC])).toEqual([['BAU', 44877, 1.78], ['Moderate', 29000, 1.72], ['Aggressive', 20791, 1.67]]);
+    expect(p.cards.map((c) => [c.name, c.emissionsMt, c.levelC])).toEqual([['BAU', 44877, 1.78], ['Moderate', 33145, 1.73], ['Aggressive', 20791, 1.67]]);
     expect(p.cards.map((c) => c.method)).toEqual(['ETS trend, 40 covered countries', '−2% a year from 2025', '−5% a year from 2025']);
+  });
+
+  it('reads the years it states from the response, not from constants', () => {
+    const shifted = { ...SCENARIO_TEMPERATURE, base: { last_observed_year: 2025 }, assumptions: { rest_of_world: { year: 2023 } },
+      scenarios: Object.fromEntries(Object.entries(SCENARIO_TEMPERATURE.scenarios).map(([k, v]) => [k, v.map((r) => ({ ...r, year: (r.year as number) + 1 }))])) } as unknown as CorrelationScenarioTemperatureResponse;
+    const p = buildPathways(shifted)!;
+    expect([p.startYear, p.lastObservedYear, p.restOfWorldYear, p.year]).toEqual([2026, 2025, 2023, 2041]);
+    expect(p.cards.map((c) => c.method)).toEqual(['ETS trend, 40 covered countries', '−2% a year from 2026', '−5% a year from 2026']);
   });
 
   it('writes the one-line reading from the published facts', () => {

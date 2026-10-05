@@ -984,11 +984,12 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     expect(section.id).toBe('pathways');
     expect(within(section).getByText('Illustrative · implied outcomes, not projections')).toBeInTheDocument();
     expect(within(section).getByText(/diverge 2\.2× in annual emissions, yet their implied temperatures differ by only 0\.11 °C/)).toBeInTheDocument();
-    for (const [label, temp, mt] of [['Business as usual', '1.78 °C', '44,877'], ['Moderate', '1.72 °C', '29,000'], ['Aggressive', '1.67 °C', '20,791']]) {
+    for (const [label, temp, mt] of [['Business as usual', '1.78 °C', '44,877'], ['Moderate', '1.73 °C', '33,145'], ['Aggressive', '1.67 °C', '20,791']]) {
       const card = within(section).getByText(label).parentElement as HTMLElement;
       expect(within(card).getByText(temp)).toBeInTheDocument();
       expect(within(card).getByText(`${mt} Mt a year`)).toBeInTheDocument();
     }
+    expect(within(section).getByText(/Pathways start from the 2024 observed total and hold the rest of the world at its 2024 share/)).toBeInTheDocument();
     expect(within(section).getByRole('link', { name: 'Forecasts to 2043 →' })).toHaveAttribute('href', '/forecasts');
     expect(within(section).getByRole('link', { name: 'Scenario Comparison →' })).toHaveAttribute('href', '/scenarios');
     const nav = screen.getByRole('navigation', { name: 'Jump links' });
