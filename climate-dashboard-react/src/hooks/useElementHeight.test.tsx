@@ -26,9 +26,12 @@ describe('useElementHeight', () => {
     expect(screen.getByTestId('row')).toHaveTextContent('84');
   });
 
-  it('is 0 without an element', () => {
-    function Empty() { return <span data-testid="e">{useElementHeight(null)}</span>; }
+  it('is null (not yet measured) without an element, and 0 is a real measurement', () => {
+    function Empty() { return <span data-testid="e">{String(useElementHeight(null))}</span>; }
     render(<Empty />);
-    expect(screen.getByTestId('e')).toHaveTextContent('0');
+    expect(screen.getByTestId('e')).toHaveTextContent('null');
+    height = 0;
+    render(<Probe />);
+    expect(screen.getAllByTestId('row').at(-1)).toHaveTextContent('0');
   });
 });

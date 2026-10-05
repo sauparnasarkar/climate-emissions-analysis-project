@@ -549,7 +549,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // The sticky anchor row's real height (it wraps to two lines on a narrow screen), so jump targets clear all of it.
   const [stickyRow, setStickyRow] = useState<HTMLElement | null>(null);
   const stickyRowHeight = useElementHeight(stickyRow);
-  const jumpRowPx = stickyRowHeight > 0 ? Math.ceil(stickyRowHeight) + JUMP_ROW_GAP_PX : JUMP_ROW_PX;
+  const jumpRowPx = stickyRowHeight ? Math.ceil(stickyRowHeight) + JUMP_ROW_GAP_PX : JUMP_ROW_PX;
   const yearStops = useMemo(() => (worldMapSeries ? computeAutoplayStops(worldMapSeries.years[0], worldMapSeries.years[worldMapSeries.years.length - 1], PAGE_YEAR_STEP) : []), [worldMapSeries]);
   const climate = useClimateSignal();
   // Each country's cumulative CO₂ just before the map's first year (one all-countries snapshot, ~200 rows): the base for Cumulative mode.
@@ -578,7 +578,8 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // hook jumps once only. (Any other hash jumps as soon as the page renders, which is bounded by the timeout.)
   const { hash } = useLocation();
   const waitsForClimate = hash === `#${RELATIONSHIP_ANCHOR}`;
-  useJumpToHashOnLoad(Boolean(data && worldMapSeries && climate.settled && (!waitsForClimate || climate.done)), reduceMotion);
+  // ...and for the sticky row's first measurement: the jump's offset depends on whether the Year control wrapped onto a second line.
+  useJumpToHashOnLoad(Boolean(data && worldMapSeries && climate.settled && (!waitsForClimate || climate.done) && stickyRowHeight !== null), reduceMotion);
 
   // useAsync preserves the previous `data` while a refetch is in flight (only `loading`
   // flips), so only block on a spinner before anything has ever loaded — once `data`

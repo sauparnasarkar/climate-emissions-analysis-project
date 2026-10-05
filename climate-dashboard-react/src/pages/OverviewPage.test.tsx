@@ -759,6 +759,24 @@ describe('OverviewPage — deep links', () => {
     }
   });
 
+  it('a deep link scrolls only after the sticky row has been measured, so the first scroll clears a wrapped Year control', async () => {
+    window.history.replaceState(null, '', '/overview#share');
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return { height: this.style.position === 'sticky' ? 90 : 0 } as DOMRect;
+    });
+    let marginAtJump = '';
+    scrollSpy.mockImplementation(() => { marginAtJump = document.querySelector('.overview-page style')?.textContent ?? ''; });
+    try {
+      mountWithClimate();
+      await screen.findByRole('navigation', { name: 'Jump links' });
+      await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('share'));
+      expect(marginAtJump).toMatch(/scroll-margin-top: 168px/); // the measured 90 px row, not the 52 px fallback (which would be 120)
+    } finally {
+      rect.mockRestore();
+      scrollSpy.mockReset();
+    }
+  });
+
   it('any other deep link (#map) jumps as soon as the page has rendered, without waiting for a stalled climate request', async () => {
     window.history.replaceState(null, '', '/overview#map');
     vi.useFakeTimers();
