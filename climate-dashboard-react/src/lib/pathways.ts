@@ -49,7 +49,8 @@ export function buildPathways(resp: CorrelationScenarioTemperatureResponse | nul
   if (year === 0) return null;
   const startYear = Math.min(...ORDER.flatMap((n) => rows(n).map((r) => num(r.year) ?? Infinity)));
   const lastObservedYear = num(rec(resp.base)?.last_observed_year) ?? startYear - 1;
-  const startOffsetPct = num(rec(rec(resp.base)?.first_scenario_year_vs_last_observed_pct)?.BAU);
+  const offsets = ORDER.map((name) => num(rec(rec(resp.base)?.first_scenario_year_vs_last_observed_pct)?.[name]));
+  const startOffsetPct = offsets.every((value) => value !== null && value === offsets[0]) ? offsets[0] : null;
   const restOfWorldYear = num(rec(rec(resp.assumptions)?.rest_of_world)?.year) ?? lastObservedYear;
   const countries = Array.isArray(resp.covered_countries) ? resp.covered_countries.length || null : null;
   const cards: PathwayCard[] = [];
