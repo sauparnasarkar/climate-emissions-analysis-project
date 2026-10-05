@@ -25,7 +25,7 @@ function Row({ k, v }: { k: string; v: string }) {
  * cumulative CO₂ since 1850, the warming-per-1,000-GtCO₂ stat card with its interval, fit quality and the labelled fossil-only comparison, the AR6
  * strip, and the baseline card. Descriptive: the caption says correlation, not proof of cause, and the card says it is not a climate model.
  */
-export function HeadlineRelationship({ signal, headline }: { signal: ClimateSignal; headline: Headline }) {
+export function HeadlineRelationship({ signal, headline, hasAllGas = false }: { signal: ClimateSignal; headline: Headline; hasAllGas?: boolean }) {
   const { slope, ciLow, ciHigh, rSquared, start, end, nYears, fossilSlope } = headline;
   const excluded = signal.omittedYears.length ? signal.omittedYears.join(', ') : 'None';
   return (
@@ -42,7 +42,7 @@ export function HeadlineRelationship({ signal, headline }: { signal: ClimateSign
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
             <BaselineChip baseline="1850–1900" source="Berkeley Earth" />
             <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
-              Each dot is one year. Dashed line: least-squares fit. Co-movement is shown as context, not as proof of cause.
+              Each dot is one year. Dashed line: least-squares fit. Co-movement is shown as context, not as proof of cause.{hasAllGas ? ' The recent all-gas view (1970 onward) is a separate chart below and is not called TCRE.' : ''}
             </span>
           </div>
         </ChartCard>

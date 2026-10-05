@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import { ApiError } from '../api/types';
 import type { WorldMapTimeSeries } from '../api/types';
-import { CONCENTRATION, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
+import { ALL_GAS_PAIR, CONCENTRATION, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
 import ClimateCorrelationPage from './ClimateCorrelationPage';
 
 const scrollSpy = vi.hoisted(() => vi.fn());
@@ -17,7 +17,7 @@ const WORLD: WorldMapTimeSeries = { iso_codes: ['CHN', 'USA'], countries: ['Chin
 
 beforeEach(() => {
   vi.stubGlobal('matchMedia', vi.fn().mockImplementation((q: string) => ({ matches: false, media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
-  vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => (o?.variant === 'fossil' ? ({ ...PAIR, fit: { ...PAIR.fit, slope: 0.797 } } as never) : PAIR));
+  vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => (o?.source === 'primap_ghg' ? ALL_GAS_PAIR : o?.variant === 'fossil' ? ({ ...PAIR, fit: { ...PAIR.fit, slope: 0.797 } } as never) : PAIR));
   vi.mocked(api.correlationTemperature).mockImplementation(async (o) => (o?.view === 'mean5y' ? TEMPERATURE_MEAN5Y : TEMPERATURE));
   vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
   vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD);
@@ -51,6 +51,25 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(await screen.findByRole('heading', { level: 2, name: 'Global relationship' })).toBeInTheDocument();
     expect(screen.queryByText('Fossil + cement only')).not.toBeInTheDocument();
     expect(within(document.querySelector('.module-chain') as HTMLElement).getAllByRole('listitem')[0].textContent).not.toMatch(/MtCO₂/);
+  });
+
+  it('shows the recent all-gas view after the headline, fetched as the PRIMAP source, and the headline caption points to it', async () => {
+    mount();
+    const gas = await screen.findByRole('heading', { level: 3, name: /^Recent all-gas relationship/ });
+    expect(api.correlationEmissionsTemperature).toHaveBeenCalledWith({ source: 'primap_ghg' });
+    expect(document.getElementById('global-relationship')!.compareDocumentPosition(gas) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText(/separate chart below and is not called TCRE/)).toBeInTheDocument();
+  });
+
+  it('leaves the all-gas view out, and the caption sentence about it, when its request fails; the headline is unaffected', async () => {
+    vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => {
+      if (o?.source === 'primap_ghg') throw new ApiError(503, 'x');
+      return o?.variant === 'fossil' ? ({ ...PAIR, fit: { ...PAIR.fit, slope: 0.797 } } as never) : PAIR;
+    });
+    mount();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Global relationship' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 3, name: /Recent all-gas/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/separate chart below/)).not.toBeInTheDocument();
   });
 
   it('does not lose the chain and relationship when only the optional 5-year-mean request fails', async () => {

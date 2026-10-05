@@ -82,10 +82,69 @@ describe('HeadlineRelationship', () => {
     expect(screen.getByText('1900, 1901')).toBeInTheDocument();
   });
 
+  it('keeps the headline chart\'s accessible summary in GtCO₂', () => {
+    render(<MemoryRouter><HeadlineRelationship signal={signal} headline={buildHeadline(signal, null)} /></MemoryRouter>);
+    expect(screen.getByRole('img', { name: /cumulative CO₂ since 1850 rises from .* GtCO₂\./ })).toBeInTheDocument();
+  });
+
   it('omits R² and the fossil comparison when the data lacks them rather than showing blanks', () => {
     const noFossil = buildHeadline({ ...signal, fit: { ...signal.fit, rSquared: null } }, null);
     render(<MemoryRouter><HeadlineRelationship signal={signal} headline={noFossil} /></MemoryRouter>);
     expect(screen.queryByText('R²')).not.toBeInTheDocument();
     expect(screen.queryByText('Fossil + cement only')).not.toBeInTheDocument();
+  });
+});
+
+import { ALL_GAS_PAIR } from '../../test/climateFixtures';
+import { buildAllGas } from '../../lib/allGas';
+import { AllGasRelationship } from './AllGasRelationship';
+
+describe('AllGasRelationship', () => {
+  const allGas = buildAllGas(ALL_GAS_PAIR)!;
+  const mount = (a = allGas) => render(<AllGasRelationship allGas={a} />);
+
+  it('is tagged "not TCRE" and gives the API\'s slope, both intervals, fit quality and window', () => {
+    mount();
+    expect(screen.getByRole('heading', { level: 3, name: /^Recent all-gas relationship, 1970 onward/ })).toBeInTheDocument();
+    expect(screen.getByText('Recent all-gas relationship · not TCRE')).toBeInTheDocument();
+    expect(screen.getByText(/0\.579/)).toBeInTheDocument();
+    expect(screen.getByText('0.533–0.626')).toBeInTheDocument();
+    expect(screen.getByText('Bootstrap interval (10-year blocks)')).toBeInTheDocument();
+    expect(screen.getByText('0.539–0.619')).toBeInTheDocument();
+    expect(screen.getByText('0.92')).toBeInTheDocument();
+    expect(screen.getByText('1970–2024 (55)')).toBeInTheDocument();
+    expect(screen.getByText('Excluded years')).toBeInTheDocument(); // listed by the pair itself
+    expect(screen.getByText('2025')).toBeInTheDocument();
+  });
+
+  it('does not say "None" for excluded years when the pair lists none: the upstream exclusion of the incomplete year is in the caveats instead', () => {
+    mount(buildAllGas({ ...ALL_GAS_PAIR, omitted_years: [] })!);
+    expect(screen.queryByText('Excluded years')).not.toBeInTheDocument();
+    expect(screen.queryByText('None')).not.toBeInTheDocument();
+    const details = screen.getByText('How stable is this, and what to keep in mind').closest('details') as HTMLElement;
+    expect(within(details).getByText(/reporting for them is incomplete: 2025/)).toBeInTheDocument();
+  });
+
+  it('is never compared with the AR6 range or named as TCRE beyond saying it is not', () => {
+    mount();
+    expect(screen.queryByText(/AR6/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Not TCRE and not compared with the IPCC range/)).toBeInTheDocument();
+    expect(document.body.textContent!.match(/TCRE/g)!.length).toBe(2); // the tag and that one sentence
+  });
+
+  it('puts the chart-relevant caveats and the stability reading behind a disclosure, leaving licences to the methodology', () => {
+    mount();
+    const details = screen.getByText('How stable is this, and what to keep in mind').closest('details') as HTMLElement;
+    expect(within(details).getByText(/10-year blocks gives a 95% interval/)).toBeInTheDocument();
+    expect(within(details).getByText(/short window/)).toBeInTheDocument();
+    expect(within(details).getByText(/AR5 100-year global-warming potentials/)).toBeInTheDocument();
+    expect(within(details).queryByText(/licence/i)).not.toBeInTheDocument();
+    expect(within(details).queryByText(/file vintage/)).not.toBeInTheDocument();
+  });
+
+  it('draws the scatter on its own axis and describes it for assistive tech in gigatonnes of CO₂e', () => {
+    mount();
+    expect(screen.getByRole('img', { name: /cumulative greenhouse-gas emissions rises from 901 to 2,300 GtCO₂e/ })).toBeInTheDocument();
+    expect(screen.getByText('Cumulative greenhouse gases, national totals (GtCO₂e)')).toBeInTheDocument();
   });
 });
