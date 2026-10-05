@@ -108,7 +108,7 @@ export function ShareSection({ countries, year, pagePlaying }: { countries: stri
           </Button>
           {replaying && (
             <div aria-hidden style={{ flex: '1 1 80px', height: 4, borderRadius: 2, background: 'var(--__s9cmpx-static-divider-weak)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${year > first ? ((shown - first) / (year - first)) * 100 : 100}%`, background: 'var(--__s9cmpx-static-text-weak)' }} />
+              <div style={{ height: '100%', width: `${year > first ? ((shown - first) / (year - first)) * 100 : 100}%`, background: 'var(--__s9cmpx-color-brand-500)' }} />
             </div>
           )}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 8 }}>
