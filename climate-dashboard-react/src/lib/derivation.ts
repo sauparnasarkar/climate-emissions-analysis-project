@@ -118,9 +118,9 @@ export function buildDerivation(resp: CorrelationEmissionsTemperatureResponse | 
 
   const scale = list(ctx?.land_use_sensitivity).flatMap((r) => (num(r.land_use_scale) !== null && num(r.slope) !== null ? [{ scale: num(r.land_use_scale)!, slope: num(r.slope)! }] : []));
   const scan = rec(ctx?.land_use_weight_scan);
-  const scanRows = list(scan?.weights).flatMap((r) => (num(r.land_use_weight) !== null && num(r.slope) !== null ? [{ weight: num(r.land_use_weight)!, slope: num(r.slope)!, rSquared: num(r.r_squared), holdoutRmse: num(r.holdout_rmse_c) }] : []));
+  const scanRows = list(scan?.weights).flatMap((r) => (num(r.land_use_weight) !== null && num(r.slope) !== null ? [{ weight: num(r.land_use_weight)!, slope: num(r.slope)!, rSquared: num(r.r_squared), holdoutRmse: num(r.holdout_rmse_c), split: num(r.holdout_split_year) }] : []));
   const sensitivity: Sensitivity | null = scale.length || scanRows.length
-    ? { landUseScale: scale, weightScan: scanRows.length ? { definition: str(scan?.definition), note: str(scan?.note), rows: scanRows, split: num(list(scan?.weights)[0]?.holdout_split_year) } : null }
+    ? { landUseScale: scale, weightScan: scanRows.length ? { definition: str(scan?.definition), note: str(scan?.note), rows: scanRows, split: scanRows[0]?.split ?? null } : null }
     : null;
 
   const st = rec(ctx?.stability);
