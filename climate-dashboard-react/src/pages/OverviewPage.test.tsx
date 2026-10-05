@@ -151,6 +151,17 @@ const WORLD_MAP_SERIES: WorldMapTimeSeries = {
   value_range: [21, 25324],
 };
 
+// A contiguous 1990..2024 series for [country, iso, 1990 value, 2024 value] rows (linear between): By Country, Top Movers and % Change are computed
+// from the series the map holds, and the movers need the 1990 baseline inside it. DEFAULT_ANIMATION's year 2024 is the last row.
+function seriesFrom1990(rows: Array<[string, string, number, number]>): WorldMapTimeSeries {
+  const years = Array.from({ length: 35 }, (_, i) => 1990 + i);
+  const values = years.map((y) => rows.map(([, , a, b]) => a + ((b - a) * (y - 1990)) / 34));
+  const all = values.flat();
+  return { iso_codes: rows.map((r) => r[1]), countries: rows.map((r) => r[0]), years, values, value_range: [Math.min(...all), Math.max(...all)] };
+}
+const SERIES_CHINA: WorldMapTimeSeries = seriesFrom1990([['China', 'CHN', 14350, 25324], ['Vietnam', 'VNM', 21, 370]]);
+const SERIES_CHINA_UK: WorldMapTimeSeries = seriesFrom1990([['China', 'CHN', 14350, 25324], ['United Kingdom', 'GBR', 600, 300], ['Vietnam', 'VNM', 21, 370]]);
+
 // JumpLinks (SPEC.md §5.19) calls design-system's useReducedMotion during render -- jsdom has
 // no window.matchMedia at all, so every test needs this stub regardless of whether it cares
 // about reduced motion specifically.
@@ -191,8 +202,14 @@ afterEach(() => {
 describe('OverviewPage', () => {
   it('shows a loading state, then renders all three KPI rows from the API response', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
-    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
-    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    // the API's tier totals run 1990..2024, one per series row
+    const fullYears = (first: number, last: number) => [...Array(34).fill(first), last];
+    vi.mocked(api.overview).mockResolvedValue({
+      ...RESPONSE,
+      all_countries: { ...RESPONSE.all_countries, co2_by_year: fullYears(22184, 37406) },
+      expanded_countries: { ...RESPONSE.expanded_countries, co2_by_year: fullYears(19686, 34477) },
+    });
+    vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument();
@@ -217,8 +234,9 @@ describe('OverviewPage', () => {
     // (25324 - 14350) / 14350 * 100 = 76.47...% -> "+76.5%", same figure the old
     // server-computed RESPONSE.selected.pct_change_since_1990 fixture used to assert,
     // now independently reproduced by the client-side computation.
-    expect(screen.getByText('+76.5%')).toBeInTheDocument();
-    expect(screen.getByText('Top Movers Since 1990 (10 Selected Countries)')).toBeInTheDocument();
+    // ...which is also what the Fastest/Largest cards show here: China is the only selected country in this fixture series.
+    expect(screen.getAllByText('+76.5%').length).toBeGreaterThanOrEqual(3); // Selected tier, Fastest Growth, Largest Reduction (the count-ups render twice)
+    expect(screen.getByRole('heading', { name: /^Top Movers 1990 → 2024 \(10 Selected Countries\)/ })).toBeInTheDocument();
     expect(vi.mocked(api.overview)).toHaveBeenCalledWith(FEATURED);
   });
 
@@ -251,7 +269,7 @@ describe('OverviewPage', () => {
     document.documentElement.style.setProperty('--__s9cmpx-color-brand-100', '#222222');
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
-    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByText('Selected');
 
@@ -264,9 +282,10 @@ describe('OverviewPage', () => {
         [1, '#111111'],
       ]),
     );
-    // top_movers' largest-magnitude pct_change is India's 452.6 -- colorRange must be
-    // symmetric around it so 0% change (no change) still lands on the scale's true midpoint.
-    expect(barChart).toHaveAttribute('data-bar-color-range', JSON.stringify([-452.6, 452.6]));
+    // The largest-magnitude change (China's, from the series) -- colorRange must be symmetric around it so 0% change still lands on the
+    // scale's true midpoint.
+    const chinaPct = ((25324 - 14350) / 14350) * 100;
+    expect(barChart).toHaveAttribute('data-bar-color-range', JSON.stringify([-chinaPct, chinaPct]));
   });
 
   it('renders the headline sentence (with its "Since 1990" eyebrow), bolding country names and coloring increase/decrease values', async () => {
@@ -303,20 +322,20 @@ describe('OverviewPage', () => {
     // file), so this exercises the actual rendered `color` style, not a stubbed prop passthrough.
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
-    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA_UK);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
     await screen.findByText('Since 1990');
 
-    // Fastest Growth: absolute_change 10000 (bad/increase) -> NEGATIVE_COLOR.
-    expect(screen.getByText('+10,000 MtCO₂')).toHaveStyle({ color: NEGATIVE_COLOR });
-    // Largest Reduction: absolute_change -300 (good/decrease) -> POSITIVE_COLOR.
+    // Fastest Growth: China's +10,974 Mt (bad/increase) -> NEGATIVE_COLOR.
+    expect(screen.getByText('+10,974 MtCO₂')).toHaveStyle({ color: NEGATIVE_COLOR });
+    // Largest Reduction: the United Kingdom's -300 Mt (good/decrease) -> POSITIVE_COLOR.
     expect(screen.getByText('-300 MtCO₂')).toHaveStyle({ color: POSITIVE_COLOR });
   });
 
   it('fetches world-map-series exactly once, regardless of how many times the selection changes', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
-    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
@@ -400,7 +419,7 @@ describe('OverviewPage', () => {
   it('refetches and updates the Selected row/chart/Top Movers when the selection changes', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.overview).mockResolvedValue(RESPONSE);
-    vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
@@ -889,6 +908,44 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     expect(options).toMatchObject({ minYear: 1970, maxYear: 2024, stepYears: 10, intervalMs: 1750, autoplay: false });
     expect(screen.getByRole('slider')).toHaveAttribute('aria-valuemin', '1970');
     expect(screen.getByRole('slider')).toHaveAttribute('aria-valuemax', '2024');
+  });
+
+  it('By Country, Top Movers and % Change follow the page year, each with a year badge', async () => {
+    mountFullRange(2000);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const china = (y: number) => FULL_MAP.values[y - 1970][0] as number;
+    const pct = ((china(2000) - china(1990)) / china(1990)) * 100;
+    // By Country: the chart is titled and drawn for the page year (the map card has the same title)
+    expect(screen.getAllByText('CO₂ Emissions by Country (2000)')).toHaveLength(2);
+    expect(screen.getByLabelText(/^Bar chart of total CO₂ emissions in 2000 for 1 countries/)).toBeInTheDocument();
+    // Top Movers: measured 1990 -> the page year, from the series
+    expect(screen.getByRole('heading', { name: /^Top Movers 1990 → 2000 \(1 Selected Countries\)/ })).toBeInTheDocument();
+    expect(screen.getByText('Fastest Growth — China')).toBeInTheDocument();
+    expect(screen.getAllByText(`+${pct.toFixed(1)}%`).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(`+${Math.round(china(2000) - china(1990)).toLocaleString()} MtCO₂`).length).toBeGreaterThan(0);
+    // % Change: titled for the year, axis scaled to that year's data
+    expect(screen.getByText('CO₂ % Change by Country, 1990–2000')).toBeInTheDocument();
+    const barChart = screen.getAllByTestId('sychart').find((el) => el.hasAttribute('data-bar-color-range'));
+    expect(barChart).toHaveAttribute('data-bar-color-range', JSON.stringify([-pct, pct]));
+    // each section's header carries the year
+    for (const h of [screen.getByRole('heading', { level: 2, name: /^By Country/ }), screen.getByRole('heading', { level: 2, name: /^% Change Since 1990/ })]) {
+      expect(within(h).getByLabelText('Year 2000')).toBeInTheDocument();
+    }
+    expect(screen.queryByText(/The baseline is 1990/)).not.toBeInTheDocument();
+  });
+
+  it('greys out Top Movers and % Change with the baseline prompt for years up to 1990, while By Country still shows the year', async () => {
+    for (const year of [1990, 1980]) {
+      cleanup();
+      mountFullRange(year);
+      await screen.findByRole('heading', { level: 1, name: 'Overview' });
+      expect(screen.getAllByRole('status').filter((n) => /The baseline is 1990/.test(n.textContent ?? ''))).toHaveLength(2); // Top Movers + % Change
+      expect(screen.getAllByText(/Choose 2000 or later in the page year/)).toHaveLength(2);
+      expect(screen.queryByText('Fastest Growth — China')).not.toBeInTheDocument();
+      expect(screen.getByText(`CO₂ % Change by Country, 1990–${year}`)).toBeInTheDocument();
+      expect(screen.getAllByText(`CO₂ Emissions by Country (${year})`)).toHaveLength(2);
+      expect(screen.getByRole('heading', { name: /^Top Movers 1990 → / })).toBeInTheDocument();
+    }
   });
 
   it('puts a sticky Year control in the anchor bar that moves the same year as the map (one value, not two)', async () => {

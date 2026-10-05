@@ -20,6 +20,8 @@ import { PAGE_YEAR_STEP, usePageYear } from '../hooks/usePageYear';
 import type { UseYearAnimationResult } from '../hooks/useYearAnimation';
 import { useElementHeight } from '../hooks/useElementHeight';
 import { PageYearControl } from '../components/overview/PageYearControl';
+import { YearBadge } from '../components/overview/YearBadge';
+import { countryValuesForYear, moversForYear } from '../lib/yearViews';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { buildHeadlineSentence } from '../lib/overviewHeadline';
@@ -529,6 +531,15 @@ function AnimatedWorldMap({
 // Split out so the overview fetch only ever starts once the expanded country list (and its
 // featured-default seed) are already known — avoiding a wasted initial fetch before
 // GET /api/countries resolves.
+// Years up to the 1990 baseline have nothing to compare against: the sections that measure change greyed out, with the reason (design update).
+function BaselinePrompt() {
+  return (
+    <div role="status" style={{ opacity: 0.85, border: '1px dashed var(--__s9cmpx-static-divider-standard)', borderRadius: 8, padding: '14px 18px', background: 'var(--__s9cmpx-static-background-weak)' }}>
+      <span className="__s9cmpx-body3">The baseline is 1990, so there is nothing to compare yet. Choose 2000 or later in the page year.</span>
+    </div>
+  );
+}
+
 function OverviewContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   // URL-backed (?countries=…, SPEC.md §5.25) so links can open with a chosen selection.
   const [selected, setSelected] = useSelectedCountries(featured, expanded);
@@ -588,11 +599,20 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   if (error || worldMapError) return <InlineAlert variant="warning">{error ?? worldMapError}</InlineAlert>;
   if (!data || !worldMapSeries || !climate.settled) return loading || worldMapLoading || !climate.settled ? <Spinner /> : null;
 
-  const barSeries = data.latest_year_bar.map((c) => c.country);
-  const barValues = data.latest_year_bar.map((c) => c.value ?? 0);
+  // By Country, Top Movers and % Change follow the page year (ENHANCEMENTS.md decision 64): computed here from the series the map holds, for the
+  // selected countries, rather than the API's latest-year /overview figures (the two agree at the latest year).
+  const year = pageYear.currentYear;
+  const barRows = countryValuesForYear(worldMapSeries, selected, year);
+  const barSeries = barRows.map((c) => c.country);
+  const barValues = barRows.map((c) => c.value);
+  // null for years up to the 1990 baseline: Top Movers and % Change then grey out with a prompt
+  const movers = moversForYear(worldMapSeries, selected, year);
+  const NA_MOVER = { country: 'N/A', co2Base: 0, co2Year: 0, absoluteChange: 0, pctChange: 0 };
+  const fastestGrowth = movers?.[0] ?? NA_MOVER;
+  const largestReduction = movers?.[movers.length - 1] ?? NA_MOVER;
 
-  const moverCountries = data.top_movers.map((m) => m.country);
-  const moverPct = data.top_movers.map((m) => m.pct_change ?? 0);
+  const moverCountries = (movers ?? []).map((m) => m.country);
+  const moverPct = (movers ?? []).map((m) => m.pctChange);
   // Symmetric around zero so 0% change always lands on the reversed scale's true midpoint
   // (mid-tone) stop -- required once an explicit colorScale is passed, since SyChart's own
   // `cmid: 0` zero-centering only applies to its own default scale (see the series prop below).
@@ -685,17 +705,19 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
       <style>{'@media (max-width: 1100px) { .overview-country-grid { grid-template-columns: 1fr !important; } }'}</style>
       <div className="overview-country-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
         <div style={{ minWidth: 0 }}>
-          <h2 className="__s9cmpx-headline6" style={{ margin: '8px 0 12px' }}>By Country</h2>
+          <h2 className="__s9cmpx-headline6" style={{ margin: '8px 0 12px' }}>By Country<YearBadge year={year} /></h2>
           {selected.length === 0 ? (
             <InlineAlert variant="warning">Select at least one country.</InlineAlert>
+          ) : barRows.length === 0 ? (
+            <InlineAlert variant="warning">No CO₂ data for the selected countries in {year}.</InlineAlert>
           ) : (
-            <ChartCard title={`CO₂ Emissions by Country (${data.selected.latest_year})`} headingLevel={3}>
+            <ChartCard title={`CO₂ Emissions by Country (${year})`} headingLevel={3}>
               <SyChart
                 height={320}
                 xTitle="Country"
                 yTitle="CO₂ (MtCO₂)"
                 showLegend={false}
-                ariaLabel={`Bar chart of total CO₂ emissions in ${data.selected.latest_year} for ${barSeries.length} countries, ranging from ${Math.min(...barValues).toLocaleString()} to ${Math.max(...barValues).toLocaleString()} MtCO₂`}
+                ariaLabel={`Bar chart of total CO₂ emissions in ${year} for ${barSeries.length} countries, ranging from ${Math.min(...barValues).toLocaleString()} to ${Math.max(...barValues).toLocaleString()} MtCO₂`}
                 // Explicit brand color -- a single-series bar chart would otherwise default to
                 // the categorical palette's index-0 token, which Release 7 (SPEC.md §5.12)
                 // deliberately made near-white for multi-line chart hierarchies. That reads as a
@@ -709,10 +731,13 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
 
         {selected.length > 0 && (
           <section aria-labelledby="movers-heading" style={{ minWidth: 0 }}>
-            <h2 id="movers-heading" className="__s9cmpx-headline6" style={{ margin: '8px 0 4px' }}>Top Movers Since 1990 ({data.selected_country_list.length} Selected Countries)</h2>
+            <h2 id="movers-heading" className="__s9cmpx-headline6" style={{ margin: '8px 0 4px' }}>Top Movers 1990 → {year} ({selected.length} Selected Countries)<YearBadge year={year} /></h2>
             <p className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)', margin: '0 0 12px' }}>
-              Fastest growth and largest reduction in CO₂ emissions, 1990 → {data.selected.latest_year}, among the {data.selected_country_list.length} selected countries.
+              Fastest growth and largest reduction in CO₂ emissions, 1990 → {year}, among the {selected.length} selected countries.
             </p>
+            {!movers ? (
+              <BaselinePrompt />
+            ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {/* deltaColor overrides KpiStat's own internal red/green good/bad lookup with the
                   same brown/teal pair the % Change chart below and the narrative panel above use
@@ -721,32 +746,37 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
                   this pair needs given its low (~1.2:1) mutual contrast. */}
               <KpiStat
                 card
-                label={`Fastest Growth — ${data.fastest_growth.country}`}
-                value={<CountUpText value={data.fastest_growth.pct_change ?? 0} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />}
-                delta={`${(data.fastest_growth.absolute_change ?? 0) >= 0 ? '+' : ''}${(data.fastest_growth.absolute_change ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
+                label={`Fastest Growth — ${fastestGrowth.country}`}
+                value={<CountUpText value={fastestGrowth.pctChange ?? 0} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />}
+                delta={`${(fastestGrowth.absoluteChange ?? 0) >= 0 ? '+' : ''}${(fastestGrowth.absoluteChange ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
                 deltaDirection="bad"
                 deltaColor={NEGATIVE_COLOR}
               />
               <KpiStat
                 card
-                label={`Largest Reduction — ${data.largest_reduction.country}`}
-                value={<CountUpText value={data.largest_reduction.pct_change ?? 0} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />}
-                delta={`${(data.largest_reduction.absolute_change ?? 0) >= 0 ? '+' : ''}${(data.largest_reduction.absolute_change ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
+                label={`Largest Reduction — ${largestReduction.country}`}
+                value={<CountUpText value={largestReduction.pctChange ?? 0} format={(n) => `${n >= 0 ? '+' : ''}${n.toFixed(1)}%`} />}
+                delta={`${(largestReduction.absoluteChange ?? 0) >= 0 ? '+' : ''}${(largestReduction.absoluteChange ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}
                 deltaDirection="good"
                 deltaColor={POSITIVE_COLOR}
               />
             </div>
+            )}
           </section>
         )}
       </div>
 
       {/* Always rendered (even with 0 selected) so #pct-change stays a real jump target (SPEC.md §5.19). */}
       <div id="pct-change" style={{ marginTop: 24 }}>
-        <h2 className="__s9cmpx-headline6" style={{ margin: '0 0 12px' }}>% Change Since 1990</h2>
+        <h2 className="__s9cmpx-headline6" style={{ margin: '0 0 12px' }}>% Change Since 1990<YearBadge year={year} /></h2>
         {selected.length === 0 ? (
           <InlineAlert variant="warning">Select at least one country.</InlineAlert>
+        ) : !movers ? (
+          <ChartCard title={`CO₂ % Change by Country, 1990–${year}`} headingLevel={3}>
+            <BaselinePrompt />
+          </ChartCard>
         ) : (
-          <ChartCard title={`CO₂ % Change by Country, 1990–${data.selected.latest_year}`} headingLevel={3}>
+          <ChartCard title={`CO₂ % Change by Country, 1990–${year}`} headingLevel={3}>
             {/* Legend for the diverging pair: brown = increase (bad), teal = decrease (good) -- the
                 chart's own colorbar shows the gradient, this names the two ends in words. */}
             <div className="__s9cmpx-body4" style={{ display: 'flex', gap: 16, marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
@@ -760,9 +790,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
             <SyChart
               height={320}
               xTitle="Country"
-              yTitle={`% Change in CO₂ (1990→${data.selected.latest_year})`}
+              yTitle={`% Change in CO₂ (1990→${year})`}
               showLegend={false}
-              ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${data.selected.latest_year} for ${moverCountries.length} countries, colored on a diverging scale from a decrease (favorable) at one end to an increase (unfavorable) at the other`}
+              ariaLabel={`Bar chart of percent change in CO₂ emissions from 1990 to ${year} for ${moverCountries.length} countries, colored on a diverging scale from a decrease (favorable) at one end to an increase (unfavorable) at the other`}
               series={[{
                 name: '% Change',
                 x: moverCountries,
@@ -771,7 +801,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
                 colorValues: moverPct,
                 colorScale: moverColorScale,
                 colorRange: [-moverPctMaxAbs, moverPctMaxAbs],
-                colorbarTitle: `% Change in CO₂ (1990→${data.selected.latest_year})`,
+                colorbarTitle: `% Change in CO₂ (1990→${year})`,
               }]}
             />
           </ChartCard>
