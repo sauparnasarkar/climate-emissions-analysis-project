@@ -36,6 +36,15 @@ export function CountryView({ temperature, mean5y }: { temperature: YearValue[];
 
   const body = (() => {
     if (snapshot.error && !snapshot.data) return <InlineAlert variant="warning">{snapshot.error}</InlineAlert>;
+    // /country-share answers a year outside its coverage with 200 and no rows plus a note: say so, rather than showing an empty picker and a bare prompt.
+    if (snapshot.data && snapshot.data.rows.length === 0) {
+      const [lo, hi] = snapshot.data.coverage ?? [];
+      return (
+        <InlineAlert variant="warning">
+          {`No country shares are available${snapshot.data.year != null ? ` for ${snapshot.data.year}` : ''}.${lo != null && hi != null ? ` Coverage is ${lo}–${hi}.` : ''}${snapshot.data.notes.length ? ` ${snapshot.data.notes.join(' ')}` : ''}`}
+        </InlineAlert>
+      );
+    }
     if (selected.length === 0) return <p className="__s9cmpx-body3" style={{ margin: 0 }}>Choose countries to compare their shares.</p>;
     if (query.error) return <InlineAlert variant="warning">{query.error}</InlineAlert>;
     if (!lines) return <p className="__s9cmpx-body3" style={{ margin: 0 }}>{query.loading ? 'Loading…' : 'No share data is available for these countries.'}</p>;

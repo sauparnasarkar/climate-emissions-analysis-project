@@ -40,10 +40,6 @@ export default function ClimateCorrelationPage() {
   const fossil = useAsync(async () => api.correlationEmissionsTemperature({ variant: 'fossil' }), []);
   const allGasQuery = useAsync(async () => api.correlationEmissionsTemperature({ source: 'primap_ghg' }), []);
   const compositionQuery = useAsync(async () => api.correlationGhgComposition({ startYear: 1970 }), []);
-  // The country view's temperature card has its own requests: it must not depend on the headline signal (which needs the pair, the concentration and
-  // the temperature together), so the other sections stand or fall on their own data.
-  const annualQuery = useAsync(async () => api.correlationTemperature({ baseline: '1850_1900' }), []);
-  const mean5yQuery = useAsync(async () => api.correlationTemperature({ view: 'mean5y', baseline: '1850_1900' }), []);
   const world = useAsync(async () => api.worldMapSeries(CLIMATE_SERIES_START_YEAR), []);
   const reduceMotion = useReducedMotion();
   const [stickyRow, setStickyRow] = useState<HTMLElement | null>(null);
@@ -55,9 +51,6 @@ export default function ClimateCorrelationPage() {
   const emissions = useMemo(() => (world.data ? latestWorldTotal(world.data) : null), [world.data]);
   const allGas = useMemo(() => buildAllGas(allGasQuery.data), [allGasQuery.data]);
   const composition = useMemo(() => buildComposition(compositionQuery.data), [compositionQuery.data]);
-  const yearValues = (points: Array<{ year: number; value: number | null }> | undefined) => (points ?? []).flatMap((p) => (p.value != null && Number.isFinite(p.value) ? [{ year: p.year, value: p.value }] : []));
-  const annualSeries = useMemo(() => yearValues(annualQuery.data?.points), [annualQuery.data]);
-  const mean5ySeries = useMemo(() => yearValues(mean5yQuery.data?.points), [mean5yQuery.data]);
   const headline = useMemo(() => (signal ? buildHeadline(signal, fossil.data) : null), [signal, fossil.data]);
 
   // A deep link waits for the first measurement of the anchor row (its height depends on whether it wrapped) and for the request behind its target:
@@ -96,7 +89,7 @@ export default function ClimateCorrelationPage() {
       {!headline && (allGas || composition) && <h2 className="__s9cmpx-headline5" style={{ margin: '0 0 12px' }}>Global relationship</h2>}
       {allGas && <AllGasRelationship allGas={allGas} />}
       {composition && <GasComposition composition={composition} />}
-      <CountryView temperature={annualSeries} mean5y={mean5ySeries.length ? mean5ySeries : null} />
+      <CountryView temperature={climate.temperatureSeries} mean5y={climate.mean5ySeries.length ? climate.mean5ySeries : null} />
     </div>
   );
 }

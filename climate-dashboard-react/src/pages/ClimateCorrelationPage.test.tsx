@@ -136,6 +136,13 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#country-view']);
   });
 
+  it('asks for the temperature series once each (annual and 5-year mean), shared by the chain and the country view', async () => {
+    mount();
+    await screen.findByText(/Share of cumulative CO₂, 2024/);
+    const calls = vi.mocked(api.correlationTemperature).mock.calls.map((c) => c[0]?.view ?? 'annual');
+    expect(calls.sort()).toEqual(['annual', 'mean5y']);
+  });
+
   it('keeps the country share card when only the annual temperature request fails, omitting just the temperature card', async () => {
     vi.mocked(api.correlationTemperature).mockImplementation(async (o) => { if (o?.view === 'mean5y') return TEMPERATURE_MEAN5Y; throw new ApiError(503, 'x'); });
     mount();

@@ -44,7 +44,7 @@ export interface YearValue {
   value: number;
 }
 
-function yearValues(points: SeriesPoint[]): YearValue[] {
+export function yearValues(points: SeriesPoint[]): YearValue[] {
   return points.filter((p): p is SeriesPoint & { value: number } => p.value != null && Number.isFinite(p.value)).map((p) => ({ year: p.year, value: p.value }));
 }
 

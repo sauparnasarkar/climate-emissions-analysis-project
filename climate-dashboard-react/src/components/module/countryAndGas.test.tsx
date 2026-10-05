@@ -142,6 +142,14 @@ describe('CountryView', () => {
     expect(await screen.findByText(/unknown country code\(s\): XXX/)).toBeInTheDocument();
   });
 
+  it('explains an empty snapshot (a 200 with no rows and a coverage note) instead of an empty picker and a bare prompt', async () => {
+    vi.mocked(api.correlationCountryShare).mockImplementation(async (o) => (o?.allCountries ? { ...COUNTRY_SNAPSHOT, rows: [], coverage: [1850, 2023], year: 2024, notes: ['no data for 2024: coverage is 1850-2023'] } : SERIES));
+    mount();
+    expect(await screen.findByText(/No country shares are available for 2024\. Coverage is 1850–2023\. no data for 2024/)).toBeInTheDocument();
+    expect(screen.queryByText('Choose countries to compare their shares.')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Countries (up to 10)')).not.toBeInTheDocument();
+  });
+
   it('omits the temperature card without data rather than drawing an empty chart', async () => {
     render(<CountryView temperature={[]} mean5y={null} />);
     await screen.findByText('Share of cumulative CO₂, 2024');
