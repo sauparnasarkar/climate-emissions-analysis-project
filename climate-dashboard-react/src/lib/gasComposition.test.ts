@@ -25,8 +25,8 @@ describe('buildComposition', () => {
 
   it('keeps only the caveats that belong beside the chart, leaving licences and sources to the methodology', () => {
     const c = buildComposition(COMPOSITION)!;
-    expect(c.caveats).toHaveLength(3);
-    expect(c.caveats.join(' ')).not.toMatch(/licence|composite/i);
+    expect(c.caveats).toHaveLength(2); // the trailing-year exclusion is stated from excluded_incomplete_years, not repeated here
+    expect(c.caveats.join(' ')).not.toMatch(/licence|composite|Trailing years/i);
   });
 
   it('skips a year in which any gas lacks a value instead of filling zero, and is null with fewer than two usable years', () => {

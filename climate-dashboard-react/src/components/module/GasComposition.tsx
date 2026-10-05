@@ -79,7 +79,7 @@ export function GasComposition({ composition }: { composition: Composition }) {
           </p>
         )}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
-          <BaselineChip baseline="none · shares of each year" source="PRIMAP-hist" />
+          <BaselineChip baseline="none · shares of each year" source={`${first}–${last}`} />
           <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
             {basis} ({units}).{excludedIncompleteYears.length > 0 ? ` Incomplete trailing year${excludedIncompleteYears.length > 1 ? 's' : ''} left out: ${excludedIncompleteYears.join(', ')}.` : ''}
           </span>

@@ -42,6 +42,11 @@ describe('GasComposition', () => {
     expect(screen.getByRole('img', { name: /^Gas split: CO₂ 75\.1%/ })).toBeInTheDocument();
   });
 
+  it('the baseline chip gives the source data range (requirements §2.5), not a source name', () => {
+    render(<GasComposition composition={buildComposition(COMPOSITION)!} />);
+    expect(screen.getByText('Baseline none · shares of each year · 1970–2024')).toBeInTheDocument();
+  });
+
   it('discloses how far the four gases sit from PRIMAP-hist\'s own national total, for the year shown', () => {
     render(<GasComposition composition={buildComposition(COMPOSITION)!} />);
     expect(screen.getByText(/Together they sit 0\.05% above PRIMAP-hist's own national total for 2024 \(largest gap in any year 0\.21%, held to within 1%\)/)).toBeInTheDocument();
@@ -51,6 +56,7 @@ describe('GasComposition', () => {
     render(<GasComposition composition={buildComposition(COMPOSITION)!} />);
     expect(screen.getByText(/AR5 100-year global-warming potentials/)).toBeInTheDocument();
     expect(screen.getByText(/Incomplete trailing year left out: 2025/)).toBeInTheDocument();
+    expect(screen.getAllByText(/2025/)).toHaveLength(1); // stated once, not again in the disclosure
     const details = screen.getByText('What this covers, and what it leaves out').closest('details') as HTMLElement;
     expect(within(details).getByText(/excludes deforestation/)).toBeInTheDocument();
     expect(within(details).queryByText(/licence/i)).not.toBeInTheDocument();
@@ -106,6 +112,8 @@ describe('CountryView', () => {
     await screen.findByText('Share of cumulative CO₂, 2024');
     expect(api.correlationCountryShare).toHaveBeenCalledWith({ allCountries: true });
     expect(api.correlationCountryShare).toHaveBeenCalledWith({ countries: ['USA', 'CHN', 'RUS', 'DEU', 'GBR'], startYear: 1850 });
+    expect(screen.getByRole('columnheader', { name: 'Country' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Share' })).toBeInTheDocument();
     expect(screen.getByRole('row', { name: /United States/ })).toHaveTextContent('24.1%');
     expect(screen.getByText('Baseline cumulative since 1750 · national sum, bunkers excluded · OWID')).toBeInTheDocument();
   });

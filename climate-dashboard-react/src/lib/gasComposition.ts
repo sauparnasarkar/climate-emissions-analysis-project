@@ -37,7 +37,8 @@ const GAS_STYLE: Record<string, { short: string; color: string }> = {
   fgas: { short: 'F-gas', color: '#EA5B62' },
 };
 
-const NEAR_CHART = /^(Excludes|Shares are each|Trailing years)/;
+// The trailing-year exclusion is stated beside the chart from `excluded_incomplete_years`, so its caveat is not repeated in the disclosure.
+const NEAR_CHART = /^(Excludes|Shares are each)/;
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 /** The gas composition (requirements §1.3.3) from `/ghg-composition`, or null when it cannot be drawn honestly: no gas list, or fewer than two years in
