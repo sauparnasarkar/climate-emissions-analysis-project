@@ -14,7 +14,7 @@ const mono = { fontFamily: 'var(--__s9cmpx-font-families-mono, ui-monospace, mon
 function Row({ k, v }: { k: string; v: string }) {
   return (
     <>
-      <dt className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{k}</dt>
+      <dt className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{k}</dt>
       <dd className="__s9cmpx-body3" style={{ margin: 0, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{v}</dd>
     </>
   );
@@ -41,7 +41,7 @@ export function HeadlineRelationship({ signal, headline, hasAllGas = false }: { 
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
             <BaselineChip baseline="1850–1900" source="Berkeley Earth" />
-            <span className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+            <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
               Each dot is one year. Dashed line: least-squares fit. Co-movement is shown as context, not as proof of cause.{hasAllGas ? ' The recent all-gas view (1970 onward) is a separate chart below and is not called TCRE.' : ''}
             </span>
           </div>
@@ -60,7 +60,7 @@ export function HeadlineRelationship({ signal, headline, hasAllGas = false }: { 
             <div style={{ marginTop: 12, color: 'var(--__s9cmpx-static-text-standard)' }}>
               <Ar6Strip slope={slope} fossilSlope={fossilSlope} />
             </div>
-            <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+            <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
               A data-driven analog to the IPCC&apos;s TCRE, not a restatement of it: this regression also absorbs warming from other gases and aerosols that varies with CO₂, and
               depends on uncertain land-use estimates. {NOT_A_CLIMATE_MODEL}
             </p>
@@ -69,13 +69,13 @@ export function HeadlineRelationship({ signal, headline, hasAllGas = false }: { 
           <div style={card}>
             <div className="__s9cmpx-label3" style={{ marginBottom: 6 }}>Baseline</div>
             <dl style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', margin: 0 }}>
-              <dt className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>Reference</dt>
+              <dt className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Reference</dt>
               <dd className="__s9cmpx-body3" style={{ margin: 0 }}>1850–1900 mean</dd>
-              <dt className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>Formula</dt>
+              <dt className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Formula</dt>
               <dd className="__s9cmpx-body3" style={{ margin: 0, ...mono }}>ΔT = T − mean(T₁₈₅₀–₁₉₀₀)</dd>
-              <dt className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>Range</dt>
+              <dt className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Range</dt>
               <dd className="__s9cmpx-body3" style={{ margin: 0 }}>{start}–{end}</dd>
-              <dt className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>Excluded</dt>
+              <dt className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Excluded</dt>
               <dd className="__s9cmpx-body3" style={{ margin: 0 }}>{excluded}</dd>
             </dl>
             {signal.vintageCaveat && (

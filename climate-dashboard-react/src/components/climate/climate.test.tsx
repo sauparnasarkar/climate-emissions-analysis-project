@@ -55,6 +55,12 @@ describe('PurposeLine and SourceNote', () => {
     expect(screen.getByText('Purpose:')).toBeInTheDocument();
     expect(screen.getByText(/Source: OWID · Berkeley Earth — file of Jan 2025/)).toBeInTheDocument();
   });
+
+  it('a note on a chart panel (dark in every theme) takes the chart-surface muted colour, any other note the shared muted colour', () => {
+    render(<><SourceNote sources={['A']} onChartPanel /><SourceNote sources={['B']} /></>);
+    expect(screen.getByText(/Source: A/)).toHaveStyle({ color: 'var(--__s9cmpx-chart-surface-text-weak)' });
+    expect(screen.getByText(/Source: B/)).toHaveStyle({ color: 'var(--__s9cmpx-static-text-weak)' });
+  });
 });
 
 describe('climate copy guardrails', () => {

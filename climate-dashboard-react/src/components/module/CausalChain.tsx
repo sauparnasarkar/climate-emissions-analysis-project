@@ -11,7 +11,7 @@ export interface ChainEmissions {
 
 const cell = { display: 'flex', flexDirection: 'column', gap: 6, padding: '14px 16px', minWidth: 0 } as const;
 const label = { fontFamily: 'var(--__s9cmpx-font-families-mono, ui-monospace, monospace)', fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase' } as const;
-const weak = { margin: 0, color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' } as const;
+const weak = { margin: 0, color: 'var(--__s9cmpx-static-text-weak)' } as const;
 
 /**
  * The causal chain as four cells in one strip (requirements §2.4): emissions → concentration → radiative forcing → temperature anomaly. These are

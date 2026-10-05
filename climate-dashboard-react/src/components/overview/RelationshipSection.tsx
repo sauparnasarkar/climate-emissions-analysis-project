@@ -27,15 +27,15 @@ function WhyEmissionsMatter({ signal }: { signal: ClimateSignal }) {
   const { concentration, temperature } = signal;
   return (
     <section style={CARD_STYLE} aria-labelledby="why-emissions-matter">
-      <span id="why-emissions-matter" className="__s9cmpx-label3" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>Why emissions matter</span>
+      <span id="why-emissions-matter" className="__s9cmpx-label3" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Why emissions matter</span>
       <p className="__s9cmpx-body2" style={{ margin: '4px 0 0' }}>
         Emissions raise the <strong>concentration</strong> of CO₂ in the atmosphere (now {concentration.value.toFixed(1)} ppm). What accumulates increases <strong>radiative
         forcing</strong>, the extra heat the atmosphere holds, and that warming is observed as the <strong>temperature anomaly</strong>: {fmtAnomaly(temperature.value)} in {temperature.year}.
       </p>
-      <p className="__s9cmpx-body3" style={{ margin: '8px 0 0', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+      <p className="__s9cmpx-body3" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
         Temperature reflects accumulated global forcing and the response of the ocean and climate system, not only this year’s emissions.
       </p>
-      <p className="__s9cmpx-body3" style={{ margin: '8px 0 0', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+      <p className="__s9cmpx-body3" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
         These are global figures. The sections below explore emissions by country; they do not assign warming to any country.
       </p>
       <p className="__s9cmpx-body3" style={{ margin: '8px 0 0' }}>
@@ -99,7 +99,7 @@ export function RelationshipSection({ signal, emissionsSeries }: { signal: Clima
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
             {/* The only baselined series in either view is the temperature anomaly (1850–1900); emissions are plain levels. The window is in the title. */}
             <BaselineChip baseline="1850–1900" source="Berkeley Earth" />
-            <span className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+            <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
               Long-term co-movement, shown as context. No single factor or year explains warming.
             </span>
           </div>

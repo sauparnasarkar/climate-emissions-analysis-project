@@ -11,7 +11,7 @@ export function BaselineChip({ baseline, source }: { baseline: string; source?: 
         fontFamily: 'var(--__s9cmpx-font-families-mono, ui-monospace, monospace)',
         fontSize: 11,
         background: 'var(--__s9cmpx-static-background-strong, rgba(127,127,127,0.18))',
-        color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))',
+        color: 'var(--__s9cmpx-static-text-weak)',
       }}
     >
       {`Baseline ${baseline}`}

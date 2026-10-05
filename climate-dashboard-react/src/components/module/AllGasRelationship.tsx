@@ -10,7 +10,7 @@ const card = { background: 'var(--__s9cmpx-static-background-standard)', border:
 function Row({ k, v }: { k: string; v: string }) {
   return (
     <>
-      <dt className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{k}</dt>
+      <dt className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{k}</dt>
       <dd className="__s9cmpx-body3" style={{ margin: 0, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>{v}</dd>
     </>
   );
@@ -41,7 +41,7 @@ export function AllGasRelationship({ allGas }: { allGas: AllGas }) {
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
             <BaselineChip baseline="1850–1900" source="Berkeley Earth" />
-            <span className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+            <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
               {allGas.xName}. Each dot is one year; the dashed line is the least-squares fit.
             </span>
           </div>
@@ -58,7 +58,7 @@ export function AllGasRelationship({ allGas }: { allGas: AllGas }) {
             {/* Only when the pair itself lists some: PRIMAP's incomplete latest year is dropped upstream and stated in the caveats below, so "None" would contradict it. */}
             {omittedYears.length > 0 && <Row k="Excluded years" v={omittedYears.join(', ')} />}
           </dl>
-          <p className="__s9cmpx-body4" style={{ margin: '10px 0 0', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+          <p className="__s9cmpx-body4" style={{ margin: '10px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
             Not TCRE and not compared with the IPCC range: it covers a short window, leaves out land-use change and international aviation and shipping, and a steadily rising cumulative
             series is strongly correlated with time. It describes a recent co-movement, not a cause.
           </p>
