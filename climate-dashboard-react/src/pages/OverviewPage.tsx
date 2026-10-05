@@ -651,7 +651,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         />
       </div>
 
-      <ShareSection countries={selectedIso} />
+      <ShareSection countries={selectedIso} year={pageYear.currentYear} pagePlaying={pageYear.isPlaying} />
 
       {/* id lives here, not on the "By Country" heading below -- this picker sits above that
           heading (it's shared with the % Change section further down), so anchoring "by-country"

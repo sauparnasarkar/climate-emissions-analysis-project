@@ -809,7 +809,7 @@ describe('OverviewPage — deep links', () => {
     });
     mountWithClimate();
     await screen.findByRole('navigation', { name: 'Jump links' });
-    expect(document.querySelector('.overview-page style')?.textContent).toMatch(/scroll-margin-top: 168px/); // 68 header + 90 row + 10 gap
+    await vi.waitFor(() => expect(document.querySelector('.overview-page style')?.textContent).toMatch(/scroll-margin-top: 168px/)); // 68 header + 90 row + 10 gap
     rect.mockRestore();
   });
 });

@@ -24,13 +24,13 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); vi.useRealTimers(); });
 
-const mount = (countries = ['CHN', 'USA']) => render(<ShareSection countries={countries} />);
+const mount = (countries = ['CHN', 'USA'], year = 2024, pagePlaying = false) => render(<ShareSection countries={countries} year={year} pagePlaying={pagePlaying} />);
 const tableCell = (row: string, col: number) => within(screen.getByRole('row', { name: new RegExp(`^${row}`) })).getAllByRole('cell')[col].textContent;
 
 describe('ShareSection', () => {
   it('asks for the selected countries from 1970 and shows stock and flow at the latest year, with Rest of world as the remainder', async () => {
     mount();
-    expect(await screen.findByRole('heading', { level: 2, name: 'Who emitted the stock, and who emits now' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: /^Who emitted the stock, and who emits now/ })).toBeInTheDocument();
     expect(api.correlationCountryShare).toHaveBeenCalledWith({ source: 'owid_co2', gasScope: 'co2', countries: ['CHN', 'USA'], startYear: 1970 });
     expect(await screen.findByText('Share by country, 2024')).toBeInTheDocument();
     expect(tableCell('United States', 0)).toBe('24.0%');
@@ -44,33 +44,73 @@ describe('ShareSection', () => {
     expect(screen.getByText(/no warming is attributed to a country/)).toBeInTheDocument();
   });
 
-  it('plays one year per 250 ms from the first year, ends on the latest and stops, keeping segment order fixed', async () => {
+  it('shows the page year (badge, readout and bars) and has no slider of its own', async () => {
+    mount(['CHN', 'USA'], 2023);
+    expect(await screen.findByText('Share by country, 2023')).toBeInTheDocument();
+    expect(screen.getByLabelText('Year 2023')).toBeInTheDocument(); // the header badge
+    expect(screen.getByText('page year')).toBeInTheDocument();
+    expect(tableCell('China', 0)).toBe('15.0%');
+    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
+    expect(screen.getByText('Cumulative 1750–2023')).toBeInTheDocument();
+  });
+
+  it('follows a changed page year', async () => {
+    const { rerender } = mount(['CHN', 'USA'], 2024);
+    await screen.findByText('Share by country, 2024');
+    rerender(<ShareSection countries={['CHN', 'USA']} year={2022} pagePlaying={false} />);
+    expect(screen.getByText('Share by country, 2022')).toBeInTheDocument();
+  });
+
+  it('Replay animates from the first year to the page year at 250 ms a year, marked temporary, then returns to the page year', async () => {
     vi.useFakeTimers();
-    mount();
+    mount(['CHN', 'USA'], 2024);
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
-    expect(screen.getByText('Share by country, 2024')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
-    expect(screen.getByText('Share by country, 2022')).toBeInTheDocument(); // replays from the first year
+    fireEvent.click(screen.getByRole('button', { name: '▶ Replay 2022 → 2024' }));
+    expect(screen.getByText('Share by country, 2022')).toBeInTheDocument();
+    expect(screen.getByText('replaying · temporary')).toBeInTheDocument();
     expect(tableCell('China', 0)).toBe('14.0%');
+    expect(screen.getByRole('button', { name: '■ Stop replay' })).toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(screen.getByText('Share by country, 2023')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
     await act(async () => { await vi.advanceTimersByTimeAsync(250); });
     expect(screen.getByText('Share by country, 2024')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+    await act(async () => { await vi.advanceTimersByTimeAsync(250); });
+    expect(screen.queryByText('replaying · temporary')).not.toBeInTheDocument();
+    expect(screen.getByText('page year')).toBeInTheDocument();
+    expect(screen.getByText('Share by country, 2024')).toBeInTheDocument();
+    // segment order stays fixed throughout
     const rows = screen.getAllByRole('row').map((r) => r.textContent ?? '');
     expect(rows.findIndex((t) => t.startsWith('United States'))).toBeLessThan(rows.findIndex((t) => t.startsWith('China')));
   });
 
-  it('scrubbing the slider jumps to that year and pauses', async () => {
-    mount();
+  it('Stop replay returns to the page year at once', async () => {
+    mount(['CHN', 'USA'], 2024);
     await screen.findByText('Share by country, 2024');
-    const slider = screen.getByRole('slider');
-    expect(slider).toHaveAttribute('aria-valuemin', '2022');
-    expect(slider).toHaveAttribute('aria-valuemax', '2024');
-    fireEvent.keyDown(slider, { key: 'ArrowLeft' });
+    fireEvent.click(screen.getByRole('button', { name: '▶ Replay 2022 → 2024' }));
+    expect(screen.getByText('Share by country, 2022')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '■ Stop replay' }));
+    expect(screen.getByText('Share by country, 2024')).toBeInTheDocument();
+    expect(screen.getByText('page year')).toBeInTheDocument();
+  });
+
+  it('a replay is cancelled when the page year changes or the page\'s own Play starts, and nothing else is touched', async () => {
+    const { rerender } = mount(['CHN', 'USA'], 2024);
+    await screen.findByText('Share by country, 2024');
+    fireEvent.click(screen.getByRole('button', { name: '▶ Replay 2022 → 2024' }));
+    expect(screen.getByText('replaying · temporary')).toBeInTheDocument();
+    rerender(<ShareSection countries={['CHN', 'USA']} year={2023} pagePlaying={false} />);
+    expect(screen.queryByText('replaying · temporary')).not.toBeInTheDocument();
     expect(screen.getByText('Share by country, 2023')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '▶ Replay 2022 → 2023' }));
+    expect(screen.getByText('replaying · temporary')).toBeInTheDocument();
+    rerender(<ShareSection countries={['CHN', 'USA']} year={2023} pagePlaying />);
+    expect(screen.queryByText('replaying · temporary')).not.toBeInTheDocument();
+  });
+
+  it('has nothing to replay when the page year is the first year', async () => {
+    mount(['CHN', 'USA'], 2022);
+    await screen.findByText('Share by country, 2022');
+    expect(screen.getByRole('button', { name: '▶ Replay 2022 → 2022' })).toBeDisabled();
   });
 
   it('refetches with the chosen measure\'s source and gas scope', async () => {
