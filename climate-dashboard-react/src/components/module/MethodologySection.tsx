@@ -8,7 +8,7 @@ const table = { width: '100%', borderCollapse: 'collapse' } as const;
 const th = { textAlign: 'left', fontWeight: 600, padding: '6px 10px', verticalAlign: 'bottom' } as const;
 const td = { padding: '6px 10px', verticalAlign: 'top', borderTop: '1px solid var(--__s9cmpx-static-divider-weak)' } as const;
 const card = { background: 'var(--__s9cmpx-static-background-standard)', border: '1px solid var(--__s9cmpx-static-divider-weak)', borderRadius: 8, padding: '14px 16px' } as const;
-const weak = { color: 'var(--__s9cmpx-static-text-weak)' } as const;
+const weak = { color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' } as const;
 
 // Requirements §2.5: the baseline each view uses, and why. Fixed copy -- it describes the app's own rules, not data.
 const BASELINES: Array<[view: string, baseline: string, why: string]> = [

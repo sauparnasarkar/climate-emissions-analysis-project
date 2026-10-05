@@ -51,9 +51,9 @@ export function GasComposition({ composition }: { composition: Composition }) {
         </div>
         <ShareBar title="Gas split" subtitle={String(year)} order={order} values={shares[yi]} tween={!reduceMotion} />
         <table style={{ width: '100%', maxWidth: 560, marginTop: 10, borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
-          <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--__s9cmpx-static-text-weak)', paddingBottom: 4 }}>Greenhouse gases by share, {year}</caption>
+          <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))', paddingBottom: 4 }}>Greenhouse gases by share, {year}</caption>
           <thead>
-            <tr className="__s9cmpx-label4" style={{ textAlign: 'right', color: 'var(--__s9cmpx-static-text-weak)' }}>
+            <tr className="__s9cmpx-label4" style={{ textAlign: 'right', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
               <th scope="col" style={{ textAlign: 'left', fontWeight: 600 }}>Gas</th>
               <th scope="col" style={{ fontWeight: 600 }}>Share</th>
               <th scope="col" style={{ fontWeight: 600 }}>MtCO₂e</th>
@@ -73,14 +73,14 @@ export function GasComposition({ composition }: { composition: Composition }) {
           </tbody>
         </table>
         {residualPct[yi] !== null && (
-          <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
+          <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
             Shares are of the four gases listed. Together they sit {Math.abs(residualPct[yi] as number).toFixed(2)}% {(residualPct[yi] as number) >= 0 ? 'above' : 'below'} PRIMAP-hist&apos;s own national total for {year}
             {reconciliation ? ` (largest gap in any year ${reconciliation.maxAbsResidualPct.toFixed(2)}%, held to within ${reconciliation.tolerancePct}%)` : ''}.
           </p>
         )}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
           <BaselineChip baseline="none · shares of each year" source={`${first}–${last}`} />
-          <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+          <span className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
             {basis} ({units}).{excludedIncompleteYears.length > 0 ? ` Incomplete trailing year${excludedIncompleteYears.length > 1 ? 's' : ''} left out: ${excludedIncompleteYears.join(', ')}.` : ''}
           </span>
         </div>

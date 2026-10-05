@@ -692,7 +692,9 @@ describe('OverviewPage — climate signal', () => {
 
   it('explains the chain in the "Why emissions matter" card (data-driven) and links to the correlation module without attributing warming to a country', async () => {
     mountWithClimate();
-    const card = (await screen.findByText('Why emissions matter')).closest('aside')!;
+    // a labelled region, not an <aside>: a complementary landmark must be top level and this one sits inside <main>
+    const card = await screen.findByRole('region', { name: 'Why emissions matter' });
+    expect(card.tagName).toBe('SECTION');
     expect(card).toHaveTextContent(/concentration of CO₂ in the atmosphere \(now 424.6 ppm\)/);
     expect(card).toHaveTextContent(/radiative forcing/);
     expect(card).toHaveTextContent(/temperature anomaly: \+1.62 °C in 2024/);

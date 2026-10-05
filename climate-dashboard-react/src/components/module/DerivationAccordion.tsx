@@ -14,9 +14,9 @@ function Table({ caption, head, rows }: { caption: string; head: string[]; rows:
   return (
     <div style={{ overflowX: 'auto', margin: '8px 0' }}>
       <table style={{ borderCollapse: 'collapse', minWidth: 320 }}>
-        <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--__s9cmpx-static-text-weak)', paddingBottom: 2 }}>{caption}</caption>
+        <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))', paddingBottom: 2 }}>{caption}</caption>
         <thead>
-          <tr className="__s9cmpx-label4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+          <tr className="__s9cmpx-label4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
             {head.map((h, i) => <th key={h} scope="col" className="__s9cmpx-label4" style={{ ...th, ...(i === 0 ? first : {}) }}>{h}</th>)}
           </tr>
         </thead>
@@ -201,7 +201,7 @@ export function DerivationAccordion({ derivation }: { derivation: Derivation }) 
   return (
     <div id={DERIVATION_ANCHOR} style={{ background: 'var(--__s9cmpx-static-background-standard)', border: '1px solid var(--__s9cmpx-static-divider-weak)', borderRadius: 8, padding: '14px 16px', marginTop: 16 }}>
       <h3 className="__s9cmpx-headline6" style={{ margin: 0 }}>How this number was derived</h3>
-      <p className="__s9cmpx-body4" style={{ margin: '2px 0 8px', color: 'var(--__s9cmpx-static-text-weak)' }}>Every figure below is read from the pipeline output.</p>
+      <p className="__s9cmpx-body4" style={{ margin: '2px 0 8px', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>Every figure below is read from the pipeline output.</p>
       <Accordion items={items} openIds={open} onOpenChange={setOpen} />
     </div>
   );

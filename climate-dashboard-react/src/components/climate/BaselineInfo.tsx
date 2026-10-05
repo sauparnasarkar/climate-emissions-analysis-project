@@ -71,12 +71,12 @@ export function BaselineInfo({ spec, label }: { spec: BaselineSpec; label: strin
           <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px' }}>
             {rows.map(([k, v]) => (
               <div key={k} style={{ display: 'contents' }}>
-                <dt style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{k}</dt>
+                <dt style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{k}</dt>
                 <dd style={{ margin: 0 }}>{v}</dd>
               </div>
             ))}
           </dl>
-          {spec.note && <p style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>{spec.note}</p>}
+          {spec.note && <p style={{ margin: '8px 0 0', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{spec.note}</p>}
         </div>
       )}
     </span>

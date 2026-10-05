@@ -31,7 +31,7 @@ export function Ar6Strip({ slope, fossilSlope }: { slope: number; fossilSlope: n
         ))}
         <text x={x(AR6_TCRE.best)} y="18" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.8" fontFamily="var(--__s9cmpx-font-families-mono, ui-monospace, monospace)">AR6 {AR6_TCRE.best.toFixed(2)}</text>
       </svg>
-      <figcaption className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+      <figcaption className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
         <span aria-hidden="true" style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#fff', border: '1.5px solid currentColor', marginRight: 6, verticalAlign: 'middle' }} />
         Total CO₂ {slope.toFixed(3)}
         {fossilSlope !== null && (

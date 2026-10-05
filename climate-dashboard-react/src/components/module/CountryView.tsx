@@ -69,9 +69,9 @@ export function CountryView({ temperature, mean5y }: { temperature: YearValue[];
           series={lines.lines.map((l) => ({ name: l.name, x: l.points.map((p) => p.year), y: l.points.map((p) => p.share), kind: 'line' as const, color: l.color, showMarkers: false }))}
         />
         <table style={{ width: '100%', maxWidth: 420, marginTop: 8, borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
-          <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--__s9cmpx-static-text-weak)', paddingBottom: 4 }}>Share of cumulative CO₂, {lastYear}</caption>
+          <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))', paddingBottom: 4 }}>Share of cumulative CO₂, {lastYear}</caption>
           <thead>
-            <tr className="__s9cmpx-label4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+            <tr className="__s9cmpx-label4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
               <th scope="col" style={{ textAlign: 'left', fontWeight: 600 }}>Country</th>
               <th scope="col" style={{ textAlign: 'right', fontWeight: 600 }}>Share</th>
             </tr>
