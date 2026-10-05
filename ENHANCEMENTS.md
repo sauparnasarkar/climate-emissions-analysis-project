@@ -3893,3 +3893,10 @@ Things deliberately left as they are for now, with enough detail to pick them up
 
 **Current handling.** None: the baseline stage fits plainly and **flags** any such anomaly (value, year, ratio to the local median, the country's parameters) so the cause is visible in the output and the notes, and it is why Kuwait's step is outside ±5% (a note, not a deviation, under the systematic rule). **Options if it needs handling:** a per-country training start (Kuwait from 1993), excluding flagged anomaly years, or leaving it as a documented, flagged exception. **Why it waits:** one country of 40, 0.3% of the covered total in 2024, a documented and visible exception; and any rule beyond "flag it" is a modelling choice that should be applied by a stated rule rather than a hard-coded country exception. **Pick up when:** a per-country view of the baseline or the scenarios is shown to the public, or a second anomaly appears in the flag list.
 
+### B4 — Muted text on `analytics-bright-signal` / `-broadsheet` is below 4.5:1 (added 2026-10-05; owner decision: backlog, option 2)
+
+**What.** The Step 10 audit retuned the shared muted-text token in the two themes this app ships (`analytics`, `analytics-bright-tidewater`; design-system #105, app #250). The design system's other two bright themes have the same failure on tinted surfaces and were not retuned.
+
+**Why not now.** This app does not load them, so there is nothing to preview or verify here; retuning would be guessing at values.
+
+**Where it is tracked.** In the `design-system` repo (`ENHANCEMENTS.md` Known small defects; `DESIGN.md` note), for the **India Allocation Monitor** and **India IPO Intelligence**, the companion apps that may adopt those themes: retune per theme to ≥ 4.5:1 against the most tinted surface, then axe on every page in both modes. Nothing in this repo changes.
