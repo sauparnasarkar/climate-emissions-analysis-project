@@ -8,8 +8,8 @@ import { ScenarioSection } from './ScenarioSection';
 
 vi.mock('design-system', async (orig) => ({
   ...(await orig<typeof import('design-system')>()),
-  SyChart: (p: { ariaLabel?: string; referenceX?: unknown; series: Array<{ name: string; dashed?: boolean; x: number[] }> }) => (
-    <div data-testid="sychart" aria-label={p.ariaLabel} data-ref={JSON.stringify(p.referenceX)} data-series={JSON.stringify(p.series.map((s) => [s.name, !!s.dashed, s.x.length]))} />
+  SyChart: (p: { ariaLabel?: string; referenceX?: unknown; series: Array<{ name: string; dashed?: boolean; x: number[]; y: Array<number | null> }> }) => (
+    <div data-testid="sychart" aria-label={p.ariaLabel} data-ref={JSON.stringify(p.referenceX)} data-series={JSON.stringify(p.series.map((s) => [s.name, !!s.dashed, s.x.length]))} data-nulls={JSON.stringify(Object.fromEntries(p.series.map((s) => [s.name, s.y.filter((v) => v === null).length])))} />
   ),
 }));
 afterEach(cleanup);
@@ -54,6 +54,15 @@ describe('ScenarioSection', () => {
     const earlyName = screen.getAllByTestId('sychart')[1].getAttribute('aria-label')!;
     expect(earlyName).toMatch(/Observed annual 2015 to 2017\./);
     expect(earlyName).not.toMatch(/observed .*to 2024/i);
+  });
+
+  it('leaves a gap in an observed series as a gap (a null), not a line joined across the missing year', () => {
+    const temp = years.filter((y) => y !== 2020).map((y) => ({ year: y, value: 1 + (y - 2013) * 0.05 }));
+    const v = buildScenarioView(SCENARIO_TEMPERATURE, FOSSIL, temp, [])!;
+    render(<ScenarioSection view={v} />);
+    const observed = JSON.parse(screen.getAllByTestId('sychart')[1].getAttribute('data-series')!).find((s: [string]) => s[0] === 'Observed (annual)');
+    expect(observed[2]).toBe(10); // 2015..2024 on a full grid: the missing 2020 stays a slot
+    expect(JSON.parse(screen.getAllByTestId('sychart')[1].getAttribute('data-nulls')!)['Observed (annual)']).toBe(1);
   });
 
   it('describes the 5-year mean even when the annual series is unavailable, and each only when drawn', () => {

@@ -55,6 +55,15 @@ describe('buildScenarioView', () => {
     expect(v.assumptions.landUseWindow).toEqual([2020, 2024]);
   });
 
+  it('plots the anchor only when its stated window ends at the last observed year', () => {
+    const withDefinition = (definition: unknown, value: unknown = 1.3902) => buildScenarioView({ ...SCENARIO_TEMPERATURE, base: { ...(SCENARIO_TEMPERATURE.base as object), anchor: { definition, value_c: value } } } as unknown as CorrelationScenarioTemperatureResponse, FOSSIL, TEMP, MEAN)!;
+    expect(withDefinition('trailing 5-year mean of the observed Berkeley Earth anomaly (1850-1900 reference), 2020-2024').anchor).toEqual({ year: 2024, value: 1.3902 }); // the 1850-1900 reference is not its window
+    expect(withDefinition('trailing 5-year mean, 2019-2023').anchor).toBeNull(); // would sit at the wrong year
+    expect(withDefinition('trailing 5-year mean of the anomaly').anchor).toEqual({ year: 2024, value: 1.3902 }); // no stated window: nothing to contradict
+    expect(withDefinition('trailing mean, 2020-2024', 'x').anchor).toBeNull();
+    expect(withDefinition('trailing mean, 2020-2024', Number.NaN).anchor).toBeNull();
+  });
+
   it('has no reading note when the API published none, and leaves missing observed history empty rather than zero', () => {
     const quiet = buildScenarioView({ ...SCENARIO_TEMPERATURE, reading_note: null } as unknown as CorrelationScenarioTemperatureResponse, null, [], [])!;
     expect(quiet.readingNote).toBeNull();

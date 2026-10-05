@@ -82,7 +82,11 @@ export function buildScenarioView(
   const complete = (xs: YearValue[]) => xs.length === horizon - startYear + 1 && xs.every((p, i) => p.year === startYear + i);
   if (startYear >= horizon || lines.some((l) => !complete(l.emissions) || !complete(l.temperature))) return null;
   const from = lastObservedYear - HISTORY_YEARS + 1;
-  const anchorValue = num(rec(rec(resp.base)?.anchor)?.value_c);
+  // The anchor is plotted at the last observed year, so its own stated window has to end there: the response describes it as a trailing mean over a range
+  // ("… 2020-2024"). A window that ends in another year, or a value that is not a finite number, is not plotted rather than placed at a year it does not describe.
+  const anchorRec = rec(rec(resp.base)?.anchor);
+  const windowEnd = typeof anchorRec?.definition === 'string' ? [...anchorRec.definition.matchAll(/\b(1[89]\d{2}|20\d{2})\s*[-–]\s*(1[89]\d{2}|20\d{2})\b/g)].map((m) => Number(m[2])).at(-1) : undefined;
+  const anchorValue = windowEnd !== undefined && windowEnd !== lastObservedYear ? null : num(anchorRec?.value_c);
   const rest = rec(rec(resp.assumptions)?.rest_of_world);
   const land = rec(rec(resp.assumptions)?.land_use);
   const slope = rec(rec(resp.assumptions)?.slope);

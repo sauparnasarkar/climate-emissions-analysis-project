@@ -22,6 +22,12 @@ export function ScenarioSection({ view }: { view: ScenarioView }) {
   const { startYear, horizon, pathways, observedEmissions, observedTemperature, observedMean5y, anchor, horizonGapC, readingNote, labels, assumptions } = view;
   const last = (xs: Array<{ year: number; value: number }>) => xs[xs.length - 1];
   // Described from what is actually drawn, so a missing or early-ending history is not announced as present.
+  // An observed year with no value is a gap in the line, not a point to join across: the series is laid out on every year in its range, null where missing.
+  const gapped = (xs: Array<{ year: number; value: number }>) => {
+    const byYear = new Map(xs.map((p) => [p.year, p.value]));
+    const x = Array.from({ length: xs[xs.length - 1].year - xs[0].year + 1 }, (_, i) => xs[0].year + i);
+    return { x, y: x.map((yr) => byYear.get(yr) ?? null) };
+  };
   const span = (xs: Array<{ year: number }>) => `${xs[0].year} to ${xs[xs.length - 1].year}`;
   const a = assumptions;
   const basis = [
@@ -48,7 +54,7 @@ export function ScenarioSection({ view }: { view: ScenarioView }) {
             referenceX={{ value: startYear, label: `${startYear} start` }}
             ariaLabel={`Line chart of annual global CO₂ in GtCO₂, ${observedEmissions.length ? `observed ${span(observedEmissions)} and ` : ''}three pathways from ${startYear} to ${horizon}. In ${horizon}: ${pathways.map((p) => `${p.label} ${last(p.emissions).value.toFixed(1)}`).join(', ')}.`}
             series={[
-              ...(observedEmissions.length ? [{ name: 'Observed', x: observedEmissions.map((p) => p.year), y: observedEmissions.map((p) => p.value), kind: 'line' as const, color: OBSERVED, showMarkers: false }] : []),
+              ...(observedEmissions.length ? [{ name: 'Observed', ...gapped(observedEmissions), kind: 'line' as const, color: OBSERVED, showMarkers: false }] : []),
               ...pathways.map((p) => ({ name: p.label, x: p.emissions.map((r) => r.year), y: p.emissions.map((r) => r.value), kind: 'line' as const, color: ON_DARK[p.name], dashed: true, showMarkers: false })),
             ]}
           />
@@ -72,8 +78,8 @@ export function ScenarioSection({ view }: { view: ScenarioView }) {
               `In ${horizon}: ${pathways.map((p) => `${p.label} ${last(p.temperature).value.toFixed(2)} °C`).join(', ')}${horizonGapC !== null ? `; the pathways are ${horizonGapC.toFixed(2)} °C apart` : ''}.`,
             ].filter((s): s is string => s !== null).join(' ')}
             series={[
-              ...(observedTemperature.length ? [{ name: 'Observed (annual)', x: observedTemperature.map((p) => p.year), y: observedTemperature.map((p) => p.value), kind: 'line' as const, color: TEMP_ANNUAL, showMarkers: false }] : []),
-              ...(observedMean5y.length ? [{ name: '5-year mean', x: observedMean5y.map((p) => p.year), y: observedMean5y.map((p) => p.value), kind: 'line' as const, color: TEMP_MEAN, showMarkers: false }] : []),
+              ...(observedTemperature.length ? [{ name: 'Observed (annual)', ...gapped(observedTemperature), kind: 'line' as const, color: TEMP_ANNUAL, showMarkers: false }] : []),
+              ...(observedMean5y.length ? [{ name: '5-year mean', ...gapped(observedMean5y), kind: 'line' as const, color: TEMP_MEAN, showMarkers: false }] : []),
               ...pathways.map((p) => ({ name: p.label, x: p.temperature.map((r) => r.year), y: p.temperature.map((r) => r.value), kind: 'line' as const, color: ON_DARK[p.name], dashed: true, showMarkers: false })),
               ...(anchor ? [{ name: `${anchor.value.toFixed(2)} °C anchor`, x: [anchor.year], y: [anchor.value], kind: 'line' as const, color: '#ffffff', showMarkers: true }] : []),
             ]}
