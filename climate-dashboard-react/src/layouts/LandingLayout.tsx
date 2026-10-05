@@ -6,6 +6,7 @@ import type { AppTheme } from '../lib/theme';
 import { AskAgentLink } from '../components/AskAgentLink';
 import { MobileMenuButton } from '../components/MobileMenuButton';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { PHONE_LANDSCAPE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
 import { FOOTER_COPYRIGHT, LANDING_NAV_FOOTER_IDS, NAV_ITEMS, PRODUCT_NAME } from '../navigation';
 
@@ -16,7 +17,8 @@ const linkStyle = { color: 'inherit', textDecoration: 'none', fontSize: 14 } as 
  * SidebarNav, via design-system's own useIsMobile) the nav collapses behind a menu button. */
 export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: (t: AppTheme) => void }) {
   const mainRef = useRef<HTMLElement>(null);
-  const isMobile = useIsMobile();
+  // Portrait or landscape, a phone gets the same compact header (decision 74): narrow screens (useIsMobile) and phones turned sideways.
+  const isMobile = useIsMobile() || useMediaQuery(PHONE_LANDSCAPE_QUERY);
   const [menuOpen, setMenuOpen] = useState(false);
   const { pathname } = useLocation();
   useRouteAnnouncements(mainRef);

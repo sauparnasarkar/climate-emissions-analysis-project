@@ -15,5 +15,8 @@ export function useMediaQuery(query: string): boolean {
   return matches;
 }
 
+/** A phone turned sideways: wider than 768 px but at most ~430 px tall (tablets and desktop windows are taller). ENHANCEMENTS.md decision 74. */
+export const PHONE_LANDSCAPE_QUERY = '(orientation: landscape) and (max-height: 500px)';
+
 /** The phone breakpoint of the Area 2 navigation (ENHANCEMENTS.md decision 69). */
 export const PHONE_QUERY = '(max-width: 640px)';

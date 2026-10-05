@@ -43,7 +43,10 @@ export const CAROUSEL_STYLES = `
   .hero-carousel__hint { display: none; }
   /* The slides are stacked in one grid cell, so the tallest would set the height and leave a gap above the controls under a shorter banner: on a phone only the showing (and, during the move, the leaving) slide takes room. */
   .hero-carousel__slide[data-motion="hidden"] { display: none; }
-  .hero-carousel__controls { flex-wrap: nowrap; justify-content: center; gap: 4px; padding: 8px 0 10px; }
+  /* Decision 73: a pill pinned to the bottom of the screen while the carousel is on view (it docks at the carousel's own end), so the controls are seen
+     without scrolling -- like the pagination pill on the Fitch Ratings mobile hero. Page scroll-padding keeps a focused element from sitting behind it. */
+  .hero-carousel__controls { position: sticky; bottom: 12px; z-index: 6; align-self: center; width: fit-content; max-width: calc(100% - 24px); margin: 0 12px; flex-wrap: nowrap; justify-content: center; gap: 2px; padding: 4px 8px; border: 1px solid var(--__s9cmpx-static-divider-standard, #8896a8); border-radius: 999px; background: var(--__s9cmpx-static-background-standard); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); }
+  html:has(.hero-carousel__controls) { scroll-padding-bottom: 84px; }
   .hero-carousel__btn { min-width: 44px; height: 44px; padding: 0; }
   .hero-carousel__btn--playpause { padding: 0 12px; }
   .hero-carousel__btn--prev { order: 1; margin-right: auto; }
@@ -53,8 +56,9 @@ export const CAROUSEL_STYLES = `
   .hero-carousel__btn--next { order: 5; margin-left: auto; }
   .hero-carousel__btn--dot .hero-carousel__num, .hero-carousel__btn--dot .hero-carousel__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .hero-carousel__btn--dot { min-width: 28px; position: relative; }
-  .hero-carousel__btn--dot::before { content: ""; display: block; width: 10px; height: 10px; border-radius: 5px; background: var(--__s9cmpx-static-divider-standard, #8896a8); }
-  .hero-carousel__btn--dot[aria-current="true"]::before { width: 28px; background: var(--__s9cmpx-interactive-fill-primary-default); }
+  .hero-carousel__btn--dot[aria-current="true"] { min-width: 44px; }
+  .hero-carousel__btn--dot::before { content: ""; display: block; width: 12px; height: 12px; border-radius: 6px; border: 2px solid var(--__s9cmpx-static-text-standard); box-sizing: border-box; }
+  .hero-carousel__btn--dot[aria-current="true"]::before { width: 32px; border-color: var(--__s9cmpx-interactive-fill-primary-default); background: var(--__s9cmpx-interactive-fill-primary-default); }
 }
 `;
 

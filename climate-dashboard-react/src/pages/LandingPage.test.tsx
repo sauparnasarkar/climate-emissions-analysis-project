@@ -317,6 +317,15 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('link', { name: `Forecasts to ${FORECAST_END_YEAR} →` })).toHaveAttribute('href', '/forecasts');
   });
 
+  it('on a phone the emissions banner has the same order as the climate banner: copy, figures, picture, then the buttons below the globe (decision 73)', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    const css = Array.from(document.querySelectorAll('style')).map((s) => s.textContent ?? '').join('\n');
+    expect(css).toMatch(/\.landing-hero__text \{ display: contents !important; \}/);
+    expect(css).toMatch(/\.landing-hero__globe \{ order: 5; \}/);
+    expect(css).toMatch(/\.landing-hero__ctas \{ order: 6;/);
+  });
+
   it('states the baseline, the sources and that the chart is context, not a climate model', async () => {
     mountWithClimate();
     await screen.findByRole('region', { name: 'Featured' });

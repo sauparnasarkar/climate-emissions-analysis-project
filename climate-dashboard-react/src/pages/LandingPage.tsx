@@ -72,7 +72,11 @@ const STYLES = `
   .landing-kpis > div:first-child { padding-left: 0 !important; }
   .landing-kpis > div > div:first-child { font-size: 1.125rem !important; }
   .landing-kpis .__s9cmpx-body3 { font-size: 12px; line-height: 1.3; }
-  .landing-hero__ctas { flex-direction: column; }
+  /* Same order as the climate banner (decision 73): copy, figures, picture, then the buttons -- so the buttons come after the globe. */
+  .landing-hero__text { display: contents !important; }
+  .landing-hero__text > *, .landing-hero__globe { order: 0; }
+  .landing-hero__globe { order: 5; }
+  .landing-hero__ctas { order: 6; flex-direction: column; }
   .landing-hero__ctas > a { justify-content: center; }
 }
 `;
