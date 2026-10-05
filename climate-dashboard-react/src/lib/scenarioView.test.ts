@@ -32,6 +32,12 @@ describe('buildScenarioView', () => {
     expect(v.anchor).toEqual({ year: 2024, value: 1.3902 });
   });
 
+  it('measures the gap between the highest and lowest implied temperature in the horizon year', () => {
+    expect(v.horizonGapC).toBeCloseTo(0.11, 6); // 1.78 - 1.67
+    const one = { ...SCENARIO_TEMPERATURE, scenarios: { BAU: SCENARIO_TEMPERATURE.scenarios.BAU } } as unknown as CorrelationScenarioTemperatureResponse;
+    expect(buildScenarioView(one, FOSSIL, TEMP, MEAN)).toBeNull(); // a scenario set short of three is not a usable comparison
+  });
+
   it('passes the API\'s reading note and prescribed labels through verbatim', () => {
     expect(v.readingNote).toBe(SCENARIO_TEMPERATURE.reading_note);
     expect(v.labels).toContain('Illustrative analytical translations, not formal climate-model projections');

@@ -26,6 +26,8 @@ export interface ScenarioView {
   observedMean5y: YearValue[];
   /** The anchor the implied temperatures start from: the trailing 5-year mean at the last observed year */
   anchor: { year: number; value: number } | null;
+  /** How far apart the highest and lowest implied temperature are in the horizon year, in °C (null when fewer than two pathways have a horizon value) */
+  horizonGapC: number | null;
   /** The API's own generated reading of the output, verbatim; null when it published none (the pathways do not diverge enough) */
   readingNote: string | null;
   /** The API's required labels for scenario output (requirements §1.3.5) */
@@ -81,6 +83,8 @@ export function buildScenarioView(
   const slope = rec(rec(resp.assumptions)?.slope);
   const slopeHeadline = rec(slope?.headline);
   const win = Array.isArray(land?.window) ? (land!.window as unknown[]).map(num) : [];
+  const atHorizon = lines.flatMap((l) => l.temperature.filter((r) => r.year === horizon).map((r) => r.value));
+  const horizonGapC = atHorizon.length >= 2 ? Math.max(...atHorizon) - Math.min(...atHorizon) : null;
   const note = typeof resp.reading_note === 'string' && resp.reading_note.trim() ? resp.reading_note : null;
   const restShare = num(rest?.share);
   const landMt = num(land?.mt_per_year);
@@ -90,6 +94,7 @@ export function buildScenarioView(
     observedTemperature: temperature.filter((p) => p.year >= from && p.year <= lastObservedYear),
     observedMean5y: mean5y.filter((p) => p.year >= from && p.year <= lastObservedYear),
     anchor: anchorValue !== null ? { year: lastObservedYear, value: anchorValue } : null,
+    horizonGapC,
     readingNote: note,
     labels: (resp.labels ?? []).filter((l): l is string => typeof l === 'string' && l.length > 0),
     assumptions: {

@@ -8,7 +8,7 @@ import { ScenarioSection } from './ScenarioSection';
 
 vi.mock('design-system', async (orig) => ({
   ...(await orig<typeof import('design-system')>()),
-  SyChart: (p: { ariaLabel?: string; referenceX?: { value: number; label?: string }; series: Array<{ name: string; dashed?: boolean; x: number[] }> }) => (
+  SyChart: (p: { ariaLabel?: string; referenceX?: unknown; series: Array<{ name: string; dashed?: boolean; x: number[] }> }) => (
     <div data-testid="sychart" aria-label={p.ariaLabel} data-ref={JSON.stringify(p.referenceX)} data-series={JSON.stringify(p.series.map((s) => [s.name, !!s.dashed, s.x.length]))} />
   ),
 }));
@@ -36,7 +36,24 @@ describe('ScenarioSection', () => {
     const names = JSON.parse(temperature.getAttribute('data-series')!).map((s: [string]) => s[0]);
     expect(names).toEqual(['Observed (annual)', '5-year mean', 'Business as usual', 'Moderate', 'Aggressive', '1.39 °C anchor']);
     expect(emissions).toHaveAccessibleName(/In 2040: Business as usual 44\.9, Moderate 33\.1, Aggressive 20\.8\./);
-    expect(temperature).toHaveAccessibleName(/anchored at 1\.39 °C.*Business as usual 1\.78 °C, Moderate 1\.73 °C, Aggressive 1\.67 °C/);
+    expect(temperature).toHaveAccessibleName(/Anchored at 1\.39 °C in 2024\..*Business as usual 1\.78 °C, Moderate 1\.73 °C, Aggressive 1\.67 °C; the pathways are 0\.11 °C apart\./);
+    // the 2040 gap is on the chart: a vertical reference at the horizon, labelled with it
+    expect(JSON.parse(temperature.getAttribute('data-ref')!)).toEqual([{ value: 2025, label: '2025 start' }, { value: 2040, label: '0.11 °C apart' }]);
+  });
+
+  it('describes only the temperature history that is actually drawn', () => {
+    const none = buildScenarioView(SCENARIO_TEMPERATURE, FOSSIL, [], [])!;
+    render(<ScenarioSection view={none} />);
+    const name = screen.getAllByTestId('sychart')[1].getAttribute('aria-label')!;
+    expect(name).not.toMatch(/Observed annual/);
+    expect(name).not.toMatch(/5-year mean/);
+    expect(name).toMatch(/Anchored at 1\.39 °C in 2024/);
+    cleanup();
+    const early = buildScenarioView(SCENARIO_TEMPERATURE, FOSSIL, years.slice(0, 5).map((y) => ({ year: y, value: 1 })), [])!; // ends 2017, no mean
+    render(<ScenarioSection view={early} />);
+    const earlyName = screen.getAllByTestId('sychart')[1].getAttribute('aria-label')!;
+    expect(earlyName).toMatch(/Observed annual 2015 to 2017\./);
+    expect(earlyName).not.toMatch(/observed .*to 2024/i);
   });
 
   it('shows the API\'s reading note verbatim, and a 2040 table with a column header for each value', () => {

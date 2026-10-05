@@ -19,8 +19,10 @@ const panel = { background: 'var(--__s9cmpx-static-background-standard)', border
  * emissions are OWID's World fossil + cement total, the pathways' own basis.
  */
 export function ScenarioSection({ view }: { view: ScenarioView }) {
-  const { startYear, lastObservedYear, horizon, pathways, observedEmissions, observedTemperature, observedMean5y, anchor, readingNote, labels, assumptions } = view;
+  const { startYear, horizon, pathways, observedEmissions, observedTemperature, observedMean5y, anchor, horizonGapC, readingNote, labels, assumptions } = view;
   const last = (xs: Array<{ year: number; value: number }>) => xs[xs.length - 1];
+  // Described from what is actually drawn, so a missing or early-ending history is not announced as present.
+  const span = (xs: Array<{ year: number }>) => `${xs[0].year} to ${xs[xs.length - 1].year}`;
   const a = assumptions;
   const basis = [
     a.slope !== null ? `Slope ${a.slope.toFixed(3)}${a.slopeUnit ? ` ${a.slopeUnit}` : ''}${a.slopeLabel ? ` (${a.slopeLabel})` : ''}` : null,
@@ -44,7 +46,7 @@ export function ScenarioSection({ view }: { view: ScenarioView }) {
             height={300}
             yTitle="GtCO₂ a year"
             referenceX={{ value: startYear, label: `${startYear} start` }}
-            ariaLabel={`Line chart of annual global CO₂ in GtCO₂, ${observedEmissions.length ? `observed ${observedEmissions[0].year} to ${lastObservedYear} and ` : ''}three pathways from ${startYear} to ${horizon}. In ${horizon}: ${pathways.map((p) => `${p.label} ${last(p.emissions).value.toFixed(1)}`).join(', ')}.`}
+            ariaLabel={`Line chart of annual global CO₂ in GtCO₂, ${observedEmissions.length ? `observed ${span(observedEmissions)} and ` : ''}three pathways from ${startYear} to ${horizon}. In ${horizon}: ${pathways.map((p) => `${p.label} ${last(p.emissions).value.toFixed(1)}`).join(', ')}.`}
             series={[
               ...(observedEmissions.length ? [{ name: 'Observed', x: observedEmissions.map((p) => p.year), y: observedEmissions.map((p) => p.value), kind: 'line' as const, color: OBSERVED, showMarkers: false }] : []),
               ...pathways.map((p) => ({ name: p.label, x: p.emissions.map((r) => r.year), y: p.emissions.map((r) => r.value), kind: 'line' as const, color: ON_DARK[p.name], dashed: true, showMarkers: false })),
@@ -60,8 +62,14 @@ export function ScenarioSection({ view }: { view: ScenarioView }) {
           <SyChart
             height={300}
             yTitle="°C above 1850–1900"
-            referenceX={{ value: startYear, label: `${startYear} start` }}
-            ariaLabel={`Line chart of the temperature anomaly in °C above the 1850 to 1900 mean: observed to ${lastObservedYear}${anchor ? `, anchored at ${anchor.value.toFixed(2)} °C` : ''}, and the implied level of each pathway to ${horizon}. In ${horizon}: ${pathways.map((p) => `${p.label} ${last(p.temperature).value.toFixed(2)} °C`).join(', ')}.`}
+            referenceX={[{ value: startYear, label: `${startYear} start` }, ...(horizonGapC !== null ? [{ value: horizon, label: `${horizonGapC.toFixed(2)} °C apart` }] : [])]}
+            ariaLabel={[
+              'Line chart of the temperature anomaly in °C above the 1850 to 1900 mean.',
+              observedTemperature.length ? `Observed annual ${span(observedTemperature)}${observedMean5y.length ? `, with its 5-year mean ${span(observedMean5y)}` : ''}.` : null,
+              anchor ? `Anchored at ${anchor.value.toFixed(2)} °C in ${anchor.year}.` : null,
+              `Implied level of each pathway, ${startYear} to ${horizon}.`,
+              `In ${horizon}: ${pathways.map((p) => `${p.label} ${last(p.temperature).value.toFixed(2)} °C`).join(', ')}${horizonGapC !== null ? `; the pathways are ${horizonGapC.toFixed(2)} °C apart` : ''}.`,
+            ].filter((s): s is string => s !== null).join(' ')}
             series={[
               ...(observedTemperature.length ? [{ name: 'Observed (annual)', x: observedTemperature.map((p) => p.year), y: observedTemperature.map((p) => p.value), kind: 'line' as const, color: TEMP_ANNUAL, showMarkers: false }] : []),
               ...(observedMean5y.length ? [{ name: '5-year mean', x: observedMean5y.map((p) => p.year), y: observedMean5y.map((p) => p.value), kind: 'line' as const, color: TEMP_MEAN, showMarkers: false }] : []),
