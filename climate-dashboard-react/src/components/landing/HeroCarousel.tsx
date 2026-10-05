@@ -16,14 +16,23 @@ export interface CarouselSlide {
 export const CAROUSEL_STYLES = `
 .hero-carousel { display: flex; flex-direction: column; }
 .hero-carousel__slides { display: grid; overflow: hidden; }
-/* Slides sit side by side in a row's worth of space: the active one at rest, earlier ones parked off to the left and later ones
-   to the right, so going forward enters from the right (and the old one leaves left) and going back does the reverse. */
-.hero-carousel__slide { grid-area: 1 / 1; align-self: center; min-width: 0; opacity: 0; visibility: hidden; pointer-events: none;
-  transition: transform 500ms cubic-bezier(.4, 0, .2, 1), opacity 500ms ease, visibility 0s linear 500ms; }
-.hero-carousel__slide[data-pos="before"] { transform: translateX(-100%); }
-.hero-carousel__slide[data-pos="after"] { transform: translateX(100%); }
-.hero-carousel__slide[data-pos="active"] { transform: none; opacity: 1; visibility: visible; pointer-events: auto; transition: transform 500ms cubic-bezier(.4, 0, .2, 1), opacity 500ms ease, visibility 0s; }
-.hero-carousel--static .hero-carousel__slide { transition: none; }
+/* Slides slide sideways. The one coming in and the one going out are animated by keyframes (not parked positions), so the
+   direction follows the move itself: forward -- Next, auto-rotate, also from the last slide round to the first -- brings the new
+   slide in from the right and sends the old one out to the left; back reverses it. */
+.hero-carousel__slide { grid-area: 1 / 1; align-self: center; min-width: 0; opacity: 0; visibility: hidden; pointer-events: none; }
+.hero-carousel__slide[data-motion="rest"] { opacity: 1; visibility: visible; pointer-events: auto; }
+.hero-carousel__slide[data-motion="enter-forward"] { visibility: visible; pointer-events: auto; animation: hero-slide-in-from-right 500ms cubic-bezier(.4, 0, .2, 1) both; }
+.hero-carousel__slide[data-motion="enter-back"] { visibility: visible; pointer-events: auto; animation: hero-slide-in-from-left 500ms cubic-bezier(.4, 0, .2, 1) both; }
+.hero-carousel__slide[data-motion="exit-forward"] { animation: hero-slide-out-to-left 500ms cubic-bezier(.4, 0, .2, 1) both; }
+.hero-carousel__slide[data-motion="exit-back"] { animation: hero-slide-out-to-right 500ms cubic-bezier(.4, 0, .2, 1) both; }
+@keyframes hero-slide-in-from-right { from { transform: translateX(100%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes hero-slide-in-from-left { from { transform: translateX(-100%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes hero-slide-out-to-left { from { transform: none; opacity: 1; visibility: visible; } to { transform: translateX(-100%); opacity: 0; visibility: hidden; } }
+@keyframes hero-slide-out-to-right { from { transform: none; opacity: 1; visibility: visible; } to { transform: translateX(100%); opacity: 0; visibility: hidden; } }
+/* No movement under reduced motion: the slide that is leaving is simply gone and the new one is there. */
+.hero-carousel--static .hero-carousel__slide { animation: none !important; }
+.hero-carousel--static .hero-carousel__slide[data-motion^="enter"] { opacity: 1; }
+.hero-carousel--static .hero-carousel__slide[data-motion^="exit"] { visibility: hidden; opacity: 0; }
 .hero-carousel__controls { order: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 var(--landing-pad-x); padding: 10px 0 12px; border-top: 1px solid var(--__s9cmpx-static-divider-weak); }
 .hero-carousel__btn { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 12px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 14px; color: inherit; background: transparent; border: 1px solid var(--__s9cmpx-static-divider-standard, currentColor); }
 .hero-carousel__btn[aria-current="true"] { background: var(--__s9cmpx-static-background-standard); font-weight: 600; }
@@ -35,6 +44,8 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
   const c = useCarousel({ count: slides.length });
   const reducedMotion = useReducedMotion();
   const uid = useId();
+  // The first slide is simply there; after a move, the new one enters and the old one leaves, each in the move's direction.
+  const motionOf = (i: number) => (i === c.index ? (c.previous === null ? 'rest' : `enter-${c.direction}`) : i === c.previous ? `exit-${c.direction}` : 'hidden');
 
   return (
     <section
@@ -69,7 +80,7 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
       </div>
       <div className="hero-carousel__slides" aria-live={c.autoplay ? 'off' : 'polite'}>
         {slides.map((s, i) => (
-          <div key={s.id} id={`${uid}-${s.id}`} className="hero-carousel__slide" role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}: ${s.label}`} data-active={i === c.index} data-pos={i === c.index ? 'active' : i < c.index ? 'before' : 'after'}
+          <div key={s.id} id={`${uid}-${s.id}`} className="hero-carousel__slide" role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${slides.length}: ${s.label}`} data-active={i === c.index} data-motion={motionOf(i)}
             // Hidden slides are also removed from the accessibility tree and made inert (CSS `visibility` alone would do the
             // same in a browser; this states it explicitly so focus and assistive tech can never reach a slide that isn't showing).
             aria-hidden={i !== c.index} inert={i !== c.index}>

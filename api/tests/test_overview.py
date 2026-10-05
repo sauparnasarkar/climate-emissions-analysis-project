@@ -351,3 +351,19 @@ def test_world_map_series_start_year_is_validated(data_dir):
     for q in ("start_year=1899", "start_year=2025", "start_year=abc"):
         assert client.get(f"/api/overview/world-map-series?{q}").status_code == 422, q
     assert client.get("/api/overview/world-map-series?start_year=2024").json()["years"] == [2024]
+
+
+def test_world_map_series_reads_the_csv_once_however_many_start_years_are_requested(data_dir, monkeypatch):
+    _long_range_map_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    import api.data_loaders as dl
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    reads = []
+    real_read_csv = dl.pd.read_csv
+    monkeypatch.setattr(dl.pd, "read_csv", lambda *a, **k: (reads.append(1), real_read_csv(*a, **k))[1])
+    client = TestClient(app)
+    for start in range(1950, 1990):  # far more start years than the result cache holds
+        assert client.get(f"/api/overview/world-map-series?start_year={start}").status_code == 200
+    assert len(reads) == 1

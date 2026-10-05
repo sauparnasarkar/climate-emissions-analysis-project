@@ -361,15 +361,17 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('button', { name: /01\s*Climate signal/ })).toHaveAttribute('aria-current', 'true');
   });
 
-  it('slides sideways: the next slide comes in from the right and the old one leaves left, and going back reverses it', async () => {
+  it('slides sideways: forward (Next, also round from the last slide to the first) enters from the right, back reverses it', async () => {
     mountWithClimate();
     await screen.findByRole('region', { name: 'Featured' });
-    const pos = () => [...document.querySelectorAll('.hero-carousel__slide')].map((s) => s.getAttribute('data-pos'));
-    expect(pos()).toEqual(['active', 'after']);
+    const motion = () => [...document.querySelectorAll('.hero-carousel__slide')].map((s) => s.getAttribute('data-motion'));
+    expect(motion()).toEqual(['rest', 'hidden']);
     fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
-    expect(pos()).toEqual(['before', 'active']);
+    expect(motion()).toEqual(['exit-forward', 'enter-forward']); // 1 leaves left, 2 comes in from the right
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' })); // last -> first wraps, and is still forward
+    expect(motion()).toEqual(['enter-forward', 'exit-forward']);
     fireEvent.click(screen.getByRole('button', { name: 'Previous slide' }));
-    expect(pos()).toEqual(['active', 'after']);
+    expect(motion()).toEqual(['exit-back', 'enter-back']); // going back reverses it
   });
 
   it('holds the globe animation off while its slide is hidden, and on once it is shown', async () => {

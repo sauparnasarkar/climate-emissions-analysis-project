@@ -92,4 +92,28 @@ describe('useCarousel', () => {
     act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
     expect(result.current.index).toBe(0);
   });
+
+  it('reports the direction of each move: Next and auto-rotate are forward (also wrapping last -> first), Previous is back, a tab follows the slide order', () => {
+    const { result } = renderHook(() => useCarousel({ count: 3 }));
+    expect([result.current.previous, result.current.direction]).toEqual([null, 'forward']);
+    act(() => result.current.next());
+    expect([result.current.index, result.current.previous, result.current.direction]).toEqual([1, 0, 'forward']);
+    act(() => result.current.prev());
+    expect([result.current.index, result.current.previous, result.current.direction]).toEqual([0, 1, 'back']);
+    act(() => result.current.prev()); // first -> last wraps and is still "back"
+    expect([result.current.index, result.current.previous, result.current.direction]).toEqual([2, 0, 'back']);
+    act(() => result.current.next()); // last -> first wraps and is still "forward"
+    expect([result.current.index, result.current.previous, result.current.direction]).toEqual([0, 2, 'forward']);
+    act(() => result.current.goTo(2)); // a later slide by tab: forward
+    expect(result.current.direction).toBe('forward');
+    act(() => result.current.goTo(1)); // an earlier one: back
+    expect(result.current.direction).toBe('back');
+  });
+
+  it('auto-rotate round the last slide to the first is forward', () => {
+    const { result } = renderHook(() => useCarousel({ count: 2 }));
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
+    expect([result.current.index, result.current.previous, result.current.direction]).toEqual([0, 1, 'forward']);
+  });
 });

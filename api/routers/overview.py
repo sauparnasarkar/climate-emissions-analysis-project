@@ -6,6 +6,7 @@ from ..constants import (
     MAX_SELECTED_COUNTRIES,
     PCT_CHANGE_BASELINE_YEAR,
     TOP_N_HEADLINE,
+    WORLD_MAP_YEAR_EARLIEST,
     WORLD_MAP_YEAR_END,
     WORLD_MAP_YEAR_START,
 )
@@ -174,7 +175,7 @@ def get_overview(countries: list[str] | None = Query(None)):
 
 
 @router.get("/overview/world-map-series", response_model=WorldMapTimeSeries)
-def get_world_map_series(start_year: int = Query(WORLD_MAP_YEAR_START, ge=1900, le=WORLD_MAP_YEAR_END)):
+def get_world_map_series(start_year: int = Query(WORLD_MAP_YEAR_START, ge=WORLD_MAP_YEAR_EARLIEST, le=WORLD_MAP_YEAR_END)):
     """SPEC.md §5.17 -- the animated choropleth's full year-by-year payload. Selection-invariant
     (no `countries` param): served on its own route rather than folded into /overview, which
     re-fetches on every country-selection change and would otherwise ship this ~50KB columnar
