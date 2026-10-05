@@ -154,6 +154,12 @@ const WORLD_MAP_SERIES: WorldMapTimeSeries = {
 // JumpLinks (SPEC.md §5.19) calls design-system's useReducedMotion during render -- jsdom has
 // no window.matchMedia at all, so every test needs this stub regardless of whether it cares
 // about reduced motion specifically.
+// The map card (its own Play/slider); the sticky Year control has a Play button too.
+async function mapCard() {
+  await screen.findByRole('heading', { level: 1, name: 'Overview' });
+  return document.querySelector('.overview-map-card') as HTMLElement;
+}
+
 function mockReducedMotion(matches: boolean) {
   vi.stubGlobal(
     'matchMedia',
@@ -330,7 +336,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
-    const playButton = await screen.findByRole('button', { name: 'Play' });
+    const playButton = within(await mapCard()).getByRole('button', { name: 'Play' });
     expect(playButton).not.toBeDisabled();
     const slider = screen.getByRole('slider');
     expect(slider).toHaveAttribute('aria-valuemin', '2023');
@@ -346,7 +352,7 @@ describe('OverviewPage', () => {
     const user = userEvent.setup();
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
-    await user.click(await screen.findByRole('button', { name: 'Play' }));
+    await user.click(within(await mapCard()).getByRole('button', { name: 'Play' }));
     expect(DEFAULT_ANIMATION.toggle).toHaveBeenCalledTimes(1);
   });
 
@@ -357,7 +363,7 @@ describe('OverviewPage', () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue(WORLD_MAP_SERIES);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
-    expect(await screen.findByRole('button', { name: 'Play' })).toBeEnabled();
+    expect(within(await mapCard()).getByRole('button', { name: 'Play' })).toBeEnabled();
     expect(screen.getByRole('slider')).not.toHaveAttribute('aria-disabled', 'true');
   });
 
@@ -606,7 +612,7 @@ describe('OverviewPage — climate signal', () => {
     const ids = ['climate-signal', 'relationship', 'top-emitters', 'share', 'by-country'].map((id) => document.getElementById(id)!);
     ids.slice(1).forEach((el, i) => expect(ids[i].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy());
     // sticks to the top while scrolling
-    expect((nav.parentElement as HTMLElement).style.position).toBe('sticky');
+    expect((nav.closest('[style*="position: sticky"]') as HTMLElement).style.position).toBe('sticky');
   });
 
   it('shows the four KPI cards with figures from the API, each at its own year', async () => {
@@ -753,6 +759,24 @@ describe('OverviewPage — deep links', () => {
     }
   });
 
+  it('a deep link scrolls only after the sticky row has been measured, so the first scroll clears a wrapped Year control', async () => {
+    window.history.replaceState(null, '', '/overview#share');
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return { height: this.style.position === 'sticky' ? 90 : 0 } as DOMRect;
+    });
+    let marginAtJump = '';
+    scrollSpy.mockImplementation(() => { marginAtJump = document.querySelector('.overview-page style')?.textContent ?? ''; });
+    try {
+      mountWithClimate();
+      await screen.findByRole('navigation', { name: 'Jump links' });
+      await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('share'));
+      expect(marginAtJump).toMatch(/scroll-margin-top: 168px/); // the measured 90 px row, not the 52 px fallback (which would be 120)
+    } finally {
+      rect.mockRestore();
+      scrollSpy.mockReset();
+    }
+  });
+
   it('any other deep link (#map) jumps as soon as the page has rendered, without waiting for a stalled climate request', async () => {
     window.history.replaceState(null, '', '/overview#map');
     vi.useFakeTimers();
@@ -775,8 +799,18 @@ describe('OverviewPage — deep links', () => {
   it('puts the sticky anchor row below the pinned header and offsets every jump target by the header plus the row', async () => {
     mountWithClimate();
     const nav = await screen.findByRole('navigation', { name: 'Jump links' });
-    expect((nav.parentElement as HTMLElement).style.top).toBe('68px');
+    expect((nav.closest('[style*="position: sticky"]') as HTMLElement).style.top).toBe('68px');
     expect(document.querySelector('.overview-page style')?.textContent).toMatch(/scroll-margin-top: 120px/);
+  });
+
+  it('offsets jump targets by the sticky row\'s measured height, so a wrapped row (Year control on a second line) is cleared too', async () => {
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return { height: this.style.position === 'sticky' ? 90 : 0 } as DOMRect;
+    });
+    mountWithClimate();
+    await screen.findByRole('navigation', { name: 'Jump links' });
+    expect(document.querySelector('.overview-page style')?.textContent).toMatch(/scroll-margin-top: 168px/); // 68 header + 90 row + 10 gap
+    rect.mockRestore();
   });
 });
 
@@ -852,9 +886,24 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     expect(api.worldMapSeries).toHaveBeenCalledWith(1970);
     const options = vi.mocked(useYearAnimation).mock.calls.at(-1)![0];
-    expect(options).toMatchObject({ minYear: 1970, maxYear: 2024, stepYears: 10, intervalMs: 1750 });
+    expect(options).toMatchObject({ minYear: 1970, maxYear: 2024, stepYears: 10, intervalMs: 1750, autoplay: false });
     expect(screen.getByRole('slider')).toHaveAttribute('aria-valuemin', '1970');
     expect(screen.getByRole('slider')).toHaveAttribute('aria-valuemax', '2024');
+  });
+
+  it('puts a sticky Year control in the anchor bar that moves the same year as the map (one value, not two)', async () => {
+    mountFullRange(2010);
+    const group = await screen.findByRole('group', { name: 'Page year' });
+    expect(within(group).getByRole('combobox', { name: 'Page year' })).toHaveTextContent('2010');
+    const nav = screen.getByRole('navigation', { name: 'Jump links' });
+    expect((nav.closest('[style*="position: sticky"]') as HTMLElement).contains(group)).toBe(true);
+    fireEvent.click(within(group).getByRole('combobox', { name: 'Page year' }));
+    fireEvent.click(screen.getByRole('option', { name: '1990' }));
+    expect(DEFAULT_ANIMATION.seek).toHaveBeenCalledWith(1990);
+    // its Play and the map's Play are the same toggle
+    fireEvent.click(within(group).getByRole('button', { name: 'Play' }));
+    fireEvent.click(within(document.querySelector('.overview-map-card') as HTMLElement).getByRole('button', { name: 'Play' }));
+    expect(DEFAULT_ANIMATION.toggle).toHaveBeenCalledTimes(2);
   });
 
   it('shows a button per decade stop -- 1970 … 2020 and the latest year -- with the current one pressed, and a click seeks to it', async () => {

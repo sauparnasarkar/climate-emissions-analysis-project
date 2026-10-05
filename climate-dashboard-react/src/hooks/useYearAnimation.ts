@@ -19,6 +19,12 @@ export interface UseYearAnimationOptions {
    * e.g. a carousel slide that isn't showing. Turning it back on lets a not-yet-user-driven autoplay start/resume
    * (waiting for `startWhenVisible` again). Default true. */
   enabled?: boolean;
+  /** When false nothing plays until the user presses Play: no autoplay on mount or on scroll-into-view (`startWhenVisible` is ignored), and the
+   * year is `initialYear`, else the latest, until the user moves it -- following `maxYear` as the range arrives rather than freezing at the
+   * placeholder a not-yet-loaded range had on the first render. For a year the page shares and keeps in the URL. Default true. */
+  autoplay?: boolean;
+  /** Year to start on instead of the first stop (or the latest, with `autoplay: false`); clamped to the range. */
+  initialYear?: number;
 }
 
 /** Default autoplay step: every 5 years (minYear, minYear+5, ..., then maxYear). */
@@ -45,15 +51,18 @@ export interface UseYearAnimationResult {
  * Consumers still use `reducedMotion` to tone down the *kind* of motion (no globe spin, no colour
  * blending -- years just step).
  */
-export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYears = DEFAULT_STEP_YEARS, startWhenVisible, enabled = true }: UseYearAnimationOptions): UseYearAnimationResult {
+export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYears = DEFAULT_STEP_YEARS, startWhenVisible: startWhenVisibleOption, enabled = true, autoplay = true, initialYear }: UseYearAnimationOptions): UseYearAnimationResult {
+  const startWhenVisible = autoplay ? startWhenVisibleOption : undefined;
   const reducedMotion = useReducedMotion();
   const stops = useMemo(() => computeAutoplayStops(minYear, maxYear, stepYears), [minYear, maxYear, stepYears]);
-  const [currentYear, setCurrentYear] = useState(reducedMotion ? maxYear : stops[0]);
+  // null = "the latest": with `autoplay: false` the year follows maxYear until the user moves it (see the option's doc comment).
+  const [rawYear, setRawYear] = useState<number | null>(initialYear ?? (autoplay ? (reducedMotion ? maxYear : stops[0]) : null));
+  const currentYear = Math.min(Math.max(rawYear ?? maxYear, minYear), maxYear);
   // Decided once, on first render: wait for the element only if a ref was given AND the browser can tell us.
   const deferAutoplay = useRef(Boolean(startWhenVisible) && typeof IntersectionObserver !== 'undefined');
   // Any deliberate Play/Pause/scrub means "the user is driving" -- a late scroll-into-view must not override it.
   const userDriven = useRef(false);
-  const [isPlaying, setIsPlaying] = useState(!reducedMotion && !deferAutoplay.current);
+  const [isPlaying, setIsPlaying] = useState(autoplay && !reducedMotion && !deferAutoplay.current);
   // Avoids a stale-closure read of currentYear inside the interval callback below without
   // needing currentYear itself in the effect's dependency array (which would tear down and
   // recreate the interval every single tick).
@@ -75,7 +84,8 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYear
   useEffect(() => {
     if (!isPlaying) return;
     const id = setInterval(() => {
-      setCurrentYear((year) => {
+      setRawYear((raw) => {
+        const year = Math.min(Math.max(raw ?? maxYear, minYear), maxYear);
         // The next stop strictly after wherever we currently are -- not "the next index in
         // stops" -- so resuming Play after a manual seek to a non-stop year (e.g. 2015) advances
         // to the next decade boundary after that (2020), rather than replaying a stop already
@@ -85,7 +95,7 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYear
       });
     }, intervalMs);
     return () => clearInterval(id);
-  }, [isPlaying, stops, intervalMs]);
+  }, [isPlaying, stops, intervalMs, minYear, maxYear]);
 
   // Stops playback the instant the final stop is reached, rather than waiting one more full
   // dwell period to notice -- the animation has visibly finished; Play/Pause should reflect
@@ -116,7 +126,7 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYear
   const play = () => {
     if (!enabled) return;
     userDriven.current = true;
-    if (currentYearRef.current >= maxYear) setCurrentYear(stops[0]);
+    if (currentYearRef.current >= maxYear) setRawYear(stops[0]);
     setIsPlaying(true);
   };
   const pause = () => {
@@ -127,7 +137,7 @@ export function useYearAnimation({ minYear, maxYear, intervalMs = 1800, stepYear
   const seek = (year: number) => {
     userDriven.current = true;
     setIsPlaying(false);
-    setCurrentYear(Math.max(minYear, Math.min(maxYear, year)));
+    setRawYear(Math.max(minYear, Math.min(maxYear, year)));
   };
 
   return { currentYear, isPlaying, play, pause, toggle, seek, reducedMotion };

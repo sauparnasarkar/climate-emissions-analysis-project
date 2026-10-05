@@ -307,3 +307,43 @@ describe('useYearAnimation — a finished animation is not re-armed', () => {
     expect(result.current.isPlaying).toBe(true);
   });
 });
+
+describe('useYearAnimation — autoplay: false (a year the page shares)', () => {
+  it('starts on the latest year and never plays until asked', () => {
+    mockReducedMotion(false);
+    const { result } = renderHook(() => useYearAnimation({ minYear: 1970, maxYear: 2024, stepYears: 10, intervalMs: 1750, autoplay: false }));
+    expect(result.current.currentYear).toBe(2024);
+    expect(result.current.isPlaying).toBe(false);
+    act(() => { vi.advanceTimersByTime(10000); });
+    expect(result.current.currentYear).toBe(2024);
+  });
+
+  it('follows the range while it is still arriving, until the user moves the year', () => {
+    mockReducedMotion(false);
+    const { result, rerender } = renderHook(({ min, max }) => useYearAnimation({ minYear: min, maxYear: max, stepYears: 10, autoplay: false }), { initialProps: { min: 1970, max: 1970 } });
+    rerender({ min: 1970, max: 2024 });
+    expect(result.current.currentYear).toBe(2024);
+    act(() => result.current.seek(1990));
+    rerender({ min: 1970, max: 2025 });
+    expect(result.current.currentYear).toBe(1990);
+  });
+
+  it('starts on initialYear (clamped to the range) and plays on from it, decade by decade, when asked', () => {
+    mockReducedMotion(false);
+    const { result } = renderHook(() => useYearAnimation({ minYear: 1970, maxYear: 2024, stepYears: 10, intervalMs: 1750, autoplay: false, initialYear: 2001 }));
+    expect(result.current.currentYear).toBe(2001);
+    act(() => result.current.play());
+    act(() => { vi.advanceTimersByTime(1750); });
+    expect(result.current.currentYear).toBe(2010);
+    const far = renderHook(() => useYearAnimation({ minYear: 1970, maxYear: 2024, autoplay: false, initialYear: 1850 }));
+    expect(far.result.current.currentYear).toBe(1970);
+  });
+
+  it('Play from the latest year restarts at the first stop', () => {
+    mockReducedMotion(false);
+    const { result } = renderHook(() => useYearAnimation({ minYear: 1970, maxYear: 2024, stepYears: 10, intervalMs: 1750, autoplay: false }));
+    act(() => result.current.play());
+    expect(result.current.currentYear).toBe(1970);
+    expect(result.current.isPlaying).toBe(true);
+  });
+});
