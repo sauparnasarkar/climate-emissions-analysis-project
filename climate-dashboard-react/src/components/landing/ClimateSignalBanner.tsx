@@ -59,7 +59,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <Link to={`/overview#${CLIMATE_SIGNAL_ANCHOR}`} className={ctaClass('primary')} style={{ textDecoration: 'none' }}>See the climate signal</Link>
-          <Link to="/overview" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>Explore the data</Link>
+          <Link to="/climate-correlation" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>Explore climate correlation</Link>
           <Link to="/forecasts" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>Forecasts to {FORECAST_END_YEAR} →</Link>
         </div>
       </div>
