@@ -90,3 +90,54 @@ export const META = {
   two_global_totals: "Two different global totals are used on purpose. The emissions-temperature regression's X-variable is OWID's full World row, which includes international aviation and shipping (they are real atmospheric loading, so excluding them would understate cumulative CO2). The country-share denominator is the sum of national emissions, which excludes those bunkers, so country shares sum to 100% of territorial emissions. The two totals therefore differ by the international transport line, published as its own indicator.",
   source_baseline_matrix: [], indicators: [], outputs: {}, pipeline_last_run: null, endpoints: [], freshness: {},
 } as unknown as import('../api/correlationTypes').CorrelationMetaResponse;
+
+/** The headline `/emissions-temperature` response with the real `fit_context` (values as the API serves them for the 1850–2024 total-CO₂ fit). */
+export const HEADLINE_PAIR = {
+  ...PAIR,
+  x: { id: 'owid_total_co2_world_cumulative_mt', name: 'World cumulative total anthropogenic CO2 since 1850', unit: 'Mt CO2', kind: 'cumulative', decimals: 0, description: "Running total of total anthropogenic CO2 (fossil + cement + land-use) from 1850, the first year of the land-use series: the headline TCRE-style regression's X-variable (decision 40). Not comparable to the 1750-based fossil cumulative; a regression slope is unaffected by the choice of start year." },
+  y: { id: 'temperature_anomaly_1850_1900_c', name: 'Global temperature anomaly (vs 1850-1900)', unit: '°C', kind: 'anomaly', decimals: 2, description: 'Berkeley Earth land+ocean annual anomaly relative to the computed 1850-1900 mean.' },
+  fit: { start: 1850, end: 2024, n_years: 175, slope: 0.5195877622595872, ci95_hac: [0.480074110455886, 0.5591014140632885], r_squared: 0.9034656057333824, maxlags: 8, unit: '°C per 1,000 GtCO2', label: 'Total anthropogenic CO2 (fossil + cement + land-use change)' },
+  fit_context: {
+    definition: 'total anthropogenic CO2 since 1850',
+    method: 'OLS with intercept; Newey-West (HAC) standard errors',
+    methodology: "Derived from OWID cumulative CO2 from fossil fuels, cement and land-use change (Global Carbon Project), regressed against the Berkeley Earth anomaly. A simplified, data-driven analog to the IPCC's TCRE (AR6 best estimate about 0.45 °C per 1,000 GtCO2, very likely range 0.27-0.63), not a restatement of it: this regression also absorbs warming from non-CO2 gases and aerosols that varies with CO2, uses one observed climate history rather than a multi-model ensemble, and depends on land-use emission estimates that are themselves uncertain.",
+    fit: { slope: 0.5195877622595872, intercept: -0.09861679576048252, r_squared: 0.9034656057333824, n: 175, se_ols: 0.012912819729073084, se_hac: 0.0201603968824835, ci95_hac: [0.480074110455886, 0.5591014140632885], maxlags: 8, residual_lag1_autocorrelation: 0.5501525115901242, durbin_watson: 0.8870370587990891, slope_per_1000_gtc: 1.9037996694098889, rule: 'maxlags = floor(1.5 * n^(1/3)); Bartlett kernel; 95% CI from the HAC standard error (normal)' },
+    hac_sensitivity: [
+      { maxlags: 4, se_hac: 0.017728010719128807, ci95_hac: [0.48484149973255475, 0.5543340247866198] },
+      { maxlags: 8, se_hac: 0.0201603968824835, ci95_hac: [0.480074110455886, 0.5591014140632885] },
+      { maxlags: 16, se_hac: 0.022919020147949144, ci95_hac: [0.47466730820865904, 0.5645082163105154] },
+    ],
+    land_use_sensitivity: [{ land_use_scale: 0.7, slope: 0.5825373490288306 }, { land_use_scale: 1.0, slope: 0.5195877622595872 }, { land_use_scale: 1.3, slope: 0.46815075945103013 }],
+    land_use_weight_scan: {
+      definition: 'x = cumulative fossil + cement CO2 + weight * cumulative land-use CO2 (weight 0 = the fossil-only variant, 1 = the headline)',
+      weights: [
+        { land_use_weight: 0.0, slope: 0.7973293983385148, r_squared: 0.908501512844093, holdout_split_year: 2000, holdout_train_slope: 0.848673053689585, holdout_rmse_c: 0.1262039938991461 },
+        { land_use_weight: 1.0, slope: 0.5195877622595872, r_squared: 0.9034656057333824, holdout_split_year: 2000, holdout_train_slope: 0.4663116454206641, holdout_rmse_c: 0.1739057396500447 },
+      ],
+      note: 'Shows how the out-of-sample error responds to the weight given to land-use CO2. It is published to show the shape of the trade-off, not to choose a weight: a weight picked to minimise this error would be tuned to the holdout.',
+    },
+    vs_ar6: { within_very_likely_range: true, ci_overlaps_range: true, ratio_to_best_estimate: 1.1546394716879715 },
+    ar6_reference: { unit: '°C per 1,000 GtCO2', best_estimate: 0.45, very_likely_range: [0.27, 0.63], as_per_1000_gtc: { best_estimate: 1.65, very_likely_range: [1.0, 2.3] }, source: 'IPCC AR6 WGI: transient climate response to cumulative CO2 emissions (very likely range 1.0-2.3 °C per 1,000 GtC, best estimate 1.65).', note: "Derived from CO2-only forcing in Earth-system models with land-use emissions included; this platform's figure is a simplified, data-driven analog, not a restatement." },
+    fit_quality_note: { text: 'HELD FOR THE OWNER (decision 41): must never be rendered' },
+    stability: {
+      method: 'moving-block bootstrap of the regression residuals with the predictor held fixed (distinct from the HAC standard errors), plus decade holdouts',
+      seed: 20261002, resamples: 2000, primary_block_years: 10,
+      bootstrap: { block_years: 10, ci95: [0.47284201673187126, 0.5676873314864159], median: 0.5191847640712342 },
+      block_length_sensitivity: [
+        { block_years: 5, ci95: [0.48076602480369246, 0.5596083822887195], median: 0.5193817467836532 },
+        { block_years: 10, ci95: [0.47284201673187126, 0.5676873314864159], median: 0.5191847640712342 },
+      ],
+      block_length_unavailable: [], hac_ci95: [0.480074110455886, 0.5591014140632885], bootstrap_vs_hac_width_ratio: 1.2001588112600172,
+      holdouts: [
+        { split_year: 1980, train_range: [1850, 1979], test_range: [1980, 2024], n_train: 130, n_test: 45, train_slope: 0.4072975757205395, rmse_c: 0.22878953625771423, mae_c: 0.19151331778034567, mean_error_c: 0.18647397438103566, baseline_rmse_train_mean_c: 0.854753533023203 },
+        { split_year: 2010, train_range: [1850, 2009], test_range: [2010, 2024], n_train: 160, n_test: 15, train_slope: 0.4897501707762177, rmse_c: 0.16404416870528904, mae_c: 0.12270106778260922, mean_error_c: 0.11285156366925797, baseline_rmse_train_mean_c: 1.0205161979858834 },
+      ],
+      summary: "Resampling the model's residuals in 10-year blocks (2,000 resamples, seed 20261002) gives a 95% interval for the slope of 0.473 to 0.568, against 0.480 to 0.559 from the Newey-West standard errors; across block lengths of 5 to 30 years the interval's lower bound stays between 0.462 and 0.481 and its upper bound between 0.560 and 0.579. Estimated from later start years (1850, 1900, 1950, 1970) the slope ranges from 0.520 to 0.638. Fitting only on years before 2000 and predicting 2000-2024 gives a slope of 0.466 and an out-of-sample error (RMSE) of 0.174 °C, against 0.956 °C for simply predicting the earlier average.",
+      note: 'These are published as measured; no pass/fail judgement is made.',
+    },
+  },
+  attribution: [
+    { series: 'owid_world_co2_annual', source: 'Our World in Data CO2 and GHG emissions dataset (OWID, from the Global Carbon Project)', license: "CC BY 4.0 for OWID's compilation (OWID's README). Cite OWID and the Global Carbon Budget.", citations: ['Our World in Data, CO2 and Greenhouse Gas Emissions (https://github.com/owid/co2-data), CC BY 4.0.', 'Friedlingstein, P. et al., Global Carbon Budget (Global Carbon Project), the source of the fossil CO2 and land-use-change CO2 data.'], required_citation_format: 'Global Carbon Project. (<year>). Supplemental data of Global Carbon Budget <year> (Version <n>) [Data set]. Global Carbon Project.', land_use_license_note: "Land-use CO2 data originates from the Global Carbon Project via OWID. No formal license (e.g., CC BY) is stated on the Global Carbon Project's data page; use is conditional on citing the original source per their stated terms." },
+    { series: 'temperature_anomaly_annual', source: 'Berkeley Earth Land/Ocean global temperature (annual)', license: "CC BY-NC 4.0 International (Berkeley Earth's data page: 'in general ... for non-commercial use only'; commercial use needs a licence from admin@berkeleyearth.org). Attribution to Berkeley Earth, including a reference to www.berkeleyearth.org. Cite Rohde & Hausfather 2020, ESSD 12, 3469-3479, doi:10.5194/essd-12-3469-2020." },
+  ],
+} as unknown as CorrelationEmissionsTemperatureResponse;

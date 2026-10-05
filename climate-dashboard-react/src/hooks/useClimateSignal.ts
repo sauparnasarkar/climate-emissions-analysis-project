@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
+import type { CorrelationEmissionsTemperatureResponse } from '../api/correlationTypes';
 import { buildClimateSignal, latestValue, spliceInfo, yearValues, type ClimateSignal, type SpliceInfo, type YearValue } from '../lib/climateSignal';
 import { useAsync } from './useAsync';
 
@@ -12,6 +13,8 @@ export interface ClimateSignalData {
   mean5ySeries: YearValue[];
   /** The concentration record's documented splice, available on its own even when `signal` is null */
   splice: SpliceInfo | null;
+  /** The headline pair response itself (its fit and fit_context), available on its own even when `signal` is null */
+  headline: CorrelationEmissionsTemperatureResponse | null;
   /** True once the request has finished (either way) or `waitMs` has passed: a page can wait for it, bounded, before it renders. */
   settled: boolean;
   /** True only once the request has actually finished (answer or failure) -- not on the timeout. A deep link to a section that only exists with the data waits for this. */
@@ -48,5 +51,5 @@ export function useClimateSignal(waitMs = 3000): ClimateSignalData {
     const id = setTimeout(() => setTimedOut(true), waitMs);
     return () => clearTimeout(id);
   }, [loading, waitMs]);
-  return { signal, mean5y: signal ? mean5yLatest : null, temperatureSeries, mean5ySeries, splice, settled: !loading || timedOut, done: !loading };
+  return { signal, mean5y: signal ? mean5yLatest : null, temperatureSeries, mean5ySeries, splice, headline: pair.data, settled: !loading || timedOut, done: !loading };
 }

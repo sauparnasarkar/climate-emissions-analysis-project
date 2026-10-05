@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import { ApiError } from '../api/types';
 import type { WorldMapTimeSeries } from '../api/types';
-import { ALL_GAS_PAIR, COMPOSITION, CONCENTRATION, COUNTRY_SNAPSHOT, META, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
+import { ALL_GAS_PAIR, COMPOSITION, CONCENTRATION, COUNTRY_SNAPSHOT, HEADLINE_PAIR, META, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
 import { shareResponse } from '../test/shareFixtures';
 import { SCENARIO_TEMPERATURE } from '../test/scenarioFixtures';
 import ClimateCorrelationPage from './ClimateCorrelationPage';
@@ -190,6 +190,28 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(await screen.findByText(/climate data is unavailable right now/)).toBeInTheDocument();
     expect(await screen.findByText('The 1959 splice')).toBeInTheDocument();
     expect(screen.getByText(/Over the overlap years 1959–2004 the two records differ by up to 3\.9 ppm/)).toBeInTheDocument();
+  });
+
+  it('shows "How this number was derived" inside the methodology section when the headline response carries its fit, and not otherwise', async () => {
+    vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => (o?.source === 'primap_ghg' ? ALL_GAS_PAIR : o?.variant === 'fossil' ? ({ ...PAIR, fit: { ...PAIR.fit, slope: 0.797 } } as never) : HEADLINE_PAIR));
+    mount();
+    const heading = await screen.findByRole('heading', { level: 3, name: 'How this number was derived' });
+    expect(heading.closest('section')!.id).toBe('methodology'); // inside it, so Methodology stays the last section
+    expect([...document.querySelectorAll('.climate-module section[id]')].map((s) => s.id).at(-1)).toBe('methodology');
+    expect(screen.getAllByRole('button', { name: /^0\d/ })).toHaveLength(7);
+    cleanup();
+    vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => (o?.source === 'primap_ghg' ? ALL_GAS_PAIR : PAIR)); // a fit without its label/unit metadata
+    mount();
+    await screen.findByRole('heading', { level: 2, name: 'Methodology & sources' });
+    expect(screen.queryByRole('heading', { name: 'How this number was derived' })).not.toBeInTheDocument();
+  });
+
+  it('shows the derivation even when the headline signal is unavailable (it needs only the headline response)', async () => {
+    vi.mocked(api.correlationConcentration).mockRejectedValue(new ApiError(503, 'x')); // no signal
+    vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => (o?.source === 'primap_ghg' ? ALL_GAS_PAIR : HEADLINE_PAIR));
+    mount();
+    expect(await screen.findByText(/climate data is unavailable right now/)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 3, name: 'How this number was derived' })).toBeInTheDocument();
   });
 
   it('a #methodology deep link waits for /meta, then jumps once', async () => {
