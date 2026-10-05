@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { InlineAlert } from 'design-system';
 import type { CorrelationMetaResponse } from '../../api/correlationTypes';
 import type { SpliceInfo } from '../../lib/climateSignal';
@@ -23,7 +24,7 @@ const BASELINES: Array<[view: string, baseline: string, why: string]> = [
  * uses, and why the numbers that look alike differ. The sources table, the temperature offset, the two-totals note and the splice figures are the API's;
  * only the "used for" phrases, the baselines-by-view table and the explanation of why series differ are fixed copy. Each part appears only with its data.
  */
-export function MethodologySection({ meta, metaFailed, splice }: { meta: CorrelationMetaResponse | null; metaFailed: boolean; splice: SpliceInfo | null }) {
+export function MethodologySection({ meta, metaFailed, splice, children }: { meta: CorrelationMetaResponse | null; metaFailed: boolean; splice: SpliceInfo | null; children?: ReactNode }) {
   const sources = buildSources(meta);
   const offset = buildTemperatureOffset(meta);
   return (
@@ -116,6 +117,7 @@ export function MethodologySection({ meta, metaFailed, splice }: { meta: Correla
           </div>
         )}
       </div>
+      {children}
     </section>
   );
 }

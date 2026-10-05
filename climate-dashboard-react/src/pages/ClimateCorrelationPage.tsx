@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import { CausalChain } from '../components/module/CausalChain';
 import { CountryView } from '../components/module/CountryView';
 import { GasComposition } from '../components/module/GasComposition';
+import { DerivationAccordion } from '../components/module/DerivationAccordion';
 import { MethodologySection } from '../components/module/MethodologySection';
 import { ScenarioSection } from '../components/module/ScenarioSection';
 import { AllGasRelationship } from '../components/module/AllGasRelationship';
@@ -20,6 +21,7 @@ import { COUNTRY_VIEW_ANCHOR } from '../lib/countryView';
 import { ALL_GAS_ANCHOR } from '../lib/allGas';
 import { GAS_COMPOSITION_ANCHOR } from '../lib/gasComposition';
 import { buildComposition } from '../lib/gasComposition';
+import { buildDerivation } from '../lib/derivation';
 import { buildHeadline } from '../lib/headline';
 import { METHODOLOGY_ANCHOR } from '../lib/methodology';
 import { SCENARIOS_ANCHOR, buildScenarioView } from '../lib/scenarioView';
@@ -64,6 +66,7 @@ export default function ClimateCorrelationPage() {
     () => buildScenarioView(scenarioQuery.data, fossil.data, climate.temperatureSeries, climate.mean5ySeries),
     [scenarioQuery.data, fossil.data, climate.temperatureSeries, climate.mean5ySeries],
   );
+  const derivation = useMemo(() => buildDerivation(climate.headline), [climate.headline]);
   const headline = useMemo(() => (signal ? buildHeadline(signal, fossil.data) : null), [signal, fossil.data]);
 
   // A deep link waits for the first measurement of the anchor row (its height depends on whether it wrapped) and for the request behind its target:
@@ -106,7 +109,9 @@ export default function ClimateCorrelationPage() {
       {composition && <GasComposition composition={composition} />}
       <CountryView temperature={climate.temperatureSeries} mean5y={climate.mean5ySeries.length ? climate.mean5ySeries : null} />
       {scenarios && <ScenarioSection view={scenarios} />}
-      <MethodologySection meta={metaQuery.data} metaFailed={metaQuery.error !== null} splice={climate.splice} />
+      <MethodologySection meta={metaQuery.data} metaFailed={metaQuery.error !== null} splice={climate.splice}>
+        {derivation && <DerivationAccordion derivation={derivation} />}
+      </MethodologySection>
     </div>
   );
 }
