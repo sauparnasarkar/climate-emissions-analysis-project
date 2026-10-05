@@ -21,3 +21,11 @@ export const SCENARIO_LABEL = 'Illustrative · implied outcomes, not projections
 
 /** The 1970+ PRIMAP-hist view is never called TCRE (decision 35 / requirements §1.3.1). */
 export const ALL_GAS_TAG = 'Recent all-gas relationship · not TCRE';
+
+/** Module anchors (one constant each, so the jump links and their targets cannot drift). */
+export const CAUSAL_CHAIN_ANCHOR = 'causal-chain';
+export const GLOBAL_RELATIONSHIP_ANCHOR = 'global-relationship';
+
+/** The IPCC AR6 transient climate response to cumulative emissions, °C per 1,000 GtCO₂ (best estimate and very-likely range): fixed comparison copy
+ * (ENHANCEMENTS.md decision 40, owner decision D), the same figures the API's methodology note quotes. Everything else in the module is read from the API. */
+export const AR6_TCRE = { best: 0.45, low: 0.27, high: 0.63 } as const;

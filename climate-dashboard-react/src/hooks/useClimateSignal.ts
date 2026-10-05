@@ -21,11 +21,12 @@ export function useClimateSignal(waitMs = 3000): ClimateSignalData {
     const [pair, temperature, mean5y, concentration] = await Promise.all([
       api.correlationEmissionsTemperature(),
       api.correlationTemperature({ baseline: '1850_1900' }),
-      api.correlationTemperature({ view: 'mean5y', baseline: '1850_1900' }),
+      // Optional: only the 5-year-mean figure uses it, so its failure must not take the whole signal (and every page built on it) down.
+      api.correlationTemperature({ view: 'mean5y', baseline: '1850_1900' }).catch(() => null),
       api.correlationConcentration(),
     ]);
     const signal = buildClimateSignal(pair, temperature, concentration);
-    return signal ? { signal, mean5y: latestValue(mean5y.points) } : null;
+    return signal ? { signal, mean5y: mean5y ? latestValue(mean5y.points) : null } : null;
   }, []);
   const [timedOut, setTimedOut] = useState(false);
   useEffect(() => {

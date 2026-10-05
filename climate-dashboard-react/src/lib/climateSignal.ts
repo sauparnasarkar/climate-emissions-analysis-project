@@ -33,6 +33,8 @@ export interface ClimateSignal {
   spliceYear: number | null;
   /** Concentration in 1850, the pre-industrial reference for "up x% on 1850" */
   ppm1850: number | null;
+  /** Years the pair left out, with no reason text (the baseline card says "None" when it is empty) */
+  omittedYears: number[];
   /** The Berkeley Earth file-vintage caveat, while the ~0.1 °C discrepancy is unreconciled (requirements §1.3.1); null once reconciled */
   vintageCaveat: string | null;
 }
@@ -114,6 +116,7 @@ export function buildClimateSignal(
     series: { concentration: yearValues(concentration.points), temperature: yearValues(temperature.points) },
     spliceYear: num((concentration.details?.splice as Record<string, unknown> | undefined)?.splice_year),
     ppm1850: yearValues(concentration.points).find((p) => p.year === 1850)?.value ?? null,
+    omittedYears: (pair.omitted_years ?? []).map((o) => o.year),
     vintageCaveat: vintageCaveat(pair),
   };
 }
