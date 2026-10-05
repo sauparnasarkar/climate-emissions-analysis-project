@@ -449,7 +449,11 @@ function AnimatedWorldMap({
         <div ref={mapRef} style={{ display: tableView ? 'none' : undefined }}>
         <SyChart
           showLegend={false}
-          ariaLabel={`Animated world map choropleth of ${isCumulative ? 'cumulative ' : ''}CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, log-scaled color from light (lowest) to deep red (highest)`}
+          ariaLabel={
+            isCumulative
+              ? `Animated world map choropleth of cumulative CO₂ emissions by country: the running total emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'}, shown for each year from ${minYear} to ${maxYear}, currently the total to ${currentYear}, log-scaled color from light (lowest) to deep red (highest)`
+              : `Animated world map choropleth of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, log-scaled color from light (lowest) to deep red (highest)`
+          }
           series={series}
           animationFrame={{ colorValues: activeValues[yearIdx] as Array<number | null> }}
           outlineLocations={outlineLocations}
@@ -472,7 +476,9 @@ function AnimatedWorldMap({
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: NO_DATA_COLOR, display: 'inline-block' }} />
             <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
-              Gray = no CO₂ data reported for that country in {currentYear}
+              {isCumulative
+                ? `Gray = no CO₂ ever recorded for that country up to ${currentYear}`
+                : `Gray = no CO₂ data reported for that country in ${currentYear}`}
             </span>
           </span>
           {outlineLocations.length > 0 && (

@@ -961,6 +961,19 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     expect(screen.getAllByTestId('sychart').find((c) => c.getAttribute('data-colorbar-title'))).toHaveAttribute('data-colorbar-title', 'CO₂ (MtCO₂)');
   });
 
+  it('the map\'s accessible label and the grey legend describe the cumulative view, not the annual one', async () => {
+    mountFullRange(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    // Absolute
+    expect(screen.getByLabelText(/^Animated world map choropleth of CO₂ emissions by country, 1970 to 2024, currently showing 2024/)).toBeInTheDocument();
+    expect(screen.getByText('Gray = no CO₂ data reported for that country in 2024')).toBeInTheDocument();
+    // Cumulative: the period each value covers is stated, apart from the 1970–2024 frame range
+    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
+    expect(screen.getByLabelText(/cumulative CO₂ emissions by country: the running total emitted since 1750, shown for each year from 1970 to 2024, currently the total to 2024/)).toBeInTheDocument();
+    expect(screen.getByText('Gray = no CO₂ ever recorded for that country up to 2024')).toBeInTheDocument();
+    expect(screen.queryByText('Gray = no CO₂ data reported for that country in 2024')).not.toBeInTheDocument();
+  });
+
   it('the tiers show cumulative GtCO₂ and each group\'s share of the world total, summing to the same world', async () => {
     mountFullRange(2024);
     await showCumulative();
