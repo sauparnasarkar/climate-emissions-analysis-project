@@ -106,7 +106,7 @@ export default function ClimateCorrelationPage() {
       {composition && <GasComposition composition={composition} />}
       <CountryView temperature={climate.temperatureSeries} mean5y={climate.mean5ySeries.length ? climate.mean5ySeries : null} />
       {scenarios && <ScenarioSection view={scenarios} />}
-      <MethodologySection meta={metaQuery.data} metaFailed={metaQuery.error !== null} splice={signal?.splice ?? null} />
+      <MethodologySection meta={metaQuery.data} metaFailed={metaQuery.error !== null} splice={climate.splice} />
     </div>
   );
 }

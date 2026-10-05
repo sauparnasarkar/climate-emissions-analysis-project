@@ -18,7 +18,7 @@ export const series = (points: SeriesPoint[], details: Record<string, unknown> =
 
 export const TEMPERATURE = series([sp(2022, 1.4), sp(2023, 1.5), sp(2024, 1.617)]);
 export const TEMPERATURE_MEAN5Y = series([sp(2023, 1.35), sp(2024, 1.39)]);
-export const CONCENTRATION = series([sp(1850, 286.8), sp(1959, 315.9), sp(1970, 325.68), sp(1980, 338.91), sp(1990, 354.45), sp(2024, 424.6)], { splice: { splice_year: 1959 } });
+export const CONCENTRATION = series([sp(1850, 286.8), sp(1959, 315.9), sp(1970, 325.68), sp(1980, 338.91), sp(1990, 354.45), sp(2024, 424.6)], { splice: { splice_year: 1959, overlap_years: [1959, 2004], gap_at_splice_ppm: -0.28, max_abs_overlap_gap_ppm: 3.9, mean_overlap_gap_ppm: -2.33 } });
 
 /** `/emissions-temperature?source=primap_ghg` shaped like the real response: 1970 onward, its own fit, stability and caveats. */
 export const ALL_GAS_PAIR = {
@@ -77,7 +77,7 @@ export const META = {
   ...env, name: 'meta',
   sources: [
     { id: 'co2_concentration_annual', source: 'NOAA GML Mauna Loa (1959+) spliced to Law Dome ice-core/firn spline (pre-1959)', license: 'NOAA GML: public domain, citation requested. Law Dome: cite Etheridge et al. 2010.', coverage: [1750, 2025], retrieved_at: '2026-10-02T03:33:27+00:00', source_release: { noaa_last_modified: '2026-09-08T14:44:18+00:00' } },
-    { id: 'co2_concentration_monthly_mlo', source: 'NOAA GML Mauna Loa (1959+) spliced to Law Dome ice-core/firn spline (pre-1959)', license: 'NOAA GML: public domain, citation requested. Law Dome: cite Etheridge et al. 2010.', coverage: [1958, 2026], retrieved_at: '2026-10-02T03:33:27+00:00', source_release: { noaa_last_modified: '2026-09-09T10:00:00+00:00' } },
+    { id: 'co2_concentration_monthly_mlo', source: 'NOAA GML Mauna Loa monthly mean', license: 'NOAA GML: public domain, citation requested.', coverage: [1958, 2026], retrieved_at: '2026-10-02T03:33:27+00:00', source_release: { noaa_last_modified: '2026-09-08T14:44:18+00:00' } },
     { id: 'country_crosswalk', source: 'Derived: PRIMAP-hist area codes x OWID iso_code/country', license: 'Derived metadata', retrieved_at: '2026-10-02T13:40:57+00:00' },
     { id: 'owid_country_co2', source: 'Our World in Data CO2 and GHG emissions dataset (OWID, from the Global Carbon Project)', license: "CC BY 4.0 for OWID's compilation. Cite OWID and the Global Carbon Budget.", coverage: [1750, 2024], retrieved_at: '2026-07-18T15:32:10+00:00' },
     { id: 'owid_world_co2_annual', source: 'Our World in Data CO2 and GHG emissions dataset (OWID, from the Global Carbon Project)', license: "CC BY 4.0 for OWID's compilation. Cite OWID and the Global Carbon Budget.", coverage: [1750, 2024], retrieved_at: '2026-07-18T15:32:10+00:00' },

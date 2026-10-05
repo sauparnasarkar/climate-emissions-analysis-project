@@ -1,6 +1,6 @@
 import { InlineAlert } from 'design-system';
 import type { CorrelationMetaResponse } from '../../api/correlationTypes';
-import type { ClimateSignal } from '../../lib/climateSignal';
+import type { SpliceInfo } from '../../lib/climateSignal';
 import { METHODOLOGY_ANCHOR, buildSources, buildTemperatureOffset } from '../../lib/methodology';
 
 const table = { width: '100%', borderCollapse: 'collapse' } as const;
@@ -23,7 +23,7 @@ const BASELINES: Array<[view: string, baseline: string, why: string]> = [
  * uses, and why the numbers that look alike differ. The sources table, the temperature offset, the two-totals note and the splice figures are the API's;
  * only the "used for" phrases, the baselines-by-view table and the explanation of why series differ are fixed copy. Each part appears only with its data.
  */
-export function MethodologySection({ meta, metaFailed, splice }: { meta: CorrelationMetaResponse | null; metaFailed: boolean; splice: ClimateSignal['splice'] }) {
+export function MethodologySection({ meta, metaFailed, splice }: { meta: CorrelationMetaResponse | null; metaFailed: boolean; splice: SpliceInfo | null }) {
   const sources = buildSources(meta);
   const offset = buildTemperatureOffset(meta);
   return (
@@ -32,7 +32,7 @@ export function MethodologySection({ meta, metaFailed, splice }: { meta: Correla
       <p className="__s9cmpx-body3" style={{ margin: '0 0 12px', maxWidth: 880 }}>
         Every figure on this page is read from the pipeline output. This section says where each comes from, which baseline each view uses, and why numbers that look alike differ.
       </p>
-      {metaFailed && !meta && <InlineAlert variant="warning">The sources and baselines could not be loaded right now.</InlineAlert>}
+      {metaFailed && !meta && <InlineAlert variant="warning">The sources, licences and data vintages could not be loaded right now. The baseline rules below do not depend on them.</InlineAlert>}
       {!meta && !metaFailed && <p className="__s9cmpx-body3" style={{ margin: 0 }}>Loading…</p>}
 
       {sources.length > 0 && (

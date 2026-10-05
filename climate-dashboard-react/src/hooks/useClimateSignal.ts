@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
-import { buildClimateSignal, latestValue, yearValues, type ClimateSignal, type YearValue } from '../lib/climateSignal';
+import { buildClimateSignal, latestValue, spliceInfo, yearValues, type ClimateSignal, type SpliceInfo, type YearValue } from '../lib/climateSignal';
 import { useAsync } from './useAsync';
 
 export interface ClimateSignalData {
@@ -10,6 +10,8 @@ export interface ClimateSignalData {
   /** The annual and trailing-5-year-mean temperature anomaly series (nulls dropped), available on their own even when `signal` is null */
   temperatureSeries: YearValue[];
   mean5ySeries: YearValue[];
+  /** The concentration record's documented splice, available on its own even when `signal` is null */
+  splice: SpliceInfo | null;
   /** True once the request has finished (either way) or `waitMs` has passed: a page can wait for it, bounded, before it renders. */
   settled: boolean;
   /** True only once the request has actually finished (answer or failure) -- not on the timeout. A deep link to a section that only exists with the data waits for this. */
@@ -37,6 +39,8 @@ export function useClimateSignal(waitMs = 3000): ClimateSignalData {
   const mean5ySeries = useMemo(() => (mean5y.data ? yearValues(mean5y.data.points) : []), [mean5y.data]);
   const mean5yLatest = useMemo(() => (mean5y.data ? latestValue(mean5y.data.points) : null), [mean5y.data]);
 
+  const splice = useMemo(() => spliceInfo(concentration.data?.details?.splice), [concentration.data]);
+
   const loading = pair.loading || temperature.loading || mean5y.loading || concentration.loading;
   const [timedOut, setTimedOut] = useState(false);
   useEffect(() => {
@@ -44,5 +48,5 @@ export function useClimateSignal(waitMs = 3000): ClimateSignalData {
     const id = setTimeout(() => setTimedOut(true), waitMs);
     return () => clearTimeout(id);
   }, [loading, waitMs]);
-  return { signal, mean5y: signal ? mean5yLatest : null, temperatureSeries, mean5ySeries, settled: !loading || timedOut, done: !loading };
+  return { signal, mean5y: signal ? mean5yLatest : null, temperatureSeries, mean5ySeries, splice, settled: !loading || timedOut, done: !loading };
 }

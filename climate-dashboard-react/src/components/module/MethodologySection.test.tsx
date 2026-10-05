@@ -23,6 +23,9 @@ describe('MethodologySection', () => {
     expect(berkeley).toHaveTextContent('CC BY 4.0');
     expect(within(table).getByRole('row', { name: /PRIMAP-hist/ })).toHaveTextContent('Non-commercial use only');
     expect(within(table).queryByText(/crosswalk/i)).not.toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /monthly mean/ })).toHaveTextContent('Latest CO₂ reading');
+    expect(within(table).getByRole('row', { name: /monthly mean/ })).not.toHaveTextContent('joined at 1959');
+    expect(within(table).getAllByRole('row')).toHaveLength(1 + 5); // header + five sources
   });
 
   it('shows the baselines by view and the computed temperature offset', () => {
@@ -42,7 +45,8 @@ describe('MethodologySection', () => {
 
   it('says the sources could not be loaded, once, and leaves out the API-dependent parts (never blank cells)', () => {
     render(<MethodologySection meta={null} metaFailed splice={null} />);
-    expect(screen.getByText('The sources and baselines could not be loaded right now.')).toBeInTheDocument();
+    expect(screen.getByText('The sources, licences and data vintages could not be loaded right now. The baseline rules below do not depend on them.')).toBeInTheDocument();
+    expect(screen.queryByText(/baselines could not be loaded/)).not.toBeInTheDocument();
     expect(screen.queryByRole('table', { name: 'Sources' })).not.toBeInTheDocument();
     expect(screen.queryByText('Two global totals')).not.toBeInTheDocument();
     expect(screen.queryByText(/^The \d{4} splice$/)).not.toBeInTheDocument();

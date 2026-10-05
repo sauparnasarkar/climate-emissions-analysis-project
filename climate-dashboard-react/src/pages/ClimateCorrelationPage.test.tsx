@@ -170,15 +170,26 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     mount();
     const m = await screen.findByRole('heading', { level: 2, name: 'Methodology & sources' });
     expect(api.correlationMeta).toHaveBeenCalledTimes(1);
-    expect(document.getElementById('country-view')!.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const scenarios = await screen.findByRole('heading', { level: 2, name: /^Implied temperature by scenario/ });
+    expect(scenarios.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // after Scenarios, not just after the Country view
+    const sections = [...document.querySelectorAll('.climate-module section[id]')].map((s) => s.id);
+    expect(sections.at(-1)).toBe('methodology'); // and nothing follows it
     expect(await screen.findByRole('table', { name: 'Sources' })).toBeInTheDocument();
     expect(screen.getByText(/Two global totals/)).toBeInTheDocument();
     cleanup();
     vi.mocked(api.correlationMeta).mockRejectedValue(new ApiError(503, 'x'));
     mount();
-    expect(await screen.findByText('The sources and baselines could not be loaded right now.')).toBeInTheDocument();
+    expect(await screen.findByText(/The sources, licences and data vintages could not be loaded right now/)).toBeInTheDocument();
     const nav = screen.getByRole('navigation', { name: 'Jump links' });
     expect(within(nav).getByRole('link', { name: 'Methodology' })).toBeInTheDocument();
+  });
+
+  it('shows the splice note from the concentration response even when the headline signal is unavailable', async () => {
+    vi.mocked(api.correlationEmissionsTemperature).mockImplementation(async (o) => { if (o?.source === 'primap_ghg') return ALL_GAS_PAIR; throw new ApiError(503, 'x'); }); // no signal
+    mount();
+    expect(await screen.findByText(/climate data is unavailable right now/)).toBeInTheDocument();
+    expect(await screen.findByText('The 1959 splice')).toBeInTheDocument();
+    expect(screen.getByText(/Over the overlap years 1959–2004 the two records differ by up to 3\.9 ppm/)).toBeInTheDocument();
   });
 
   it('a #methodology deep link waits for /meta, then jumps once', async () => {

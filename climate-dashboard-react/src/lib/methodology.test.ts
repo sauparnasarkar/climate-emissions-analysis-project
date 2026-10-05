@@ -6,19 +6,22 @@ import { buildSources, buildTemperatureOffset } from './methodology';
 describe('buildSources', () => {
   const rows = buildSources(META);
 
-  it('merges a source\'s datasets into one row, leaves out derived metadata, and keeps the API\'s order of first appearance', () => {
+  it('merges datasets of the same source into one row (OWID, PRIMAP-hist), keeps the monthly NOAA dataset as its own source, leaves out derived metadata, and keeps the API\'s order', () => {
     expect(rows.map((r) => r.name)).toEqual([
       'NOAA GML Mauna Loa (1959+) spliced to Law Dome ice-core/firn spline (pre-1959)',
+      'NOAA GML Mauna Loa monthly mean',
       'Our World in Data CO2 and GHG emissions dataset (OWID, from the Global Carbon Project)',
       'PRIMAP-hist v2.8 (Gütschow & Pflüger)',
       'Berkeley Earth Land/Ocean global temperature (annual)',
     ]);
   });
 
-  it('spans the merged datasets\' coverage and takes the most recent vintage the API states, labelled as published, file date or retrieval', () => {
+  it('spans merged datasets\' coverage and takes the most recent vintage the API states, labelled as published, file date or retrieval', () => {
     const by = Object.fromEntries(rows.map((r) => [r.name.split(' ')[0], r]));
-    expect(by.NOAA.coverage).toBe('1750–2026');
-    expect(by.NOAA.vintage).toBe('file of 2026-09-09'); // the later of the two
+    expect(rows[0].coverage).toBe('1750–2025'); // the annual spliced record
+    expect(rows[1].coverage).toBe('1958–2026'); // the monthly record is its own row
+    expect(rows[0].vintage).toBe('file of 2026-09-08');
+    expect(by.Our.coverage).toBe('1750–2024');
     expect(by.Our.vintage).toBe('retrieved 2026-07-18');
     expect(by['PRIMAP-hist'].vintage).toBe('published 2026-09-29 (v2.8)');
     expect(by.Berkeley.vintage).toBe('file of 2025-01-10');
@@ -29,6 +32,13 @@ describe('buildSources', () => {
     expect(by.Berkeley.licences).toEqual(['Berkeley Earth data: CC BY 4.0 (cite Rohde & Hausfather 2020).']);
     expect(by.Our.licences).toHaveLength(1);
     expect(by['PRIMAP-hist'].licences[0]).toMatch(/not yet verified/);
+  });
+
+  it('says only the annual NOAA record is joined at 1959; the monthly record is the latest reading', () => {
+    expect(rows[0].usedFor).toBe('Atmospheric CO₂ (joined at 1959)');
+    expect(rows[1].usedFor).toBe('Latest CO₂ reading (Mauna Loa monthly)');
+    expect(rows[1].usedFor).not.toMatch(/1959/);
+    expect(rows[1].licences).toEqual(['NOAA GML: public domain, citation requested.']);
   });
 
   it('adds only a short used-for phrase of its own, none for a source it does not know', () => {

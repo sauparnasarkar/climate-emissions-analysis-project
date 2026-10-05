@@ -31,8 +31,6 @@ export interface ClimateSignal {
   series: { concentration: YearValue[]; temperature: YearValue[] };
   /** First year of NOAA's direct measurements; before it the record is the Law Dome ice core */
   spliceYear: number | null;
-  /** How the NOAA Mauna Loa record is joined to the Law Dome ice core, as the concentration response documents it; null when it publishes none */
-  splice: { year: number; overlapYears: [number, number] | null; gapPpm: number | null; maxAbsOverlapGapPpm: number | null } | null;
   /** Concentration in 1850, the pre-industrial reference for "up x% on 1850" */
   ppm1850: number | null;
   /** Years the pair left out, with no reason text (the baseline card says "None" when it is empty) */
@@ -117,14 +115,22 @@ export function buildClimateSignal(
     concentration: ppm,
     series: { concentration: yearValues(concentration.points), temperature: yearValues(temperature.points) },
     spliceYear: num((concentration.details?.splice as Record<string, unknown> | undefined)?.splice_year),
-    splice: spliceInfo(concentration.details?.splice),
     ppm1850: yearValues(concentration.points).find((p) => p.year === 1850)?.value ?? null,
     omittedYears: (pair.omitted_years ?? []).map((o) => o.year),
     vintageCaveat: vintageCaveat(pair),
   };
 }
 
-function spliceInfo(raw: unknown): ClimateSignal['splice'] {
+/** How the NOAA Mauna Loa record is joined to the Law Dome ice core, as the concentration response documents it; null when it publishes none. Read from the
+ * concentration response alone, so it is available even when the headline signal (which also needs the pair and the temperature) is not. */
+export interface SpliceInfo {
+  year: number;
+  overlapYears: [number, number] | null;
+  gapPpm: number | null;
+  maxAbsOverlapGapPpm: number | null;
+}
+
+export function spliceInfo(raw: unknown): SpliceInfo | null {
   const s = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
   const year = num(s?.splice_year);
   if (!s || year === null) return null;

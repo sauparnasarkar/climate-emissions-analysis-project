@@ -18,12 +18,14 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? 
 const rec = (v: unknown): Record<string, unknown> | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const day = (iso: string) => iso.slice(0, 10);
 
-// Short "used for" phrases keyed by the start of a source's dataset id; everything else in the table is the API's.
-const USED_FOR: Array<[prefix: string, usedFor: string]> = [
-  ['owid', 'Country CO₂, the World row, the long-run relationship'],
-  ['primap', 'All-gas view, gas composition, country shares'],
-  ['temperature', 'Global temperature anomaly'],
-  ['co2_concentration', 'Atmospheric CO₂ (joined at 1959)'],
+// Short "used for" phrases keyed by dataset id; everything else in the table is the API's. The annual and monthly NOAA datasets are separate sources
+// with separate uses: only the annual one is joined to the Law Dome record (at 1959); the monthly one supplies the latest reading.
+const USED_FOR: Array<[matches: (id: string) => boolean, usedFor: string]> = [
+  [(id) => id.startsWith('owid'), 'Country CO₂, the World row, the long-run relationship'],
+  [(id) => id.startsWith('primap'), 'All-gas view, gas composition, country shares'],
+  [(id) => id.startsWith('temperature'), 'Global temperature anomaly'],
+  [(id) => id === 'co2_concentration_annual', 'Atmospheric CO₂ (joined at 1959)'],
+  [(id) => id === 'co2_concentration_monthly_mlo', 'Latest CO₂ reading (Mauna Loa monthly)'],
 ];
 
 function vintageOf(entry: Record<string, unknown>): string | null {
@@ -52,7 +54,7 @@ export function buildSources(meta: CorrelationMetaResponse | null | undefined): 
     const id = str(entries[0].id) ?? '';
     return {
       name,
-      usedFor: USED_FOR.find(([prefix]) => id.startsWith(prefix))?.[1] ?? null,
+      usedFor: USED_FOR.find(([matches]) => matches(id))?.[1] ?? null,
       coverage: spans.length ? `${Math.min(...spans.map((s) => s[0]))}–${Math.max(...spans.map((s) => s[1]))}` : null,
       vintage: vintages.length ? vintages[vintages.length - 1] : null,
       licences: [...new Set(entries.map((e) => str(e.license)).filter((l): l is string => l !== null))],
