@@ -25,3 +25,16 @@ export function sliceMapSeries(series: WorldMapTimeSeries, fromYear: number): Wo
 export function worldTotals(series: WorldMapTimeSeries): number[] {
   return series.values.map((row) => row.reduce<number>((a, v) => a + (v ?? 0), 0));
 }
+
+/** The world total for the latest year that has any data at all, with that year; null when no year does. A year whose every cell is null (the map
+ * endpoint reindexes through the last year even when its source rows are not there yet) is missing, not a total of zero -- `worldTotals` sums nulls
+ * as 0, so a caller that shows one figure must skip such rows. */
+export function latestWorldTotal(series: WorldMapTimeSeries): { year: number; total: number } | null {
+  for (let i = series.values.length - 1; i >= 0; i--) {
+    const row = series.values[i];
+    if (row.some((v) => v != null && Number.isFinite(v))) {
+      return { year: series.years[i], total: row.reduce<number>((a, v) => a + (v ?? 0), 0) };
+    }
+  }
+  return null;
+}

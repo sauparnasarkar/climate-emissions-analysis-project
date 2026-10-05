@@ -53,6 +53,15 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(within(document.querySelector('.module-chain') as HTMLElement).getAllByRole('listitem')[0].textContent).not.toMatch(/MtCO₂/);
   });
 
+  it('uses the latest year that has data when the final map row is all null, never a zero total', async () => {
+    vi.mocked(api.worldMapSeries).mockResolvedValue({ ...WORLD, years: [2023, 2024, 2025], values: [...WORLD.values, [null, null]] });
+    mount();
+    await screen.findByRole('heading', { level: 2, name: 'Causal chain' });
+    const first = within(document.querySelector('.module-chain') as HTMLElement).getAllByRole('listitem')[0];
+    expect(first).toHaveTextContent('37,398 MtCO₂ in 2024');
+    expect(first.textContent).not.toMatch(/\b0 MtCO₂/);
+  });
+
   it('says the climate data is unavailable once, and shows neither section nor anchor row, when the headline request fails', async () => {
     vi.mocked(api.correlationEmissionsTemperature).mockRejectedValue(new ApiError(503, 'x'));
     mount();

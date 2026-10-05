@@ -10,7 +10,7 @@ import { useElementHeight } from '../hooks/useElementHeight';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { CAUSAL_CHAIN_ANCHOR, GLOBAL_RELATIONSHIP_ANCHOR, NOT_A_CLIMATE_MODEL } from '../lib/climateCopy';
 import { buildHeadline } from '../lib/headline';
-import { worldTotals } from '../lib/mapSeries';
+import { latestWorldTotal } from '../lib/mapSeries';
 import { CLIMATE_SERIES_START_YEAR } from '../constants';
 
 const STICKY_HEADER_PX = 68;
@@ -35,12 +35,8 @@ export default function ClimateCorrelationPage() {
   const jumpRowPx = stickyHeight ? Math.ceil(stickyHeight) + JUMP_ROW_GAP_PX : JUMP_ROW_PX;
 
   const signal = climate.signal;
-  const emissions = useMemo(() => {
-    if (!world.data) return null;
-    const totals = worldTotals(world.data);
-    const i = totals.length - 1;
-    return i >= 0 && Number.isFinite(totals[i]) ? { year: world.data.years[i], total: totals[i] } : null;
-  }, [world.data]);
+  // The latest year that has data: an all-null final row is missing, not a world total of zero.
+  const emissions = useMemo(() => (world.data ? latestWorldTotal(world.data) : null), [world.data]);
   const headline = useMemo(() => (signal ? buildHeadline(signal, fossil.data) : null), [signal, fossil.data]);
 
   // A deep link waits for the climate request and the first measurement of the anchor row (its height depends on whether it wrapped).
