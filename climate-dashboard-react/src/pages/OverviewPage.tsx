@@ -12,6 +12,7 @@ import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange } fr
 import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, Table, SegmentedControl, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
+import { ShareSection, SHARE_ANCHOR } from '../components/overview/ShareSection';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useCountUp } from '../hooks/useCountUp';
@@ -33,6 +34,7 @@ import type { MoverRow, OverviewTierMetrics, WorldMapTimeSeries } from '../api/t
 const TOP_EMITTERS_ANCHOR = 'top-emitters';
 const JUMP_ITEMS: JumpLinkItem[] = [
   { id: TOP_EMITTERS_ANCHOR, label: 'Top emitters', href: `#${TOP_EMITTERS_ANCHOR}` },
+  { id: SHARE_ANCHOR, label: 'Share', href: `#${SHARE_ANCHOR}` },
   { id: 'by-country', label: 'By Country', href: '#by-country' },
   { id: 'pct-change', label: '% Change', href: '#pct-change' },
 ];
@@ -555,6 +557,11 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
     () => (climate.signal ? { series: climate.signal.series.concentration, spliceYear: climate.signal.spliceYear, ppm1850: climate.signal.ppm1850 } : null),
     [climate.signal],
   );
+  // The Share bars take ISO3 codes (what /country-share keys on); the picker holds names.
+  const selectedIso = useMemo(
+    () => (worldMapSeries ? worldMapSeries.countries.flatMap((c, i) => (selected.includes(c) ? [worldMapSeries.iso_codes[i]] : [])) : []),
+    [worldMapSeries, selected],
+  );
   const emissionsSeries = useMemo(() => (globeSeries ? worldTotals(globeSeries).map((value, i) => ({ year: globeSeries.years[i], value })) : []), [globeSeries]);
   const reduceMotion = useReducedMotion();
   // Called here (unconditionally, ahead of the early returns below) rather than at the % Change
@@ -633,6 +640,8 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           headlineMovers={data.headline_movers}
         />
       </div>
+
+      <ShareSection countries={selectedIso} />
 
       {/* id lives here, not on the "By Country" heading below -- this picker sits above that
           heading (it's shared with the % Change section further down), so anchoring "by-country"
