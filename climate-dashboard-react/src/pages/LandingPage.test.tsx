@@ -308,11 +308,12 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(within(band).getByText('Berkeley Earth', { exact: false })).toBeInTheDocument();
   });
 
-  it('Banner 1 sends the primary CTA to the Overview climate signal and keeps Explore the data and Forecasts as secondary paths', async () => {
+  it('Banner 1 sends the primary CTA to the Overview climate signal and sends the second button to the correlation module and keeps Forecasts as a link', async () => {
     mountWithClimate();
     const primary = await screen.findByRole('link', { name: 'See the climate signal' });
     expect(primary).toHaveAttribute('href', '/overview#climate-signal');
-    expect(screen.getByRole('link', { name: 'Explore the data' })).toHaveAttribute('href', '/overview');
+    expect(screen.getByRole('link', { name: 'Explore climate correlation' })).toHaveAttribute('href', '/climate-correlation');
+    expect(screen.queryByRole('link', { name: 'Explore the data' })).not.toBeInTheDocument(); // the two buttons no longer both go to the Overview
     expect(screen.getByRole('link', { name: `Forecasts to ${FORECAST_END_YEAR} →` })).toHaveAttribute('href', '/forecasts');
   });
 
