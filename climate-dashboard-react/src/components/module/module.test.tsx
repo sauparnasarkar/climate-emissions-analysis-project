@@ -82,6 +82,11 @@ describe('HeadlineRelationship', () => {
     expect(screen.getByText('1900, 1901')).toBeInTheDocument();
   });
 
+  it('keeps the headline chart\'s accessible summary in GtCO₂', () => {
+    render(<MemoryRouter><HeadlineRelationship signal={signal} headline={buildHeadline(signal, null)} /></MemoryRouter>);
+    expect(screen.getByRole('img', { name: /cumulative CO₂ since 1850 rises from .* GtCO₂\./ })).toBeInTheDocument();
+  });
+
   it('omits R² and the fossil comparison when the data lacks them rather than showing blanks', () => {
     const noFossil = buildHeadline({ ...signal, fit: { ...signal.fit, rSquared: null } }, null);
     render(<MemoryRouter><HeadlineRelationship signal={signal} headline={noFossil} /></MemoryRouter>);
@@ -139,7 +144,7 @@ describe('AllGasRelationship', () => {
 
   it('draws the scatter on its own axis and describes it for assistive tech in gigatonnes of CO₂e', () => {
     mount();
-    expect(screen.getByRole('img', { name: /cumulative greenhouse-gas emissions rises from 901 to 2,300 Gt/ })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /cumulative greenhouse-gas emissions rises from 901 to 2,300 GtCO₂e/ })).toBeInTheDocument();
     expect(screen.getByText('Cumulative greenhouse gases, national totals (GtCO₂e)')).toBeInTheDocument();
   });
 });

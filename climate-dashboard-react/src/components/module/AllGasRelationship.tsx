@@ -37,7 +37,7 @@ export function AllGasRelationship({ allGas }: { allGas: AllGas }) {
         <ChartCard title={`Temperature anomaly vs cumulative all-gas emissions, ${start}–${end}`} headingLevel={4}>
           <PurposeLine>show the recent co-movement of all greenhouse gases with warming. It is a separate, shorter view, not the long-run CO₂ relationship above.</PurposeLine>
           <div className="climate-chart-panel">
-            <ClimateScatter signal={allGas} xTitle="Cumulative greenhouse gases, national totals (GtCO₂e)" xQuantity="cumulative greenhouse-gas emissions" xStep={250} xMin={Math.floor(allGas.points[0].gt / 250) * 250} />
+            <ClimateScatter signal={allGas} xTitle="Cumulative greenhouse gases, national totals (GtCO₂e)" xQuantity="cumulative greenhouse-gas emissions" xUnit="GtCO₂e" xStep={250} xMin={Math.floor(allGas.points[0].gt / 250) * 250} />
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
             <BaselineChip baseline="1850–1900" source="Berkeley Earth" />
@@ -53,7 +53,7 @@ export function AllGasRelationship({ allGas }: { allGas: AllGas }) {
           <dl style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '4px 12px', margin: 0 }}>
             <Row k="95% CI (Newey–West HAC)" v={`${ciLow.toFixed(3)}–${ciHigh.toFixed(3)}`} />
             {bootstrap && <Row k={`Bootstrap interval (${bootstrap.blockYears}-year blocks)`} v={`${bootstrap.low.toFixed(3)}–${bootstrap.high.toFixed(3)}`} />}
-            {rSquared !== null && <Row k="R²" v={rSquared.toFixed(2)} />}
+            <Row k="R²" v={rSquared.toFixed(2)} />
             <Row k="Years" v={`${start}–${end} (${nYears})`} />
             {/* Only when the pair itself lists some: PRIMAP's incomplete latest year is dropped upstream and stated in the caveats below, so "None" would contradict it. */}
             {omittedYears.length > 0 && <Row k="Excluded years" v={omittedYears.join(', ')} />}

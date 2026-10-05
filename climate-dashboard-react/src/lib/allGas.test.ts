@@ -26,6 +26,15 @@ describe('buildAllGas', () => {
     expect(buildAllGas({ ...ALL_GAS_PAIR, points: [] })).toBeNull();
   });
 
+  it('is null when any of the fit\'s own metadata is missing (R², unit, label) instead of substituting frontend wording', () => {
+    for (const field of ['r_squared', 'unit', 'label']) {
+      const fit = { ...ALL_GAS_PAIR.fit } as Record<string, unknown>;
+      delete fit[field];
+      expect(buildAllGas({ ...ALL_GAS_PAIR, fit } as unknown as CorrelationEmissionsTemperatureResponse), field).toBeNull();
+      expect(buildAllGas({ ...ALL_GAS_PAIR, fit: { ...fit, [field]: '' } } as unknown as CorrelationEmissionsTemperatureResponse), `${field} empty`).toBeNull();
+    }
+  });
+
   it('tolerates a missing stability block (no bootstrap, no summary)', () => {
     const a = buildAllGas({ ...ALL_GAS_PAIR, fit_context: {} } as unknown as CorrelationEmissionsTemperatureResponse)!;
     expect(a.bootstrap).toBeNull();

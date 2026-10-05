@@ -20,14 +20,15 @@ export type ScatterData = Pick<ClimateSignal, 'points' | 'line'>;
 export interface ScatterAxes {
   /** x-axis title (default: the headline's cumulative CO₂ since 1850) */
   xTitle?: string;
-  /** What the x values are called in the screen-reader summary */
+  /** What the x values are called, and their unit, in the screen-reader summary (the visible axis title carries the same unit) */
   xQuantity?: string;
+  xUnit?: string;
   /** Tick step on x, and where x starts (default 500 and 0, the headline's axis) */
   xStep?: number;
   xMin?: number;
 }
 
-export function ClimateScatter({ signal, xTitle = 'Cumulative CO₂ since 1850 (GtCO₂)', xQuantity = 'cumulative CO₂ since 1850', xStep = 500, xMin = 0 }: { signal: ScatterData } & ScatterAxes) {
+export function ClimateScatter({ signal, xTitle = 'Cumulative CO₂ since 1850 (GtCO₂)', xQuantity = 'cumulative CO₂ since 1850', xUnit = 'GtCO₂', xStep = 500, xMin = 0 }: { signal: ScatterData } & ScatterAxes) {
   const titleId = useId();
   const { points, line } = signal;
   const xMax = Math.ceil(Math.max(...points.map((p) => p.gt)) / xStep) * xStep;
@@ -37,7 +38,7 @@ export function ClimateScatter({ signal, xTitle = 'Cumulative CO₂ since 1850 (
   const sy = (v: number) => M.t + (1 - (v - yMin) / (yMax - yMin)) * (H - M.t - M.b);
   const last = points[points.length - 1];
   const first = points[0];
-  const summary = `Scatter chart, one dot per year from ${first.year} to ${last.year}. Temperature anomaly rises from ${fmtAnomaly(first.temp)} to ${fmtAnomaly(last.temp)} as ${xQuantity} rises from ${Math.round(first.gt).toLocaleString('en-US')} to ${Math.round(last.gt).toLocaleString('en-US')} Gt. A fitted line is drawn through the points.`;
+  const summary = `Scatter chart, one dot per year from ${first.year} to ${last.year}. Temperature anomaly rises from ${fmtAnomaly(first.temp)} to ${fmtAnomaly(last.temp)} as ${xQuantity} rises from ${Math.round(first.gt).toLocaleString('en-US')} to ${Math.round(last.gt).toLocaleString('en-US')} ${xUnit}. A fitted line is drawn through the points.`;
   const labelRight = sx(last.gt) > W - 120;
 
   return (

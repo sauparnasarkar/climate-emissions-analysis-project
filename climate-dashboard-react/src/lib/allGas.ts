@@ -9,11 +9,11 @@ export interface AllGas {
   slope: number;
   ciLow: number;
   ciHigh: number;
-  rSquared: number | null;
+  rSquared: number;
   start: number;
   end: number;
   nYears: number;
-  /** "°C per 1,000 GtCO2e" as the API words it */
+  /** "°C per 1,000 GtCO2e" as the API words it (never a frontend-authored fallback) */
   unit: string;
   /** The API's name for this fit ("Recent all-gas relationship: …") */
   label: string;
@@ -43,7 +43,11 @@ export function buildAllGas(resp: CorrelationEmissionsTemperatureResponse | null
   const start = num(resp.fit.start);
   const end = num(resp.fit.end);
   const nYears = num(resp.fit.n_years);
-  if (slope === null || ciLow === null || ciHigh === null || start === null || end === null || nYears === null) return null;
+  const rSquared = num(resp.fit.r_squared);
+  const unit = typeof resp.fit.unit === 'string' && resp.fit.unit ? resp.fit.unit : null;
+  const label = typeof resp.fit.label === 'string' && resp.fit.label ? resp.fit.label : null;
+  // Every figure and the fit's own wording are the API's: a fit missing any of them is incomplete and the view is left out, not filled in.
+  if (slope === null || ciLow === null || ciHigh === null || start === null || end === null || nYears === null || rSquared === null || unit === null || label === null) return null;
   const points: ScatterPoint[] = resp.points.map((p) => ({ year: p.year, gt: p.cumulative_emissions / 1000, temp: p.temperature, era: eraOf(p.year) }));
   const ols = olsFit(points.map((p) => p.gt), points.map((p) => p.temp));
   if (!ols) return null;
@@ -59,9 +63,7 @@ export function buildAllGas(resp: CorrelationEmissionsTemperatureResponse | null
   return {
     points,
     line: { x0, y0: ols.intercept + ols.slope * x0, x1, y1: ols.intercept + ols.slope * x1 },
-    slope, ciLow, ciHigh, rSquared: num(resp.fit.r_squared), start, end, nYears,
-    unit: typeof resp.fit.unit === 'string' ? resp.fit.unit : '°C per 1,000 GtCO₂e',
-    label: typeof resp.fit.label === 'string' ? resp.fit.label : 'Recent all-gas relationship',
+    slope, ciLow, ciHigh, rSquared, start, end, nYears, unit, label,
     xName: resp.x.name,
     xDescription: resp.x.description ?? null,
     bootstrap: bootLow !== null && bootHigh !== null && blockYears !== null ? { low: bootLow, high: bootHigh, blockYears } : null,
