@@ -75,7 +75,9 @@ export function ShareSection({ countries }: { countries: string[] }) {
     async () => (countries.length ? api.correlationCountryShare({ source: measure.source, gasScope: measure.gasScope, countries, startYear: SHARE_START_YEAR }) : null),
     [measureId, key],
   );
-  const frames = useMemo(() => buildShareFrames(query.data), [query.data]);
+  // useAsync keeps the previous response while a refetch is in flight; showing it under the newly chosen measure/selection would present the old data
+  // as the new, so frames exist only for a settled response.
+  const frames = useMemo(() => (query.loading ? null : buildShareFrames(query.data)), [query.data, query.loading]);
   const first = frames?.years[0] ?? SHARE_START_YEAR;
   const lastYear = frames?.years[frames.years.length - 1] ?? SHARE_START_YEAR;
   const { year, playing, toggle, seek } = useSharePlayback(first, lastYear);

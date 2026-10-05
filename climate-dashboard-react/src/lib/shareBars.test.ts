@@ -43,6 +43,19 @@ describe('buildShareFrames', () => {
     expect(f.stock[0]).toEqual([20, 0]);
   });
 
+  it('covers the requested range from its start through the latest year, even when a country starts reporting later', () => {
+    const f = buildShareFrames({ ...shareResponse([['USA', 'United States', [[1972, 20, 10], [1973, 21, 11]]], ['SSD', 'South Sudan', [[1973, 0.1, 0.2]]]]), start_year: 1970 })!;
+    expect(f.years).toEqual([1970, 1971, 1972, 1973]);
+    expect(f.stock[0]).toEqual([0, 0]); // before either country's first observation
+    expect(f.stock[3]).toEqual([21, 0.1]);
+  });
+
+  it('prints a remainder within rounding of zero as 0, not -0.0', () => {
+    const f = buildShareFrames(shareResponse([['USA', 'United States', [[2024, 60.02, 50]]], ['CHN', 'China', [[2024, 40, 50]]]]))!;
+    expect(f.restStock[0]).toBe(0);
+    expect(f.signed).toBe(false);
+  });
+
   it('has no flow when the data release predates the annual columns', () => {
     const f = buildShareFrames(shareResponse([['USA', 'United States', [[2023, 20, null], [2024, 21, null]]]]))!;
     expect(f.flow).toBeNull();

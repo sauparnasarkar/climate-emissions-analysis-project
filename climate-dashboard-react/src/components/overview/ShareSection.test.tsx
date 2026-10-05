@@ -121,6 +121,18 @@ describe('ShareSection', () => {
     expect(screen.queryByRole('row', { name: /^Taiwan/ })).not.toBeInTheDocument();
   });
 
+  it('hides the previous response while a new measure loads, never presenting old data as the new', async () => {
+    mount();
+    await screen.findByText('Share by country, 2024');
+    let resolve!: (r: typeof RESP) => void;
+    vi.mocked(api.correlationCountryShare).mockReturnValue(new Promise((r) => { resolve = r; }));
+    fireEvent.click(screen.getByRole('radio', { name: 'All GHGs · PRIMAP-hist' }));
+    expect(await screen.findByText('Loading…')).toBeInTheDocument();
+    expect(screen.queryByText('Share by country, 2024')).not.toBeInTheDocument();
+    await act(async () => resolve(RESP));
+    expect(await screen.findByText('Share by country, 2024')).toBeInTheDocument();
+  });
+
   it('describes the measure neutrally, not as CO₂', async () => {
     mount();
     expect(await screen.findByText(/everything emitted so far, by the measure chosen below/)).toBeInTheDocument();

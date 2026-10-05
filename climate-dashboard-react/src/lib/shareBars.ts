@@ -43,15 +43,24 @@ export interface ShareFrames {
   notes: string[];
 }
 
-const rest = (row: number[]) => 100 - row.reduce((a, b) => a + b, 0);
+// A remainder within rounding of zero is zero (it would otherwise print as "-0.0%"); a real overshoot stays negative and makes the frame `signed`.
+const rest = (row: number[]) => {
+  const v = 100 - row.reduce((a, b) => a + b, 0);
+  return Math.abs(v) < 0.05 ? 0 : v;
+};
 
 /** Per-year stock and flow shares for the selected countries from a /country-share series response, or null when it carries no points. */
 export function buildShareFrames(resp: CorrelationCountryShareResponse | null | undefined): ShareFrames | null {
   const all = resp?.series ?? [];
   const series = all.filter((s) => s.points.length > 0);
   const missing = all.filter((s) => s.points.length === 0).map((s) => ({ code: s.country, name: s.name }));
-  const years = [...new Set(series.flatMap((s) => s.points.map((p) => p.year)))].sort((a, b) => a - b);
-  if (!resp || series.length === 0 || years.length === 0) return null;
+  const observed = series.flatMap((s) => s.points.map((p) => p.year));
+  if (!resp || series.length === 0 || observed.length === 0) return null;
+  // A dense range from the requested start (not the first observation): a country that begins reporting after 1970 would otherwise shorten
+  // everyone's range. Years before a country's first observation read as 0 for it.
+  const from = Math.min(resp.start_year ?? SHARE_START_YEAR, ...observed);
+  const to = Math.max(...observed);
+  const years = Array.from({ length: to - from + 1 }, (_, i) => from + i);
   const byYear = series.map((s) => new Map(s.points.map((p) => [p.year, p])));
   const last = years[years.length - 1];
   const idx = series.map((_, i) => i).sort((a, b) => (byYear[b].get(last)?.share_pct ?? 0) - (byYear[a].get(last)?.share_pct ?? 0) || series[a].country.localeCompare(series[b].country));
