@@ -31,6 +31,8 @@ export interface ClimateSignal {
   series: { concentration: YearValue[]; temperature: YearValue[] };
   /** First year of NOAA's direct measurements; before it the record is the Law Dome ice core */
   spliceYear: number | null;
+  /** How the NOAA Mauna Loa record is joined to the Law Dome ice core, as the concentration response documents it; null when it publishes none */
+  splice: { year: number; overlapYears: [number, number] | null; gapPpm: number | null; maxAbsOverlapGapPpm: number | null } | null;
   /** Concentration in 1850, the pre-industrial reference for "up x% on 1850" */
   ppm1850: number | null;
   /** Years the pair left out, with no reason text (the baseline card says "None" when it is empty) */
@@ -115,9 +117,23 @@ export function buildClimateSignal(
     concentration: ppm,
     series: { concentration: yearValues(concentration.points), temperature: yearValues(temperature.points) },
     spliceYear: num((concentration.details?.splice as Record<string, unknown> | undefined)?.splice_year),
+    splice: spliceInfo(concentration.details?.splice),
     ppm1850: yearValues(concentration.points).find((p) => p.year === 1850)?.value ?? null,
     omittedYears: (pair.omitted_years ?? []).map((o) => o.year),
     vintageCaveat: vintageCaveat(pair),
+  };
+}
+
+function spliceInfo(raw: unknown): ClimateSignal['splice'] {
+  const s = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+  const year = num(s?.splice_year);
+  if (!s || year === null) return null;
+  const ov = Array.isArray(s.overlap_years) ? s.overlap_years.map(num) : [];
+  return {
+    year,
+    overlapYears: ov.length === 2 && ov[0] !== null && ov[1] !== null ? [ov[0], ov[1]] : null,
+    gapPpm: num(s.gap_at_splice_ppm),
+    maxAbsOverlapGapPpm: num(s.max_abs_overlap_gap_ppm),
   };
 }
 

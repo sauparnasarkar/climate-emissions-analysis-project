@@ -8,7 +8,7 @@ const SIGNAL: ClimateSignal = {
   points: [], fit: { slope: 0.52, ciLow: 0.48, ciHigh: 0.56, rSquared: 0.9, unit: 'u', start: 1850, end: 2024, nYears: 175 }, line: { x0: 0, y0: 0, x1: 1, y1: 1 },
   temperature: { value: 1.617, year: 2024 }, concentration: { value: 424.6, year: 2024 },
   series: { concentration: [{ year: 1850, value: 286.8 }, { year: 1959, value: 315.9 }, { year: 2024, value: 424.6 }], temperature: [{ year: 2023, value: 1.5 }, { year: 2024, value: 1.617 }] },
-  spliceYear: 1959, ppm1850: 286.8, omittedYears: [], vintageCaveat: 'Based on Berkeley Earth file vintage 2025-01-10; a possible ~0.1 °C discrepancy is not yet reconciled.',
+  spliceYear: 1959, ppm1850: 286.8, omittedYears: [], splice: null, vintageCaveat: 'Based on Berkeley Earth file vintage 2025-01-10; a possible ~0.1 °C discrepancy is not yet reconciled.',
 };
 const EMISSIONS = { year: 2024, total: 37398.067, series: [{ year: 1970, value: 14000 }, { year: 2024, value: 37398 }] };
 
