@@ -3,6 +3,8 @@ import { InlineAlert, JumpLinks, Spinner, useReducedMotion } from 'design-system
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { CausalChain } from '../components/module/CausalChain';
+import { CountryView } from '../components/module/CountryView';
+import { GasComposition } from '../components/module/GasComposition';
 import { AllGasRelationship } from '../components/module/AllGasRelationship';
 import { HeadlineRelationship } from '../components/module/HeadlineRelationship';
 import { useAsync } from '../hooks/useAsync';
@@ -11,6 +13,8 @@ import { useElementHeight } from '../hooks/useElementHeight';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { CAUSAL_CHAIN_ANCHOR, GLOBAL_RELATIONSHIP_ANCHOR, NOT_A_CLIMATE_MODEL } from '../lib/climateCopy';
 import { buildAllGas } from '../lib/allGas';
+import { COUNTRY_VIEW_ANCHOR } from '../lib/countryView';
+import { buildComposition } from '../lib/gasComposition';
 import { buildHeadline } from '../lib/headline';
 import { latestWorldTotal } from '../lib/mapSeries';
 import { CLIMATE_SERIES_START_YEAR } from '../constants';
@@ -21,6 +25,7 @@ const JUMP_ROW_GAP_PX = 10;
 
 const CHAIN_JUMP: JumpLinkItem = { id: CAUSAL_CHAIN_ANCHOR, label: 'Causal chain', href: `#${CAUSAL_CHAIN_ANCHOR}` };
 const RELATIONSHIP_JUMP: JumpLinkItem = { id: GLOBAL_RELATIONSHIP_ANCHOR, label: 'Global relationship', href: `#${GLOBAL_RELATIONSHIP_ANCHOR}` };
+const COUNTRY_JUMP: JumpLinkItem = { id: COUNTRY_VIEW_ANCHOR, label: 'Country view', href: `#${COUNTRY_VIEW_ANCHOR}` };
 
 /**
  * The Temperature & GHG Correlation module (Area 2, Phases 2.4 and 2.5; ENHANCEMENTS.md decision 65). 7a: the causal chain and the headline
@@ -31,6 +36,8 @@ export default function ClimateCorrelationPage() {
   const climate = useClimateSignal();
   const fossil = useAsync(async () => api.correlationEmissionsTemperature({ variant: 'fossil' }), []);
   const allGasQuery = useAsync(async () => api.correlationEmissionsTemperature({ source: 'primap_ghg' }), []);
+  const compositionQuery = useAsync(async () => api.correlationGhgComposition({ startYear: 1970 }), []);
+  const mean5yQuery = useAsync(async () => api.correlationTemperature({ view: 'mean5y', baseline: '1850_1900' }), []);
   const world = useAsync(async () => api.worldMapSeries(CLIMATE_SERIES_START_YEAR), []);
   const reduceMotion = useReducedMotion();
   const [stickyRow, setStickyRow] = useState<HTMLElement | null>(null);
@@ -41,6 +48,8 @@ export default function ClimateCorrelationPage() {
   // The latest year that has data: an all-null final row is missing, not a world total of zero.
   const emissions = useMemo(() => (world.data ? latestWorldTotal(world.data) : null), [world.data]);
   const allGas = useMemo(() => buildAllGas(allGasQuery.data), [allGasQuery.data]);
+  const composition = useMemo(() => buildComposition(compositionQuery.data), [compositionQuery.data]);
+  const mean5ySeries = useMemo(() => (mean5yQuery.data?.points ?? []).flatMap((p) => (p.value != null && Number.isFinite(p.value) ? [{ year: p.year, value: p.value }] : [])), [mean5yQuery.data]);
   const headline = useMemo(() => (signal ? buildHeadline(signal, fossil.data) : null), [signal, fossil.data]);
 
   // A deep link waits for the climate request and the first measurement of the anchor row (its height depends on whether it wrapped).
@@ -61,11 +70,13 @@ export default function ClimateCorrelationPage() {
       ) : (
         <>
           <div ref={setStickyRow} style={{ marginBottom: 16, position: 'sticky', top: STICKY_HEADER_PX, zIndex: 5, background: 'var(--__s9cmpx-static-background-weak)', padding: '4px 0' }}>
-            <JumpLinks items={[CHAIN_JUMP, RELATIONSHIP_JUMP]} />
+            <JumpLinks items={[CHAIN_JUMP, RELATIONSHIP_JUMP, COUNTRY_JUMP]} />
           </div>
           <CausalChain signal={signal} emissions={emissions} />
           <HeadlineRelationship signal={signal} headline={headline} hasAllGas={allGas !== null} />
           {allGas && <AllGasRelationship allGas={allGas} />}
+          {composition && <GasComposition composition={composition} />}
+          <CountryView temperature={signal.series.temperature} mean5y={mean5ySeries.length ? mean5ySeries : null} />
         </>
       )}
     </div>
