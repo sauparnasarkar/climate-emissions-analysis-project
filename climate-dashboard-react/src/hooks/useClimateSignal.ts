@@ -9,6 +9,8 @@ export interface ClimateSignalData {
   mean5y: { value: number; year: number } | null;
   /** True once the request has finished (either way) or `waitMs` has passed: a page can wait for it, bounded, before it renders. */
   settled: boolean;
+  /** True only once the request has actually finished (answer or failure) -- not on the timeout. A deep link to a section that only exists with the data waits for this. */
+  done: boolean;
 }
 
 /** The climate-context data the Overview shows beside the emissions figures (Area 2): the headline pair, the latest temperature and
@@ -31,5 +33,5 @@ export function useClimateSignal(waitMs = 3000): ClimateSignalData {
     const id = setTimeout(() => setTimedOut(true), waitMs);
     return () => clearTimeout(id);
   }, [query.loading, waitMs]);
-  return { signal: query.data?.signal ?? null, mean5y: query.data?.mean5y ?? null, settled: !query.loading || timedOut };
+  return { signal: query.data?.signal ?? null, mean5y: query.data?.mean5y ?? null, settled: !query.loading || timedOut, done: !query.loading };
 }

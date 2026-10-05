@@ -97,7 +97,8 @@ export function RelationshipSection({ signal, emissionsSeries }: { signal: Clima
             </div>
           )}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
-            <BaselineChip baseline={view === 'time' ? `${first}–${last} annual` : '1850–1900'} source={view === 'time' ? 'OWID + Berkeley Earth' : 'Berkeley Earth'} />
+            {/* The only baselined series in either view is the temperature anomaly (1850–1900); emissions are plain levels. The window is in the title. */}
+            <BaselineChip baseline="1850–1900" source="Berkeley Earth" />
             <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
               Long-term co-movement, shown as context. No single factor or year explains warming.
             </span>

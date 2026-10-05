@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ClimateKpiStrip } from '../components/overview/ClimateKpiStrip';
 import { RelationshipSection } from '../components/overview/RelationshipSection';
 import { useClimateSignal } from '../hooks/useClimateSignal';
@@ -28,6 +29,11 @@ const JUMP_ITEMS: JumpLinkItem[] = [
   { id: 'by-country', label: 'By Country', href: '#by-country' },
   { id: 'pct-change', label: '% Change', href: '#pct-change' },
 ];
+// The dashboard header is pinned at the top and 68 px tall (App header minHeight; styles.css offsets every anchor by the same 68). The
+// anchor row sticks just below it, so jump targets get that plus the row's own height as their scroll margin.
+const STICKY_HEADER_PX = 68;
+const JUMP_ROW_PX = 52;
+
 // Area 2's two leading sections come first; "Relationship" only exists while the climate data does.
 const CLIMATE_SIGNAL_JUMP: JumpLinkItem = { id: CLIMATE_SIGNAL_ANCHOR, label: 'Climate signal', href: `#${CLIMATE_SIGNAL_ANCHOR}` };
 const RELATIONSHIP_JUMP: JumpLinkItem = { id: RELATIONSHIP_ANCHOR, label: 'Relationship', href: `#${RELATIONSHIP_ANCHOR}` };
@@ -413,7 +419,11 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // Handles a bookmarked/shared #anchor already in the URL (SPEC.md §5.19) -- called
   // unconditionally (before the early returns below) per the Rules of Hooks; the hook itself
   // only actually jumps once `data`/`worldMapSeries` (and therefore the jump targets) exist.
-  useJumpToHashOnLoad(Boolean(data && worldMapSeries && climate.settled), reduceMotion);
+  // A deep link to #relationship must wait for the climate request to actually finish: that section only exists with its data, and the
+  // hook jumps once only. (Any other hash jumps as soon as the page renders, which is bounded by the timeout.)
+  const { hash } = useLocation();
+  const waitsForClimate = hash === `#${RELATIONSHIP_ANCHOR}`;
+  useJumpToHashOnLoad(Boolean(data && worldMapSeries && climate.settled && (!waitsForClimate || climate.done)), reduceMotion);
 
   // useAsync preserves the previous `data` while a refetch is in flight (only `loading`
   // flips), so only block on a spinner before anything has ever loaded — once `data`
@@ -434,12 +444,14 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   const moverPctMaxAbs = Math.max(1, ...moverPct.map((v) => Math.abs(v)));
 
   return (
-    <div>
+    <div className="overview-page">
+      {/* Overrides styles.css's global 68 px anchor offset for this page: the header AND the sticky anchor row both sit above a jump target. */}
+      <style>{`.overview-page [id] { scroll-margin-top: ${STICKY_HEADER_PX + JUMP_ROW_PX}px; }`}</style>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Overview</h1>
       {/* Breathing room below the jump links: the active link's underline used to sit flush against the
           map card's accent top rule (and its shadow), reading as one muddled line. */}
       {/* Sticks to the top while the page scrolls (requirements §2.2 wireframes: anchor / deep-link support). */}
-      <div style={{ marginBottom: 16, position: 'sticky', top: 0, zIndex: 5, background: 'var(--__s9cmpx-static-background-weak)', padding: '4px 0' }}>
+      <div style={{ marginBottom: 16, position: 'sticky', top: STICKY_HEADER_PX, zIndex: 5, background: 'var(--__s9cmpx-static-background-weak)', padding: '4px 0' }}>
         <JumpLinks items={[CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS]} />
       </div>
 

@@ -10,6 +10,8 @@ import OverviewPage from './OverviewPage';
 import { CONCENTRATION, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
 import { CLIMATE_SIGNAL_ANCHOR, RELATIONSHIP_ANCHOR } from '../lib/climateCopy';
 
+const scrollSpy = vi.hoisted(() => vi.fn());
+
 vi.mock('../api/client', () => ({
   api: {
     listCountries: vi.fn(), overview: vi.fn(), worldMapSeries: vi.fn(),
@@ -30,6 +32,8 @@ vi.mock('design-system', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
+    // The hash-load hook's jump, observed (JumpLinks' own clicks use the real one internally).
+    scrollToJumpTarget: (id: string) => scrollSpy(id),
     SyChart: (props: {
       ariaLabel?: string;
       series?: Array<{ kind?: string; noDataColor?: string; colorScale?: Array<[number, string]>; colorRange?: [number, number] }>;
@@ -632,12 +636,20 @@ describe('OverviewPage — climate signal', () => {
     expect(chart).toHaveAttribute('data-axes', JSON.stringify(['y', 'y2'])); // emissions on the left axis, temperature on the right
     expect(within(section).getByText(/^Purpose:/)).toBeInTheDocument();
     expect(within(section).getByText(/Long-term co-movement, shown as context. No single factor or year explains warming./)).toBeInTheDocument();
-    expect(within(section).getByText('Baseline 1970–2024 annual · OWID + Berkeley Earth')).toBeInTheDocument();
+    // The only baselined series is the temperature anomaly (1850–1900), in both views; the window is in the title.
+    expect(within(section).getByText('Baseline 1850–1900 · Berkeley Earth')).toBeInTheDocument();
     fireEvent.click(within(section).getByRole('radio', { name: 'Against cumulative CO₂' }));
     expect(within(section).getByRole('heading', { level: 3, name: 'Temperature anomaly vs cumulative CO₂, 1850–2024' })).toBeInTheDocument();
     expect(within(section).queryByTestId('sychart')).not.toBeInTheDocument();
     expect(within(section).getByRole('img', { name: /scatter chart, one dot per year/i })).toBeInTheDocument();
     expect(within(section).getByText('Baseline 1850–1900 · Berkeley Earth')).toBeInTheDocument();
+  });
+
+  it('states the percent formula of the concentration card in full, including the × 100%', async () => {
+    mountWithClimate();
+    const section = await screen.findByRole('region', { name: 'What is happening globally' });
+    fireEvent.click(within(section).getByRole('button', { name: 'Baseline details: Atmospheric CO₂ · 2024' }));
+    expect(within(section).getByRole('region', { name: 'Baseline for Atmospheric CO₂ · 2024' })).toHaveTextContent('(ppm ÷ ppm₁₈₅₀ − 1) × 100%');
   });
 
   it('explains the chain in the "Why emissions matter" card (data-driven) and links to the correlation module without attributing warming to a country', async () => {
@@ -698,5 +710,62 @@ describe('OverviewPage — climate signal', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+
+describe('OverviewPage — deep links', () => {
+  afterEach(() => { window.history.replaceState(null, '', '/'); scrollSpy.mockClear(); });
+
+  it('a #relationship deep link waits for the climate request to finish, then jumps once the section exists -- also when the answer comes late', async () => {
+    window.history.replaceState(null, '', '/overview#relationship');
+    vi.useFakeTimers();
+    try {
+      vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+      vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+      vi.mocked(api.worldMapSeries).mockResolvedValue(LONG_MAP);
+      let late: (v: typeof PAIR) => void = () => {};
+      vi.mocked(api.correlationEmissionsTemperature).mockReturnValue(new Promise((r) => { late = r; }));
+      vi.mocked(api.correlationTemperature).mockImplementation(async (o) => (o?.view === 'mean5y' ? TEMPERATURE_MEAN5Y : TEMPERATURE));
+      vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
+      render(<MemoryRouter initialEntries={['/overview#relationship']}><OverviewPage /></MemoryRouter>);
+      await act(async () => { await vi.advanceTimersByTimeAsync(100); }); // the data round trips
+      await act(async () => { await vi.advanceTimersByTimeAsync(3200); }); // past the wait bound
+      expect(screen.getByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument(); // the page rendered at the bound...
+      expect(document.getElementById('relationship')).toBeNull();
+      expect(scrollSpy).not.toHaveBeenCalled(); // ...but the jump is not spent on a target that is not there yet
+      await act(async () => { late(PAIR); await vi.advanceTimersByTimeAsync(100); });
+      expect(document.getElementById('relationship')).not.toBeNull();
+      expect(scrollSpy).toHaveBeenCalledTimes(1);
+      expect(scrollSpy).toHaveBeenCalledWith('relationship');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('any other deep link (#map) jumps as soon as the page has rendered, without waiting for a stalled climate request', async () => {
+    window.history.replaceState(null, '', '/overview#map');
+    vi.useFakeTimers();
+    try {
+      vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+      vi.mocked(api.overview).mockResolvedValue(RESPONSE);
+      vi.mocked(api.worldMapSeries).mockResolvedValue(LONG_MAP);
+      vi.mocked(api.correlationEmissionsTemperature).mockReturnValue(new Promise(() => {}));
+      vi.mocked(api.correlationTemperature).mockResolvedValue(TEMPERATURE);
+      vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
+      render(<MemoryRouter initialEntries={['/overview#map']}><OverviewPage /></MemoryRouter>);
+      await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(3200); });
+      expect(scrollSpy).toHaveBeenCalledWith('map');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('puts the sticky anchor row below the pinned header and offsets every jump target by the header plus the row', async () => {
+    mountWithClimate();
+    const nav = await screen.findByRole('navigation', { name: 'Jump links' });
+    expect((nav.parentElement as HTMLElement).style.top).toBe('68px');
+    expect(document.querySelector('.overview-page style')?.textContent).toMatch(/scroll-margin-top: 120px/);
   });
 });

@@ -89,7 +89,7 @@ export function ClimateKpiStrip({ emissions, signal, mean5y }: { emissions: Clim
             sparkCaption={signal.spliceYear != null ? `Ice core to ${signal.spliceYear - 1} · Mauna Loa from ${signal.spliceYear}` : undefined}
             chip={<BaselineChip baseline="1850" source="NOAA + Law Dome" />}
             info={{
-              baseline: '1850 (pre-industrial)', reference: 'Annual mean CO₂ in 1850 (Law Dome ice core)', formula: 'ppm ÷ ppm₁₈₅₀ − 1',
+              baseline: '1850 (pre-industrial)', reference: 'Annual mean CO₂ in 1850 (Law Dome ice core)', formula: '(ppm ÷ ppm₁₈₅₀ − 1) × 100%',
               sourceRange: `NOAA GML + Law Dome, ${signal.series.concentration[0]?.year ?? '…'}–${signal.concentration.year}`, excludedYears: 'None',
               note: signal.spliceYear != null ? `Direct measurements start in ${signal.spliceYear}; earlier values are from the ice core.` : undefined,
             }}
