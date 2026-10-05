@@ -10,6 +10,7 @@ import OverviewPage from './OverviewPage';
 import { CONCENTRATION, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
 import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
 import { buildCumulative } from '../lib/cumulative';
+import { shareResponse } from '../test/shareFixtures';
 import { CLIMATE_SIGNAL_ANCHOR, RELATIONSHIP_ANCHOR } from '../lib/climateCopy';
 
 const scrollSpy = vi.hoisted(() => vi.fn());
@@ -167,6 +168,8 @@ function mockReducedMotion(matches: boolean) {
 
 beforeEach(() => {
   vi.mocked(useYearAnimation).mockReturnValue(DEFAULT_ANIMATION);
+  // The Share section requests its series on mount; tests that care about it set their own, the rest get an empty (no-data) series.
+  vi.mocked(api.correlationCountryShare).mockResolvedValue(shareResponse([]));
   mockReducedMotion(false);
 });
 
@@ -465,8 +468,8 @@ describe('OverviewPage', () => {
     const nav = await screen.findByRole('navigation', { name: 'Jump links' });
     const links = within(nav).getAllByRole('link');
     // "Climate signal" always leads (the emissions KPIs stand on their own); "Relationship" only joins when the climate data is there.
-    expect(links.map((l) => l.textContent)).toEqual(['Climate signal', 'Top emitters', 'By Country', '% Change']);
-    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#top-emitters', '#by-country', '#pct-change']);
+    expect(links.map((l) => l.textContent)).toEqual(['Climate signal', 'Top emitters', 'Share', 'By Country', '% Change']);
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#top-emitters', '#share', '#by-country', '#pct-change']);
     expect(document.getElementById('top-emitters')).not.toBeNull();
     expect(document.getElementById('map')).not.toBeNull(); // the old anchor still lands on the map
   });
@@ -596,11 +599,11 @@ describe('OverviewPage — climate signal', () => {
   it('has the #climate-signal and #relationship anchors the Landing CTA and the jump links point at, in order, with the jump links first', async () => {
     mountWithClimate();
     const nav = await screen.findByRole('navigation', { name: 'Jump links' });
-    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#relationship', '#top-emitters', '#by-country', '#pct-change']);
+    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#relationship', '#top-emitters', '#share', '#by-country', '#pct-change']);
     expect(CLIMATE_SIGNAL_ANCHOR).toBe('climate-signal'); // the Landing's primary CTA is /overview#climate-signal
     expect(document.getElementById(CLIMATE_SIGNAL_ANCHOR)).not.toBeNull();
     expect(document.getElementById(RELATIONSHIP_ANCHOR)).not.toBeNull();
-    const ids = ['climate-signal', 'relationship', 'top-emitters', 'by-country'].map((id) => document.getElementById(id)!);
+    const ids = ['climate-signal', 'relationship', 'top-emitters', 'share', 'by-country'].map((id) => document.getElementById(id)!);
     ids.slice(1).forEach((el, i) => expect(ids[i].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy());
     // sticks to the top while scrolling
     expect((nav.parentElement as HTMLElement).style.position).toBe('sticky');
