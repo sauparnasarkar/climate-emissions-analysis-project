@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { InlineAlert, JumpLinks, Spinner, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
@@ -14,6 +15,8 @@ import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { CAUSAL_CHAIN_ANCHOR, GLOBAL_RELATIONSHIP_ANCHOR, NOT_A_CLIMATE_MODEL } from '../lib/climateCopy';
 import { buildAllGas } from '../lib/allGas';
 import { COUNTRY_VIEW_ANCHOR } from '../lib/countryView';
+import { ALL_GAS_ANCHOR } from '../lib/allGas';
+import { GAS_COMPOSITION_ANCHOR } from '../lib/gasComposition';
 import { buildComposition } from '../lib/gasComposition';
 import { buildHeadline } from '../lib/headline';
 import { latestWorldTotal } from '../lib/mapSeries';
@@ -37,6 +40,9 @@ export default function ClimateCorrelationPage() {
   const fossil = useAsync(async () => api.correlationEmissionsTemperature({ variant: 'fossil' }), []);
   const allGasQuery = useAsync(async () => api.correlationEmissionsTemperature({ source: 'primap_ghg' }), []);
   const compositionQuery = useAsync(async () => api.correlationGhgComposition({ startYear: 1970 }), []);
+  // The country view's temperature card has its own requests: it must not depend on the headline signal (which needs the pair, the concentration and
+  // the temperature together), so the other sections stand or fall on their own data.
+  const annualQuery = useAsync(async () => api.correlationTemperature({ baseline: '1850_1900' }), []);
   const mean5yQuery = useAsync(async () => api.correlationTemperature({ view: 'mean5y', baseline: '1850_1900' }), []);
   const world = useAsync(async () => api.worldMapSeries(CLIMATE_SERIES_START_YEAR), []);
   const reduceMotion = useReducedMotion();
@@ -49,11 +55,21 @@ export default function ClimateCorrelationPage() {
   const emissions = useMemo(() => (world.data ? latestWorldTotal(world.data) : null), [world.data]);
   const allGas = useMemo(() => buildAllGas(allGasQuery.data), [allGasQuery.data]);
   const composition = useMemo(() => buildComposition(compositionQuery.data), [compositionQuery.data]);
-  const mean5ySeries = useMemo(() => (mean5yQuery.data?.points ?? []).flatMap((p) => (p.value != null && Number.isFinite(p.value) ? [{ year: p.year, value: p.value }] : [])), [mean5yQuery.data]);
+  const yearValues = (points: Array<{ year: number; value: number | null }> | undefined) => (points ?? []).flatMap((p) => (p.value != null && Number.isFinite(p.value) ? [{ year: p.year, value: p.value }] : []));
+  const annualSeries = useMemo(() => yearValues(annualQuery.data?.points), [annualQuery.data]);
+  const mean5ySeries = useMemo(() => yearValues(mean5yQuery.data?.points), [mean5yQuery.data]);
   const headline = useMemo(() => (signal ? buildHeadline(signal, fossil.data) : null), [signal, fossil.data]);
 
-  // A deep link waits for the climate request and the first measurement of the anchor row (its height depends on whether it wrapped).
-  useJumpToHashOnLoad(climate.done && stickyHeight !== null, reduceMotion);
+  // A deep link waits for the first measurement of the anchor row (its height depends on whether it wrapped) and for the request behind its target:
+  // the climate signal for the chain and relationship, the all-gas or composition request for those sections (the country view is always there).
+  const { hash } = useLocation();
+  const targetReady =
+    hash === `#${ALL_GAS_ANCHOR}` ? !allGasQuery.loading
+    : hash === `#${GAS_COMPOSITION_ANCHOR}` ? !compositionQuery.loading
+    : hash === `#${COUNTRY_VIEW_ANCHOR}` ? true
+    : climate.done;
+  useJumpToHashOnLoad(targetReady && stickyHeight !== null, reduceMotion);
+  const jumpItems = [...(signal ? [CHAIN_JUMP, RELATIONSHIP_JUMP] : []), COUNTRY_JUMP];
 
   return (
     <div className="climate-module">
@@ -63,22 +79,24 @@ export default function ClimateCorrelationPage() {
         Emissions raise atmospheric CO₂, which traps heat and warms the planet. This module reads that chain from
         observations. It is descriptive: correlation is shown as context, not as proof of cause.
       </p>
+      <div ref={setStickyRow} style={{ marginBottom: 16, position: 'sticky', top: STICKY_HEADER_PX, zIndex: 5, background: 'var(--__s9cmpx-static-background-weak)', padding: '4px 0' }}>
+        <JumpLinks items={jumpItems} />
+      </div>
       {!climate.settled ? (
         <Spinner />
       ) : !signal || !headline ? (
         <InlineAlert variant="warning">{`The climate data is unavailable right now, so the chain and the relationship are not shown. ${NOT_A_CLIMATE_MODEL}`}</InlineAlert>
       ) : (
         <>
-          <div ref={setStickyRow} style={{ marginBottom: 16, position: 'sticky', top: STICKY_HEADER_PX, zIndex: 5, background: 'var(--__s9cmpx-static-background-weak)', padding: '4px 0' }}>
-            <JumpLinks items={[CHAIN_JUMP, RELATIONSHIP_JUMP, COUNTRY_JUMP]} />
-          </div>
           <CausalChain signal={signal} emissions={emissions} />
           <HeadlineRelationship signal={signal} headline={headline} hasAllGas={allGas !== null} />
-          {allGas && <AllGasRelationship allGas={allGas} />}
-          {composition && <GasComposition composition={composition} />}
-          <CountryView temperature={signal.series.temperature} mean5y={mean5ySeries.length ? mean5ySeries : null} />
         </>
       )}
+      {/* The sections below load on their own requests: one failing leaves the others standing. Without the headline they sit under a heading of their own. */}
+      {!headline && (allGas || composition) && <h2 className="__s9cmpx-headline5" style={{ margin: '0 0 12px' }}>Global relationship</h2>}
+      {allGas && <AllGasRelationship allGas={allGas} />}
+      {composition && <GasComposition composition={composition} />}
+      <CountryView temperature={annualSeries} mean5y={mean5ySeries.length ? mean5ySeries : null} />
     </div>
   );
 }

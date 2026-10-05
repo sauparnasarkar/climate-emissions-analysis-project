@@ -20,6 +20,14 @@ export function GasComposition({ composition }: { composition: Composition }) {
   // A year with a gap in the data is skipped (see buildComposition), so a slider position lands on the nearest year that has the full split.
   const year = picked === null ? last : years.reduce((best, y) => (Math.abs(y - picked) < Math.abs(best - picked) ? y : best), years[0]);
   const yi = years.indexOf(year);
+  // The slider speaks in calendar years, but not every year has the full split. A step (or a drag) that lands on a missing year goes to the nearest
+  // available year *in the direction of travel*; snapping back to the current year would leave a keyboard user unable to cross the gap.
+  const move = (v: number) => {
+    if (v === year) return;
+    const ahead = years.filter((y) => (v > year ? y > year : y < year));
+    if (ahead.length === 0) return;
+    setPicked(ahead.reduce((best, y) => (Math.abs(y - v) < Math.abs(best - v) ? y : best), ahead[0]));
+  };
   const reduceMotion = useReducedMotion();
   const order = gases.map((g) => ({ code: g.short, name: g.name, color: g.color }));
 
@@ -38,10 +46,10 @@ export function GasComposition({ composition }: { composition: Composition }) {
         <div style={{ margin: '12px 0 4px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
           <span className="__s9cmpx-label3">{year}</span>
           <div style={{ flex: '1 1 220px' }}>
-            <Slider label="Year" min={first} max={last} step={1} value={year} onChange={setPicked} showValue={false} showRangeLabels showThumbValue />
+            <Slider label="Year" min={first} max={last} step={1} value={year} onChange={move} showValue={false} showRangeLabels showThumbValue />
           </div>
         </div>
-        <ShareBar title="Gas split" subtitle={String(year)} order={order} values={shares[yi]} rest={0} tween={!reduceMotion} />
+        <ShareBar title="Gas split" subtitle={String(year)} order={order} values={shares[yi]} tween={!reduceMotion} />
         <table style={{ width: '100%', maxWidth: 560, marginTop: 10, borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
           <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--__s9cmpx-static-text-weak)', paddingBottom: 4 }}>Greenhouse gases by share, {year}</caption>
           <thead>

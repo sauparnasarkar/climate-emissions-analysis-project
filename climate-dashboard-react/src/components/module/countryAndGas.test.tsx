@@ -51,6 +51,28 @@ describe('GasComposition', () => {
     expect(within(details).queryByText(/licence/i)).not.toBeInTheDocument();
   });
 
+  it('the keyboard can cross a missing year: a step lands on the next available year in the direction of travel', () => {
+    const c = JSON.parse(JSON.stringify(COMPOSITION));
+    const base = c.years[2];
+    c.years = [2020, 2021, 2023, 2024].map((year) => ({ ...base, year })); // 2022 has no full split
+    render(<GasComposition composition={buildComposition(c)!} />);
+    const slider = screen.getByRole('slider');
+    fireEvent.keyDown(slider, { key: 'ArrowLeft' });
+    expect(screen.getByText('Greenhouse gases by share, 2023')).toBeInTheDocument();
+    fireEvent.keyDown(slider, { key: 'ArrowLeft' }); // 2022 is missing: it must go on to 2021, not stay on 2023
+    expect(screen.getByText('Greenhouse gases by share, 2021')).toBeInTheDocument();
+    fireEvent.keyDown(slider, { key: 'ArrowRight' });
+    expect(screen.getByText('Greenhouse gases by share, 2023')).toBeInTheDocument();
+  });
+
+  it('the gas split bar announces only the four gases, with no phantom remainder category', () => {
+    render(<GasComposition composition={buildComposition(COMPOSITION)!} />);
+    const bar = screen.getByRole('img', { name: /^Gas split:/ });
+    expect(bar.getAttribute('aria-label')).toMatch(/CO₂ 75\.1%, CH₄ 16\.7%, N₂O 5\.4%, Fluorinated gases 2\.8%$/);
+    expect(bar.getAttribute('aria-label')).not.toMatch(/Rest of world/);
+    expect(bar.children).toHaveLength(4);
+  });
+
   it('moves the split with the year slider, onto the nearest year that has data', () => {
     render(<GasComposition composition={dense()} />);
     const slider = screen.getByRole('slider');
