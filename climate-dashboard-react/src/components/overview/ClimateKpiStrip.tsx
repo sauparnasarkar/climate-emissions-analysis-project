@@ -39,13 +39,13 @@ function KpiCard({ tone, label, value, delta, deltaColor, spark, sparkCaption, c
   return (
     <article className={`series--${tone} __s9cmpx-card __s9cmpx-card--with-border`} style={{ borderTop: '3px solid var(--series)', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span className="__s9cmpx-label3" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{label}</span>
+        <span className="__s9cmpx-label3" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{label}</span>
         <BaselineInfo spec={info} label={label} />
       </div>
       <span className="__s9cmpx-headline4" style={{ lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-      {delta && <span className="__s9cmpx-label2" style={{ color: deltaColor ?? 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{delta}</span>}
+      {delta && <span className="__s9cmpx-label2" style={{ color: deltaColor ?? 'var(--__s9cmpx-static-text-weak)' }}>{delta}</span>}
       {spark && <div className="series-spark">{spark}</div>}
-      {sparkCaption && <span className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{sparkCaption}</span>}
+      {sparkCaption && <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{sparkCaption}</span>}
       <div>{chip}</div>
     </article>
   );

@@ -33,7 +33,7 @@ function Metric({ value, caption, tone }: { value: string; caption: string; tone
   return (
     <div>
       <div className={tone ? `climate-metric--${tone}` : undefined} style={{ fontSize: 'clamp(1.25rem, 2.2vw, 1.75rem)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...(tone ? {} : { color: 'var(--__s9cmpx-static-text-strong)' }) }}>{value}</div>
-      <div className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{caption}</div>
+      <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{caption}</div>
     </div>
   );
 }
@@ -49,7 +49,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
         <h1 id={headingId} style={{ margin: 0, fontSize: 'clamp(2rem, min(4.6vw, 5.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
           Global temperature has risen with the CO₂ we have accumulated.
         </h1>
-        <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+        <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
           Emissions set off a chain reaction: CO₂ builds up in the atmosphere, traps more heat, and the planet warms. Over {fit.nYears} years, warming has followed the cumulative total, not any single year’s emissions.
         </p>
         <div className="climate-banner__metrics">
@@ -70,10 +70,10 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
         </div>
         <ClimateScatter signal={signal} />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <BaselineChip baseline="1850–1900" source="Berkeley Earth" />
+          <BaselineChip inChartPanel baseline="1850–1900" source="Berkeley Earth" />
           <span className="__s9cmpx-body4">Global series. Long-term co-movement. {NOT_A_CLIMATE_MODEL}</span>
         </div>
-        <SourceNote sources={['Berkeley Earth', 'OWID + Global Carbon Project', 'NOAA GML + Law Dome']}>{signal.vintageCaveat ?? undefined}</SourceNote>
+        <SourceNote inChartPanel sources={['Berkeley Earth', 'OWID + Global Carbon Project', 'NOAA GML + Law Dome']}>{signal.vintageCaveat ?? undefined}</SourceNote>
       </figure>
     </div>
   );

@@ -15,9 +15,9 @@ export const CHAIN_BAND_STYLES = `
 .chain-band__card { display: flex; flex-direction: column; gap: 8px; padding: 18px; border-radius: 12px; background: var(--__s9cmpx-static-background-weak); border: 1px solid var(--__s9cmpx-static-divider-weak); min-width: 0; }
 .chain-band__card--concept { background: transparent; border-style: dashed; }
 .chain-band__label { font-family: var(--__s9cmpx-font-families-mono, ui-monospace, monospace); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
-.chain-band__spark--emissions { color: #b07a10; } .chain-band__spark--concentration { color: #0A6E8C; } .chain-band__spark--temperature { color: #B3261E; }
+.chain-band__spark--emissions { color: #8A5A00; } .chain-band__spark--concentration { color: #0A6E8C; } .chain-band__spark--temperature { color: #B3261E; }
 [data-theme="analytics"] .chain-band__spark--emissions { color: #e5b955; } [data-theme="analytics"] .chain-band__spark--concentration { color: #5ecbf5; } [data-theme="analytics"] .chain-band__spark--temperature { color: #f2637e; }
-.chain-band__label--emissions { color: #b07a10; } .chain-band__label--concentration { color: #0A6E8C; } .chain-band__label--forcing { color: var(--area2-muted, var(--__s9cmpx-static-text-weak)); } .chain-band__label--temperature { color: #B3261E; }
+.chain-band__label--emissions { color: #8A5A00; } .chain-band__label--concentration { color: #0A6E8C; } .chain-band__label--forcing { color: var(--__s9cmpx-static-text-weak); } .chain-band__label--temperature { color: #B3261E; }
 [data-theme="analytics"] .chain-band__label--emissions { color: #e5b955; } [data-theme="analytics"] .chain-band__label--concentration { color: #5ecbf5; } [data-theme="analytics"] .chain-band__label--temperature { color: #f2637e; }
 @media (max-width: 1100px) {
   .chain-band__steps { grid-template-columns: 1fr; gap: 12px; }
@@ -37,7 +37,7 @@ function StepValue({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 'clamp(1.5rem, 2.4vw, 2rem)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{children}</div>;
 }
 
-const caption = { margin: 0, color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' } as const;
+const caption = { margin: 0, color: 'var(--__s9cmpx-static-text-weak)' } as const;
 
 export function ChainBand({ signal, emissions }: { signal: ClimateSignal; emissions: ChainBandEmissions }) {
   const { concentration, temperature, ppm1850, spliceYear, vintageCaveat } = signal;
@@ -49,7 +49,7 @@ export function ChainBand({ signal, emissions }: { signal: ClimateSignal; emissi
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: '8px 24px' }}>
         <div>
           <h2 id="chain-heading" className="landing-h2" style={{ margin: 0 }}>The chain reaction, step by step</h2>
-          <p className="__s9cmpx-body1" style={{ margin: '8px 0 0', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+          <p className="__s9cmpx-body1" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
             Global totals, built up over time. One country’s emissions in one year do not set that year’s temperature.
           </p>
         </div>

@@ -325,6 +325,16 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('img', { name: /scatter chart, one dot per year from 1850 to 2024/i })).toBeInTheDocument();
   });
 
+  it('the banner\'s baseline chip and source note sit inside the chart panel, which is dark in every theme, so both take the chart-surface colours (contrast regression)', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    const panel = document.querySelector('.climate-chart-panel') as HTMLElement;
+    const chip = within(panel).getByText('Baseline 1850–1900 · Berkeley Earth');
+    expect(panel.contains(chip)).toBe(true);
+    expect(chip).toHaveStyle({ color: 'var(--__s9cmpx-chart-surface-text-weak)' });
+    expect(within(panel).getByText(/Source: Berkeley Earth/)).toHaveStyle({ color: 'var(--__s9cmpx-chart-surface-text-weak)' });
+  });
+
   it('has a Pause button first in tab order; the button alone decides auto-rotate: a manual slide change leaves it on, Pause stops it', async () => {
     mountWithClimate();
     const region = await screen.findByRole('region', { name: 'Featured' });

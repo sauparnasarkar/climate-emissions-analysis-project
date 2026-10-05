@@ -53,7 +53,7 @@ export function ShareBar({ title, subtitle, order, values, rest, tween }: BarPro
     <div className="share-bar-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(96px, 150px) minmax(0, 1fr)', gap: 12, alignItems: 'center' }}>
       <div>
         <div className="__s9cmpx-label3">{title}</div>
-        <div className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{subtitle}</div>
+        <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{subtitle}</div>
       </div>
       <div role="img" aria-label={`${title}: ${summary}`} style={{ display: 'flex', gap: 2, height: 44 }}>
         {order.map((c, i) => segment(c.code, c.color, values[i], segmentLabel(c.code, values[i])))}
@@ -108,11 +108,11 @@ export function ShareSection({ countries, year, pagePlaying }: { countries: stri
           </Button>
           {replaying && (
             <div aria-hidden style={{ flex: '1 1 80px', height: 4, borderRadius: 2, background: 'var(--__s9cmpx-static-divider-weak)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', width: `${year > first ? ((shown - first) / (year - first)) * 100 : 100}%`, background: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }} />
+              <div style={{ height: '100%', width: `${year > first ? ((shown - first) / (year - first)) * 100 : 100}%`, background: 'var(--__s9cmpx-color-brand-500)' }} />
             </div>
           )}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 8 }}>
-            <span className="__s9cmpx-body4" style={{ color: replaying ? 'var(--area2-warning, #6E4800)' : 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{replaying ? 'replaying · temporary' : 'page year'}</span>
+            <span className="__s9cmpx-body4" style={{ color: replaying ? 'var(--area2-warning, #6E4800)' : 'var(--__s9cmpx-static-text-weak)' }}>{replaying ? 'replaying · temporary' : 'page year'}</span>
             <span aria-live="off" className="__s9cmpx-headline5" style={{ fontVariantNumeric: 'tabular-nums', minWidth: 56, textAlign: 'right' }}>{shown}</span>
           </div>
         </div>
@@ -131,18 +131,18 @@ export function ShareSection({ countries, year, pagePlaying }: { countries: stri
           {flow && frames.restFlow ? (
             <ShareBar title="The flow" subtitle={`Annual, ${shown} only`} order={order} values={flow} rest={frames.restFlow[yi]} tween={!reduceMotion} />
           ) : (
-            <p className="__s9cmpx-body4" style={{ margin: 0, color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+            <p className="__s9cmpx-body4" style={{ margin: 0, color: 'var(--__s9cmpx-static-text-weak)' }}>
               The annual (flow) shares are not published yet in this data release; the stock bar is unaffected.
             </p>
           )}
         </div>
         )}
         <table style={{ width: '100%', maxWidth: 640, marginTop: 12, borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
-          <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))', paddingBottom: 4 }}>
+          <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--__s9cmpx-static-text-weak)', paddingBottom: 4 }}>
             Share by country, {shown}
           </caption>
           <thead>
-            <tr className="__s9cmpx-label4" style={{ textAlign: 'right', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+            <tr className="__s9cmpx-label4" style={{ textAlign: 'right', color: 'var(--__s9cmpx-static-text-weak)' }}>
               <th scope="col" style={{ textAlign: 'left', fontWeight: 600 }}>Country</th>
               <th scope="col" style={{ fontWeight: 600 }}>Stock</th>
               {flow && <th scope="col" style={{ fontWeight: 600 }}>Flow</th>}
@@ -174,7 +174,7 @@ export function ShareSection({ countries, year, pagePlaying }: { countries: stri
             </tr>
           </tbody>
         </table>
-        <p className="__s9cmpx-body4" style={{ margin: '10px 0 0', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
+        <p className="__s9cmpx-body4" style={{ margin: '10px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
           {frames.label} · denominator = sum of national emissions, international aviation and shipping excluded. Replay animates {first} → the page year at about a quarter of a second a year and changes nothing else on the page. Same selected countries in both bars, same colours. Shares describe contribution to emissions; no warming is attributed to a country.
         </p>
       </>

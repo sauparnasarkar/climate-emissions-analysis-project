@@ -21,6 +21,14 @@ describe('BaselineChip', () => {
     rerender(<BaselineChip baseline="1850–1900" />);
     expect(screen.getByText('Baseline 1850–1900')).toBeInTheDocument();
   });
+
+  it('on a page surface uses the shared muted colour and chip surface; inside a chart panel (dark in every theme) the chart-surface muted colour and a light translucent surface', () => {
+    render(<><BaselineChip baseline="A" /><BaselineChip baseline="B" inChartPanel /></>);
+    expect(screen.getByText('Baseline A')).toHaveStyle({ color: 'var(--__s9cmpx-static-text-weak)' });
+    const onPanel = screen.getByText('Baseline B');
+    expect(onPanel).toHaveStyle({ color: 'var(--__s9cmpx-chart-surface-text-weak)', background: 'rgba(255, 255, 255, 0.12)' });
+    expect(screen.getByText('Baseline A').style.background).not.toContain('255, 255, 255');
+  });
 });
 
 describe('BaselineInfo', () => {
@@ -54,6 +62,12 @@ describe('PurposeLine and SourceNote', () => {
     render(<><PurposeLine>show the long-term relationship</PurposeLine><SourceNote sources={['OWID', 'Berkeley Earth']}>file of Jan 2025</SourceNote></>);
     expect(screen.getByText('Purpose:')).toBeInTheDocument();
     expect(screen.getByText(/Source: OWID · Berkeley Earth — file of Jan 2025/)).toBeInTheDocument();
+  });
+
+  it('a note on a chart panel (dark in every theme) takes the chart-surface muted colour, any other note the shared muted colour', () => {
+    render(<><SourceNote sources={['A']} inChartPanel /><SourceNote sources={['B']} /></>);
+    expect(screen.getByText(/Source: A/)).toHaveStyle({ color: 'var(--__s9cmpx-chart-surface-text-weak)' });
+    expect(screen.getByText(/Source: B/)).toHaveStyle({ color: 'var(--__s9cmpx-static-text-weak)' });
   });
 });
 
