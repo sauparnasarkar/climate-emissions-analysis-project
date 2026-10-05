@@ -1010,6 +1010,29 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     expect(document.getElementById('pct-change')).not.toBeNull(); // bookmarked links still land
   });
 
+  it('on a phone the page year is a chip in the anchor row that opens a bottom sheet (not the desktop select), and the row is one scrolling line', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((q: string) => ({ matches: q === '(max-width: 640px)', media: q, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    mountFullRange(2010);
+    const chip = await screen.findByRole('button', { name: /^Year 2010/ });
+    expect(screen.queryByRole('group', { name: 'Page year' })).not.toBeInTheDocument(); // one control at a time
+    const row = chip.closest('[style*="position: sticky"]') as HTMLElement;
+    expect(row.querySelector('.area2-anchor-line')).not.toBeNull();
+    expect(row.querySelector('.area2-anchor-scroll nav')).not.toBeNull(); // the jump links are inside the scrolling part, the chip outside it
+    expect(row.querySelector('.area2-anchor-scroll')!.contains(chip)).toBe(false);
+    expect(chip.compareDocumentPosition(row.querySelector('nav')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // led by the chip
+    fireEvent.click(chip);
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Page year' })).getByRole('button', { name: '1990' }));
+    expect(DEFAULT_ANIMATION.seek).toHaveBeenCalledWith(1990);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    // (beforeEach re-stubs matchMedia for the next test; unstubAllGlobals would also wipe the shared ResizeObserver stub)
+  });
+
+  it('above phone width there is no chip: the select and Play stay at the row\'s right', async () => {
+    mountFullRange(2010);
+    await screen.findByRole('group', { name: 'Page year' });
+    expect(screen.queryByRole('button', { name: /^Year 2010/ })).not.toBeInTheDocument();
+  });
+
   it('puts a sticky Year control in the anchor bar that moves the same year as the map (one value, not two)', async () => {
     mountFullRange(2010);
     const group = await screen.findByRole('group', { name: 'Page year' });

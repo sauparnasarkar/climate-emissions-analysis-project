@@ -20,6 +20,9 @@ import { PAGE_YEAR_STEP, usePageYear } from '../hooks/usePageYear';
 import type { UseYearAnimationResult } from '../hooks/useYearAnimation';
 import { useElementHeight } from '../hooks/useElementHeight';
 import { PageYearControl } from '../components/overview/PageYearControl';
+import { PageYearMobile } from '../components/overview/PageYearMobile';
+import { AnchorScroll, STICKY_HEADER_PX, StickyAnchorRow } from '../components/StickyAnchorRow';
+import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { YearBadge } from '../components/overview/YearBadge';
 import { PathwaysSection } from '../components/overview/PathwaysSection';
 import { PATHWAYS_ANCHOR, buildPathways } from '../lib/pathways';
@@ -47,7 +50,6 @@ const JUMP_ITEMS: JumpLinkItem[] = [
 ];
 // The dashboard header is pinned at the top and 68 px tall (App header minHeight; styles.css offsets every anchor by the same 68). The
 // anchor row sticks just below it, so jump targets get that plus the row's own height as their scroll margin.
-const STICKY_HEADER_PX = 68;
 const JUMP_ROW_PX = 52; // the row's height plus a gap on one line; the measured height replaces it where the row wraps (Year control under the links)
 const JUMP_ROW_GAP_PX = 10;
 
@@ -563,6 +565,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   const worldMapSeries = globeSeries ?? null;
   // One year for the map, tiers, ranking and ppm card (and, in later steps, Share, By Country and % Change), set by the sticky control or the map.
   const pageYear = usePageYear(worldMapSeries?.years ?? null);
+  const isPhone = useMediaQuery(PHONE_QUERY);
   // The sticky anchor row's real height (it wraps to two lines on a narrow screen), so jump targets clear all of it.
   const [stickyRow, setStickyRow] = useState<HTMLElement | null>(null);
   const stickyRowHeight = useElementHeight(stickyRow);
@@ -642,14 +645,16 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
       {/* Breathing room below the jump links: the active link's underline used to sit flush against the
           map card's accent top rule (and its shadow), reading as one muddled line. */}
       {/* Sticks to the top while the page scrolls (requirements §2.2 wireframes: anchor / deep-link support). */}
-      <div ref={setStickyRow} style={{ marginBottom: 16, position: 'sticky', top: STICKY_HEADER_PX, zIndex: 5, background: 'var(--__s9cmpx-static-background-weak)', padding: '4px 0' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px 16px', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+      <StickyAnchorRow innerRef={setStickyRow}>
+        <div className="area2-anchor-line">
+          {/* On a phone the page year is a chip at the row's left that opens a bottom sheet (decision 69); above that, the select + Play at its right. */}
+          {isPhone && <PageYearMobile stops={yearStops} year={pageYear.currentYear} isPlaying={pageYear.isPlaying} onSelect={pageYear.seek} onToggle={pageYear.toggle} />}
+          <AnchorScroll>
             <JumpLinks items={[CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS, ...(pathways ? [PATHWAYS_JUMP] : [])]} />
-          </div>
-          <PageYearControl stops={yearStops} year={pageYear.currentYear} isPlaying={pageYear.isPlaying} onSelect={pageYear.seek} onToggle={pageYear.toggle} />
+          </AnchorScroll>
+          {!isPhone && <PageYearControl stops={yearStops} year={pageYear.currentYear} isPlaying={pageYear.isPlaying} onSelect={pageYear.seek} onToggle={pageYear.toggle} />}
         </div>
-      </div>
+      </StickyAnchorRow>
 
       <section id={CLIMATE_SIGNAL_ANCHOR} aria-labelledby="climate-signal-heading" style={{ marginBottom: 16 }}>
         <h2 id="climate-signal-heading" className="__s9cmpx-headline5" style={{ margin: '0 0 12px' }}>What is happening globally</h2>

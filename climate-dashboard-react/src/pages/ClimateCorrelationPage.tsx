@@ -7,6 +7,7 @@ import { CausalChain } from '../components/module/CausalChain';
 import { CountryView } from '../components/module/CountryView';
 import { GasComposition } from '../components/module/GasComposition';
 import { DerivationAccordion } from '../components/module/DerivationAccordion';
+import { AnchorScroll, STICKY_HEADER_PX, StickyAnchorRow } from '../components/StickyAnchorRow';
 import { MethodologySection } from '../components/module/MethodologySection';
 import { ScenarioSection } from '../components/module/ScenarioSection';
 import { AllGasRelationship } from '../components/module/AllGasRelationship';
@@ -28,7 +29,6 @@ import { SCENARIOS_ANCHOR, buildScenarioView } from '../lib/scenarioView';
 import { latestWorldTotal } from '../lib/mapSeries';
 import { CLIMATE_SERIES_START_YEAR } from '../constants';
 
-const STICKY_HEADER_PX = 68;
 const JUMP_ROW_PX = 52;
 const JUMP_ROW_GAP_PX = 10;
 
@@ -90,9 +90,13 @@ export default function ClimateCorrelationPage() {
         Emissions raise atmospheric CO₂, which traps heat and warms the planet. This module reads that chain from
         observations. It is descriptive: correlation is shown as context, not as proof of cause.
       </p>
-      <div ref={setStickyRow} style={{ marginBottom: 16, position: 'sticky', top: STICKY_HEADER_PX, zIndex: 5, background: 'var(--__s9cmpx-static-background-weak)', padding: '4px 0' }}>
-        <JumpLinks items={jumpItems} />
-      </div>
+      <StickyAnchorRow innerRef={setStickyRow}>
+        <div className="area2-anchor-line">
+          <AnchorScroll>
+            <JumpLinks items={jumpItems} />
+          </AnchorScroll>
+        </div>
+      </StickyAnchorRow>
       {!climate.settled ? (
         <Spinner />
       ) : !signal || !headline ? (

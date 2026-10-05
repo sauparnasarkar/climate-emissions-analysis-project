@@ -37,6 +37,14 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); window.h
 const mount = (hash = '') => render(<MemoryRouter initialEntries={[`/climate-correlation${hash}`]}><ClimateCorrelationPage /></MemoryRouter>);
 
 describe('ClimateCorrelationPage — causal chain and headline relationship', () => {
+  it('keeps the anchor row on one scrolling line on a phone (its links sit inside the scrolling part of a single-line row)', async () => {
+    mount();
+    const nav = await screen.findByRole('navigation', { name: 'Jump links' });
+    const row = nav.closest('[style*="position: sticky"]') as HTMLElement;
+    expect(row.querySelector('.area2-anchor-line > .area2-anchor-scroll nav')).toBe(nav);
+    expect(row.querySelector('style')!.textContent).toMatch(/\.area2-anchor-scroll nav ul \{ flex-wrap: nowrap !important/);
+  });
+
   it('shows the intro, a sticky anchor row, the four-step chain and the headline relationship from the API', async () => {
     mount();
     expect(await screen.findByRole('heading', { level: 1, name: 'Temperature & GHG Correlation' })).toBeInTheDocument();
