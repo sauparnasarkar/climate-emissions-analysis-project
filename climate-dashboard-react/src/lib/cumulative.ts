@@ -75,7 +75,7 @@ export interface CumulativeBase {
  * or a year outside the published coverage is "unavailable" and the toggle stays on Absolute.
  */
 export function cumulativeBaseFrom(snapshot: CorrelationCountryShareResponse | null | undefined, year: number): CumulativeBase | null {
-  if (!snapshot || snapshot.mode !== 'ranking' || snapshot.year !== year || snapshot.rows.length === 0) return null;
+  if (!snapshot || snapshot.mode !== 'ranking' || snapshot.limit !== null || snapshot.year !== year || snapshot.rows.length === 0) return null;
   const [lo, hi] = snapshot.coverage ?? [];
   if (lo != null && hi != null && (year < lo || year > hi)) return null;
   return { byIso: Object.fromEntries(snapshot.rows.map((r) => [r.country, r.cumulative_mt])), from: snapshot.cumulative_from };
