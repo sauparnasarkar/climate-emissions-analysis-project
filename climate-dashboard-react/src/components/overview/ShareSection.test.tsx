@@ -100,6 +100,33 @@ describe('ShareSection', () => {
     expect(screen.getByRole('img', { name: /^The stock/ })).toBeInTheDocument();
   });
 
+  it('draws the table only, with a warning, when a published share is negative', async () => {
+    vi.mocked(api.correlationCountryShare).mockResolvedValue(shareResponse([
+      ['USA', 'United States', [[2023, 24, 13], [2024, 23, -1]]], ['CHN', 'China', [[2023, 15, 30], [2024, 16, 10]]],
+    ]));
+    mount();
+    expect(await screen.findByText(/negative \(a recorded data deviation\)/)).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: /^The (stock|flow)/ })).not.toBeInTheDocument();
+    expect(await screen.findByText('Share by country, 2024')).toBeInTheDocument();
+    expect(tableCell('United States', 1)).toBe('-1.0%');
+  });
+
+  it('names a country with no data in the measure and leaves it out rather than showing 0.0%', async () => {
+    vi.mocked(api.correlationCountryShare).mockResolvedValue({
+      ...shareResponse([['USA', 'United States', [[2023, 24, 13], [2024, 23, 12]]], ['TWN', 'Taiwan', []]]),
+      notes: ['no PRIMAP-hist rows for TWN'],
+    });
+    mount(['USA', 'TWN']);
+    expect(await screen.findByText(/No data in this measure for Taiwan; it is left out\. no PRIMAP-hist rows for TWN/)).toBeInTheDocument();
+    expect(screen.queryByRole('row', { name: /^Taiwan/ })).not.toBeInTheDocument();
+  });
+
+  it('describes the measure neutrally, not as CO₂', async () => {
+    mount();
+    expect(await screen.findByText(/everything emitted so far, by the measure chosen below/)).toBeInTheDocument();
+    expect(screen.queryByText(/all CO₂ emitted/)).not.toBeInTheDocument();
+  });
+
   it('shows the API\'s own message when the request fails', async () => {
     vi.mocked(api.correlationCountryShare).mockRejectedValue(new ApiError(404, 'unknown country code(s): XYZ'));
     mount(['XYZ']);

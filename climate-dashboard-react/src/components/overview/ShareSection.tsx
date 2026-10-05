@@ -84,7 +84,10 @@ export function ShareSection({ countries }: { countries: string[] }) {
   const body = (() => {
     if (countries.length === 0) return <p className="__s9cmpx-body3" style={{ margin: 0 }}>Select countries in the picker below to compare their shares.</p>;
     if (query.error) return <InlineAlert variant="warning">{query.error}</InlineAlert>;
-    if (!frames) return <p className="__s9cmpx-body3" style={{ margin: 0 }}>{query.loading ? 'Loading…' : 'No share data is available for these countries.'}</p>;
+    if (!frames) {
+      const why = query.data?.notes?.length ? ` ${query.data.notes.join(' ')}` : '';
+      return <p className="__s9cmpx-body3" style={{ margin: 0 }}>{query.loading ? 'Loading…' : `No share data is available for these countries in this measure.${why}`}</p>;
+    }
     const { order } = frames;
     const stock = frames.stock[yi];
     const flow = frames.flow ? frames.flow[yi] : null;
@@ -98,6 +101,16 @@ export function ShareSection({ countries }: { countries: string[] }) {
           </div>
           <span aria-live="off" className="__s9cmpx-headline5" style={{ fontVariantNumeric: 'tabular-nums', minWidth: 56, textAlign: 'right' }}>{year}</span>
         </div>
+        {frames.missing.length > 0 && (
+          <InlineAlert variant="warning">
+            No data in this measure for {frames.missing.map((m) => m.name).join(', ')}; {frames.missing.length === 1 ? 'it is' : 'they are'} left out.{frames.notes.length ? ` ${frames.notes.join(' ')}` : ''}
+          </InlineAlert>
+        )}
+        {frames.signed ? (
+          <InlineAlert variant="warning">
+            Some published shares in this measure are negative (a recorded data deviation), which stacked bars cannot show honestly, so only the table below is drawn.
+          </InlineAlert>
+        ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <ShareBar title="The stock" subtitle={`Cumulative${frames.cumulativeFrom != null ? ` ${frames.cumulativeFrom}` : ''}–${year}`} order={order} values={stock} rest={frames.restStock[yi]} tween={!reduceMotion} />
           {flow && frames.restFlow ? (
@@ -108,6 +121,7 @@ export function ShareSection({ countries }: { countries: string[] }) {
             </p>
           )}
         </div>
+        )}
         <table style={{ width: '100%', maxWidth: 640, marginTop: 12, borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
           <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--__s9cmpx-static-text-weak)', paddingBottom: 4 }}>
             Share by country, {year}
@@ -170,7 +184,7 @@ export function ShareSection({ countries }: { countries: string[] }) {
         title="Who emitted the stock, and who emits now"
         headingLevel={2}
       >
-        <PurposeLine>compare each selected country&apos;s part of all CO₂ emitted so far with its part of a single year.</PurposeLine>
+        <PurposeLine>compare each selected country&apos;s part of everything emitted so far, by the measure chosen below, with its part of a single year.</PurposeLine>
         {/* Phones: the bars stack under their titles and drop the inline labels (the table below carries every value). */}
         <style>{`@media (max-width: 640px) { .share-bar-row { grid-template-columns: minmax(0, 1fr) !important; gap: 4px !important; } .share-seg-label { display: none; } }`}</style>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 12px', marginBottom: 8 }}>

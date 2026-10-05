@@ -17,12 +17,25 @@ describe('buildShareFrames', () => {
     expect(f.flow).toEqual([[13, 30], [12.5, 32]]);
   });
 
-  it('makes Rest of world what the selected leave of 100, never negative', () => {
+  it('makes Rest of world what the selected leave of 100', () => {
     const f = buildShareFrames(resp)!;
     expect(f.restStock[1]).toBeCloseTo(60.5);
     expect(f.restFlow![1]).toBeCloseTo(55.5);
+    expect(f.signed).toBe(false);
+  });
+
+  it('is signed when a published share is negative or the countries add up to more than 100, so the bars are not drawn', () => {
+    expect(buildShareFrames(shareResponse([['USA', 'United States', [[2024, 24, -1]]], ['CHN', 'China', [[2024, 16, 10]]]]))!.signed).toBe(true);
     const over = buildShareFrames(shareResponse([['USA', 'United States', [[2024, 60, 60]]], ['CHN', 'China', [[2024, 41, 41]]]]))!;
-    expect(over.restStock[0]).toBe(0);
+    expect(over.restStock[0]).toBeCloseTo(-1);
+    expect(over.signed).toBe(true);
+  });
+
+  it('leaves out a country the API answered with no rows (and says so), instead of showing it as 0', () => {
+    const f = buildShareFrames(shareResponse([['USA', 'United States', [[2023, 24, 13], [2024, 23, 12]]], ['TWN', 'Taiwan', []]]))!;
+    expect(f.order.map((c) => c.code)).toEqual(['USA']);
+    expect(f.missing).toEqual([{ code: 'TWN', name: 'Taiwan' }]);
+    expect(buildShareFrames(shareResponse([['TWN', 'Taiwan', []]]))).toBeNull();
   });
 
   it('treats a year a country has no point for as 0 (it had not started reporting)', () => {

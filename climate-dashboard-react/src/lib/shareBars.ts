@@ -35,13 +35,21 @@ export interface ShareFrames {
   restFlow: number[] | null;
   cumulativeFrom: number | null;
   label: string;
+  /** True when any published share is negative (the pipeline records a deviation but still publishes it) or the countries add up to more than
+   * 100 %: stacked bars cannot show that honestly, so the view falls back to the table. */
+  signed: boolean;
+  /** Selected countries the API answered with no rows for this measure/range (it says why in `notes`); they are left out of the bars, never shown as 0. */
+  missing: Array<{ code: string; name: string }>;
+  notes: string[];
 }
 
-const rest = (row: number[]) => Math.max(0, 100 - row.reduce((a, b) => a + b, 0));
+const rest = (row: number[]) => 100 - row.reduce((a, b) => a + b, 0);
 
 /** Per-year stock and flow shares for the selected countries from a /country-share series response, or null when it carries no points. */
 export function buildShareFrames(resp: CorrelationCountryShareResponse | null | undefined): ShareFrames | null {
-  const series = resp?.series ?? [];
+  const all = resp?.series ?? [];
+  const series = all.filter((s) => s.points.length > 0);
+  const missing = all.filter((s) => s.points.length === 0).map((s) => ({ code: s.country, name: s.name }));
   const years = [...new Set(series.flatMap((s) => s.points.map((p) => p.year)))].sort((a, b) => a - b);
   if (!resp || series.length === 0 || years.length === 0) return null;
   const byYear = series.map((s) => new Map(s.points.map((p) => [p.year, p])));
@@ -51,7 +59,11 @@ export function buildShareFrames(resp: CorrelationCountryShareResponse | null | 
   const stock = years.map((y) => idx.map((i) => byYear[i].get(y)?.share_pct ?? 0));
   const hasFlow = series.some((s) => s.points.some((p) => p.annual_share_pct != null));
   const flow = hasFlow ? years.map((y) => idx.map((i) => byYear[i].get(y)?.annual_share_pct ?? 0)) : null;
-  return { years, order, stock, flow, restStock: stock.map(rest), restFlow: flow ? flow.map(rest) : null, cumulativeFrom: resp.cumulative_from, label: resp.label };
+  const restStock = stock.map(rest);
+  const restFlow = flow ? flow.map(rest) : null;
+  const rows = [...stock, ...(flow ?? [])];
+  const signed = rows.some((r) => r.some((v) => v < 0)) || [...restStock, ...(restFlow ?? [])].some((v) => v < -0.05);
+  return { years, order, stock, flow, restStock, restFlow, cumulativeFrom: resp.cumulative_from, label: resp.label, signed, missing, notes: resp.notes ?? [] };
 }
 
 /** Inline label for a segment of `pct` %: code and value when wide, the code alone when narrow, nothing when too narrow to read. */
