@@ -21,6 +21,14 @@ describe('BaselineChip', () => {
     rerender(<BaselineChip baseline="1850–1900" />);
     expect(screen.getByText('Baseline 1850–1900')).toBeInTheDocument();
   });
+
+  it('on a page surface uses the shared muted colour and chip surface; inside a chart panel (dark in every theme) the chart-surface muted colour and a light translucent surface', () => {
+    render(<><BaselineChip baseline="A" /><BaselineChip baseline="B" inChartPanel /></>);
+    expect(screen.getByText('Baseline A')).toHaveStyle({ color: 'var(--__s9cmpx-static-text-weak)' });
+    const onPanel = screen.getByText('Baseline B');
+    expect(onPanel).toHaveStyle({ color: 'var(--__s9cmpx-chart-surface-text-weak)', background: 'rgba(255, 255, 255, 0.12)' });
+    expect(screen.getByText('Baseline A').style.background).not.toContain('255, 255, 255');
+  });
 });
 
 describe('BaselineInfo', () => {
