@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { FORECAST_END_YEAR } from '../../constants';
 import { fmtAnomaly, type ClimateSignal } from '../../lib/climateSignal';
-import { NOT_A_CLIMATE_MODEL } from '../../lib/climateCopy';
+import { CLIMATE_SIGNAL_ANCHOR, NOT_A_CLIMATE_MODEL } from '../../lib/climateCopy';
+import { CHART_PANEL_STYLES } from '../climate/chartPanel';
 import { BaselineChip } from '../climate/BaselineChip';
 import { SourceNote } from '../climate/SourceNote';
 import { ctaClass } from './cta';
@@ -11,13 +12,11 @@ import { ClimateScatter, ScatterLegend } from './ClimateScatter';
 // API. It states a long-run, global, cumulative relationship -- never that one country's or one year's
 // emissions set that year's temperature.
 
-export const CLIMATE_BANNER_STYLES = `
+export const CLIMATE_BANNER_STYLES = CHART_PANEL_STYLES + `
 .climate-banner { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 4vw, 56px); align-items: center; padding: clamp(16px, 3vh, 48px) var(--landing-pad-x); }
 .climate-banner__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--__s9cmpx-static-divider-weak); border-bottom: 1px solid var(--__s9cmpx-static-divider-weak); }
 .climate-banner__metrics > div { padding: 14px 14px 14px 0; }
 .climate-banner__metrics > div + div { padding-left: 14px; border-left: 1px solid var(--__s9cmpx-static-divider-weak); }
-.climate-chart-panel { border-radius: 12px; padding: 16px 18px; background: #182746; color: #d7e0f0; display: flex; flex-direction: column; gap: 10px; }
-[data-theme="analytics-bright-tidewater"] .climate-chart-panel { background: #061E28; }
 /* Text on the page background (not on the dark chart panel): the design's per-theme series colours. */
 .climate-metric--temperature { color: #f2637e; }
 .climate-metric--concentration { color: #5ecbf5; }
@@ -59,7 +58,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
           <Metric value={`${fit.slope.toFixed(2)} °C`} caption="per 1,000 GtCO₂ emitted" />
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Link to="/overview#climate-signal" className={ctaClass('primary')} style={{ textDecoration: 'none' }}>See the climate signal</Link>
+          <Link to={`/overview#${CLIMATE_SIGNAL_ANCHOR}`} className={ctaClass('primary')} style={{ textDecoration: 'none' }}>See the climate signal</Link>
           <Link to="/overview" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>Explore the data</Link>
           <Link to="/forecasts" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>Forecasts to {FORECAST_END_YEAR} →</Link>
         </div>

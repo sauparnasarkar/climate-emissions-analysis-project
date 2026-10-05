@@ -8,6 +8,12 @@
 // (Historical Trends, Overview) so the two never drift.
 export const MAX_SELECTED_COUNTRIES = 10;
 
+// Mirrors api/constants.py's WORLD_MAP_YEAR_START / PCT_CHANGE_BASELINE_YEAR: the project's baseline year ("1990 = 100"), kept for the
+// ML training window. Area 2's globe and relationship chart read the longer 1970 series; everything indexed or "since" uses this.
+export const BASELINE_YEAR = 1990;
+// The year the Area 2 globe, map and relationship chart start from (requirements §2.6).
+export const CLIMATE_SERIES_START_YEAR = 1970;
+
 // Same numeric convention as MAX_SELECTED_COUNTRIES above (a chart with more than 10 series
 // stops being readable), but a distinct constant since it governs a different concern:
 // render-time chart legibility for agent-driven widgets (WidgetRenderer.tsx), not picker
