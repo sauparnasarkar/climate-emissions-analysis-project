@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ClimateKpiStrip } from '../components/overview/ClimateKpiStrip';
 import { RelationshipSection } from '../components/overview/RelationshipSection';
@@ -16,7 +16,9 @@ import { ShareSection, SHARE_ANCHOR } from '../components/overview/ShareSection'
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useCountUp } from '../hooks/useCountUp';
-import { useYearAnimation } from '../hooks/useYearAnimation';
+import { PAGE_YEAR_STEP, usePageYear } from '../hooks/usePageYear';
+import type { UseYearAnimationResult } from '../hooks/useYearAnimation';
+import { PageYearControl } from '../components/overview/PageYearControl';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { buildHeadlineSentence } from '../lib/overviewHeadline';
@@ -47,12 +49,10 @@ const JUMP_ROW_PX = 52;
 const CLIMATE_SIGNAL_JUMP: JumpLinkItem = { id: CLIMATE_SIGNAL_ANCHOR, label: 'Climate signal', href: `#${CLIMATE_SIGNAL_ANCHOR}` };
 const RELATIONSHIP_JUMP: JumpLinkItem = { id: RELATIONSHIP_ANCHOR, label: 'Relationship', href: `#${RELATIONSHIP_ANCHOR}` };
 
-// The choropleth steps by decade (1970, 1980 … 2020, then the latest year; requirements §2.6) and dwells ~1.75 s at each stop with the
-// values, cards and the ppm panel all showing the same year. Year-over-year change is gradual enough to be hard to notice, while a
-// decade jump is glaring; the slider and the stop buttons still reach any year. The KPI tier numbers snap directly to their new value
-// each stop rather than counting up -- no separate animation duration to coordinate with this one.
-const ANIMATION_STOP_MS = 1750;
-const DECADE_STEP = 10;
+// The page year (usePageYear) steps by decade (1970, 1980 … 2020, then the latest year; requirements §2.6) and dwells ~1.75 s at each stop with
+// the map, cards and the ppm panel all showing the same year. Year-over-year change is gradual enough to be hard to notice, while a decade
+// jump is glaring; the slider and the stop buttons still reach any year. The KPI tier numbers snap directly to their new value each stop
+// rather than counting up -- no separate animation duration to coordinate with this one.
 
 // A muted neutral clearly outside MAGNITUDE_SCALE's pale-yellow-to-deep-maroon ramp, so a
 // no-data country never gets mistaken for a real (if low) value. The old hardcoded '#4a4a4a'
@@ -232,9 +232,7 @@ function OverviewHeadline({ headlineMovers, scope, latestYear }: { headlineMover
   );
 }
 
-// Only ever mounted once worldMapSeries has actually loaded (see OverviewContent's gate) --
-// so useYearAnimation below always receives its real min/max year from this component's very
-// first render, never a placeholder that would need to change after mount.
+// Only ever mounted once worldMapSeries has actually loaded (see OverviewContent's gate).
 function AnimatedWorldMap({
   worldMapSeries,
   selected,
@@ -244,6 +242,7 @@ function AnimatedWorldMap({
   headlineMovers,
   concentration,
   cumulative,
+  pageYear,
 }: {
   /** The 1970-based series the map plays; the tiers' API totals cover its 1990-and-later part */
   worldMapSeries: WorldMapTimeSeries;
@@ -255,6 +254,8 @@ function AnimatedWorldMap({
   concentration: ConcentrationContext | null;
   /** Each country's cumulative CO₂ (Mt) at the last year before the series, from the all-countries snapshot; null while loading or if unavailable */
   cumulative: { byIso: Record<string, number>; from: number | null } | null;
+  /** The page's shared year and its Play/scrub controls (the sticky Year control drives the same value). */
+  pageYear: UseYearAnimationResult;
 }) {
   const minYear = worldMapSeries.years[0];
   const maxYear = worldMapSeries.years[worldMapSeries.years.length - 1];
@@ -265,17 +266,10 @@ function AnimatedWorldMap({
   // comment). noDataColorHex is itself in the memo's deps below, not `theme`, so the memo
   // recomputes exactly when the hook's corrective re-render actually changes the value.
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
-  // Autoplay begins when the map scrolls into view rather than on page load.
-  const mapRef = useRef<HTMLDivElement>(null);
-  const { currentYear, isPlaying, toggle, seek } = useYearAnimation({
-    minYear,
-    maxYear,
-    intervalMs: ANIMATION_STOP_MS,
-    stepYears: DECADE_STEP,
-    startWhenVisible: mapRef,
-  });
+  // The year is the page's (usePageYear), not the map's own: the map's Play, stops and slider move the same value as the sticky Year control.
+  const { currentYear, isPlaying, toggle, seek } = pageYear;
   const yearIdx = currentYear - minYear;
-  const stops = useMemo(() => computeAutoplayStops(minYear, maxYear, DECADE_STEP), [minYear, maxYear]);
+  const stops = useMemo(() => computeAutoplayStops(minYear, maxYear, PAGE_YEAR_STEP), [minYear, maxYear]);
   // Table view: an accessible, sortable alternative to the map (all countries, current year).
   const [tableView, setTableView] = useState(false);
 
@@ -448,7 +442,7 @@ function AnimatedWorldMap({
             "Reset view" control (a different button, in a different location). */}
         {/* Hidden, not unmounted, in Table view: remounting would throw away the user's map zoom and
             re-run the whole choropleth draw. SyChart's own ResizeObserver resizes it on return. */}
-        <div ref={mapRef} style={{ display: tableView ? 'none' : undefined }}>
+        <div style={{ display: tableView ? 'none' : undefined }}>
         <SyChart
           showLegend={false}
           ariaLabel={
@@ -548,6 +542,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // read the same series; the tiers use the API's totals from the 1990 baseline and are summed from this series before it.
   const { data: globeSeries, error: worldMapError, loading: worldMapLoading } = useAsync(() => api.worldMapSeries(CLIMATE_SERIES_START_YEAR), []);
   const worldMapSeries = globeSeries ?? null;
+  // One year for the map, tiers, ranking and ppm card (and, in later steps, Share, By Country and % Change), set by the sticky control or the map.
+  const pageYear = usePageYear(worldMapSeries?.years ?? null);
+  const yearStops = useMemo(() => (worldMapSeries ? computeAutoplayStops(worldMapSeries.years[0], worldMapSeries.years[worldMapSeries.years.length - 1], PAGE_YEAR_STEP) : []), [worldMapSeries]);
   const climate = useClimateSignal();
   // Each country's cumulative CO₂ just before the map's first year (one all-countries snapshot, ~200 rows): the base for Cumulative mode.
   // If it fails the map simply offers Absolute only.
@@ -604,7 +601,12 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           map card's accent top rule (and its shadow), reading as one muddled line. */}
       {/* Sticks to the top while the page scrolls (requirements §2.2 wireframes: anchor / deep-link support). */}
       <div style={{ marginBottom: 16, position: 'sticky', top: STICKY_HEADER_PX, zIndex: 5, background: 'var(--__s9cmpx-static-background-weak)', padding: '4px 0' }}>
-        <JumpLinks items={[CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS]} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px 16px', flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+            <JumpLinks items={[CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS]} />
+          </div>
+          <PageYearControl stops={yearStops} year={pageYear.currentYear} isPlaying={pageYear.isPlaying} onSelect={pageYear.seek} onToggle={pageYear.toggle} />
+        </div>
       </div>
 
       <section id={CLIMATE_SIGNAL_ANCHOR} aria-labelledby="climate-signal-heading" style={{ marginBottom: 16 }}>
@@ -635,6 +637,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           expanded={expanded}
           concentration={concentrationContext}
           cumulative={cumulativeBase}
+          pageYear={pageYear}
           allCountriesTier={data.all_countries}
           expandedTier={data.expanded_countries}
           headlineMovers={data.headline_movers}
