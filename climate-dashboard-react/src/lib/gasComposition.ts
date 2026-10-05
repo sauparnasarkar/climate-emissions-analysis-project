@@ -20,6 +20,10 @@ export interface Composition {
   shares: number[][];
   basis: string;
   units: string;
+  /** How far the included gases' sum sits from PRIMAP-hist's own national total, in %, per year (null where not published) */
+  residualPct: Array<number | null>;
+  /** The API's own reconciliation check across all years: the largest gap and the tolerance it is held to, when published */
+  reconciliation: { maxAbsResidualPct: number; tolerancePct: number } | null;
   /** Trailing years the API left out as incomplete (stated beside the chart) */
   excludedIncompleteYears: number[];
   /** The API's caveats that belong beside this chart; licences and sources stay with the methodology */
@@ -51,6 +55,7 @@ export function buildComposition(resp: CorrelationGhgCompositionResponse | null 
   const years: number[] = [];
   const mt: number[][] = gases.map(() => []);
   const shares: number[][] = [];
+  const residualPct: Array<number | null> = [];
   for (const y of resp.years) {
     const byGas = new Map(y.values.map((v) => [v.gas, v]));
     const mtRow = gases.map((g) => num(byGas.get(g.id)?.mtco2e));
@@ -59,10 +64,14 @@ export function buildComposition(resp: CorrelationGhgCompositionResponse | null 
     years.push(y.year);
     mtRow.forEach((v, i) => mt[i].push(v as number));
     shares.push(shareRow as number[]);
+    residualPct.push(num(y.residual_pct));
   }
   if (years.length < 2) return null;
+  const maxAbs = num((resp.reconciliation as Record<string, unknown> | null)?.max_abs_residual_pct);
+  const tol = num((resp.reconciliation as Record<string, unknown> | null)?.tolerance_pct);
   return {
-    years, gases, mt, shares, basis: resp.basis, units: resp.units,
+    years, gases, mt, shares, residualPct, reconciliation: maxAbs !== null && tol !== null ? { maxAbsResidualPct: maxAbs, tolerancePct: tol } : null,
+    basis: resp.basis, units: resp.units,
     excludedIncompleteYears: resp.excluded_incomplete_years ?? [],
     caveats: (resp.caveats ?? []).filter((c): c is string => typeof c === 'string' && NEAR_CHART.test(c)),
   };

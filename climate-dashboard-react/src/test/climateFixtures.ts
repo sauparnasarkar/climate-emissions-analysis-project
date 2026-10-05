@@ -43,7 +43,7 @@ const gasValues = (co2: number, ch4: number, n2o: number, fgas: number) => {
   const total = co2 + ch4 + n2o + fgas;
   return [['co2', 'CO₂', co2], ['ch4', 'CH₄', ch4], ['n2o', 'N₂O', n2o], ['fgas', 'Fluorinated gases', fgas]].map(([gas, name, v]) => ({ gas, name, mtco2e: v, share_pct: ((v as number) / total) * 100 }));
 };
-const compYear = (year: number, ...v: [number, number, number, number]) => ({ year, gases_included: ['co2', 'ch4', 'n2o', 'fgas'], components_total_mtco2e: v.reduce((a, b) => a + b, 0), national_total_mtco2e: v.reduce((a, b) => a + b, 0), residual_pct: 0, values: gasValues(...v) });
+const compYear = (year: number, ...v: [number, number, number, number]) => ({ year, gases_included: ['co2', 'ch4', 'n2o', 'fgas'], components_total_mtco2e: v.reduce((a, b) => a + b, 0), national_total_mtco2e: v.reduce((a, b) => a + b, 0), residual_pct: 0.052, values: gasValues(...v) });
 
 /** `/ghg-composition` shaped like the real response: four gases, a few years, an incomplete trailing year excluded, the API's caveats. */
 export const COMPOSITION = {
@@ -54,7 +54,7 @@ export const COMPOSITION = {
   gases: [{ id: 'co2', name: 'CO₂' }, { id: 'ch4', name: 'CH₄' }, { id: 'n2o', name: 'N₂O' }, { id: 'fgas', name: 'Fluorinated gases' }],
   coverage: [1750, 2024], start_year: 1970, end_year: null, year: null,
   years: [compYear(1970, 15000, 6000, 1500, 100), compYear(2000, 26000, 7500, 2500, 800), compYear(2024, 37974, 8422, 2727, 1426)],
-  reconciliation: null, excluded_incomplete_years: [2025], notes: [],
+  reconciliation: { max_abs_residual_pct: 0.213, tolerance_pct: 1.0, note: 'components vs national total' }, excluded_incomplete_years: [2025], notes: [],
   caveats: [
     'Excludes international aviation and shipping and land-use change (national totals), so the share of CO2 in particular excludes deforestation.',
     "Shares are each gas's part of the sum of the gases included for that year, so they sum to 100.",

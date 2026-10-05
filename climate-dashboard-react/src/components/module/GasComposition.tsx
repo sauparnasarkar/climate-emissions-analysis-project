@@ -13,7 +13,7 @@ import { ShareBar } from '../overview/ShareSection';
  * international aviation and shipping -- and everything about the basis comes from the API.
  */
 export function GasComposition({ composition }: { composition: Composition }) {
-  const { years, gases, mt, shares, basis, units, excludedIncompleteYears, caveats } = composition;
+  const { years, gases, mt, shares, residualPct, reconciliation, basis, units, excludedIncompleteYears, caveats } = composition;
   const first = years[0];
   const last = years[years.length - 1];
   const [picked, setPicked] = useState<number | null>(null);
@@ -72,6 +72,12 @@ export function GasComposition({ composition }: { composition: Composition }) {
             ))}
           </tbody>
         </table>
+        {residualPct[yi] !== null && (
+          <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
+            Shares are of the four gases listed. Together they sit {Math.abs(residualPct[yi] as number).toFixed(2)}% {(residualPct[yi] as number) >= 0 ? 'above' : 'below'} PRIMAP-hist&apos;s own national total for {year}
+            {reconciliation ? ` (largest gap in any year ${reconciliation.maxAbsResidualPct.toFixed(2)}%, held to within ${reconciliation.tolerancePct}%)` : ''}.
+          </p>
+        )}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
           <BaselineChip baseline="none · shares of each year" source="PRIMAP-hist" />
           <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>

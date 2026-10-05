@@ -42,6 +42,11 @@ describe('GasComposition', () => {
     expect(screen.getByRole('img', { name: /^Gas split: CO₂ 75\.1%/ })).toBeInTheDocument();
   });
 
+  it('discloses how far the four gases sit from PRIMAP-hist\'s own national total, for the year shown', () => {
+    render(<GasComposition composition={buildComposition(COMPOSITION)!} />);
+    expect(screen.getByText(/Together they sit 0\.05% above PRIMAP-hist's own national total for 2024 \(largest gap in any year 0\.21%, held to within 1%\)/)).toBeInTheDocument();
+  });
+
   it('states the API\'s basis and the incomplete year it left out, with the caveats behind a disclosure and no licences', () => {
     render(<GasComposition composition={buildComposition(COMPOSITION)!} />);
     expect(screen.getByText(/AR5 100-year global-warming potentials/)).toBeInTheDocument();
@@ -148,6 +153,24 @@ describe('CountryView', () => {
     expect(await screen.findByText(/No country shares are available for 2024\. Coverage is 1850–2023\. no data for 2024/)).toBeInTheDocument();
     expect(screen.queryByText('Choose countries to compare their shares.')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Countries (up to 10)')).not.toBeInTheDocument();
+  });
+
+  it('names every selected country and shows the API\'s note when none of them has data, with no empty chart', async () => {
+    vi.mocked(api.correlationCountryShare).mockImplementation(async (o) => (o?.allCountries ? COUNTRY_SNAPSHOT : { ...shareResponse([['USA', 'United States', []], ['CHN', 'China', []]]), notes: ['no rows in this range'] }));
+    mount();
+    expect(await screen.findByText(/No data for United States, China; they are left out\. no rows in this range/)).toBeInTheDocument();
+    expect(screen.queryByText(/Share of cumulative CO₂, 2024/)).not.toBeInTheDocument();
+    expect(screen.queryByText('No share data is available for these countries.')).not.toBeInTheDocument();
+  });
+
+  it('labels a share with its own year when a country\'s series ends before the latest year', async () => {
+    vi.mocked(api.correlationCountryShare).mockImplementation(async (o) => (o?.allCountries ? COUNTRY_SNAPSHOT : shareResponse([['USA', 'United States', [[1850, 4, 1], [2024, 24.1, 1]]], ['CHN', 'China', [[1850, 1, 1], [2019, 12.5, 1]]]])));
+    mount();
+    await screen.findByText('Share of cumulative CO₂, 2024');
+    expect(screen.getByRole('row', { name: /United States/ })).toHaveTextContent('24.1%');
+    expect(screen.getByRole('row', { name: /United States/ }).textContent).not.toMatch(/\(2024\)/);
+    expect(screen.getByRole('row', { name: /China/ })).toHaveTextContent('12.5% (2019)');
+    expect(screen.getByLabelText(/Latest values: United States 24\.1% in 2024, China 12\.5% \(2019\)/)).toBeInTheDocument();
   });
 
   it('omits the temperature card without data rather than drawing an empty chart', async () => {

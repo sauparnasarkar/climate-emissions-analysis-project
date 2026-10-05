@@ -26,7 +26,13 @@ describe('buildCountryLines', () => {
   });
   it('reports a country with no rows instead of drawing it at zero, and is null with no data at all', () => {
     expect(buildCountryLines(resp)!.missing).toEqual([{ code: 'TWN', name: 'Taiwan' }]);
-    expect(buildCountryLines(shareResponse([['TWN', 'Taiwan', []]]))).toBeNull();
     expect(buildCountryLines(null)).toBeNull();
+    expect(buildCountryLines(shareResponse([]))).toBeNull();
+  });
+  it('keeps the missing countries and the API\'s notes when none of them has data, rather than discarding them', () => {
+    const none = buildCountryLines({ ...shareResponse([['TWN', 'Taiwan', []]]), notes: ['no PRIMAP rows for TWN'] })!;
+    expect(none.lines).toEqual([]);
+    expect(none.missing).toEqual([{ code: 'TWN', name: 'Taiwan' }]);
+    expect(none.notes).toEqual(['no PRIMAP rows for TWN']);
   });
 });

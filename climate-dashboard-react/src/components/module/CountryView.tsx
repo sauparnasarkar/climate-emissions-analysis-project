@@ -48,19 +48,24 @@ export function CountryView({ temperature, mean5y }: { temperature: YearValue[];
     if (selected.length === 0) return <p className="__s9cmpx-body3" style={{ margin: 0 }}>Choose countries to compare their shares.</p>;
     if (query.error) return <InlineAlert variant="warning">{query.error}</InlineAlert>;
     if (!lines) return <p className="__s9cmpx-body3" style={{ margin: 0 }}>{query.loading ? 'Loading…' : 'No share data is available for these countries.'}</p>;
+    const missingAlert = lines.missing.length > 0 && (
+      <InlineAlert variant="warning">
+        No data for {lines.missing.map((m) => m.name).join(', ')}; {lines.missing.length === 1 ? 'it is' : 'they are'} left out.{lines.notes.length ? ` ${lines.notes.join(' ')}` : ''}
+      </InlineAlert>
+    );
+    if (lines.lines.length === 0) return missingAlert; // every selected country lacks rows: name them and say why, with no empty chart
     const lastYear = Math.max(...lines.lines.flatMap((l) => l.points.map((p) => p.year)));
     const firstYear = Math.min(...lines.lines.flatMap((l) => l.points.map((p) => p.year)));
+    // A country's series can end before the latest year; its value then belongs to that year, and says so rather than borrowing the latest.
+    const endYear = (l: (typeof lines.lines)[number]) => l.points[l.points.length - 1].year;
+    const withYear = (l: (typeof lines.lines)[number]) => `${fmtShare(l.points[l.points.length - 1].share)}${endYear(l) !== lastYear ? ` (${endYear(l)})` : ''}`;
     return (
       <>
-        {lines.missing.length > 0 && (
-          <InlineAlert variant="warning">
-            No data for {lines.missing.map((m) => m.name).join(', ')}; {lines.missing.length === 1 ? 'it is' : 'they are'} left out.{lines.notes.length ? ` ${lines.notes.join(' ')}` : ''}
-          </InlineAlert>
-        )}
+        {missingAlert}
         <SyChart
           height={300}
           yTitle="Share of cumulative CO₂ (%)"
-          ariaLabel={`Line chart of each selected country's share of cumulative CO₂, ${firstYear} to ${lastYear}. In ${lastYear}: ${lines.lines.map((l) => `${l.name} ${fmtShare(l.points[l.points.length - 1].share)}`).join(', ')}.`}
+          ariaLabel={`Line chart of each selected country's share of cumulative CO₂, ${firstYear} to ${lastYear}. Latest values: ${lines.lines.map((l) => `${l.name} ${withYear(l)}${endYear(l) === lastYear ? ` in ${lastYear}` : ''}`).join(', ')}.`}
           series={lines.lines.map((l) => ({ name: l.name, x: l.points.map((p) => p.year), y: l.points.map((p) => p.share), kind: 'line' as const, color: l.color, showMarkers: false }))}
         />
         <table style={{ width: '100%', maxWidth: 420, marginTop: 8, borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
@@ -72,7 +77,7 @@ export function CountryView({ temperature, mean5y }: { temperature: YearValue[];
                   <span aria-hidden style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: l.color, marginRight: 8 }} />
                   {l.name}
                 </th>
-                <td style={{ textAlign: 'right' }}>{fmtShare(l.points[l.points.length - 1].share)}</td>
+                <td style={{ textAlign: 'right' }}>{withYear(l)}</td>
               </tr>
             ))}
           </tbody>

@@ -22,7 +22,8 @@ export interface CountryLines {
   notes: string[];
 }
 
-/** One line per selected country, coloured by its place in the selection, from a `/country-share` series response; null with no points at all. */
+/** One line per selected country, coloured by its place in the selection, from a `/country-share` series response; null only when the response has no
+ * series at all. When every selected country lacks rows, `lines` is empty but `missing` and the API's `notes` are kept so the view can say why. */
 export function buildCountryLines(resp: CorrelationCountryShareResponse | null | undefined): CountryLines | null {
   const series = resp?.series ?? [];
   if (!resp || series.length === 0) return null;
@@ -32,7 +33,6 @@ export function buildCountryLines(resp: CorrelationCountryShareResponse | null |
     if (s.points.length === 0) missing.push({ code: s.country, name: s.name });
     else lines.push({ code: s.country, name: s.name, color: SHARE_PALETTE[lines.length % SHARE_PALETTE.length], points: s.points.map((p) => ({ year: p.year, share: p.share_pct })) });
   });
-  if (lines.length === 0) return null;
   return { lines, missing, cumulativeFrom: resp.cumulative_from, label: resp.label, notes: resp.notes ?? [] };
 }
 

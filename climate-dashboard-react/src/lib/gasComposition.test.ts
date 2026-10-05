@@ -16,6 +16,13 @@ describe('buildComposition', () => {
     expect(c.basis).toMatch(/AR5 100-year/);
   });
 
+  it('carries the API\'s reconciliation of the gas sum against PRIMAP-hist\'s own national total, per year and overall', () => {
+    const c = buildComposition(COMPOSITION)!;
+    expect(c.residualPct).toEqual([0.052, 0.052, 0.052]);
+    expect(c.reconciliation).toEqual({ maxAbsResidualPct: 0.213, tolerancePct: 1 });
+    expect(buildComposition({ ...COMPOSITION, reconciliation: null })!.reconciliation).toBeNull();
+  });
+
   it('keeps only the caveats that belong beside the chart, leaving licences and sources to the methodology', () => {
     const c = buildComposition(COMPOSITION)!;
     expect(c.caveats).toHaveLength(3);
