@@ -21,6 +21,8 @@ import type { UseYearAnimationResult } from '../hooks/useYearAnimation';
 import { useElementHeight } from '../hooks/useElementHeight';
 import { PageYearControl } from '../components/overview/PageYearControl';
 import { YearBadge } from '../components/overview/YearBadge';
+import { PathwaysSection } from '../components/overview/PathwaysSection';
+import { PATHWAYS_ANCHOR, buildPathways } from '../lib/pathways';
 import { countryValuesForYear, moversForYear } from '../lib/yearViews';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
@@ -41,7 +43,7 @@ const JUMP_ITEMS: JumpLinkItem[] = [
   { id: TOP_EMITTERS_ANCHOR, label: 'Top emitters', href: `#${TOP_EMITTERS_ANCHOR}` },
   { id: SHARE_ANCHOR, label: 'Share', href: `#${SHARE_ANCHOR}` },
   { id: 'by-country', label: 'By Country', href: '#by-country' },
-  { id: 'pct-change', label: '% Change', href: '#pct-change' },
+  { id: 'percent-change', label: '% Change', href: '#percent-change' },
 ];
 // The dashboard header is pinned at the top and 68 px tall (App header minHeight; styles.css offsets every anchor by the same 68). The
 // anchor row sticks just below it, so jump targets get that plus the row's own height as their scroll margin.
@@ -51,6 +53,8 @@ const JUMP_ROW_GAP_PX = 10;
 
 // Area 2's two leading sections come first; "Relationship" only exists while the climate data does.
 const CLIMATE_SIGNAL_JUMP: JumpLinkItem = { id: CLIMATE_SIGNAL_ANCHOR, label: 'Climate signal', href: `#${CLIMATE_SIGNAL_ANCHOR}` };
+// "Pathways" closes the page and only exists while the scenario output does.
+const PATHWAYS_JUMP: JumpLinkItem = { id: PATHWAYS_ANCHOR, label: 'Pathways', href: `#${PATHWAYS_ANCHOR}` };
 const RELATIONSHIP_JUMP: JumpLinkItem = { id: RELATIONSHIP_ANCHOR, label: 'Relationship', href: `#${RELATIONSHIP_ANCHOR}` };
 
 // The page year (usePageYear) steps by decade (1970, 1980 … 2020, then the latest year; requirements §2.6) and dwells ~1.75 s at each stop with
@@ -566,6 +570,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // Each country's cumulative CO₂ just before the map's first year (one all-countries snapshot, ~200 rows): the base for Cumulative mode.
   // If it fails the map simply offers Absolute only.
   const cumulativeQuery = useAsync(async () => api.correlationCountryShare({ year: CLIMATE_SERIES_START_YEAR - 1, allCountries: true }), []);
+  // The closing Pathways block; if the scenario output is unavailable the section (and its anchor) is simply omitted.
+  const scenarioQuery = useAsync(async () => api.correlationScenarioTemperature(), []);
+  const pathways = useMemo(() => buildPathways(scenarioQuery.data), [scenarioQuery.data]);
   const cumulativeBase = useMemo(() => cumulativeBaseFrom(cumulativeQuery.data, CLIMATE_SERIES_START_YEAR - 1), [cumulativeQuery.data]);
   const concentrationContext = useMemo<ConcentrationContext | null>(
     () => (climate.signal ? { series: climate.signal.series.concentration, spliceYear: climate.signal.spliceYear, ppm1850: climate.signal.ppm1850 } : null),
@@ -589,8 +596,10 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // hook jumps once only. (Any other hash jumps as soon as the page renders, which is bounded by the timeout.)
   const { hash } = useLocation();
   const waitsForClimate = hash === `#${RELATIONSHIP_ANCHOR}`;
+  // Likewise #pathways: that section loads on its own request and only exists once it has answered.
+  const waitsForPathways = hash === `#${PATHWAYS_ANCHOR}`;
   // ...and for the sticky row's first measurement: the jump's offset depends on whether the Year control wrapped onto a second line.
-  useJumpToHashOnLoad(Boolean(data && worldMapSeries && climate.settled && (!waitsForClimate || climate.done) && stickyRowHeight !== null), reduceMotion);
+  useJumpToHashOnLoad(Boolean(data && worldMapSeries && climate.settled && (!waitsForClimate || climate.done) && (!waitsForPathways || !scenarioQuery.loading) && stickyRowHeight !== null), reduceMotion);
 
   // useAsync preserves the previous `data` while a refetch is in flight (only `loading`
   // flips), so only block on a spinner before anything has ever loaded — once `data`
@@ -608,6 +617,10 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // null for years up to the 1990 baseline: Top Movers and % Change then grey out with a prompt
   const movers = moversForYear(worldMapSeries, selected, year);
   const NA_MOVER = { country: 'N/A', co2Base: 0, co2Year: 0, absoluteChange: 0, pctChange: 0 };
+  // The comparison period as stated in titles: 1990 → the page year, or just "since 1990" while the year is not after the baseline (a reversed range
+  // like "1990 → 1980" would read as a real comparison). The % Change title keeps the design's "1990–{year}" form for years after the baseline.
+  const moversPeriod = movers ? `1990 → ${year}` : 'since 1990';
+  const changeTitle = movers ? `CO₂ % Change by Country, 1990–${year}` : 'CO₂ % Change by Country, since 1990';
   const fastestGrowth = movers?.[0] ?? NA_MOVER;
   const largestReduction = movers?.[movers.length - 1] ?? NA_MOVER;
 
@@ -630,7 +643,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
       <div ref={setStickyRow} style={{ marginBottom: 16, position: 'sticky', top: STICKY_HEADER_PX, zIndex: 5, background: 'var(--__s9cmpx-static-background-weak)', padding: '4px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px 16px', flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 auto', minWidth: 0 }}>
-            <JumpLinks items={[CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS]} />
+            <JumpLinks items={[CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS, ...(pathways ? [PATHWAYS_JUMP] : [])]} />
           </div>
           <PageYearControl stops={yearStops} year={pageYear.currentYear} isPlaying={pageYear.isPlaying} onSelect={pageYear.seek} onToggle={pageYear.toggle} />
         </div>
@@ -731,9 +744,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
 
         {selected.length > 0 && (
           <section aria-labelledby="movers-heading" style={{ minWidth: 0 }}>
-            <h2 id="movers-heading" className="__s9cmpx-headline6" style={{ margin: '8px 0 4px' }}>Top Movers 1990 → {year} ({selected.length} Selected Countries)<YearBadge year={year} /></h2>
+            <h2 id="movers-heading" className="__s9cmpx-headline6" style={{ margin: '8px 0 4px' }}>Top Movers {moversPeriod} ({selected.length} Selected Countries)<YearBadge year={year} /></h2>
             <p className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)', margin: '0 0 12px' }}>
-              Fastest growth and largest reduction in CO₂ emissions, 1990 → {year}, among the {selected.length} selected countries.
+              Fastest growth and largest reduction in CO₂ emissions, {movers ? `1990 → ${year}` : 'measured from the 1990 baseline'}, among the {selected.length} selected countries.
             </p>
             {!movers ? (
               <BaselinePrompt />
@@ -767,12 +780,14 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
       </div>
 
       {/* Always rendered (even with 0 selected) so #pct-change stays a real jump target (SPEC.md §5.19). */}
+      {/* #percent-change is the design's name; the old #pct-change id stays on the inner element so bookmarked links still land. */}
+      <div id="percent-change">
       <div id="pct-change" style={{ marginTop: 24 }}>
         <h2 className="__s9cmpx-headline6" style={{ margin: '0 0 12px' }}>% Change Since 1990<YearBadge year={year} /></h2>
         {selected.length === 0 ? (
           <InlineAlert variant="warning">Select at least one country.</InlineAlert>
         ) : !movers ? (
-          <ChartCard title={`CO₂ % Change by Country, 1990–${year}`} headingLevel={3}>
+          <ChartCard title={changeTitle} headingLevel={3}>
             <BaselinePrompt />
           </ChartCard>
         ) : (
@@ -807,6 +822,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           </ChartCard>
         )}
       </div>
+      </div>
+
+      {pathways && <PathwaysSection pathways={pathways} />}
     </div>
   );
 }
