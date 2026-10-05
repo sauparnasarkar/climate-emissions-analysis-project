@@ -1,3 +1,4 @@
+import pandas as pd
 from .conftest import owid_raw_headline_df, owid_raw_world_map_series_df, write_fixture, write_selected_countries_json
 
 
@@ -315,3 +316,54 @@ def test_world_map_series_value_range_excludes_literal_zero(data_dir):
     resp = TestClient(app).get("/api/overview/world-map-series")
     body = resp.json()
     assert body["value_range"] == [0.004, 8000.0]
+
+
+def _long_range_map_df() -> pd.DataFrame:
+    rows = [("China", y, 800.0 + (y - 1970) * 100.0, "CHN") for y in range(1970, 2025)] + [("Kiribati", y, 0.1, "KIR") for y in range(1970, 2025)]
+    return pd.DataFrame(rows, columns=["country", "year", "co2", "iso_code"])
+
+
+def test_world_map_series_start_year_extends_the_range_and_the_default_is_unchanged(data_dir):
+    _long_range_map_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    default = client.get("/api/overview/world-map-series").json()
+    assert default["years"] == list(range(1990, 2025)) and len(default["values"]) == 35  # the existing contract
+    long = client.get("/api/overview/world-map-series?start_year=1970").json()
+    assert long["years"] == list(range(1970, 2025)) and len(long["values"]) == 55
+    assert long["iso_codes"] == default["iso_codes"] == ["CHN", "KIR"]
+    # same cells where the ranges overlap (1990 is row 20 of the long series, row 0 of the default)
+    assert long["values"][20] == default["values"][0]
+    # value_range follows the requested range: China's 1970 value is the smallest positive China value, Kiribati's 0.1 the floor either way
+    assert long["value_range"] == [0.1, 800.0 + 54 * 100.0]
+
+
+def test_world_map_series_start_year_is_validated(data_dir):
+    _long_range_map_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    for q in ("start_year=1899", "start_year=2025", "start_year=abc"):
+        assert client.get(f"/api/overview/world-map-series?{q}").status_code == 422, q
+    assert client.get("/api/overview/world-map-series?start_year=2024").json()["years"] == [2024]
+
+
+def test_world_map_series_reads_the_csv_once_however_many_start_years_are_requested(data_dir, monkeypatch):
+    _long_range_map_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    import api.data_loaders as dl
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    reads = []
+    real_read_csv = dl.pd.read_csv
+    monkeypatch.setattr(dl.pd, "read_csv", lambda *a, **k: (reads.append(1), real_read_csv(*a, **k))[1])
+    client = TestClient(app)
+    for start in range(1950, 1990):  # far more start years than the result cache holds
+        assert client.get(f"/api/overview/world-map-series?start_year={start}").status_code == 200
+    assert len(reads) == 1

@@ -26,6 +26,7 @@ _LOADERS = [
     data_loaders.load_scenarios,
     data_loaders.load_raw,
     data_loaders.load_raw_sovereign,
+    data_loaders._world_map_raw,
     data_loaders.load_world_map_series,
     data_loaders.load_filtered,
     data_loaders.load_expanded_countries,

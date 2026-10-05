@@ -14,6 +14,8 @@ MAX_SELECTED_COUNTRIES = 10
 # and shouldn't be silently coupled by sharing a constant.
 WORLD_MAP_YEAR_START = 1990
 WORLD_MAP_YEAR_END = 2024
+# The earliest `start_year` /overview/world-map-series accepts (the loader reads the OWID file once and slices it per request).
+WORLD_MAP_YEAR_EARLIEST = 1900
 
 # The year every tier's "% change since 1990" figure is computed against (overview.py's
 # _tier_metrics) -- previously a bare literal.

@@ -27,6 +27,23 @@ export interface ClimateSignal {
   line: { x0: number; y0: number; x1: number; y1: number };
   temperature: { value: number; year: number };
   concentration: { value: number; year: number };
+  /** The full annual series behind the two latest values, nulls dropped (for sparklines) */
+  series: { concentration: YearValue[]; temperature: YearValue[] };
+  /** First year of NOAA's direct measurements; before it the record is the Law Dome ice core */
+  spliceYear: number | null;
+  /** Concentration in 1850, the pre-industrial reference for "up x% on 1850" */
+  ppm1850: number | null;
+  /** The Berkeley Earth file-vintage caveat, while the ~0.1 °C discrepancy is unreconciled (requirements §1.3.1); null once reconciled */
+  vintageCaveat: string | null;
+}
+
+export interface YearValue {
+  year: number;
+  value: number;
+}
+
+function yearValues(points: SeriesPoint[]): YearValue[] {
+  return points.filter((p): p is SeriesPoint & { value: number } => p.value != null && Number.isFinite(p.value)).map((p) => ({ year: p.year, value: p.value }));
 }
 
 export function eraOf(year: number): Era {
@@ -94,7 +111,16 @@ export function buildClimateSignal(
     line: { x0, y0: ols.intercept + ols.slope * x0, x1, y1: ols.intercept + ols.slope * x1 },
     temperature: temp,
     concentration: ppm,
+    series: { concentration: yearValues(concentration.points), temperature: yearValues(temperature.points) },
+    spliceYear: num((concentration.details?.splice as Record<string, unknown> | undefined)?.splice_year),
+    ppm1850: yearValues(concentration.points).find((p) => p.year === 1850)?.value ?? null,
+    vintageCaveat: vintageCaveat(pair),
   };
+}
+
+function vintageCaveat(pair: CorrelationEmissionsTemperatureResponse): string | null {
+  const v = pair.source_vintage;
+  return v && v.reconciled === false && typeof v.caveat === 'string' && v.caveat ? v.caveat : null;
 }
 
 /** "+1.62 °C" -- the sign is explicit because the value is a departure from a reference. */

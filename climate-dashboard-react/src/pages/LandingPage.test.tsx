@@ -27,6 +27,10 @@ vi.mock('design-system', async (importOriginal) => {
         data-iso={(props.isoCodes as string[]).join(',')}
         data-range={JSON.stringify(props.colorRange)}
         data-rotation-ms={String(props.rotationPeriodMs)}
+        data-blend-ms={String(props.blendMs)}
+        data-show-labels={String(props.showLabels)}
+        data-show-legend={String(props.showLegend)}
+        data-show-controls={String(props.showControls)}
         data-auto-rotate={String(props.autoRotate)}
         data-allow-spin-reduced={String(props.allowSpinWithReducedMotion)}
         data-transparent={String(props.transparent)}
@@ -112,7 +116,7 @@ describe('LandingPage', () => {
   it('computes the hero KPIs, eyebrow and lede from the API responses (no literals)', async () => {
     mount();
     expect(await screen.findByText('OUR WORLD IN DATA CO₂ · 2022–2024 · 4 countries', { exact: false })).toBeInTheDocument();
-    expect(screen.getByText(/3 years of emissions for 4 countries/)).toBeInTheDocument();
+    expect(screen.getByText(/Emissions for 4 countries since 2022, ETS\(A,Ad,N\) forecasts to/)).toBeInTheDocument();
     expect(screen.getByText('427')).toBeInTheDocument(); // latest_co2_total
     expect(screen.getByText('MtCO₂ in 2024, all countries')).toBeInTheDocument();
     expect(screen.getByText('+70.8%')).toBeInTheDocument(); // (427-250)/250
@@ -120,7 +124,7 @@ describe('LandingPage', () => {
     expect(screen.getByText('Countries in the Expanded set').previousElementSibling).toHaveTextContent('12');
     expect(screen.getByText(new RegExp(`ETS\\(A,Ad,N\\) forecasts to ${FORECAST_END_YEAR}.*pathways to ${SCENARIO_END_YEAR}`))).toBeInTheDocument();
     // Only ETS carries 2043 forecasts in the UI -- the lede must not credit regression/RF with them.
-    expect(screen.getByText(/regression and Random Forest models, ETS/)).toBeInTheDocument();
+    expect(screen.queryByText(/regression and Random Forest/)).not.toBeInTheDocument();
   });
 
   it('feeds the globe the map series, its own value range, and the animation year', async () => {
@@ -129,7 +133,9 @@ describe('LandingPage', () => {
     expect(globe).toHaveAttribute('data-iso', 'AAA,BBB,CCC,DDD');
     expect(globe).toHaveAttribute('data-range', '[1,300]');
     expect(globe).toHaveAttribute('data-year-index', '1'); // currentYear 2023 - first year 2022
-    expect(globe).toHaveAttribute('data-rotation-ms', '8000');
+    // one full turn across the whole pass (3 years = 2 steps of 700 ms), colours blended over each step
+    expect(globe).toHaveAttribute('data-rotation-ms', '1400');
+    expect(globe).toHaveAttribute('data-blend-ms', '700');
     expect(globe).toHaveAttribute('data-auto-rotate', 'true');
   });
 
@@ -158,13 +164,42 @@ describe('LandingPage', () => {
     expect(screen.queryByText(/Random Forest and ETS/)).not.toBeInTheDocument();
   });
 
-  it('draws the globe without its own panel background, and shows the year/total once (the hidden overlay copy lives inside the Globe)', async () => {
-    mount();
+  it('draws the globe without its own panel background, and shows the year/total once while paused (the hidden overlay copy lives inside the Globe)', async () => {
+    mount(overview(), MAP, { ...ANIMATION, isPlaying: false });
     expect(await screen.findByTestId('globe')).toHaveAttribute('data-transparent', 'true');
     // The page renders the year + total block above the globe (CSS shows it on phones, hides it on wide screens);
     // the overlay copy is passed to Globe as `title`, which the stub doesn't render -- so exactly one here.
     expect(screen.getAllByText('all countries')).toHaveLength(1);
-    expect(screen.getByText('272 MtCO₂')).toBeInTheDocument(); // the animation's current year (2023) total, not the latest
+    expect(screen.getByText('272 MtCO₂')).toBeInTheDocument(); // the animation's current year (2023) total, from the series itself
+  });
+
+  it('while the globe plays, the legend, controls, total and year slider stay; only the per-country MtCO₂ labels are hidden', async () => {
+    mount(); // ANIMATION is playing
+    const globe = await screen.findByTestId('globe');
+    expect(globe).toHaveAttribute('data-show-labels', 'false');
+    expect(globe).not.toHaveAttribute('data-show-legend', 'false'); // left at the Globe's default (shown)
+    expect(globe).not.toHaveAttribute('data-show-controls', 'false');
+    expect(screen.getByText('272 MtCO₂')).toBeInTheDocument();
+    expect(screen.getByText('all countries')).toBeInTheDocument();
+    expect(screen.getByRole('slider')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+  });
+
+  it('when the globe is not spinning the per-country labels appear, with everything else unchanged -- also under reduced motion, which starts paused', async () => {
+    const { unmount } = mount(overview(), MAP, { ...ANIMATION, isPlaying: false });
+    const globe = await screen.findByTestId('globe');
+    expect(globe).toHaveAttribute('data-show-labels', 'true');
+    expect(screen.getByRole('slider')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
+    unmount();
+    mount(overview(), MAP, { ...ANIMATION, isPlaying: false, reducedMotion: true });
+    expect(await screen.findByTestId('globe')).toHaveAttribute('data-show-labels', 'true');
+  });
+
+  it('asks the API for the globe\'s 1970 range and keeps the 1990-based view for the rest of the page', async () => {
+    mount();
+    await screen.findByTestId('globe');
+    expect(api.worldMapSeries).toHaveBeenCalledWith(1970);
   });
 
   it('picks the three stories from the headline movers, with their figures and deep links', async () => {
@@ -240,11 +275,11 @@ const SERIES = (points: SeriesPoint[]): CorrelationTemperatureResponse & Correla
   ...env, indicator, view: 'level', baseline: null, resolution: 'annual', start_year: null, end_year: null, coverage: null, points, notes: [], details: {},
 });
 
-function mountWithClimate() {
+function mountWithClimate(anim: typeof ANIMATION = ANIMATION) {
   vi.mocked(api.correlationEmissionsTemperature).mockResolvedValue(PAIR);
   vi.mocked(api.correlationTemperature).mockResolvedValue(SERIES([sp(2023, 1.5), sp(2024, 1.617)]));
   vi.mocked(api.correlationConcentration).mockResolvedValue(SERIES([sp(2024, 424.6), sp(2025, 427.35)]));
-  return mount();
+  return mount(overview(), MAP, anim);
 }
 
 describe('LandingPage — climate-signal carousel', () => {
@@ -255,14 +290,22 @@ describe('LandingPage — climate-signal carousel', () => {
     const slides = within(region).getAllByRole('group', { hidden: true });
     expect(slides.map((s) => s.getAttribute('aria-label'))).toEqual(['1 of 2: Climate signal', '2 of 2: Where CO₂ comes from']);
     expect(screen.getByRole('heading', { level: 1, name: /global temperature has risen with the co₂ we have accumulated/i })).toBeInTheDocument();
-    expect(screen.getByText('+1.62 °C')).toBeInTheDocument();
-    expect(screen.getByText('2024, vs 1850–1900')).toBeInTheDocument();
-    expect(screen.getByText('427.4 ppm')).toBeInTheDocument();
-    expect(screen.getByText('Atmospheric CO₂, 2025')).toBeInTheDocument();
-    expect(screen.getByText('0.52 °C')).toBeInTheDocument();
+    const banner = region.querySelector('.climate-banner') as HTMLElement;
+    expect(within(banner).getByText('+1.62 °C')).toBeInTheDocument();
+    expect(within(banner).getByText('2024, vs 1850–1900')).toBeInTheDocument();
+    expect(within(banner).getByText('427.4 ppm')).toBeInTheDocument();
+    expect(within(banner).getByText('Atmospheric CO₂, 2025')).toBeInTheDocument();
+    expect(within(banner).getByText('0.52 °C')).toBeInTheDocument();
     expect(screen.getByText(/over 175 years, warming has followed the cumulative total, not any single year’s emissions/i)).toBeInTheDocument();
     // the slide hidden from assistive technology is the second (its own H1 is not exposed)
     expect(screen.queryByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the four-step band below the hero when the climate data is there, and not otherwise', async () => {
+    mountWithClimate();
+    const band = await screen.findByRole('region', { name: 'The chain reaction, step by step' });
+    expect(within(band).getAllByRole('listitem').filter((li) => li.getAttribute('aria-hidden') !== 'true')).toHaveLength(4);
+    expect(within(band).getByText('Berkeley Earth', { exact: false })).toBeInTheDocument();
   });
 
   it('Banner 1 sends the primary CTA to the Overview climate signal and keeps Explore the data and Forecasts as secondary paths', async () => {
@@ -282,15 +325,17 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('img', { name: /scatter chart, one dot per year from 1850 to 2024/i })).toBeInTheDocument();
   });
 
-  it('has a Pause button first in tab order; any manual change stops autoplay and shows the existing hero', async () => {
+  it('has a Pause button first in tab order; the button alone decides auto-rotate: a manual slide change leaves it on, Pause stops it', async () => {
     mountWithClimate();
     const region = await screen.findByRole('region', { name: 'Featured' });
     const buttons = within(region).getAllByRole('button');
     expect(buttons[0]).toHaveAccessibleName('Pause automatic rotation');
     fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
-    expect(screen.getByRole('button', { name: 'Start automatic rotation' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause automatic rotation' })).toBeInTheDocument(); // still on
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: /global temperature has risen/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Pause automatic rotation' }));
+    expect(screen.getByRole('button', { name: 'Start automatic rotation' })).toBeInTheDocument();
   });
 
   it('switches slides with the tab buttons and the arrow keys', async () => {
@@ -304,7 +349,7 @@ describe('LandingPage — climate-signal carousel', () => {
   });
 
   it('ignores arrow keys pressed in the hero\'s Year slider: they scrub the year and do not switch slides', async () => {
-    mountWithClimate();
+    mountWithClimate({ ...ANIMATION, isPlaying: false }); // the slider is shown while the globe is paused
     await screen.findByRole('region', { name: 'Featured' });
     fireEvent.click(screen.getByRole('button', { name: 'Next slide' })); // the hero (with its slider) is now showing
     const slider = screen.getByRole('slider');
@@ -314,6 +359,19 @@ describe('LandingPage — climate-signal carousel', () => {
     // the same key from the carousel's own controls does switch
     fireEvent.keyDown(screen.getByRole('button', { name: /02\s*Where CO₂ comes from/ }), { key: 'ArrowLeft' });
     expect(screen.getByRole('button', { name: /01\s*Climate signal/ })).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('slides sideways: forward (Next, also round from the last slide to the first) enters from the right, back reverses it', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    const motion = () => [...document.querySelectorAll('.hero-carousel__slide')].map((s) => s.getAttribute('data-motion'));
+    expect(motion()).toEqual(['rest', 'hidden']);
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
+    expect(motion()).toEqual(['exit-forward', 'enter-forward']); // 1 leaves left, 2 comes in from the right
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' })); // last -> first wraps, and is still forward
+    expect(motion()).toEqual(['enter-forward', 'exit-forward']);
+    fireEvent.click(screen.getByRole('button', { name: 'Previous slide' }));
+    expect(motion()).toEqual(['exit-back', 'enter-back']); // going back reverses it
   });
 
   it('holds the globe animation off while its slide is hidden, and on once it is shown', async () => {
@@ -333,6 +391,7 @@ describe('LandingPage — climate-signal carousel', () => {
     await screen.findByTestId('globe'); // the hero itself (the loading placeholder shares its headline)
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Featured' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'The chain reaction, step by step' })).not.toBeInTheDocument();
     expect(screen.queryByText('+1.62 °C')).not.toBeInTheDocument();
   });
 

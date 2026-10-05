@@ -75,7 +75,8 @@ export const api = {
 
   // Selection-invariant -- no `countries` param. Fetched once regardless of how many times
   // the user changes their country selection (SPEC.md §5.17.1).
-  worldMapSeries: () => get<WorldMapTimeSeries>('/overview/world-map-series'),
+  // `startYear` defaults server-side to 1990; the Area 2 globe asks for 1970 (requirements §2.6). Same response shape.
+  worldMapSeries: (startYear?: number) => get<WorldMapTimeSeries>(startYear === undefined ? '/overview/world-map-series' : `/overview/world-map-series?start_year=${startYear}`),
 
   listCountries: () => get<CountriesResponse>('/countries'),
 

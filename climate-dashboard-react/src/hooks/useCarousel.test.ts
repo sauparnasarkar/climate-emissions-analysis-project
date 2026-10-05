@@ -8,17 +8,12 @@ function mockReducedMotion(matches: boolean) {
     addEventListener: vi.fn(), removeEventListener: vi.fn(),
   })));
 }
-function setHidden(hidden: boolean) {
-  Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
-  document.dispatchEvent(new Event('visibilitychange'));
-}
-const blurEvent = (inside: boolean) => ({ currentTarget: { contains: () => inside }, relatedTarget: {} }) as unknown as React.FocusEvent;
 
 beforeEach(() => { vi.useFakeTimers(); mockReducedMotion(false); });
-afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); setHidden(false); });
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('useCarousel', () => {
-  it('advances after the dwell time and then stops after one full cycle, holding on the last slide', () => {
+  it('rotates every dwell period while auto-rotate is on, and keeps going round', () => {
     const { result } = renderHook(() => useCarousel({ count: 2 }));
     expect(result.current.index).toBe(0);
     expect(result.current.autoplay).toBe(true);
@@ -26,76 +21,68 @@ describe('useCarousel', () => {
     expect(result.current.index).toBe(0);
     act(() => { vi.advanceTimersByTime(1); });
     expect(result.current.index).toBe(1);
-    expect(result.current.autoplay).toBe(false); // one cycle done
-    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
-    expect(result.current.index).toBe(1);
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
+    expect(result.current.index).toBe(0); // wraps; only Pause stops it
+    expect(result.current.autoplay).toBe(true);
   });
 
-  it('a manual change stops autoplay until Play is pressed; Play then runs one more cycle', () => {
+  it('Pause stops it and Play starts it again', () => {
     const { result } = renderHook(() => useCarousel({ count: 2 }));
-    act(() => result.current.next());
-    expect(result.current.index).toBe(1);
+    act(() => result.current.pause());
     expect(result.current.autoplay).toBe(false);
-    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 2); });
-    expect(result.current.index).toBe(1);
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
+    expect(result.current.index).toBe(0);
     act(() => result.current.play());
     expect(result.current.autoplay).toBe(true);
     act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
-    expect(result.current.index).toBe(0); // wraps
-    expect(result.current.autoplay).toBe(false);
+    expect(result.current.index).toBe(1);
   });
 
-  it('wraps for prev/next and goTo, and Pause stops it', () => {
+  it('moving to a slide by hand does not change the Play/Pause state; the dwell starts afresh on the chosen slide', () => {
     const { result } = renderHook(() => useCarousel({ count: 2 }));
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS - 100); });
+    act(() => result.current.next());
+    expect(result.current.index).toBe(1);
+    expect(result.current.autoplay).toBe(true);
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS - 100); }); // not yet a full dwell on slide 2
+    expect(result.current.index).toBe(1);
+    act(() => { vi.advanceTimersByTime(100); });
+    expect(result.current.index).toBe(0);
+    // and a paused carousel stays paused when navigated by hand
+    act(() => result.current.pause());
     act(() => result.current.prev());
     expect(result.current.index).toBe(1);
-    act(() => result.current.goTo(0));
-    expect(result.current.index).toBe(0);
-    act(() => result.current.play());
-    act(() => result.current.pause());
+    expect(result.current.autoplay).toBe(false);
     act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 2); });
-    expect(result.current.index).toBe(0);
-  });
-
-  it('pauses while the pointer is over it or focus is inside, and resumes when it leaves', () => {
-    const { result } = renderHook(() => useCarousel({ count: 2 }));
-    act(() => result.current.regionHandlers.onMouseEnter());
-    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
-    expect(result.current.index).toBe(0);
-    expect(result.current.autoplay).toBe(true); // the user did not stop it; it is only held
-    act(() => result.current.regionHandlers.onMouseLeave());
-    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
     expect(result.current.index).toBe(1);
   });
 
-  it('focus moving between controls inside the region does not resume; leaving the region does', () => {
-    const { result } = renderHook(() => useCarousel({ count: 2 }));
-    act(() => result.current.regionHandlers.onFocusCapture());
-    act(() => result.current.regionHandlers.onBlurCapture(blurEvent(true)));
-    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 2); });
+  it('wraps for prev, next and goTo', () => {
+    const { result } = renderHook(() => useCarousel({ count: 3 }));
+    act(() => result.current.prev());
+    expect(result.current.index).toBe(2);
+    act(() => result.current.next());
     expect(result.current.index).toBe(0);
-    act(() => result.current.regionHandlers.onBlurCapture(blurEvent(false)));
-    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
+    act(() => result.current.goTo(4));
     expect(result.current.index).toBe(1);
   });
 
-  it('pauses while the browser tab is hidden', () => {
+  it('is not affected by the pointer, focus or the tab being hidden: only the button decides', () => {
     const { result } = renderHook(() => useCarousel({ count: 2 }));
-    act(() => setHidden(true));
-    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
-    expect(result.current.index).toBe(0);
-    act(() => setHidden(false));
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    document.dispatchEvent(new Event('visibilitychange'));
     act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
     expect(result.current.index).toBe(1);
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
   });
 
-  it('starts stopped under reduced motion and never auto-advances', () => {
+  it('starts paused under reduced motion and never auto-advances until Play is pressed', () => {
     mockReducedMotion(true);
     const { result } = renderHook(() => useCarousel({ count: 2 }));
     expect(result.current.autoplay).toBe(false);
     act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
     expect(result.current.index).toBe(0);
-    act(() => result.current.play()); // an explicit Play is a request for movement
+    act(() => result.current.play());
     act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
     expect(result.current.index).toBe(1);
   });
@@ -105,30 +92,28 @@ describe('useCarousel', () => {
     act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
     expect(result.current.index).toBe(0);
   });
-});
 
-describe('useCarousel — hover and focus are independent', () => {
-  it('stays paused when the pointer leaves while focus is still inside, and resumes only once focus leaves too', () => {
-    const { result } = renderHook(() => useCarousel({ count: 2 }));
-    act(() => result.current.regionHandlers.onMouseEnter());
-    act(() => result.current.regionHandlers.onFocusCapture());
-    act(() => result.current.regionHandlers.onMouseLeave());
-    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
-    expect(result.current.index).toBe(0);
-    act(() => result.current.regionHandlers.onBlurCapture(blurEvent(false)));
-    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
-    expect(result.current.index).toBe(1);
+  it('reports the direction of each move: Next and auto-rotate are forward (also wrapping last -> first), Previous is back, a tab follows the slide order', () => {
+    const { result } = renderHook(() => useCarousel({ count: 3 }));
+    expect([result.current.previous, result.current.direction]).toEqual([null, 'forward']);
+    act(() => result.current.next());
+    expect([result.current.index, result.current.previous, result.current.direction]).toEqual([1, 0, 'forward']);
+    act(() => result.current.prev());
+    expect([result.current.index, result.current.previous, result.current.direction]).toEqual([0, 1, 'back']);
+    act(() => result.current.prev()); // first -> last wraps and is still "back"
+    expect([result.current.index, result.current.previous, result.current.direction]).toEqual([2, 0, 'back']);
+    act(() => result.current.next()); // last -> first wraps and is still "forward"
+    expect([result.current.index, result.current.previous, result.current.direction]).toEqual([0, 2, 'forward']);
+    act(() => result.current.goTo(2)); // a later slide by tab: forward
+    expect(result.current.direction).toBe('forward');
+    act(() => result.current.goTo(1)); // an earlier one: back
+    expect(result.current.direction).toBe('back');
   });
 
-  it('stays paused when focus leaves while the pointer is still over it, and resumes only once the pointer leaves too', () => {
+  it('auto-rotate round the last slide to the first is forward', () => {
     const { result } = renderHook(() => useCarousel({ count: 2 }));
-    act(() => result.current.regionHandlers.onFocusCapture());
-    act(() => result.current.regionHandlers.onMouseEnter());
-    act(() => result.current.regionHandlers.onBlurCapture(blurEvent(false)));
-    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS * 3); });
-    expect(result.current.index).toBe(0);
-    act(() => result.current.regionHandlers.onMouseLeave());
     act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
-    expect(result.current.index).toBe(1);
+    act(() => { vi.advanceTimersByTime(CAROUSEL_DWELL_MS); });
+    expect([result.current.index, result.current.previous, result.current.direction]).toEqual([0, 1, 'forward']);
   });
 });

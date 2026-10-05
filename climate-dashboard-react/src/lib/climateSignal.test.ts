@@ -54,6 +54,21 @@ describe('buildClimateSignal', () => {
     expect(s.fit).toMatchObject({ slope: 0.52, ciLow: 0.48, ciHigh: 0.56, nYears: 175, start: 1850, end: 2024 });
     expect(s.temperature).toEqual({ value: 1.62, year: 2024 });
     expect(s.concentration).toEqual({ value: 427.35, year: 2025 });
+    expect(s.series.temperature).toEqual([{ year: 2023, value: 1.4 }, { year: 2024, value: 1.62 }]);
+    expect(s.series.concentration).toEqual([{ year: 2024, value: 424.6 }, { year: 2025, value: 427.35 }]);
+    expect(s.spliceYear).toBeNull();
+    expect(s.ppm1850).toBeNull();
+    expect(s.vintageCaveat).toBeNull();
+  });
+
+  it('carries the splice year, the 1850 concentration and the unreconciled-vintage caveat when the API provides them', () => {
+    const conc = { ...series([sp(1850, 286.8), sp(2024, 424.6)]), details: { splice: { splice_year: 1959 } } };
+    const s = buildClimateSignal(pair({ source_vintage: { reconciled: false, caveat: 'Based on file vintage X; unreconciled.' } }), series([sp(2024, 1.6)]), conc)!;
+    expect(s.spliceYear).toBe(1959);
+    expect(s.ppm1850).toBe(286.8);
+    expect(s.vintageCaveat).toBe('Based on file vintage X; unreconciled.');
+    // once reconciled the caveat is dropped
+    expect(buildClimateSignal(pair({ source_vintage: { reconciled: true, caveat: 'old' } }), series([sp(2024, 1.6)]), conc)!.vintageCaveat).toBeNull();
   });
 
   it('returns null rather than a partial banner when any input is missing', () => {

@@ -7,7 +7,7 @@ from functools import lru_cache
 
 import pandas as pd
 
-from .constants import FEATURED_COUNTRIES, WORLD_MAP_YEAR_END, WORLD_MAP_YEAR_START
+from .constants import FEATURED_COUNTRIES, WORLD_MAP_YEAR_EARLIEST, WORLD_MAP_YEAR_END, WORLD_MAP_YEAR_START
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
@@ -102,9 +102,22 @@ def load_raw_sovereign() -> pd.DataFrame:
 
 
 @lru_cache(maxsize=1)
-def load_world_map_series() -> dict:
-    """SPEC.md §5.17.1 -- the animated choropleth's full WORLD_MAP_YEAR_START..END payload,
-    pivoted into a columnar shape once and cached (this data is selection-invariant, so it's
+def _world_map_raw() -> pd.DataFrame:
+    """The ISO-coded OWID rows from WORLD_MAP_YEAR_EARLIEST to WORLD_MAP_YEAR_END, read from disk ONCE. Every `start_year`
+    the public endpoint accepts is a slice of this, so a caller cycling through start years cannot force repeated CSV reads
+    (only a cheap in-memory slice and pivot)."""
+    path = _path("owid-co2-data.csv")
+    if not os.path.exists(path):
+        raise DataNotFoundError("data/owid-co2-data.csv not found.")
+    df_r = pd.read_csv(path, usecols=["country", "year", "co2", "iso_code"])
+    return df_r[df_r["iso_code"].notna() & (df_r["year"] >= WORLD_MAP_YEAR_EARLIEST) & (df_r["year"] <= WORLD_MAP_YEAR_END)]
+
+
+@lru_cache(maxsize=8)
+def load_world_map_series(start_year: int = WORLD_MAP_YEAR_START) -> dict:
+    """SPEC.md §5.17.1 -- the animated choropleth's full `start_year`..WORLD_MAP_YEAR_END payload
+    (`start_year` defaults to WORLD_MAP_YEAR_START, 1990; the Area 2 globe and map ask for 1970,
+    requirements §2.6), pivoted into a columnar shape once per start year and cached (this data is selection-invariant, so it's
     fetched once by the frontend regardless of country-selection changes, unlike
     load_raw_sovereign() which backs the selection-scoped /overview endpoint).
 
@@ -125,21 +138,13 @@ def load_world_map_series() -> dict:
     report emissions data in OWID. Not a bug in this loader; the no-data trace design (SyChart)
     handles any number of always/sometimes-null countries generically, so this doesn't need
     special-casing here."""
-    path = _path("owid-co2-data.csv")
-    if not os.path.exists(path):
-        raise DataNotFoundError("data/owid-co2-data.csv not found.")
-    cols = ["country", "year", "co2", "iso_code"]
-    df_r = pd.read_csv(path, usecols=cols)
-    df_r = df_r[
-        df_r["iso_code"].notna()
-        & (df_r["year"] >= WORLD_MAP_YEAR_START)
-        & (df_r["year"] <= WORLD_MAP_YEAR_END)
-    ]
+    df_r = _world_map_raw()
+    df_r = df_r[df_r["year"] >= start_year]
 
     country_meta = df_r[["iso_code", "country"]].drop_duplicates(subset="iso_code").sort_values("iso_code")
     iso_codes = country_meta["iso_code"].tolist()
     countries = country_meta["country"].tolist()
-    years = list(range(WORLD_MAP_YEAR_START, WORLD_MAP_YEAR_END + 1))
+    years = list(range(start_year, WORLD_MAP_YEAR_END + 1))
 
     pivot = df_r.pivot(index="year", columns="iso_code", values="co2").reindex(index=years, columns=iso_codes)
     values = [[None if pd.isna(v) else float(v) for v in row] for row in pivot.to_numpy()]
