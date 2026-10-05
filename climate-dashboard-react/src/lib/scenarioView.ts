@@ -76,6 +76,10 @@ export function buildScenarioView(
     }
     return { name: card.name, label: card.label, color: card.color, method: card.method, emissions, temperature: temp };
   });
+  // A pathway is only drawable as a pathway if it spans its start year and the horizon, in both emissions and implied temperature: otherwise the
+  // output is incomplete and the section is left out rather than shown as single dots or a partial comparison.
+  const spans = (xs: YearValue[]) => xs.some((p) => p.year === startYear) && xs.some((p) => p.year === horizon);
+  if (startYear >= horizon || lines.some((l) => !spans(l.emissions) || !spans(l.temperature))) return null;
   const from = lastObservedYear - HISTORY_YEARS + 1;
   const anchorValue = num(rec(rec(resp.base)?.anchor)?.value_c);
   const rest = rec(rec(resp.assumptions)?.rest_of_world);
