@@ -38,3 +38,36 @@ export const ALL_GAS_PAIR = {
   ],
   omitted_years: [{ year: 2025, reason: 'incomplete' }],
 } as unknown as CorrelationEmissionsTemperatureResponse;
+
+const gasValues = (co2: number, ch4: number, n2o: number, fgas: number) => {
+  const total = co2 + ch4 + n2o + fgas;
+  return [['co2', 'CO₂', co2], ['ch4', 'CH₄', ch4], ['n2o', 'N₂O', n2o], ['fgas', 'Fluorinated gases', fgas]].map(([gas, name, v]) => ({ gas, name, mtco2e: v, share_pct: ((v as number) / total) * 100 }));
+};
+const compYear = (year: number, ...v: [number, number, number, number]) => ({ year, gases_included: ['co2', 'ch4', 'n2o', 'fgas'], components_total_mtco2e: v.reduce((a, b) => a + b, 0), national_total_mtco2e: v.reduce((a, b) => a + b, 0), residual_pct: 0.052, values: gasValues(...v) });
+
+/** `/ghg-composition` shaped like the real response: four gases, a few years, an incomplete trailing year excluded, the API's caveats. */
+export const COMPOSITION = {
+  ...env,
+  name: 'Global greenhouse-gas composition',
+  basis: 'PRIMAP-hist national total greenhouse-gas emissions in CO2-equivalent terms, IPCC AR5 100-year global-warming potentials (CH4 28, N2O 265)',
+  units: 'MtCO2e (CO2 in Mt CO2)',
+  gases: [{ id: 'co2', name: 'CO₂' }, { id: 'ch4', name: 'CH₄' }, { id: 'n2o', name: 'N₂O' }, { id: 'fgas', name: 'Fluorinated gases' }],
+  coverage: [1750, 2024], start_year: 1970, end_year: null, year: null,
+  years: [compYear(1970, 15000, 6000, 1500, 100), compYear(2000, 26000, 7500, 2500, 800), compYear(2024, 37974, 8422, 2727, 1426)],
+  reconciliation: { max_abs_residual_pct: 0.213, tolerance_pct: 1.0, note: 'components vs national total' }, excluded_incomplete_years: [2025], notes: [],
+  caveats: [
+    'Excludes international aviation and shipping and land-use change (national totals), so the share of CO2 in particular excludes deforestation.',
+    "Shares are each gas's part of the sum of the gases included for that year, so they sum to 100.",
+    'PRIMAP-hist is a composite of country-reported and third-party data harmonised into one series.',
+    'Trailing years that are incomplete in the no-extrapolation file (v2.8: 2025) are excluded, not extrapolated.',
+    "PRIMAP-hist licence: CC BY-NC-SA 4.0. Non-commercial use only.",
+  ],
+} as unknown as import('../api/correlationTypes').CorrelationGhgCompositionResponse;
+
+const shareRow = (rank: number, country: string, name: string, share: number) => ({ rank, country, name, cumulative_mt: share * 1000, share_pct: share, annual_mt: 1, annual_share_pct: 1 });
+/** `/country-share?all_countries=true`: ranked rows. */
+export const COUNTRY_SNAPSHOT = {
+  ...env, name: 'n', method: 'm', source: 'owid_co2', gas_scope: 'co2', label: 'OWID fossil + cement CO2', unit: 'Mt CO2', mode: 'ranking', year: 2024, limit: null, start_year: null, end_year: null,
+  coverage: [1850, 2024], cumulative_from: 1750, total_cumulative_mt: 1, annual_total_mt: 1, series: [], denominator: null, reconciliation: null, details: {}, notes: [],
+  rows: [shareRow(1, 'USA', 'United States', 24.1), shareRow(2, 'CHN', 'China', 15.8), shareRow(3, 'RUS', 'Russia', 6.8), shareRow(4, 'DEU', 'Germany', 5.3), shareRow(5, 'GBR', 'United Kingdom', 4.4), shareRow(6, 'JPN', 'Japan', 3.9)],
+} as unknown as import('../api/correlationTypes').CorrelationCountryShareResponse;

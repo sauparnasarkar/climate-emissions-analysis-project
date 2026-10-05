@@ -15,18 +15,19 @@ const SEGMENT_TEXT = '#071C24';
 // Rest of world is a theme-neutral surface, so its label follows the theme's text colour rather than the fixed dark text the bright country colours use.
 const REST_TEXT = 'var(--__s9cmpx-static-text-standard)';
 
-interface BarProps {
+export interface BarProps {
   title: string;
   subtitle: string;
   order: ShareCountry[];
   values: number[];
-  rest: number;
+  /** The remainder segment (Rest of world); omit for a bar whose segments are the whole, e.g. the four gases */
+  rest?: number;
   tween: boolean;
 }
 
 /** One 100% stacked bar. Segment widths are flex-grow so they tween; the legend table below is the readable, accessible form of the same numbers. */
-function ShareBar({ title, subtitle, order, values, rest, tween }: BarProps) {
-  const summary = order.map((c, i) => `${c.name} ${fmtShare(values[i])}`).concat(`Rest of world ${fmtShare(rest)}`).join(', ');
+export function ShareBar({ title, subtitle, order, values, rest, tween }: BarProps) {
+  const summary = order.map((c, i) => `${c.name} ${fmtShare(values[i])}`).concat(rest === undefined ? [] : [`Rest of world ${fmtShare(rest)}`]).join(', ');
   const segment = (key: string, color: string, pct: number, text: string, textColor: string = SEGMENT_TEXT) => (
     <div
       key={key}
@@ -56,7 +57,7 @@ function ShareBar({ title, subtitle, order, values, rest, tween }: BarProps) {
       </div>
       <div role="img" aria-label={`${title}: ${summary}`} style={{ display: 'flex', gap: 2, height: 44 }}>
         {order.map((c, i) => segment(c.code, c.color, values[i], segmentLabel(c.code, values[i])))}
-        {segment('rest', REST_COLOR, rest, segmentLabel('RoW', rest), REST_TEXT)}
+        {rest !== undefined && segment('rest', REST_COLOR, rest, segmentLabel('RoW', rest), REST_TEXT)}
       </div>
     </div>
   );
