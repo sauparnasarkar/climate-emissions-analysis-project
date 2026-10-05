@@ -18,6 +18,7 @@ import { useCountries } from '../hooks/useCountries';
 import { useCountUp } from '../hooks/useCountUp';
 import { PAGE_YEAR_STEP, usePageYear } from '../hooks/usePageYear';
 import type { UseYearAnimationResult } from '../hooks/useYearAnimation';
+import { useElementHeight } from '../hooks/useElementHeight';
 import { PageYearControl } from '../components/overview/PageYearControl';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
@@ -43,7 +44,8 @@ const JUMP_ITEMS: JumpLinkItem[] = [
 // The dashboard header is pinned at the top and 68 px tall (App header minHeight; styles.css offsets every anchor by the same 68). The
 // anchor row sticks just below it, so jump targets get that plus the row's own height as their scroll margin.
 const STICKY_HEADER_PX = 68;
-const JUMP_ROW_PX = 52;
+const JUMP_ROW_PX = 52; // the row's height plus a gap on one line; the measured height replaces it where the row wraps (Year control under the links)
+const JUMP_ROW_GAP_PX = 10;
 
 // Area 2's two leading sections come first; "Relationship" only exists while the climate data does.
 const CLIMATE_SIGNAL_JUMP: JumpLinkItem = { id: CLIMATE_SIGNAL_ANCHOR, label: 'Climate signal', href: `#${CLIMATE_SIGNAL_ANCHOR}` };
@@ -544,6 +546,10 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   const worldMapSeries = globeSeries ?? null;
   // One year for the map, tiers, ranking and ppm card (and, in later steps, Share, By Country and % Change), set by the sticky control or the map.
   const pageYear = usePageYear(worldMapSeries?.years ?? null);
+  // The sticky anchor row's real height (it wraps to two lines on a narrow screen), so jump targets clear all of it.
+  const [stickyRow, setStickyRow] = useState<HTMLElement | null>(null);
+  const stickyRowHeight = useElementHeight(stickyRow);
+  const jumpRowPx = stickyRowHeight > 0 ? Math.ceil(stickyRowHeight) + JUMP_ROW_GAP_PX : JUMP_ROW_PX;
   const yearStops = useMemo(() => (worldMapSeries ? computeAutoplayStops(worldMapSeries.years[0], worldMapSeries.years[worldMapSeries.years.length - 1], PAGE_YEAR_STEP) : []), [worldMapSeries]);
   const climate = useClimateSignal();
   // Each country's cumulative CO₂ just before the map's first year (one all-countries snapshot, ~200 rows): the base for Cumulative mode.
@@ -595,12 +601,12 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   return (
     <div className="overview-page">
       {/* Overrides styles.css's global 68 px anchor offset for this page: the header AND the sticky anchor row both sit above a jump target. */}
-      <style>{`.overview-page [id] { scroll-margin-top: ${STICKY_HEADER_PX + JUMP_ROW_PX}px; }`}</style>
+      <style>{`.overview-page [id] { scroll-margin-top: ${STICKY_HEADER_PX + jumpRowPx}px; }`}</style>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Overview</h1>
       {/* Breathing room below the jump links: the active link's underline used to sit flush against the
           map card's accent top rule (and its shadow), reading as one muddled line. */}
       {/* Sticks to the top while the page scrolls (requirements §2.2 wireframes: anchor / deep-link support). */}
-      <div style={{ marginBottom: 16, position: 'sticky', top: STICKY_HEADER_PX, zIndex: 5, background: 'var(--__s9cmpx-static-background-weak)', padding: '4px 0' }}>
+      <div ref={setStickyRow} style={{ marginBottom: 16, position: 'sticky', top: STICKY_HEADER_PX, zIndex: 5, background: 'var(--__s9cmpx-static-background-weak)', padding: '4px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px 16px', flexWrap: 'wrap' }}>
           <div style={{ flex: '1 1 auto', minWidth: 0 }}>
             <JumpLinks items={[CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS]} />

@@ -72,6 +72,17 @@ describe('usePageYear', () => {
     expect(result.current.loc.search).toBe('?year=1990&countries=China');
   });
 
+  it('does not mistake a later outside navigation to a query it once wrote for its own write', () => {
+    const { result } = renderHook(() => ({ year: usePageYear(YEARS), loc: useLocation(), nav: useNavigate() }), { wrapper: wrap('/overview') });
+    act(() => result.current.year.seek(2020)); // the hook writes ?year=2020
+    expect(result.current.loc.search).toBe('?year=2020');
+    act(() => result.current.nav('/overview?year=1990')); // an outside link moves the year on (no write of its own)
+    expect(result.current.year.currentYear).toBe(1990);
+    act(() => result.current.nav('/overview?year=2020')); // and an outside link back to the very query the hook wrote earlier
+    expect(result.current.year.currentYear).toBe(2020);
+    expect(result.current.loc.search).toBe('?year=2020'); // not rewritten to ?year=1990
+  });
+
   it('does not touch the URL until the series has loaded (the year is unknown until then)', () => {
     const { result, rerender } = renderHook(({ years }) => ({ year: usePageYear(years), loc: useLocation() }), { wrapper: wrap('/overview?year=2010'), initialProps: { years: null as number[] | null } });
     expect(result.current.loc.search).toBe('?year=2010');

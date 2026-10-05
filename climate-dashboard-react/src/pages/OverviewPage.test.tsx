@@ -784,6 +784,16 @@ describe('OverviewPage — deep links', () => {
     expect((nav.closest('[style*="position: sticky"]') as HTMLElement).style.top).toBe('68px');
     expect(document.querySelector('.overview-page style')?.textContent).toMatch(/scroll-margin-top: 120px/);
   });
+
+  it('offsets jump targets by the sticky row\'s measured height, so a wrapped row (Year control on a second line) is cleared too', async () => {
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return { height: this.style.position === 'sticky' ? 90 : 0 } as DOMRect;
+    });
+    mountWithClimate();
+    await screen.findByRole('navigation', { name: 'Jump links' });
+    expect(document.querySelector('.overview-page style')?.textContent).toMatch(/scroll-margin-top: 168px/); // 68 header + 90 row + 10 gap
+    rect.mockRestore();
+  });
 });
 
 

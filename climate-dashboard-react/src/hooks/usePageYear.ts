@@ -42,9 +42,11 @@ export function usePageYear(years: number[] | null): UseYearAnimationResult {
     if (!years) return;
     if (search !== lastSeen.current) {
       lastSeen.current = search;
-      const ownWrite = search === lastWritten.current;
+      // The marker is consumed by the first change that follows the write, so a later outside navigation to the same query (after the year has
+      // moved on) is not mistaken for it.
+      const own = search === lastWritten.current;
       lastWritten.current = null;
-      if (!ownWrite) {
+      if (!own) {
         const fromUrl = Math.min(Math.max(parseYearParam(search) ?? maxYear, minYear), maxYear);
         if (fromUrl !== currentYear) {
           seek(fromUrl);
