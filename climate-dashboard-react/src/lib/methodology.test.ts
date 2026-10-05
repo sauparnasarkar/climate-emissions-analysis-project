@@ -53,8 +53,9 @@ describe('buildSources', () => {
     expect(newerPublication[0].vintage).toBe('published 2026-09-29 (v2.8)'); // keeps the chosen entry's label and version
   });
 
-  it('says only the annual NOAA record is joined at 1959; the monthly record is the latest reading', () => {
-    expect(rows[0].usedFor).toBe('Atmospheric CO₂ (joined at 1959)');
+  it('says only the annual NOAA record is joined to the ice-core record (no typed-in year); the monthly record is the latest reading', () => {
+    expect(rows[0].usedFor).toBe('Atmospheric CO₂ (joined to the ice-core record)');
+    expect(rows[0].usedFor).not.toMatch(/\d{4}/);
     expect(rows[1].usedFor).toBe('Latest CO₂ reading (Mauna Loa monthly)');
     expect(rows[1].usedFor).not.toMatch(/1959/);
     expect(rows[1].licences).toEqual(['NOAA GML: public domain, citation requested.']);

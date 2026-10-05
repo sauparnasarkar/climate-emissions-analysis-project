@@ -1,4 +1,5 @@
 import { ChartCard } from 'design-system';
+import { ALL_GAS_START_YEAR } from '../../lib/allGas';
 import { GLOBAL_RELATIONSHIP_ANCHOR, NOT_A_CLIMATE_MODEL } from '../../lib/climateCopy';
 import type { ClimateSignal } from '../../lib/climateSignal';
 import type { Headline } from '../../lib/headline';
@@ -42,7 +43,7 @@ export function HeadlineRelationship({ signal, headline, hasAllGas = false }: { 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
             <BaselineChip baseline="1850–1900" source="Berkeley Earth" />
             <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
-              Each dot is one year. Dashed line: least-squares fit. Co-movement is shown as context, not as proof of cause.{hasAllGas ? ' The recent all-gas view (1970 onward) is a separate chart below and is not called TCRE.' : ''}
+              Each dot is one year. Dashed line: least-squares fit. Co-movement is shown as context, not as proof of cause.{hasAllGas ? ` The recent all-gas view (${ALL_GAS_START_YEAR} onward) is a separate chart below and is not called TCRE.` : ''}
             </span>
           </div>
         </ChartCard>

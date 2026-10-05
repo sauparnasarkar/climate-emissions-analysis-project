@@ -25,7 +25,7 @@ describe('MethodologySection', () => {
     expect(within(table).getByRole('row', { name: /PRIMAP-hist/ })).toHaveTextContent('Non-commercial use only');
     expect(within(table).queryByText(/crosswalk/i)).not.toBeInTheDocument();
     expect(within(table).getByRole('row', { name: /monthly mean/ })).toHaveTextContent('Latest CO₂ reading');
-    expect(within(table).getByRole('row', { name: /monthly mean/ })).not.toHaveTextContent('joined at 1959');
+    expect(within(table).getByRole('row', { name: /monthly mean/ })).not.toHaveTextContent(/joined/);
     expect(within(table).getAllByRole('row')).toHaveLength(1 + 5); // header + five sources
   });
 
