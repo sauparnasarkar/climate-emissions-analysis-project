@@ -32,6 +32,7 @@ export function CausalChain({ signal, emissions }: { signal: ClimateSignal; emis
             <>
               <strong className="__s9cmpx-headline5" style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtInt(emissions.total)} <span className="__s9cmpx-body3">MtCO₂ in {emissions.year}</span></strong>
               <p className="__s9cmpx-body4" style={weak}>World annual CO₂. Each year&apos;s emissions add to a stock that stays.</p>
+              <BaselineChip baseline="none · annual level" source="OWID" />
             </>
           ) : (
             <p className="__s9cmpx-body4" style={weak}>Each year&apos;s emissions add to a stock that stays.</p>

@@ -53,6 +53,16 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(within(document.querySelector('.module-chain') as HTMLElement).getAllByRole('listitem')[0].textContent).not.toMatch(/MtCO₂/);
   });
 
+  it('does not lose the chain and relationship when only the optional 5-year-mean request fails', async () => {
+    vi.mocked(api.correlationTemperature).mockImplementation(async (o) => {
+      if (o?.view === 'mean5y') throw new ApiError(503, 'x');
+      return TEMPERATURE;
+    });
+    mount();
+    expect(await screen.findByRole('heading', { level: 2, name: 'Global relationship' })).toBeInTheDocument();
+    expect(screen.queryByText(/climate data is unavailable/)).not.toBeInTheDocument();
+  });
+
   it('uses the latest year that has data when the final map row is all null, never a zero total', async () => {
     vi.mocked(api.worldMapSeries).mockResolvedValue({ ...WORLD, years: [2023, 2024, 2025], values: [...WORLD.values, [null, null]] });
     mount();

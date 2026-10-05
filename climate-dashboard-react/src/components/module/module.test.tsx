@@ -17,6 +17,7 @@ describe('CausalChain', () => {
     expect(cells).toHaveLength(4);
     expect(cells[0]).toHaveTextContent('1 · Emissions');
     expect(cells[0]).toHaveTextContent('37,398 MtCO₂ in 2024');
+    expect(cells[0]).toHaveTextContent('Baseline none · annual level · OWID'); // every cell with a figure states its baseline and source
     expect(cells[1]).toHaveTextContent('2 · Concentration');
     expect(cells[1]).toHaveTextContent('424.6 ppm in 2024');
     expect(cells[1]).toHaveTextContent('287 ppm in 1850');
