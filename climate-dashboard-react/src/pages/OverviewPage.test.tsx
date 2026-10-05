@@ -809,6 +809,15 @@ function mountFullRange(currentYear: number) {
 }
 
 describe('OverviewPage — map 1970–2024 with decade stops', () => {
+  it('labels the "Since 1990" headline as a fixed comparison that does not follow the map\'s year, at every stop', async () => {
+    mountFullRange(1980);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(within(mapSide()).getByText('Fixed comparison, 1990 to 2024; the cards below follow the map\'s year.')).toBeInTheDocument();
+    // while the year-dependent cards are on the historical frame
+    expect(within(mapSide()).getByText('Atmospheric CO₂ · 1980')).toBeInTheDocument();
+    expect(within(mapSide()).getAllByText('CO₂ (1980)')).toHaveLength(3);
+  });
+
   it('asks for the 1970 range, plays it in decade stops (~1.75 s each) and spans 1970 to 2024', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });

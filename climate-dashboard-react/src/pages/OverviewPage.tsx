@@ -178,7 +178,7 @@ function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
 // NEGATIVE_COLOR (increase, bad)/POSITIVE_COLOR (decrease, good) convention TierSummaryPanel's
 // own % Change column already uses, so a value here reads consistently with the rest of the
 // page rather than introducing a third color rule.
-function OverviewHeadline({ headlineMovers, scope }: { headlineMovers: MoverRow[]; scope: string }) {
+function OverviewHeadline({ headlineMovers, scope, latestYear }: { headlineMovers: MoverRow[]; scope: string; latestYear: number }) {
   const segments = buildHeadlineSentence(headlineMovers, scope);
   if (!segments) return null;
   return (
@@ -186,6 +186,10 @@ function OverviewHeadline({ headlineMovers, scope }: { headlineMovers: MoverRow[
     // rationale.
     <div style={{ background: 'var(--__s9cmpx-static-background-standard)', padding: '12px 16px', border: '1px solid var(--__s9cmpx-static-divider-weak)', borderTop: '3px solid var(--__s9cmpx-accent-secondary, transparent)', borderRadius: 8 }}>
       <span className="__s9cmpx-label3" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Since 1990</span>
+      {/* A fixed 1990-to-latest comparison: it does not follow the map's year (unlike the tiers and the CO₂ panel below), and says so. */}
+      <span className="__s9cmpx-body4" style={{ display: 'block', color: 'var(--__s9cmpx-static-text-weak)' }}>
+        {`Fixed comparison, 1990 to ${latestYear}; the cards below follow the map's year.`}
+      </span>
       <p className="__s9cmpx-body2" style={{ margin: '4px 0 0' }}>
         {segments.map((seg, i) => {
           if (seg.kind === 'country') return <strong key={i}>{seg.text}</strong>;
@@ -412,6 +416,7 @@ function AnimatedWorldMap({
         <OverviewHeadline
           headlineMovers={headlineMovers}
           scope={`the top ${headlineMovers.length} emitters by ${allCountriesTier.latest_year} output`}
+          latestYear={allCountriesTier.latest_year}
         />
         <TierSummaryPanel
           year={currentYear}
@@ -444,8 +449,8 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   const { data, error, loading } = useAsync(() => api.overview(selected), [selected.join(',')]);
   // Selection-invariant -- deps: [] means this fires exactly once for the page's lifetime,
   // regardless of how many times `selected` changes (SPEC.md §5.17.1).
-  // One request for the longer 1970 range (the climate chart and sparklines use it); the 1990-based series the map plays is sliced from it,
-  // so the map itself is unchanged until its own step extends it.
+  // One request for the 1970 range (requirements §2.6). The map plays all of it in decade stops, and the climate chart and sparklines
+  // read the same series; the tiers use the API's totals from the 1990 baseline and are summed from this series before it.
   const { data: globeSeries, error: worldMapError, loading: worldMapLoading } = useAsync(() => api.worldMapSeries(CLIMATE_SERIES_START_YEAR), []);
   const worldMapSeries = globeSeries ?? null;
   const climate = useClimateSignal();
