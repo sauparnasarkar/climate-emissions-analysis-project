@@ -10,6 +10,7 @@ import OverviewPage from './OverviewPage';
 import { CONCENTRATION, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
 import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
 import { buildCumulative } from '../lib/cumulative';
+import { shareResponse } from '../test/shareFixtures';
 import { CLIMATE_SIGNAL_ANCHOR, RELATIONSHIP_ANCHOR } from '../lib/climateCopy';
 
 const scrollSpy = vi.hoisted(() => vi.fn());
@@ -167,6 +168,8 @@ function mockReducedMotion(matches: boolean) {
 
 beforeEach(() => {
   vi.mocked(useYearAnimation).mockReturnValue(DEFAULT_ANIMATION);
+  // The Share section requests its series on mount; tests that care about it set their own, the rest get an empty (no-data) series.
+  vi.mocked(api.correlationCountryShare).mockResolvedValue(shareResponse([]));
   mockReducedMotion(false);
 });
 
