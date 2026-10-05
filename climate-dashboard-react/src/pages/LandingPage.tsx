@@ -29,6 +29,7 @@ import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 // The landing globe is ambient (requirements §2.6, ENHANCEMENTS.md decision 12): it turns once, continuously, while the year
 // advances one at a time from GLOBE_START_YEAR to the latest, blending colours between years so the change reads as smooth
 // rather than stepped. ~700 ms a year, ~40 s for the whole pass. (Release 20's decade-by-decade steps are replaced.)
+// The legend, controls, slider and total stay visible throughout; only the per-country labels are hidden while it plays.
 const GLOBE_START_YEAR = 1970;
 const GLOBE_STEP_MS = 700;
 const GLOBE_STEP_YEARS = 1;
@@ -50,9 +51,6 @@ const STYLES = `
 .landing-hero__globe { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .landing-hero__controls { width: 100%; max-width: 624px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .landing-globe-title--block { display: none; width: 100%; max-width: 624px; }
-.landing-hero__globe { container-type: inline-size; }
-/* Holds the height of the canvas plus the legend/controls, which are hidden while the globe plays, so the page below does not jump when they return. */
-.landing-globe-slot { width: 100%; min-height: calc(min(100cqw, var(--globe-max, 600px)) + 100px); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; }
 .landing-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--__s9cmpx-static-divider-weak); margin-top: 8px; }
 .landing-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .landing-race { display: flex; gap: clamp(32px, 5vw, 80px); align-items: flex-start; }
@@ -99,7 +97,8 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
   const all = overview.all_countries;
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
   // Size the globe so the slide plus the carousel controls fit above the fold on a laptop: the viewport minus the 68 px
-  // header, ~64 px of carousel controls, the section's own padding, the reserved legend/controls space and the Pause row.
+  // header, ~64 px of carousel controls, the section's own padding, the legend and globe controls under the canvas, and the
+  // Pause/year-slider row.
   const viewportHeight = useViewportHeight();
   const globeMax = Math.max(300, Math.min(600, viewportHeight - 68 - 64 - 56 - 100 - 52));
   const totals = useMemo(() => worldTotals(globe), [globe]);
@@ -111,8 +110,7 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
   const globeHeading = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={{ fontSize: 28, fontWeight: 600, lineHeight: 1, fontVariantNumeric: 'tabular-nums', color: 'var(--__s9cmpx-static-text-strong)' }}>{currentYear}</span>
-        {/* While the globe plays only the year shows (requirements §2.6); the total returns on pause. */}
-        {!isPlaying && yearTotal != null && (
+        {yearTotal != null && (
           // Two short lines rather than one long one: the overlay sits in the globe box's top-left corner, and
           // "22,899 MtCO₂ · all countries" at this size ran into the disc's edge.
           <>
@@ -148,9 +146,8 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
         </div>
       </div>
 
-      <div className="landing-hero__globe" ref={globeRef} style={{ ['--globe-max' as string]: `${globeMax}px` }}>
+      <div className="landing-hero__globe" ref={globeRef}>
         <div className="landing-globe-title--block">{globeHeading}</div>
-        <div className="landing-globe-slot">
         <Globe
           isoCodes={globe.iso_codes}
           locationNames={globe.countries}
@@ -175,23 +172,19 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           rotationPeriodMs={Math.max(1, globe.years.length - 1) * GLOBE_STEP_MS}
           // Colours blend over the whole year-step (none under reduced motion, which Globe forces itself).
           blendMs={GLOBE_STEP_MS}
-          // Ambient while playing: only the colours and the year counter (§2.6). Labels, legend and controls return on pause.
+          // The legend, the globe's own controls, the year slider and the total are always shown (owner decision, 2026-10-04,
+          // amending requirements §2.6). Only the per-country MtCO₂ labels depend on motion: they would be unreadable on a
+          // spinning globe, so they appear when it stops.
           showLabels={!isPlaying}
-          showLegend={!isPlaying}
-          showControls={!isPlaying}
           maxSize={globeMax}
           transparent
           title={<div className="landing-globe-title--overlay">{globeHeading}</div>}
         />
-        </div>
         <div className="landing-hero__controls">
           <Button variant="ghost-blue" onClick={toggle}>{isPlaying ? 'Pause' : 'Play'}</Button>
-          {/* Manual year selection is not part of the ambient globe; the slider appears once it is paused, with the details. */}
-          {!isPlaying && (
-            <div style={{ flex: 1 }}>
-              <Slider label="Year" min={minYear} max={maxYear} step={1} value={currentYear} onChange={seek} showValue={false} showRangeLabels />
-            </div>
-          )}
+          <div style={{ flex: 1 }}>
+            <Slider label="Year" min={minYear} max={maxYear} step={1} value={currentYear} onChange={seek} showValue={false} showRangeLabels />
+          </div>
         </div>
       </div>
     </section>

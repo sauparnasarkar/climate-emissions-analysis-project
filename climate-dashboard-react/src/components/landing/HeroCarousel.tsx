@@ -3,7 +3,7 @@ import { Icon, useReducedMotion } from 'design-system';
 import { useCarousel } from '../../hooks/useCarousel';
 
 // The landing's top-of-fold carousel (Area 2, requirements §2.1; ENHANCEMENTS.md decision 59): two banners,
-// rate-limited autoplay with an always-visible Pause/Play, a 300 ms crossfade that never moves content.
+// auto-rotate controlled only by an always-visible Pause/Play button, a 300 ms crossfade that never moves content.
 
 export interface CarouselSlide {
   id: string;
@@ -36,7 +36,6 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
       className={`hero-carousel${reducedMotion ? ' hero-carousel--static' : ''}`}
       aria-roledescription="carousel"
       aria-label={ariaLabel}
-      {...c.regionHandlers}
       onKeyDown={(e) => {
         // ←/→ switch slides only from the carousel's own controls (or the region itself). A key pressed inside a slide --
         // the hero's Year slider, say -- keeps its own meaning, and an event something else already handled is left alone.
@@ -61,7 +60,7 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
           </button>
         ))}
         <button type="button" className="hero-carousel__btn" onClick={c.next} aria-label="Next slide"><Icon name="chevron-right" size={16} /></button>
-        <span className="hero-carousel__hint">{c.autoplay ? 'Auto-rotating · pauses on hover or focus' : 'Auto-rotate off · ← → when focused'}</span>
+        <span className="hero-carousel__hint">{c.autoplay ? 'Auto-rotating · use Pause to stop' : 'Auto-rotate off · ← → to switch'}</span>
       </div>
       <div className="hero-carousel__slides" aria-live={c.autoplay ? 'off' : 'polite'}>
         {slides.map((s, i) => (

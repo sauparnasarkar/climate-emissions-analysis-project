@@ -173,30 +173,27 @@ describe('LandingPage', () => {
     expect(screen.getByText('272 MtCO₂')).toBeInTheDocument(); // the animation's current year (2023) total, from the series itself
   });
 
-  it('while the globe plays only the year shows: no total, no labels, no legend, no controls, no year slider (requirements §2.6)', async () => {
+  it('while the globe plays, the legend, controls, total and year slider stay; only the per-country MtCO₂ labels are hidden', async () => {
     mount(); // ANIMATION is playing
     const globe = await screen.findByTestId('globe');
     expect(globe).toHaveAttribute('data-show-labels', 'false');
-    expect(globe).toHaveAttribute('data-show-legend', 'false');
-    expect(globe).toHaveAttribute('data-show-controls', 'false');
-    expect(screen.queryByText('all countries')).not.toBeInTheDocument();
-    expect(screen.queryByText('272 MtCO₂')).not.toBeInTheDocument();
-    expect(screen.getAllByText('2023').length).toBeGreaterThan(0); // the year counter stays
-    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument(); // the one control that stays
+    expect(globe).not.toHaveAttribute('data-show-legend', 'false'); // left at the Globe's default (shown)
+    expect(globe).not.toHaveAttribute('data-show-controls', 'false');
+    expect(screen.getByText('272 MtCO₂')).toBeInTheDocument();
+    expect(screen.getByText('all countries')).toBeInTheDocument();
+    expect(screen.getByRole('slider')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
   });
 
-  it('on pause the labels, legend, controls, total and year slider are revealed; the globe is also at rest under reduced motion', async () => {
+  it('when the globe is not spinning the per-country labels appear, with everything else unchanged -- also under reduced motion, which starts paused', async () => {
     const { unmount } = mount(overview(), MAP, { ...ANIMATION, isPlaying: false });
     const globe = await screen.findByTestId('globe');
     expect(globe).toHaveAttribute('data-show-labels', 'true');
-    expect(globe).toHaveAttribute('data-show-legend', 'true');
-    expect(globe).toHaveAttribute('data-show-controls', 'true');
     expect(screen.getByRole('slider')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Play' })).toBeInTheDocument();
     unmount();
-    mount(overview(), MAP, { ...ANIMATION, isPlaying: false, reducedMotion: true }); // reduced motion starts paused, details visible
-    expect(await screen.findByTestId('globe')).toHaveAttribute('data-show-legend', 'true');
+    mount(overview(), MAP, { ...ANIMATION, isPlaying: false, reducedMotion: true });
+    expect(await screen.findByTestId('globe')).toHaveAttribute('data-show-labels', 'true');
   });
 
   it('asks the API for the globe\'s 1970 range and keeps the 1990-based view for the rest of the page', async () => {
@@ -328,15 +325,17 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('img', { name: /scatter chart, one dot per year from 1850 to 2024/i })).toBeInTheDocument();
   });
 
-  it('has a Pause button first in tab order; any manual change stops autoplay and shows the existing hero', async () => {
+  it('has a Pause button first in tab order; the button alone decides auto-rotate: a manual slide change leaves it on, Pause stops it', async () => {
     mountWithClimate();
     const region = await screen.findByRole('region', { name: 'Featured' });
     const buttons = within(region).getAllByRole('button');
     expect(buttons[0]).toHaveAccessibleName('Pause automatic rotation');
     fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
-    expect(screen.getByRole('button', { name: 'Start automatic rotation' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pause automatic rotation' })).toBeInTheDocument(); // still on
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: /global temperature has risen/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Pause automatic rotation' }));
+    expect(screen.getByRole('button', { name: 'Start automatic rotation' })).toBeInTheDocument();
   });
 
   it('switches slides with the tab buttons and the arrow keys', async () => {
