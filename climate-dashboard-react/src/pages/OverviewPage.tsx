@@ -8,7 +8,7 @@ import { worldTotals } from '../lib/mapSeries';
 import { computeAutoplayStops } from '../lib/yearStops';
 import { AtmosphericCo2Card, type ConcentrationContext } from '../components/overview/AtmosphericCo2Card';
 import { LeadingEmitters, type MapMode } from '../components/overview/LeadingEmitters';
-import { buildCumulative, fmtGt, leaders, positiveRange } from '../lib/cumulative';
+import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange } from '../lib/cumulative';
 import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, Table, SegmentedControl, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
@@ -550,10 +550,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // Each country's cumulative CO₂ just before the map's first year (one all-countries snapshot, ~200 rows): the base for Cumulative mode.
   // If it fails the map simply offers Absolute only.
   const cumulativeQuery = useAsync(async () => api.correlationCountryShare({ year: CLIMATE_SERIES_START_YEAR - 1, allCountries: true }), []);
-  const cumulativeBase = useMemo(
-    () => (cumulativeQuery.data ? { byIso: Object.fromEntries(cumulativeQuery.data.rows.map((r) => [r.country, r.cumulative_mt])), from: cumulativeQuery.data.cumulative_from } : null),
-    [cumulativeQuery.data],
-  );
+  const cumulativeBase = useMemo(() => cumulativeBaseFrom(cumulativeQuery.data, CLIMATE_SERIES_START_YEAR - 1), [cumulativeQuery.data]);
   const concentrationContext = useMemo<ConcentrationContext | null>(
     () => (climate.signal ? { series: climate.signal.series.concentration, spliceYear: climate.signal.spliceYear, ppm1850: climate.signal.ppm1850 } : null),
     [climate.signal],

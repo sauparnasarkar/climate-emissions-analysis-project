@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
@@ -1004,6 +1004,16 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     const before = within(mapSide()).getByText('Atmospheric CO₂ · 2024').closest('div')!.parentElement!.textContent;
     fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
     expect(within(mapSide()).getByText('Atmospheric CO₂ · 2024').closest('div')!.parentElement!.textContent).toBe(before);
+  });
+
+  it('also offers only Absolute when the snapshot comes back empty (a 200 with no rows): an empty base would silently drop the pre-1970 history', async () => {
+    mountFullRange(2024);
+    vi.mocked(api.correlationCountryShare).mockResolvedValue({ ...SHARE_SNAPSHOT, rows: [], notes: ['no data for 1969'] });
+    cleanup();
+    render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(screen.getByRole('radio', { name: 'Cumulative' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Absolute' })).toBeChecked();
   });
 
   it('offers only Absolute when the cumulative snapshot is unavailable', async () => {

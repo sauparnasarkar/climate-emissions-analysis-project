@@ -1,3 +1,4 @@
+import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
 import type { WorldMapTimeSeries } from '../api/types';
 
 /**
@@ -58,4 +59,24 @@ export function leaders(row: ReadonlyArray<number | null | undefined>, names: st
 /** GtCO₂ for display: one decimal below 10, whole numbers above ("0.4", "9.8", "435"). */
 export function fmtGt(v: number): string {
   return v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString('en-US');
+}
+
+export interface CumulativeBase {
+  /** Cumulative CO₂ in Mt at `year`, by ISO3 country */
+  byIso: Record<string, number>;
+  /** First year the cumulative counts from (the API's `cumulative_from`); null if it did not say */
+  from: number | null;
+}
+
+/**
+ * The base for Cumulative mode from an all-countries snapshot at `year`, or null when the snapshot cannot be trusted as one.
+ * /country-share answers a year outside its coverage with 200 and `rows: []` (a note, not an error), and an empty base would silently
+ * drop everything emitted before the map's range from every displayed total -- so an empty snapshot, a response for a different year,
+ * or a year outside the published coverage is "unavailable" and the toggle stays on Absolute.
+ */
+export function cumulativeBaseFrom(snapshot: CorrelationCountryShareResponse | null | undefined, year: number): CumulativeBase | null {
+  if (!snapshot || snapshot.mode !== 'ranking' || snapshot.year !== year || snapshot.rows.length === 0) return null;
+  const [lo, hi] = snapshot.coverage ?? [];
+  if (lo != null && hi != null && (year < lo || year > hi)) return null;
+  return { byIso: Object.fromEntries(snapshot.rows.map((r) => [r.country, r.cumulative_mt])), from: snapshot.cumulative_from };
 }
