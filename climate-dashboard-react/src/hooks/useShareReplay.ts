@@ -21,8 +21,8 @@ export function useShareReplay(first: number, target: number, cancel: boolean, s
   }, [active, target, stepMs]);
 
   const start = useCallback(() => {
-    if (target > first) setReplayYear(first);
-  }, [first, target]);
+    if (!cancel && target > first) setReplayYear(first);
+  }, [cancel, first, target]);
   const stop = useCallback(() => setReplayYear(null), []);
   return { replayYear, replaying: active, start, stop };
 }
