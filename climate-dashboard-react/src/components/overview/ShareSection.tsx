@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Button, ChartCard, InlineAlert, SegmentedControl, Slider, useReducedMotion } from 'design-system';
+import { Button, ChartCard, InlineAlert, SegmentedControl, useReducedMotion } from 'design-system';
 import { api } from '../../api/client';
 import { useAsync } from '../../hooks/useAsync';
-import { useSharePlayback } from '../../hooks/useSharePlayback';
+import { useShareReplay } from '../../hooks/useShareReplay';
 import { SHARE_MEASURES, SHARE_START_YEAR, SHARE_STEP_MS, buildShareFrames, fmtShare, segmentLabel, type ShareCountry, type ShareMeasureId } from '../../lib/shareBars';
 import { BaselineChip } from '../climate/BaselineChip';
 import { PurposeLine } from '../climate/PurposeLine';
+import { YearBadge } from './YearBadge';
 
 export const SHARE_ANCHOR = 'share';
 
@@ -64,9 +65,10 @@ function ShareBar({ title, subtitle, order, values, rest, tween }: BarProps) {
 /**
  * Who emitted the stock, and who emits now (requirements §2.2; ENHANCEMENTS.md decision 63): two 100% stacked bars for the selected
  * countries -- their share of everything emitted since the cumulative start (the stock) and of one year's emissions (the flow) -- that play
- * 1970 → latest. Shares describe contribution to emissions only; no warming is attributed to a country.
+ * 1970 → the page year. It shows the page year; "Replay" animates 1970 → that year (temporarily, changing nothing else on the page) and returns to it.
+ * Shares describe contribution to emissions only; no warming is attributed to a country.
  */
-export function ShareSection({ countries }: { countries: string[] }) {
+export function ShareSection({ countries, year, pagePlaying }: { countries: string[]; year: number; pagePlaying: boolean }) {
   const [measureId, setMeasureId] = useState<ShareMeasureId>('owid_co2');
   const measure = SHARE_MEASURES.find((m) => m.id === measureId) ?? SHARE_MEASURES[0];
   const reduceMotion = useReducedMotion();
@@ -80,8 +82,11 @@ export function ShareSection({ countries }: { countries: string[] }) {
   const frames = useMemo(() => (query.loading ? null : buildShareFrames(query.data)), [query.data, query.loading]);
   const first = frames?.years[0] ?? SHARE_START_YEAR;
   const lastYear = frames?.years[frames.years.length - 1] ?? SHARE_START_YEAR;
-  const { year, playing, toggle, seek } = useSharePlayback(first, lastYear);
-  const yi = frames ? Math.max(0, frames.years.indexOf(year)) : 0;
+  // The page year decides what is shown; a replay borrows the screen from 1970 up to it, then hands it back. It ends early when the page year
+  // moves or the page's own Play starts.
+  const { replayYear, replaying, start, stop } = useShareReplay(first, year, pagePlaying);
+  const shown = Math.min(Math.max(replayYear ?? year, first), lastYear);
+  const yi = frames ? Math.max(0, frames.years.indexOf(shown)) : 0;
 
   const body = (() => {
     if (countries.length === 0) return <p className="__s9cmpx-body3" style={{ margin: 0 }}>Select countries in the picker below to compare their shares.</p>;
@@ -97,11 +102,18 @@ export function ShareSection({ countries }: { countries: string[] }) {
     return (
       <>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <Button variant="ghost-blue" onClick={toggle}>{playing ? 'Pause' : 'Play'}</Button>
-          <div style={{ flex: 1 }}>
-            <Slider label="Year" min={first} max={lastYear} step={1} value={year} onChange={seek} showValue={false} showRangeLabels showThumbValue />
+          <Button variant="ghost-blue" onClick={replaying ? stop : start} disabled={!replaying && year <= first}>
+            {replaying ? '■ Stop replay' : `▶ Replay ${first} → ${year}`}
+          </Button>
+          {replaying && (
+            <div aria-hidden style={{ flex: '1 1 80px', height: 4, borderRadius: 2, background: 'var(--__s9cmpx-static-divider-weak)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${year > first ? ((shown - first) / (year - first)) * 100 : 100}%`, background: 'var(--__s9cmpx-static-text-weak)' }} />
+            </div>
+          )}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span className="__s9cmpx-body4" style={{ color: replaying ? 'var(--__s9cmpx-static-text-warning, #8A5A00)' : 'var(--__s9cmpx-static-text-weak)' }}>{replaying ? 'replaying · temporary' : 'page year'}</span>
+            <span aria-live="off" className="__s9cmpx-headline5" style={{ fontVariantNumeric: 'tabular-nums', minWidth: 56, textAlign: 'right' }}>{shown}</span>
           </div>
-          <span aria-live="off" className="__s9cmpx-headline5" style={{ fontVariantNumeric: 'tabular-nums', minWidth: 56, textAlign: 'right' }}>{year}</span>
         </div>
         {frames.missing.length > 0 && (
           <InlineAlert variant="warning">
@@ -114,9 +126,9 @@ export function ShareSection({ countries }: { countries: string[] }) {
           </InlineAlert>
         ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <ShareBar title="The stock" subtitle={`Cumulative${frames.cumulativeFrom != null ? ` ${frames.cumulativeFrom}` : ''}–${year}`} order={order} values={stock} rest={frames.restStock[yi]} tween={!reduceMotion} />
+          <ShareBar title="The stock" subtitle={`Cumulative${frames.cumulativeFrom != null ? ` ${frames.cumulativeFrom}` : ''}–${shown}`} order={order} values={stock} rest={frames.restStock[yi]} tween={!reduceMotion} />
           {flow && frames.restFlow ? (
-            <ShareBar title="The flow" subtitle={`Annual, ${year} only`} order={order} values={flow} rest={frames.restFlow[yi]} tween={!reduceMotion} />
+            <ShareBar title="The flow" subtitle={`Annual, ${shown} only`} order={order} values={flow} rest={frames.restFlow[yi]} tween={!reduceMotion} />
           ) : (
             <p className="__s9cmpx-body4" style={{ margin: 0, color: 'var(--__s9cmpx-static-text-weak)' }}>
               The annual (flow) shares are not published yet in this data release; the stock bar is unaffected.
@@ -126,7 +138,7 @@ export function ShareSection({ countries }: { countries: string[] }) {
         )}
         <table style={{ width: '100%', maxWidth: 640, marginTop: 12, borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums' }}>
           <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--__s9cmpx-static-text-weak)', paddingBottom: 4 }}>
-            Share by country, {year}
+            Share by country, {shown}
           </caption>
           <thead>
             <tr className="__s9cmpx-label4" style={{ textAlign: 'right', color: 'var(--__s9cmpx-static-text-weak)' }}>
@@ -162,7 +174,7 @@ export function ShareSection({ countries }: { countries: string[] }) {
           </tbody>
         </table>
         <p className="__s9cmpx-body4" style={{ margin: '10px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
-          {frames.label} · denominator = sum of national emissions, international aviation and shipping excluded. Plays {first}→{lastYear} at about a quarter of a second a year. Same selected countries in both bars, same colours. Shares describe contribution to emissions; no warming is attributed to a country.
+          {frames.label} · denominator = sum of national emissions, international aviation and shipping excluded. Replay animates {first} → the page year at about a quarter of a second a year and changes nothing else on the page. Same selected countries in both bars, same colours. Shares describe contribution to emissions; no warming is attributed to a country.
         </p>
       </>
     );
@@ -183,7 +195,7 @@ export function ShareSection({ countries }: { countries: string[] }) {
   return (
     <section id={SHARE_ANCHOR} aria-label="Share of cumulative emissions" style={{ marginBottom: 16 }}>
       <ChartCard
-        title="Who emitted the stock, and who emits now"
+        title={<>Who emitted the stock, and who emits now<YearBadge year={year} /></>}
         headingLevel={2}
       >
         <PurposeLine>compare each selected country&apos;s part of everything emitted so far, by the measure chosen below, with its part of a single year.</PurposeLine>
