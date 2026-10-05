@@ -617,6 +617,10 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // null for years up to the 1990 baseline: Top Movers and % Change then grey out with a prompt
   const movers = moversForYear(worldMapSeries, selected, year);
   const NA_MOVER = { country: 'N/A', co2Base: 0, co2Year: 0, absoluteChange: 0, pctChange: 0 };
+  // The comparison period as stated in titles: 1990 → the page year, or just "since 1990" while the year is not after the baseline (a reversed range
+  // like "1990 → 1980" would read as a real comparison). The % Change title keeps the design's "1990–{year}" form for years after the baseline.
+  const moversPeriod = movers ? `1990 → ${year}` : 'since 1990';
+  const changeTitle = movers ? `CO₂ % Change by Country, 1990–${year}` : 'CO₂ % Change by Country, since 1990';
   const fastestGrowth = movers?.[0] ?? NA_MOVER;
   const largestReduction = movers?.[movers.length - 1] ?? NA_MOVER;
 
@@ -740,9 +744,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
 
         {selected.length > 0 && (
           <section aria-labelledby="movers-heading" style={{ minWidth: 0 }}>
-            <h2 id="movers-heading" className="__s9cmpx-headline6" style={{ margin: '8px 0 4px' }}>Top Movers 1990 → {year} ({selected.length} Selected Countries)<YearBadge year={year} /></h2>
+            <h2 id="movers-heading" className="__s9cmpx-headline6" style={{ margin: '8px 0 4px' }}>Top Movers {moversPeriod} ({selected.length} Selected Countries)<YearBadge year={year} /></h2>
             <p className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)', margin: '0 0 12px' }}>
-              Fastest growth and largest reduction in CO₂ emissions, 1990 → {year}, among the {selected.length} selected countries.
+              Fastest growth and largest reduction in CO₂ emissions, {movers ? `1990 → ${year}` : 'measured from the 1990 baseline'}, among the {selected.length} selected countries.
             </p>
             {!movers ? (
               <BaselinePrompt />
@@ -783,7 +787,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         {selected.length === 0 ? (
           <InlineAlert variant="warning">Select at least one country.</InlineAlert>
         ) : !movers ? (
-          <ChartCard title={`CO₂ % Change by Country, 1990–${year}`} headingLevel={3}>
+          <ChartCard title={changeTitle} headingLevel={3}>
             <BaselinePrompt />
           </ChartCard>
         ) : (

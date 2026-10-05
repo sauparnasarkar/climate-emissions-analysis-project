@@ -971,9 +971,10 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
       expect(screen.getAllByRole('status').filter((n) => /The baseline is 1990/.test(n.textContent ?? ''))).toHaveLength(2); // Top Movers + % Change
       expect(screen.getAllByText(/Choose 2000 or later in the page year/)).toHaveLength(2);
       expect(screen.queryByText('Fastest Growth — China')).not.toBeInTheDocument();
-      expect(screen.getByText(`CO₂ % Change by Country, 1990–${year}`)).toBeInTheDocument();
+      expect(screen.getByText('CO₂ % Change by Country, since 1990')).toBeInTheDocument(); // not a reversed "1990–1980"
+      expect(screen.queryByText(/1990–19[89]0|1990 → 19[89]0/)).not.toBeInTheDocument();
       expect(screen.getAllByText(`CO₂ Emissions by Country (${year})`)).toHaveLength(2);
-      expect(screen.getByRole('heading', { name: /^Top Movers 1990 → / })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /^Top Movers since 1990 \(1 Selected Countries\)/ })).toBeInTheDocument();
     }
   });
 
