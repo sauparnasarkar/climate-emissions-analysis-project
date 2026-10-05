@@ -94,14 +94,26 @@ export function buildDerivation(resp: CorrelationEmissionsTemperatureResponse | 
   const unit = str(fit.unit);
   if (slope === null || start === null || end === null || n === null || !label || !unit) return null;
   const full = rec(ctx?.fit);
+  const seOls = num(full?.se_ols);
+  const seHac = num(full?.se_hac);
+  const maxlags = num(full?.maxlags) ?? num(fit.maxlags);
+  const lag1 = num(full?.residual_lag1_autocorrelation);
+  const durbinWatson = num(full?.durbin_watson);
+  const rule = str(full?.rule);
 
   const hac = list(ctx?.hac_sensitivity).flatMap((r) => {
     const ci = pair(r.ci95_hac);
     const maxlags = num(r.maxlags);
     return ci && maxlags !== null ? [{ maxlags, seHac: num(r.se_hac), ciLow: ci[0], ciHigh: ci[1] }] : [];
   });
-  const uncertainty: Uncertainty | null = full || hac.length
-    ? { seOls: num(full?.se_ols), seHac: num(full?.se_hac), maxlags: num(full?.maxlags) ?? num(fit.maxlags), lag1: num(full?.residual_lag1_autocorrelation), durbinWatson: num(full?.durbin_watson), rule: str(full?.rule), sensitivity: hac }
+  const hasUncertaintyData =
+    (seOls !== null && seHac !== null) ||
+    rule !== null ||
+    lag1 !== null ||
+    durbinWatson !== null ||
+    hac.length > 0;
+  const uncertainty: Uncertainty | null = hasUncertaintyData
+    ? { seOls, seHac, maxlags, lag1, durbinWatson, rule, sensitivity: hac }
     : null;
 
   const scale = list(ctx?.land_use_sensitivity).flatMap((r) => (num(r.land_use_scale) !== null && num(r.slope) !== null ? [{ scale: num(r.land_use_scale)!, slope: num(r.slope)! }] : []));
