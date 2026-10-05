@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
  * optional caveat. `sources` come from the API's attribution/meta, not retyped copy. */
 export function SourceNote({ sources, children }: { sources: string[]; children?: ReactNode }) {
   return (
-    <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
+    <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
       Source: {sources.join(' · ')}
       {children ? <> — {children}</> : null}
     </p>

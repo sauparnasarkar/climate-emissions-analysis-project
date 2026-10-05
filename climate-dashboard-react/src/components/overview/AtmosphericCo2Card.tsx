@@ -24,16 +24,16 @@ export function AtmosphericCo2Card({ year, concentration }: { year: number; conc
       <style>{SERIES_STYLES}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <span className="__s9cmpx-label3">{`Atmospheric CO₂ · ${year}`}</span>
-        <span style={{ fontFamily: 'var(--__s9cmpx-font-families-mono, ui-monospace, monospace)', fontSize: 10, letterSpacing: '.08em', color: 'var(--__s9cmpx-static-text-weak)' }}>GLOBAL</span>
+        <span style={{ fontFamily: 'var(--__s9cmpx-font-families-mono, ui-monospace, monospace)', fontSize: 10, letterSpacing: '.08em', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>GLOBAL</span>
       </div>
       <div className="__s9cmpx-headline5" style={{ fontVariantNumeric: 'tabular-nums' }}>{now ? `${now.value.toFixed(1)} ppm` : '—'}</div>
       {delta != null && ppm1850 != null && (
-        <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+        <div className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
           {`${delta >= 0 ? '+' : '−'}${Math.abs(delta).toFixed(1)} ppm (${fmtPct((delta / ppm1850) * 100)}) since 1850`}
         </div>
       )}
       <div className="series-spark" style={{ margin: '6px 0 2px' }}><Sparkline values={since} markerYear={spliceYear} highlightYear={year} /></div>
-      <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+      <div className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
         {spliceYear != null ? `Law Dome ice core to ${spliceYear - 1} · NOAA Mauna Loa from ${spliceYear}. ` : ''}One global value: concentration is not split by country.
       </div>
     </div>

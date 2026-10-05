@@ -167,28 +167,28 @@ function TierSummaryPanel({ rows, year, mode = 'absolute', cumulativeFrom = null
           <div className="__s9cmpx-label3" style={{ marginBottom: 6 }}>{row.tier}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
             <div>
-              <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Countries</div>
+              <div className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>Countries</div>
               <div className="__s9cmpx-body2">{Math.round(row.countries).toLocaleString()}</div>
             </div>
             {mode === 'cumulative' ? (
               <>
                 <div>
-                  <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{`Cumulative ${cumulativeFrom ?? ''}–${year}`}</div>
+                  <div className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{`Cumulative ${cumulativeFrom ?? ''}–${year}`}</div>
                   <div className="__s9cmpx-body2">{`${fmtGt(row.cumulativeGt ?? 0)} GtCO₂`}</div>
                 </div>
                 <div>
-                  <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Share of world total</div>
+                  <div className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>Share of world total</div>
                   <div className="__s9cmpx-body2">{`${(row.sharePct ?? 0).toFixed(1)}%`}</div>
                 </div>
               </>
             ) : (
               <>
                 <div>
-                  <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{`CO₂ (${year})`}</div>
+                  <div className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{`CO₂ (${year})`}</div>
                   <div className="__s9cmpx-body2">{`${row.co2Total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}</div>
                 </div>
                 <div>
-                  <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>% Chg. since 1990</div>
+                  <div className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>% Chg. since 1990</div>
                   <div className="__s9cmpx-body2" style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
                     {row.suppressPctChange ? '—' : `${row.pctChange >= 0 ? '+' : ''}${row.pctChange.toFixed(1)}%`}
                   </div>
@@ -218,9 +218,9 @@ function OverviewHeadline({ headlineMovers, scope, latestYear }: { headlineMover
     // accent-secondary top rule -- see TierSummaryPanel's own comment for the fallback/pairing
     // rationale.
     <div style={{ background: 'var(--__s9cmpx-static-background-standard)', padding: '12px 16px', border: '1px solid var(--__s9cmpx-static-divider-weak)', borderTop: '3px solid var(--__s9cmpx-accent-secondary, transparent)', borderRadius: 8 }}>
-      <span className="__s9cmpx-label3" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Since 1990</span>
+      <span className="__s9cmpx-label3" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>Since 1990</span>
       {/* A fixed 1990-to-latest comparison: it does not follow the map's year (unlike the tiers and the CO₂ panel below), and says so. */}
-      <span className="__s9cmpx-body4" style={{ display: 'block', color: 'var(--__s9cmpx-static-text-weak)' }}>
+      <span className="__s9cmpx-body4" style={{ display: 'block', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
         {`Fixed comparison, 1990 to ${latestYear}; the cards below follow the map's year.`}
       </span>
       <p className="__s9cmpx-body2" style={{ margin: '4px 0 0' }}>
@@ -442,7 +442,7 @@ function AnimatedWorldMap({
               {year}
             </Button>
           ))}
-          <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>or drag the year slider, year by year</span>
+          <span className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>or drag the year slider, year by year</span>
         </div>
         {/* No explicit height here, expanded or not -- the choropleth's own ResizeObserver
             already recomputes height from container width alone (SPEC.md §5.10), so widening
@@ -479,7 +479,7 @@ function AnimatedWorldMap({
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 16px', marginTop: 8 }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: NO_DATA_COLOR, display: 'inline-block' }} />
-            <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+            <span className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
               {isCumulative
                 ? `Gray = no CO₂ ever recorded for that country up to ${currentYear}`
                 : `Gray = no CO₂ data reported for that country in ${currentYear}`}
@@ -488,7 +488,7 @@ function AnimatedWorldMap({
           {outlineLocations.length > 0 && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, border: '2px solid var(--__s9cmpx-color-brand-500)', boxSizing: 'border-box', display: 'inline-block' }} />
-              <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Outlined = your selected countries</span>
+              <span className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>Outlined = your selected countries</span>
             </span>
           )}
         </div>
@@ -695,7 +695,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
       <section id="by-country" aria-labelledby="picker-heading" style={{ ...panelStyle, marginBottom: 16 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 12px', marginBottom: 12 }}>
           <h2 id="picker-heading" className="__s9cmpx-headline6" style={{ margin: 0 }}>Selected countries</h2>
-          <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
+          <span className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
             {selected.length} of {MAX_SELECTED_COUNTRIES} max · from the {expanded.length} Expanded countries · drives the Selected tier and every chart below
           </span>
         </div>
@@ -745,7 +745,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
         {selected.length > 0 && (
           <section aria-labelledby="movers-heading" style={{ minWidth: 0 }}>
             <h2 id="movers-heading" className="__s9cmpx-headline6" style={{ margin: '8px 0 4px' }}>Top Movers {moversPeriod} ({selected.length} Selected Countries)<YearBadge year={year} /></h2>
-            <p className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)', margin: '0 0 12px' }}>
+            <p className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))', margin: '0 0 12px' }}>
               Fastest growth and largest reduction in CO₂ emissions, {movers ? `1990 → ${year}` : 'measured from the 1990 baseline'}, among the {selected.length} selected countries.
             </p>
             {!movers ? (
@@ -794,7 +794,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           <ChartCard title={`CO₂ % Change by Country, 1990–${year}`} headingLevel={3}>
             {/* Legend for the diverging pair: brown = increase (bad), teal = decrease (good) -- the
                 chart's own colorbar shows the gradient, this names the two ends in words. */}
-            <div className="__s9cmpx-body4" style={{ display: 'flex', gap: 16, marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
+            <div className="__s9cmpx-body4" style={{ display: 'flex', gap: 16, marginBottom: 8, color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: NEGATIVE_COLOR, display: 'inline-block' }} /> Increase
               </span>

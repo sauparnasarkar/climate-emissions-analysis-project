@@ -112,3 +112,16 @@
     z-index: 10;
   }
 }
+
+/* Area 2 surfaces (ENHANCEMENTS.md decision 68). The shared muted-text token (#5C7683) is designed for white surfaces (4.7:1); the new surfaces put muted text
+   on the tinted page background and on chips, where it falls to ~3.6-3.8:1 (and lower in the dark theme). These variables give those surfaces their own
+   AA-passing muted text, amber and link colours per theme without changing the shared token every other page uses. */
+[data-theme="analytics-bright-tidewater"] { --area2-muted: #4A6270; --area2-warning: #6E4800; --area2-link: #3F55B8; }
+[data-theme="analytics"] { --area2-muted: #B4C3DF; --area2-warning: #F5CC80; --area2-link: #9DBBFF; }
+.area2-link, .area2-link:visited { color: var(--area2-link, inherit); }
+/* The anchor rows of the two Area 2 pages: the shared JumpLinks colours its inactive links with the muted token (3.8:1 on the tinted page background, 3.5:1 in
+   the dark theme); on these pages it takes the AA-passing muted colour. The shared component itself is the owner's call (decision 68). */
+.overview-page .__s9cmpx-jump-links__anchor:not([aria-current="location"]),
+.climate-module .__s9cmpx-jump-links__anchor:not([aria-current="location"]) { color: var(--area2-muted, inherit) !important; }
+.overview-page .__s9cmpx-jump-links__anchor:hover,
+.climate-module .__s9cmpx-jump-links__anchor:hover { color: var(--__s9cmpx-static-text-standard) !important; }

@@ -33,7 +33,7 @@ function Metric({ value, caption, tone }: { value: string; caption: string; tone
   return (
     <div>
       <div className={tone ? `climate-metric--${tone}` : undefined} style={{ fontSize: 'clamp(1.25rem, 2.2vw, 1.75rem)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', ...(tone ? {} : { color: 'var(--__s9cmpx-static-text-strong)' }) }}>{value}</div>
-      <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{caption}</div>
+      <div className="__s9cmpx-body4" style={{ color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>{caption}</div>
     </div>
   );
 }
@@ -49,7 +49,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
         <h1 id={headingId} style={{ margin: 0, fontSize: 'clamp(2rem, min(4.6vw, 5.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
           Global temperature has risen with the CO₂ we have accumulated.
         </h1>
-        <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
+        <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
           Emissions set off a chain reaction: CO₂ builds up in the atmosphere, traps more heat, and the planet warms. Over {fit.nYears} years, warming has followed the cumulative total, not any single year’s emissions.
         </p>
         <div className="climate-banner__metrics">

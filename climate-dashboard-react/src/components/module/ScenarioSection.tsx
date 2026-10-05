@@ -41,7 +41,7 @@ export function ScenarioSection({ view }: { view: ScenarioView }) {
       <style>{'@media (max-width: 1200px) { .module-scenario-grid { grid-template-columns: minmax(0, 1fr) !important; } }'}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 12px', margin: '0 0 12px' }}>
         <h2 id="scenarios-heading" className="__s9cmpx-headline5" style={{ margin: 0 }}>Implied temperature by scenario, {startYear}–{horizon}</h2>
-        <span className="__s9cmpx-label4" style={{ padding: '2px 8px', borderRadius: 3, textTransform: 'uppercase', letterSpacing: '.04em', background: 'var(--__s9cmpx-static-background-warning, rgba(176,122,16,0.16))', color: 'var(--__s9cmpx-static-text-warning, #8A5A00)' }}>
+        <span className="__s9cmpx-label4" style={{ padding: '2px 8px', borderRadius: 3, textTransform: 'uppercase', letterSpacing: '.04em', background: 'var(--__s9cmpx-static-background-warning, rgba(176,122,16,0.16))', color: 'var(--area2-warning, #6E4800)' }}>
           {SCENARIO_LABEL}
         </span>
       </div>
@@ -97,9 +97,9 @@ export function ScenarioSection({ view }: { view: ScenarioView }) {
             </div>
           )}
           <table style={{ ...panel, width: '100%', borderCollapse: 'collapse', fontVariantNumeric: 'tabular-nums', padding: 8 }}>
-            <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--__s9cmpx-static-text-weak)', padding: '0 0 4px' }}>{horizon} at a glance</caption>
+            <caption className="__s9cmpx-body4" style={{ textAlign: 'left', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))', padding: '0 0 4px' }}>{horizon} at a glance</caption>
             <thead>
-              <tr className="__s9cmpx-label4" style={{ textAlign: 'right', color: 'var(--__s9cmpx-static-text-weak)' }}>
+              <tr className="__s9cmpx-label4" style={{ textAlign: 'right', color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
                 <th scope="col" style={{ textAlign: 'left', fontWeight: 600, padding: '4px 8px' }}>Pathway</th>
                 <th scope="col" style={{ fontWeight: 600, padding: '4px 8px' }}>GtCO₂ a year</th>
                 <th scope="col" style={{ fontWeight: 600, padding: '4px 8px' }}>°C</th>
@@ -120,7 +120,7 @@ export function ScenarioSection({ view }: { view: ScenarioView }) {
           </table>
         </div>
       </div>
-      <div className="__s9cmpx-body4" style={{ marginTop: 10, color: 'var(--__s9cmpx-static-text-weak)' }}>
+      <div className="__s9cmpx-body4" style={{ marginTop: 10, color: 'var(--area2-muted, var(--__s9cmpx-static-text-weak))' }}>
         {labels.length > 0 && <p style={{ margin: '0 0 4px' }}>{labels.join(' · ')}.</p>}
         {basis.length > 0 && <p style={{ margin: 0 }}>{basis.join('; ')}.</p>}
       </div>
