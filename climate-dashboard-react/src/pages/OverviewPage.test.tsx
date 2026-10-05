@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
@@ -8,6 +8,8 @@ import type { CountriesResponse, OverviewResponse, WorldMapTimeSeries } from '..
 import { NEGATIVE_COLOR, POSITIVE_COLOR } from '../constants';
 import OverviewPage from './OverviewPage';
 import { CONCENTRATION, PAIR, TEMPERATURE, TEMPERATURE_MEAN5Y } from '../test/climateFixtures';
+import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
+import { buildCumulative } from '../lib/cumulative';
 import { CLIMATE_SIGNAL_ANCHOR, RELATIONSHIP_ANCHOR } from '../lib/climateCopy';
 
 const scrollSpy = vi.hoisted(() => vi.fn());
@@ -15,7 +17,7 @@ const scrollSpy = vi.hoisted(() => vi.fn());
 vi.mock('../api/client', () => ({
   api: {
     listCountries: vi.fn(), overview: vi.fn(), worldMapSeries: vi.fn(),
-    correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn(), correlationConcentration: vi.fn(),
+    correlationEmissionsTemperature: vi.fn(), correlationTemperature: vi.fn(), correlationConcentration: vi.fn(), correlationCountryShare: vi.fn(),
   },
 }));
 
@@ -36,8 +38,9 @@ vi.mock('design-system', async (importOriginal) => {
     scrollToJumpTarget: (id: string) => scrollSpy(id),
     SyChart: (props: {
       ariaLabel?: string;
-      series?: Array<{ kind?: string; noDataColor?: string; colorScale?: Array<[number, string]>; colorRange?: [number, number] }>;
+      series?: Array<{ kind?: string; noDataColor?: string; colorScale?: Array<[number, string]>; colorRange?: [number, number]; colorbarTitle?: string; hoverUnit?: string }>;
       outlineLocations?: string[];
+      animationFrame?: { colorValues: Array<number | null> };
     }) => {
       const barSeries = props.series?.find((s) => s.kind === 'bar');
       return (
@@ -45,6 +48,9 @@ vi.mock('design-system', async (importOriginal) => {
           data-testid="sychart"
           aria-label={props.ariaLabel}
           data-no-data-color={props.series?.find((s) => s.kind === 'choropleth')?.noDataColor}
+          data-colorbar-title={props.series?.find((s) => s.kind === 'choropleth')?.colorbarTitle}
+          data-hover-unit={props.series?.find((s) => s.kind === 'choropleth')?.hoverUnit}
+          data-frame={props.animationFrame ? JSON.stringify(props.animationFrame.colorValues) : undefined}
           data-axes={props.series ? JSON.stringify(props.series.map((s) => (s as { yAxis?: string }).yAxis ?? 'y')) : undefined}
           data-outline={props.outlineLocations ? JSON.stringify(props.outlineLocations) : undefined}
           data-bar-color-scale={barSeries?.colorScale ? JSON.stringify(barSeries.colorScale) : undefined}
@@ -459,9 +465,10 @@ describe('OverviewPage', () => {
     const nav = await screen.findByRole('navigation', { name: 'Jump links' });
     const links = within(nav).getAllByRole('link');
     // "Climate signal" always leads (the emissions KPIs stand on their own); "Relationship" only joins when the climate data is there.
-    expect(links.map((l) => l.textContent)).toEqual(['Climate signal', 'Map', 'By Country', '% Change']);
-    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#map', '#by-country', '#pct-change']);
-    expect(document.getElementById('map')).not.toBeNull();
+    expect(links.map((l) => l.textContent)).toEqual(['Climate signal', 'Top emitters', 'By Country', '% Change']);
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#top-emitters', '#by-country', '#pct-change']);
+    expect(document.getElementById('top-emitters')).not.toBeNull();
+    expect(document.getElementById('map')).not.toBeNull(); // the old anchor still lands on the map
   });
 
   it('"Reset to default" restores the featured selection and refetches', async () => {
@@ -589,11 +596,11 @@ describe('OverviewPage — climate signal', () => {
   it('has the #climate-signal and #relationship anchors the Landing CTA and the jump links point at, in order, with the jump links first', async () => {
     mountWithClimate();
     const nav = await screen.findByRole('navigation', { name: 'Jump links' });
-    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#relationship', '#map', '#by-country', '#pct-change']);
+    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual(['#climate-signal', '#relationship', '#top-emitters', '#by-country', '#pct-change']);
     expect(CLIMATE_SIGNAL_ANCHOR).toBe('climate-signal'); // the Landing's primary CTA is /overview#climate-signal
     expect(document.getElementById(CLIMATE_SIGNAL_ANCHOR)).not.toBeNull();
     expect(document.getElementById(RELATIONSHIP_ANCHOR)).not.toBeNull();
-    const ids = ['climate-signal', 'relationship', 'map', 'by-country'].map((id) => document.getElementById(id)!);
+    const ids = ['climate-signal', 'relationship', 'top-emitters', 'by-country'].map((id) => document.getElementById(id)!);
     ids.slice(1).forEach((el, i) => expect(ids[i].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy());
     // sticks to the top while scrolling
     expect((nav.parentElement as HTMLElement).style.position).toBe('sticky');
@@ -797,6 +804,24 @@ const FULL_RESPONSE: OverviewResponse = {
 const tierChanges = () => screen.getAllByText('% Chg. since 1990').map((label) => label.nextElementSibling?.textContent);
 const mapSide = () => document.querySelector('.overview-hero-right') as HTMLElement;
 
+// The all-countries snapshot at the last year before the series (1969): cumulative Mt per ISO3 country, recorded from 1750.
+const BASE_MT = { CHN: 100_000, VNM: 200 };
+const SHARE_SNAPSHOT = {
+  schema_version: 1, generated_at: null, note: '', caveats: [], attribution: [], source_vintage: null, name: 'n', method: 'm', source: 'owid_co2', gas_scope: 'co2', label: 'l',
+  unit: 'Mt CO2', mode: 'ranking', year: 1969, limit: null, start_year: null, end_year: null, coverage: [1850, 2024], cumulative_from: 1750, total_cumulative_mt: 100_200, annual_total_mt: 1,
+  rows: [
+    { rank: 1, country: 'CHN', name: 'China', cumulative_mt: BASE_MT.CHN, share_pct: 99.8, annual_mt: 1, annual_share_pct: 50 },
+    { rank: 2, country: 'VNM', name: 'Vietnam', cumulative_mt: BASE_MT.VNM, share_pct: 0.2, annual_mt: 1, annual_share_pct: 50 },
+  ],
+  series: [], denominator: null, reconciliation: null, details: {}, notes: [],
+} as CorrelationCountryShareResponse;
+const CUM = buildCumulative(FULL_MAP, BASE_MT) as number[][]; // Gt, [yearIdx][country] (both countries in the fixture have history, so no nulls)
+const gt = (v: number) => (v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString('en-US'));
+const showCumulative = async () => {
+  await screen.findByRole('heading', { level: 1, name: 'Overview' });
+  fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
+};
+
 function mountFullRange(currentYear: number) {
   vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, currentYear });
   vi.mocked(api.listCountries).mockResolvedValue({ featured: ['China'], expanded: ['China', 'Vietnam'] });
@@ -805,6 +830,7 @@ function mountFullRange(currentYear: number) {
   vi.mocked(api.correlationEmissionsTemperature).mockResolvedValue(PAIR);
   vi.mocked(api.correlationTemperature).mockImplementation(async (o) => (o?.view === 'mean5y' ? TEMPERATURE_MEAN5Y : TEMPERATURE));
   vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
+  vi.mocked(api.correlationCountryShare).mockResolvedValue(SHARE_SNAPSHOT);
   return render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
 }
 
@@ -903,5 +929,139 @@ describe('OverviewPage — atmospheric CO₂ card on the map', () => {
     render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
     expect(screen.queryByText(/Atmospheric CO₂ · /)).not.toBeInTheDocument();
+  });
+});
+
+
+// ---------------------------------------------------------------- Area 2: Absolute / Cumulative map, leading emitters (Phase 2.6)
+
+describe('OverviewPage — Absolute / Cumulative map', () => {
+  it('starts Absolute, with Cumulative offered once its base snapshot has loaded (requested for the last year before the map\'s range, for every country)', async () => {
+    mountFullRange(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(api.correlationCountryShare).toHaveBeenCalledWith({ year: 1969, allCountries: true });
+    expect(screen.getByRole('radio', { name: 'Absolute' })).toBeChecked();
+    expect(await screen.findByRole('radio', { name: 'Cumulative' })).not.toBeDisabled();
+    expect(screen.getByText('Annual MtCO₂')).toBeInTheDocument();
+  });
+
+  it('switches the map to running totals: its own title, unit, colour bar and frame values (GtCO₂), and back', async () => {
+    mountFullRange(2024);
+    await showCumulative();
+    const chart = screen.getAllByTestId('sychart').find((c) => c.getAttribute('data-colorbar-title'))!;
+    expect(chart).toHaveAttribute('data-colorbar-title', 'Cumulative CO₂ (MtCO₂)');
+    expect(chart).toHaveAttribute('data-hover-unit', 'MtCO₂');
+    // the map layer carries the running totals in Mt (the cards beside it show the same numbers in Gt)
+    const frame = JSON.parse(chart.getAttribute('data-frame')!) as number[];
+    CUM[2024 - 1970].forEach((v, i) => expect(frame[i]).toBeCloseTo(v * 1000, 6));
+    expect(screen.getByText('Cumulative CO₂ Emissions by Country, 1750–2024')).toBeInTheDocument();
+    expect(screen.getByText('Running total, MtCO₂ emitted since 1750 (the cards beside the map show GtCO₂)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Absolute' }));
+    expect(screen.getAllByText('CO₂ Emissions by Country (2024)').length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('sychart').find((c) => c.getAttribute('data-colorbar-title'))).toHaveAttribute('data-colorbar-title', 'CO₂ (MtCO₂)');
+  });
+
+  it('the map\'s accessible label and the grey legend describe the cumulative view, not the annual one', async () => {
+    mountFullRange(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    // Absolute
+    expect(screen.getByLabelText(/^Animated world map choropleth of CO₂ emissions by country, 1970 to 2024, currently showing 2024/)).toBeInTheDocument();
+    expect(screen.getByText('Gray = no CO₂ data reported for that country in 2024')).toBeInTheDocument();
+    // Cumulative: the period each value covers is stated, apart from the 1970–2024 frame range
+    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
+    expect(screen.getByLabelText(/cumulative CO₂ emissions by country: the running total emitted since 1750, shown for each year from 1970 to 2024, currently the total to 2024/)).toBeInTheDocument();
+    expect(screen.getByText('Gray = no CO₂ ever recorded for that country up to 2024')).toBeInTheDocument();
+    expect(screen.queryByText('Gray = no CO₂ data reported for that country in 2024')).not.toBeInTheDocument();
+  });
+
+  it('the tiers show cumulative GtCO₂ and each group\'s share of the world total, summing to the same world', async () => {
+    mountFullRange(2024);
+    await showCumulative();
+    expect(screen.getAllByText('Cumulative 1750–2024')).toHaveLength(3);
+    expect(screen.getAllByText('Share of world total')).toHaveLength(3);
+    expect(screen.queryByText('% Chg. since 1990')).not.toBeInTheDocument();
+    const world = CUM[54][0] + CUM[54][1];
+    const china = CUM[54][0];
+    const sideText = mapSide().textContent!;
+    expect(sideText).toContain(`${gt(world)} GtCO₂`); // All Countries (and Expanded: the same two countries)
+    expect(sideText).toContain(`${gt(china)} GtCO₂`); // Selected = China
+    expect(sideText).toContain('100.0%'); // All Countries is the whole world
+    expect(sideText).toContain(`${((china / world) * 100).toFixed(1)}%`);
+  });
+
+  it('the table view follows the mode (the running totals in MtCO₂, with a cumulative caption)', async () => {
+    mountFullRange(2024);
+    await showCumulative();
+    fireEvent.click(screen.getByRole('button', { name: 'Table view' }));
+    const region = screen.getByRole('region', { name: 'Cumulative CO₂ by country, 2024, table view' });
+    expect(within(region).getByText(/Cumulative CO₂ by country, 2024 \(MtCO₂\) — all 2 countries/)).toBeInTheDocument();
+    expect(within(region).getByText(Math.round(CUM[54][0] * 1000).toLocaleString())).toBeInTheDocument(); // China's running total
+  });
+
+  it('keeps the atmospheric CO₂ card the same in both modes: a stock, never split by country', async () => {
+    mountFullRange(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const before = within(mapSide()).getByText('Atmospheric CO₂ · 2024').closest('div')!.parentElement!.textContent;
+    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
+    expect(within(mapSide()).getByText('Atmospheric CO₂ · 2024').closest('div')!.parentElement!.textContent).toBe(before);
+  });
+
+  it('also offers only Absolute when the snapshot comes back empty (a 200 with no rows): an empty base would silently drop the pre-1970 history', async () => {
+    mountFullRange(2024);
+    vi.mocked(api.correlationCountryShare).mockResolvedValue({ ...SHARE_SNAPSHOT, rows: [], notes: ['no data for 1969'] });
+    cleanup();
+    render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(screen.getByRole('radio', { name: 'Cumulative' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Absolute' })).toBeChecked();
+  });
+
+  it('offers only Absolute when the cumulative snapshot is unavailable', async () => {
+    vi.mocked(useYearAnimation).mockReturnValue({ ...DEFAULT_ANIMATION, currentYear: 2024 });
+    vi.mocked(api.listCountries).mockResolvedValue({ featured: ['China'], expanded: ['China', 'Vietnam'] });
+    vi.mocked(api.overview).mockResolvedValue(FULL_RESPONSE);
+    vi.mocked(api.worldMapSeries).mockResolvedValue(FULL_MAP);
+    vi.mocked(api.correlationEmissionsTemperature).mockResolvedValue(PAIR);
+    vi.mocked(api.correlationTemperature).mockResolvedValue(TEMPERATURE);
+    vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
+    vi.mocked(api.correlationCountryShare).mockRejectedValue(new ApiError(503, 'unavailable'));
+    render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(screen.getByRole('radio', { name: 'Cumulative' })).toBeDisabled();
+    expect(screen.getByRole('radio', { name: 'Absolute' })).toBeChecked();
+  });
+});
+
+describe('OverviewPage — leading emitters', () => {
+  it('ranks the top emitters of the year among all countries with their share of that year\'s total (Absolute)', async () => {
+    mountFullRange(2024);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    const card = screen.getByRole('region', { name: 'Leading emitters · 2024' });
+    const rows = within(card).getAllByRole('listitem');
+    expect(rows).toHaveLength(2); // two countries in the fixture
+    expect(rows[0]).toHaveTextContent('China');
+    expect(rows[0]).toHaveTextContent(`${fmt0(chinaAt(2024))} Mt`);
+    expect(rows[0]).toHaveTextContent(`${((chinaAt(2024) / (chinaAt(2024) + vietnamAt(2024))) * 100).toFixed(1)}%`);
+    expect(rows[1]).toHaveTextContent('Vietnam');
+    expect(within(card).getByText('MtCO₂ in the year, and share of the world total')).toBeInTheDocument();
+  });
+
+  it('follows the map\'s year and the mode: Cumulative ranks running totals in Gt with their share of the cumulative world total', async () => {
+    mountFullRange(1980);
+    await screen.findByRole('heading', { level: 1, name: 'Overview' });
+    expect(screen.getByRole('region', { name: 'Leading emitters · 1980' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
+    const card = screen.getByRole('region', { name: 'Largest cumulative emitters, to 1980' });
+    const rows = within(card).getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('China');
+    expect(rows[0]).toHaveTextContent(`${gt(CUM[10][0])} Gt`);
+    expect(rows[0]).toHaveTextContent(`${((CUM[10][0] / (CUM[10][0] + CUM[10][1])) * 100).toFixed(1)}%`);
+    expect(within(card).getByText('GtCO₂ emitted since 1750, and share of the world total')).toBeInTheDocument();
+  });
+
+  it('states no warming attribution anywhere on the card: it ranks emissions only', async () => {
+    mountFullRange(2024);
+    const card = await screen.findByRole('region', { name: 'Leading emitters · 2024' });
+    expect(card.textContent).not.toMatch(/warming|temperature/i);
   });
 });

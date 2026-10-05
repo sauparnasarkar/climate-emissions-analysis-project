@@ -7,7 +7,9 @@ import { CLIMATE_SIGNAL_ANCHOR, RELATIONSHIP_ANCHOR } from '../lib/climateCopy';
 import { worldTotals } from '../lib/mapSeries';
 import { computeAutoplayStops } from '../lib/yearStops';
 import { AtmosphericCo2Card, type ConcentrationContext } from '../components/overview/AtmosphericCo2Card';
-import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, Table, useReducedMotion } from 'design-system';
+import { LeadingEmitters, type MapMode } from '../components/overview/LeadingEmitters';
+import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange } from '../lib/cumulative';
+import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, Table, SegmentedControl, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
@@ -26,8 +28,11 @@ import type { MoverRow, OverviewTierMetrics, WorldMapTimeSeries } from '../api/t
 // Stable, hand-authored jump-nav labels (SPEC.md §5.19) -- never copied from a ChartCard's own
 // (often dynamic) title. "Map" and "By Country" would otherwise collide if taken verbatim from
 // their titles, which share the literal prefix "CO₂ Emissions by Country".
+// The map section's anchor was #map; it is #top-emitters now (the design's name). The grid that wraps the map and its side cards keeps
+// id="map", so bookmarked and shared #map links still land at the same place.
+const TOP_EMITTERS_ANCHOR = 'top-emitters';
 const JUMP_ITEMS: JumpLinkItem[] = [
-  { id: 'map', label: 'Map', href: '#map' },
+  { id: TOP_EMITTERS_ANCHOR, label: 'Top emitters', href: `#${TOP_EMITTERS_ANCHOR}` },
   { id: 'by-country', label: 'By Country', href: '#by-country' },
   { id: 'pct-change', label: '% Change', href: '#pct-change' },
 ];
@@ -100,6 +105,9 @@ interface TierRow {
   // True only at the animation's first frame (the map's minYear itself) -- "% Change since
   // {minYear}" is trivially +0.0% there, which reads as broken rather than informative.
   suppressPctChange?: boolean;
+  // Cumulative mode (the map's other view): GtCO₂ emitted to the selected year and the group's share of the world total.
+  cumulativeGt?: number;
+  sharePct?: number;
 }
 
 // Builds a TierRow from a per-year series and the currently-playing frame, rather than
@@ -134,7 +142,7 @@ function animatedTierRow(
 // every 1.2s), so they snap directly to the new value in step with the map rather than easing,
 // which would otherwise either lag behind the map or still be mid-animation when the next tick
 // arrives. CountUpText (below) stays reserved for values that only ever change once, on load.
-function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
+function TierSummaryPanel({ rows, year, mode = 'absolute', cumulativeFrom = null }: { rows: TierRow[]; year: number; mode?: MapMode; cumulativeFrom?: number | null }) {
   return (
     // accent-tertiary top rule (falls back to transparent on themes that don't publish it, e.g.
     // Dark analytics -- these tokens are Bright/Signal-family only, per the design handoff's
@@ -152,16 +160,31 @@ function TierSummaryPanel({ rows, year }: { rows: TierRow[]; year: number }) {
               <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Countries</div>
               <div className="__s9cmpx-body2">{Math.round(row.countries).toLocaleString()}</div>
             </div>
-            <div>
-              <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{`CO₂ (${year})`}</div>
-              <div className="__s9cmpx-body2">{`${row.co2Total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}</div>
-            </div>
-            <div>
-              <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>% Chg. since 1990</div>
-              <div className="__s9cmpx-body2" style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
-                {row.suppressPctChange ? '—' : `${row.pctChange >= 0 ? '+' : ''}${row.pctChange.toFixed(1)}%`}
-              </div>
-            </div>
+            {mode === 'cumulative' ? (
+              <>
+                <div>
+                  <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{`Cumulative ${cumulativeFrom ?? ''}–${year}`}</div>
+                  <div className="__s9cmpx-body2">{`${fmtGt(row.cumulativeGt ?? 0)} GtCO₂`}</div>
+                </div>
+                <div>
+                  <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>Share of world total</div>
+                  <div className="__s9cmpx-body2">{`${(row.sharePct ?? 0).toFixed(1)}%`}</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{`CO₂ (${year})`}</div>
+                  <div className="__s9cmpx-body2">{`${row.co2Total.toLocaleString(undefined, { maximumFractionDigits: 0 })} MtCO₂`}</div>
+                </div>
+                <div>
+                  <div className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>% Chg. since 1990</div>
+                  <div className="__s9cmpx-body2" style={{ color: row.pctChange >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>
+                    {row.suppressPctChange ? '—' : `${row.pctChange >= 0 ? '+' : ''}${row.pctChange.toFixed(1)}%`}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       ))}
@@ -218,6 +241,7 @@ function AnimatedWorldMap({
   expandedTier,
   headlineMovers,
   concentration,
+  cumulative,
 }: {
   /** The 1970-based series the map plays; the tiers' API totals cover its 1990-and-later part */
   worldMapSeries: WorldMapTimeSeries;
@@ -227,6 +251,8 @@ function AnimatedWorldMap({
   expandedTier: OverviewTierMetrics;
   headlineMovers: MoverRow[];
   concentration: ConcentrationContext | null;
+  /** Each country's cumulative CO₂ (Mt) at the last year before the series, from the all-countries snapshot; null while loading or if unavailable */
+  cumulative: { byIso: Record<string, number>; from: number | null } | null;
 }) {
   const minYear = worldMapSeries.years[0];
   const maxYear = worldMapSeries.years[worldMapSeries.years.length - 1];
@@ -251,29 +277,42 @@ function AnimatedWorldMap({
   // Table view: an accessible, sortable alternative to the map (all countries, current year).
   const [tableView, setTableView] = useState(false);
 
-  // Memoized to worldMapSeries alone (fetched once, stable for the page's lifetime) -- must
-  // never change reference as currentYear advances, or SyChart's main effect re-runs on every
-  // tick and undoes the whole point of the animationFrame escape hatch (loses the user's map
-  // zoom, rebinds hover handlers, tears down/recreates the resize ResizeObserver).
+  // Absolute (annual MtCO₂) or Cumulative (running total, GtCO₂): one toggle drives the map, the tiers, the ranking and the table together.
+  // Cumulative needs its base snapshot; until that arrives (or if it fails) the toggle offers only Absolute.
+  const [mode, setMode] = useState<MapMode>('absolute');
+  const cumMatrix = useMemo(() => (cumulative ? buildCumulative(worldMapSeries, cumulative.byIso) : null), [cumulative, worldMapSeries]);
+  // The map layer, table and ranking read the running totals in MtCO₂ (the unit of the annual values, and the one whose hover format shows
+  // small countries as numbers rather than "0"); the tier cards use the same totals in GtCO₂ (cumMatrix), as the design shows them.
+  const cumMatrixMt = useMemo(() => (cumMatrix ? cumMatrix.map((row) => row.map((v) => (v == null ? null : v * 1000))) : null), [cumMatrix]);
+  const cumRange = useMemo(() => (cumMatrixMt ? positiveRange(cumMatrixMt) : null), [cumMatrixMt]);
+  const isCumulative = mode === 'cumulative' && cumMatrixMt !== null && cumRange !== null;
+  const activeValues: ReadonlyArray<ReadonlyArray<number | null>> = isCumulative ? cumMatrixMt : worldMapSeries.values;
+  const cumulativeFrom = cumulative?.from ?? null;
+
+  // Memoized to the series, the theme colour and the MODE (a deliberate user action) -- never to the current year, or SyChart's main
+  // effect would re-run on every tick and undo the whole point of the animationFrame escape hatch (loses the user's map zoom, rebinds
+  // hover handlers, tears down/recreates the resize ResizeObserver). Cumulative has its own colour range and bar title: the annual
+  // bins would be meaningless for running totals.
   const series = useMemo(
     () => [
       {
-        name: 'CO₂',
+        name: isCumulative ? 'Cumulative CO₂' : 'CO₂',
         x: [],
         y: [],
         kind: 'choropleth' as const,
         locations: worldMapSeries.iso_codes,
         locationNames: worldMapSeries.countries,
         zLog: true,
-        colorValues: worldMapSeries.values[0],
-        colorRange: worldMapSeries.value_range,
+        colorValues: [...activeValues[0]],
+        colorRange: (isCumulative ? cumRange : worldMapSeries.value_range) as [number, number],
         noDataColor: noDataColorHex,
         colorScale: MAGNITUDE_SCALE,
-        colorbarTitle: 'CO₂ (MtCO₂)',
+        colorbarTitle: isCumulative ? 'Cumulative CO₂ (MtCO₂)' : 'CO₂ (MtCO₂)',
         hoverUnit: 'MtCO₂',
       },
     ],
-    [worldMapSeries, noDataColorHex],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [worldMapSeries, noDataColorHex, isCumulative, cumMatrixMt, cumRange],
   );
 
   // Selected's per-year total isn't server-provided (co2_by_year is only populated for All
@@ -308,6 +347,23 @@ function AnimatedWorldMap({
     [expandedTier, worldMapSeries, expandedIndices], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
+  // Cumulative totals per tier and year (Gt), and each tier's share of the world total, for Cumulative mode.
+  const groupCum = (indices: number[] | null) => (cumMatrix ? cumMatrix.map((row) => (indices ? indices.reduce((s, i) => s + (row[i] ?? 0), 0) : row.reduce<number>((s, v) => s + (v ?? 0), 0))) : null);
+  const allCum = useMemo(() => groupCum(null), [cumMatrix]); // eslint-disable-line react-hooks/exhaustive-deps
+  const expandedCum = useMemo(() => groupCum(expandedIndices), [cumMatrix, expandedIndices]); // eslint-disable-line react-hooks/exhaustive-deps
+  const selectedCum = useMemo(() => groupCum(selectedIndices), [cumMatrix, selectedIndices]); // eslint-disable-line react-hooks/exhaustive-deps
+  const cumulativeRow = (title: string, count: number, groupSeries: number[] | null): TierRow => {
+    const gt = groupSeries?.[yearIdx] ?? 0;
+    const world = allCum?.[yearIdx] ?? 0;
+    return { tier: title, countries: count, co2Total: 0, pctChange: 0, cumulativeGt: gt, sharePct: world ? (gt / world) * 100 : 0 };
+  };
+
+  // The top-5 leading emitters among ALL countries for the year on screen, in the active mode.
+  const topFive = useMemo(
+    () => leaders(activeValues[yearIdx] ?? [], worldMapSeries.countries, worldMapSeries.iso_codes, 5),
+    [activeValues, yearIdx, worldMapSeries],
+  );
+
   // ISO codes of the picker's selection, outlined on the map. Its own memo (and a separate SyChart
   // prop) so a selection change restyles just the outline and never resets the user's zoom; it
   // only changes when the selection does, not per animation tick.
@@ -316,16 +372,35 @@ function AnimatedWorldMap({
   // Every country's value for the current year, largest first, no-data last -- the Table view.
   const tableRows = useMemo(() => {
     if (!tableView) return [];
-    const row = worldMapSeries.values[yearIdx] ?? [];
+    const row = activeValues[yearIdx] ?? [];
     return worldMapSeries.countries
       .map((country, i) => ({ country, v: row[i] ?? null }))
       .sort((a, b) => (b.v ?? -1) - (a.v ?? -1))
       .map(({ country, v }) => ({ country, value: v == null ? 'No data' : v.toLocaleString(undefined, { maximumFractionDigits: v < 10 ? 2 : 0 }) }));
-  }, [tableView, worldMapSeries, yearIdx]);
+  }, [tableView, activeValues, worldMapSeries, yearIdx]);
 
   return (
     <>
-      <ChartCard id="map" className="overview-map-card" title={`CO₂ Emissions by Country (${currentYear})`} headingLevel={2} expandable>
+      <ChartCard
+        id={TOP_EMITTERS_ANCHOR}
+        className="overview-map-card"
+        title={isCumulative ? `Cumulative CO₂ Emissions by Country, ${cumulativeFrom ?? ''}–${currentYear}` : `CO₂ Emissions by Country (${currentYear})`}
+        supportText={isCumulative ? `Running total, MtCO₂ emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'} (the cards beside the map show GtCO₂)` : 'Annual MtCO₂'}
+        actions={
+          <SegmentedControl
+            name="map-mode"
+            size="small"
+            value={isCumulative ? 'cumulative' : 'absolute'}
+            onChange={(v) => setMode(v as MapMode)}
+            items={[
+              { value: 'absolute', label: 'Absolute' },
+              { value: 'cumulative', label: 'Cumulative', disabled: !cumMatrix, tooltip: !cumMatrix ? 'Cumulative totals are unavailable right now' : undefined },
+            ]}
+          />
+        }
+        headingLevel={2}
+        expandable
+      >
         {/* flexWrap + a shrinkable slider track: Slider carries its own 220px min-width,
             which together with the Play/Pause button floored this row (and therefore the
             whole card, and therefore the page) at ~330px -- wider than a 320px phone like
@@ -374,17 +449,21 @@ function AnimatedWorldMap({
         <div ref={mapRef} style={{ display: tableView ? 'none' : undefined }}>
         <SyChart
           showLegend={false}
-          ariaLabel={`Animated world map choropleth of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, log-scaled color from light (lowest) to deep red (highest)`}
+          ariaLabel={
+            isCumulative
+              ? `Animated world map choropleth of cumulative CO₂ emissions by country: the running total emitted ${cumulativeFrom != null ? `since ${cumulativeFrom}` : 'to date'}, shown for each year from ${minYear} to ${maxYear}, currently the total to ${currentYear}, log-scaled color from light (lowest) to deep red (highest)`
+              : `Animated world map choropleth of CO₂ emissions by country, ${minYear} to ${maxYear}, currently showing ${currentYear}, log-scaled color from light (lowest) to deep red (highest)`
+          }
           series={series}
-          animationFrame={{ colorValues: worldMapSeries.values[yearIdx] }}
+          animationFrame={{ colorValues: activeValues[yearIdx] as Array<number | null> }}
           outlineLocations={outlineLocations}
         />
         </div>
         {tableView && (
-          <div style={{ maxHeight: 420, overflow: 'auto' }} tabIndex={0} role="region" aria-label={`CO₂ by country, ${currentYear}, table view`}>
+          <div style={{ maxHeight: 420, overflow: 'auto' }} tabIndex={0} role="region" aria-label={`${isCumulative ? 'Cumulative CO₂' : 'CO₂'} by country, ${currentYear}, table view`}>
             <Table
               size="small"
-              caption={`CO₂ by country, ${currentYear} (MtCO₂) — all ${worldMapSeries.countries.length} countries`}
+              caption={`${isCumulative ? 'Cumulative CO₂' : 'CO₂'} by country, ${currentYear} (MtCO₂) — all ${worldMapSeries.countries.length} countries`}
               columns={[
                 { key: 'country', header: 'Country', sortable: true },
                 { key: 'value', header: 'MtCO₂', align: 'right' },
@@ -397,7 +476,9 @@ function AnimatedWorldMap({
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: NO_DATA_COLOR, display: 'inline-block' }} />
             <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
-              Gray = no CO₂ data reported for that country in {currentYear}
+              {isCumulative
+                ? `Gray = no CO₂ ever recorded for that country up to ${currentYear}`
+                : `Gray = no CO₂ data reported for that country in ${currentYear}`}
             </span>
           </span>
           {outlineLocations.length > 0 && (
@@ -420,14 +501,26 @@ function AnimatedWorldMap({
         />
         <TierSummaryPanel
           year={currentYear}
-          rows={[
-            animatedTierRow('All Countries', allCountriesTier.countries_count, allCo2ByYear, yearIdx, apiOffset),
-            animatedTierRow('Expanded (Coverage + ≥100 Mt)', expandedTier.countries_count, expandedCo2ByYear, yearIdx, apiOffset),
-            ...(selected.length > 0
-              ? [animatedTierRow('Selected', selected.length, selectedCo2ByYear, yearIdx, apiOffset)]
-              : []),
-          ]}
+          mode={isCumulative ? 'cumulative' : 'absolute'}
+          cumulativeFrom={cumulativeFrom}
+          rows={
+            isCumulative
+              ? [
+                  cumulativeRow('All Countries', allCountriesTier.countries_count, allCum),
+                  cumulativeRow('Expanded (Coverage + ≥100 Mt)', expandedTier.countries_count, expandedCum),
+                  ...(selected.length > 0 ? [cumulativeRow('Selected', selected.length, selectedCum)] : []),
+                ]
+              : [
+                  animatedTierRow('All Countries', allCountriesTier.countries_count, allCo2ByYear, yearIdx, apiOffset),
+                  animatedTierRow('Expanded (Coverage + ≥100 Mt)', expandedTier.countries_count, expandedCo2ByYear, yearIdx, apiOffset),
+                  ...(selected.length > 0
+                    ? [animatedTierRow('Selected', selected.length, selectedCo2ByYear, yearIdx, apiOffset)]
+                    : []),
+                ]
+          }
         />
+        {/* The five leading emitters among all countries, in the same year and mode as the map and the tiers. */}
+        <LeadingEmitters year={currentYear} mode={isCumulative ? 'cumulative' : 'absolute'} leaders={topFive} cumulativeFrom={cumulativeFrom} />
         {/* Atmospheric CO₂ for the map's own year (a stock: one global value, unchanged by the Absolute/Cumulative mode, never split by country). */}
         {concentration && <AtmosphericCo2Card year={currentYear} concentration={concentration} />}
       </div>
@@ -454,6 +547,10 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   const { data: globeSeries, error: worldMapError, loading: worldMapLoading } = useAsync(() => api.worldMapSeries(CLIMATE_SERIES_START_YEAR), []);
   const worldMapSeries = globeSeries ?? null;
   const climate = useClimateSignal();
+  // Each country's cumulative CO₂ just before the map's first year (one all-countries snapshot, ~200 rows): the base for Cumulative mode.
+  // If it fails the map simply offers Absolute only.
+  const cumulativeQuery = useAsync(async () => api.correlationCountryShare({ year: CLIMATE_SERIES_START_YEAR - 1, allCountries: true }), []);
+  const cumulativeBase = useMemo(() => cumulativeBaseFrom(cumulativeQuery.data, CLIMATE_SERIES_START_YEAR - 1), [cumulativeQuery.data]);
   const concentrationContext = useMemo<ConcentrationContext | null>(
     () => (climate.signal ? { series: climate.signal.series.concentration, spliceYear: climate.signal.spliceYear, ppm1850: climate.signal.ppm1850 } : null),
     [climate.signal],
@@ -524,12 +621,13 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           narrow for a world map, forced tall by the taller TierSummaryPanel sharing its row
           (SPEC.md §5.10). */}
       <style>{'@media (max-width: 1400px) { .overview-hero-grid { grid-template-columns: 1fr !important; } }'}</style>
-      <div className="overview-hero-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16, alignItems: 'stretch' }}>
+      <div id="map" className="overview-hero-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginBottom: 16, alignItems: 'stretch' }}>
         <AnimatedWorldMap
           worldMapSeries={worldMapSeries}
           selected={selected}
           expanded={expanded}
           concentration={concentrationContext}
+          cumulative={cumulativeBase}
           allCountriesTier={data.all_countries}
           expandedTier={data.expanded_countries}
           headlineMovers={data.headline_movers}
