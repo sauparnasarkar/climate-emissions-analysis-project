@@ -28,14 +28,20 @@ const USED_FOR: Array<[matches: (id: string) => boolean, usedFor: string]> = [
   [(id) => id === 'co2_concentration_monthly_mlo', 'Latest CO₂ reading (Mauna Loa monthly)'],
 ];
 
-function vintageOf(entry: Record<string, unknown>): string | null {
+/** A vintage with the date it is compared by (ISO, so the string order is the time order) and the label shown. */
+interface Vintage {
+  date: string;
+  label: string;
+}
+
+function vintageOf(entry: Record<string, unknown>): Vintage | null {
   const release = rec(entry.source_release);
   const published = str(release?.published);
-  if (published) return `published ${day(published)}${str(release?.version) ? ` (${str(release?.version)})` : ''}`;
+  if (published) return { date: day(published), label: `published ${day(published)}${str(release?.version) ? ` (${str(release?.version)})` : ''}` };
   const modified = str(release?.http_last_modified) ?? str(release?.noaa_last_modified);
-  if (modified) return `file of ${day(modified)}`;
+  if (modified) return { date: day(modified), label: `file of ${day(modified)}` };
   const retrieved = str(entry.retrieved_at);
-  return retrieved ? `retrieved ${day(retrieved)}` : null;
+  return retrieved ? { date: day(retrieved), label: `retrieved ${day(retrieved)}` } : null;
 }
 
 /** The sources table from `/meta.sources`: dataset-level entries merged by source name, derived metadata (the country crosswalk) left out because it is
@@ -50,13 +56,14 @@ export function buildSources(meta: CorrelationMetaResponse | null | undefined): 
   }
   return [...groups.entries()].map(([name, entries]) => {
     const spans = entries.flatMap((e) => (Array.isArray(e.coverage) ? [e.coverage.map(num)] : [])).filter((c) => c.length === 2 && c[0] !== null && c[1] !== null) as number[][];
-    const vintages = entries.map(vintageOf).filter((v): v is string => v !== null).sort();
+    // The newest by the underlying date -- not by the label text, whose prefix (published / file of / retrieved) would decide the order -- keeping that entry's label.
+    const vintages = entries.map(vintageOf).filter((v): v is Vintage => v !== null).sort((a, b) => a.date.localeCompare(b.date));
     const id = str(entries[0].id) ?? '';
     return {
       name,
       usedFor: USED_FOR.find(([matches]) => matches(id))?.[1] ?? null,
       coverage: spans.length ? `${Math.min(...spans.map((s) => s[0]))}–${Math.max(...spans.map((s) => s[1]))}` : null,
-      vintage: vintages.length ? vintages[vintages.length - 1] : null,
+      vintage: vintages.length ? vintages[vintages.length - 1].label : null,
       licences: [...new Set(entries.map((e) => str(e.license)).filter((l): l is string => l !== null))],
     };
   });

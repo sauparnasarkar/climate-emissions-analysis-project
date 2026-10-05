@@ -27,11 +27,30 @@ describe('buildSources', () => {
     expect(by.Berkeley.vintage).toBe('file of 2025-01-10');
   });
 
-  it('gives each source\'s licence in the API\'s own words (Berkeley Earth is CC BY 4.0 here), once even when its datasets share it', () => {
+  it('gives each source\'s licence in the API\'s own words (Berkeley Earth is CC BY-NC 4.0, non-commercial), once even when its datasets share it', () => {
     const by = Object.fromEntries(rows.map((r) => [r.name.split(' ')[0], r]));
-    expect(by.Berkeley.licences).toEqual(['Berkeley Earth data: CC BY 4.0 (cite Rohde & Hausfather 2020).']);
+    expect(by.Berkeley.licences).toHaveLength(1);
+    expect(by.Berkeley.licences[0]).toMatch(/^CC BY-NC 4\.0 International/);
+    expect(by.Berkeley.licences[0]).toMatch(/non-commercial use only/);
     expect(by.Our.licences).toHaveLength(1);
     expect(by['PRIMAP-hist'].licences[0]).toMatch(/not yet verified/);
+  });
+
+  it('picks the newest vintage by its date, whatever kind of date it is (a 2025 publication is older than a 2026 file)', () => {
+    const merged = buildSources({
+      ...META,
+      sources: [
+        { id: 'primap_a', source: 'Mixed', license: 'x', coverage: [1750, 2024], source_release: { published: '2025-03-01', version: 'v2.7' } },
+        { id: 'primap_b', source: 'Mixed', license: 'x', coverage: [1750, 2024], source_release: { http_last_modified: '2026-01-15T00:00:00+00:00' } },
+        { id: 'primap_c', source: 'Mixed', license: 'x', coverage: [1750, 2024], retrieved_at: '2025-12-31T00:00:00+00:00' },
+      ],
+    } as unknown as CorrelationMetaResponse);
+    expect(merged[0].vintage).toBe('file of 2026-01-15'); // 'published…' sorts after 'file…' as text, but is older
+    const newerPublication = buildSources({ ...META, sources: [
+      { id: 'primap_a', source: 'Mixed', license: 'x', source_release: { published: '2026-09-29', version: 'v2.8' } },
+      { id: 'primap_b', source: 'Mixed', license: 'x', source_release: { http_last_modified: '2026-01-15T00:00:00+00:00' } },
+    ] } as unknown as CorrelationMetaResponse);
+    expect(newerPublication[0].vintage).toBe('published 2026-09-29 (v2.8)'); // keeps the chosen entry's label and version
   });
 
   it('says only the annual NOAA record is joined at 1959; the monthly record is the latest reading', () => {

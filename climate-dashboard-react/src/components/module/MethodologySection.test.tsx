@@ -20,7 +20,8 @@ describe('MethodologySection', () => {
     const berkeley = within(table).getByRole('row', { name: /Berkeley Earth/ });
     expect(berkeley).toHaveTextContent('1850–2024');
     expect(berkeley).toHaveTextContent('file of 2025-01-10');
-    expect(berkeley).toHaveTextContent('CC BY 4.0');
+    expect(berkeley).toHaveTextContent('CC BY-NC 4.0 International');
+    expect(berkeley).toHaveTextContent('non-commercial use only');
     expect(within(table).getByRole('row', { name: /PRIMAP-hist/ })).toHaveTextContent('Non-commercial use only');
     expect(within(table).queryByText(/crosswalk/i)).not.toBeInTheDocument();
     expect(within(table).getByRole('row', { name: /monthly mean/ })).toHaveTextContent('Latest CO₂ reading');
