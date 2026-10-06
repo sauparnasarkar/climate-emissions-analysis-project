@@ -38,8 +38,9 @@ describe('HeroCarousel controls (decision 72)', () => {
   });
 
   it('floats the controls as a pill pinned to the bottom of the screen on a phone (decision 73), with scroll-padding so focus is never hidden behind it', () => {
-    expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__controls \{ position: sticky; bottom: 12px;[^}]*border-radius: 999px/);
-    expect(CAROUSEL_STYLES).toMatch(/html:has\(\.hero-carousel__controls\) \{ scroll-padding-bottom: 84px; \}/);
+    expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__controls \{ position: sticky; bottom: calc\(12px \+ env\(safe-area-inset-bottom, 0px\)\);[^}]*border-radius: 999px/);
+    // the notch/home-indicator inset is part of both the pill's offset and the reserved scroll-padding (viewport-fit=cover is on)
+    expect(CAROUSEL_STYLES).toMatch(/scroll-padding-bottom: calc\(84px \+ env\(safe-area-inset-bottom, 0px\)\)/);
     expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__btn--dot\[aria-current="true"\]::before \{ width: 32px/);
     // every dot keeps a 44 px target (only the drawn dot is small), not just the active one
     expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__btn--dot \{ min-width: 44px; position: relative; \}/);
@@ -56,6 +57,15 @@ describe('HeroCarousel controls (decision 72)', () => {
 });
 
 describe('HeroCarousel leaving slide', () => {
+  it('under reduced motion the previous slide is hidden at once, with no 520 ms wait', () => {
+    window.matchMedia = ((q: string) => ({ matches: q === '(prefers-reduced-motion: reduce)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
+    expect(slideEl(0)).toHaveAttribute('data-motion', 'hidden');
+    expect(slideEl(1)).toHaveAttribute('data-motion', 'enter-forward');
+  });
+
+
   it('keeps the leaving slide in its exit state while it moves out, then marks it plainly hidden', () => {
     mount();
     expect(slideEl(1)).toHaveAttribute('data-motion', 'hidden');

@@ -45,8 +45,8 @@ export const CAROUSEL_STYLES = `
   .hero-carousel__slide[data-motion="hidden"] { display: none; }
   /* Decision 73: a pill pinned to the bottom of the screen while the carousel is on view (it docks at the carousel's own end), so the controls are seen
      without scrolling -- like the pagination pill on the Fitch Ratings mobile hero. Page scroll-padding keeps a focused element from sitting behind it. */
-  .hero-carousel__controls { position: sticky; bottom: 12px; z-index: 6; align-self: center; width: fit-content; max-width: calc(100% - 24px); margin: 0 12px; flex-wrap: nowrap; justify-content: center; gap: 2px; padding: 4px 8px; border: 1px solid var(--__s9cmpx-static-divider-standard, #8896a8); border-radius: 999px; background: var(--__s9cmpx-static-background-standard); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); }
-  html:has(.hero-carousel__controls) { scroll-padding-bottom: 84px; }
+  .hero-carousel__controls { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 6; align-self: center; width: fit-content; max-width: calc(100% - 24px); margin: 0 12px; flex-wrap: nowrap; justify-content: center; gap: 2px; padding: 4px 8px; border: 1px solid var(--__s9cmpx-static-divider-standard, #8896a8); border-radius: 999px; background: var(--__s9cmpx-static-background-standard); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); }
+  html:has(.hero-carousel__controls) { scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
   .hero-carousel__btn { min-width: 44px; height: 44px; padding: 0; }
   .hero-carousel__btn--playpause { padding: 0 12px; }
   .hero-carousel__btn--prev { order: 1; margin-right: auto; }
@@ -75,7 +75,8 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
     const t = window.setTimeout(() => setSettled(true), 520);
     return () => window.clearTimeout(t);
   }, [c.index, c.previous]);
-  const leaving = settled ? null : c.previous;
+  // Under reduced motion there is no exit to wait for, so the previous slide is settled at once (no delayed height change on a phone).
+  const leaving = settled || reducedMotion ? null : c.previous;
   const motionOf = (i: number) => (i === c.index ? (c.previous === null ? 'rest' : `enter-${c.direction}`) : i === leaving ? `exit-${c.direction}` : 'hidden');
 
   return (
