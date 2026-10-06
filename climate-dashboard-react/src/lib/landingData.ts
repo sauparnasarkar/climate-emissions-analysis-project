@@ -156,9 +156,14 @@ export function latestTopShare(map: WorldMapTimeSeries, worldTotals: ReadonlyArr
   return raceShare(raceFrame(buildRaceModel(map), last).topTotal, worldTotals[last]);
 }
 
-/** "grown by ..." wording for a percent change since the baseline year: a plain-language fraction where it is exact enough, else the percentage. */
+/** Wording for a percent change since the baseline year, after "have": direction-aware, with a plain-language fraction where it is exact enough.
+ * Exactly +100% is "doubled" (not "more than doubled"); a rise rounding to 0% or a fall are never worded as growth. */
 export function growthPhrase(pctChange: number): string {
-  if (pctChange >= 100) return 'more than doubled';
+  const whole = Math.round(Math.abs(pctChange));
+  if (whole === 0) return 'barely changed';
+  if (pctChange < 0) return `fallen by ${whole}%`;
+  if (Math.abs(pctChange - 100) < 0.05) return 'doubled';
+  if (pctChange > 100) return 'more than doubled';
   if (pctChange >= 200 / 3) return 'grown by more than two-thirds';
-  return `grown by ${Math.round(pctChange)}%`;
+  return `grown by ${whole}%`;
 }

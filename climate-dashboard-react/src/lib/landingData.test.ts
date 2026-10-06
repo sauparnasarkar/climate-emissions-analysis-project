@@ -126,12 +126,24 @@ describe('race', () => {
 });
 
 describe('growthPhrase', () => {
-  it('words the change since the baseline: more than doubled, more than two-thirds, else the plain percentage', () => {
+  it('words a rise: more than doubled above +100%, exactly doubled at it, more than two-thirds from 66.7%, else the plain percentage', () => {
     expect(growthPhrase(120)).toBe('more than doubled');
-    expect(growthPhrase(100)).toBe('more than doubled');
+    expect(growthPhrase(100.1)).toBe('more than doubled');
+    expect(growthPhrase(100)).toBe('doubled');
+    expect(growthPhrase(99.96)).toBe('doubled');
+    expect(growthPhrase(99)).toBe('grown by more than two-thirds');
     expect(growthPhrase(68.6)).toBe('grown by more than two-thirds');
     expect(growthPhrase(66.7)).toBe('grown by more than two-thirds');
     expect(growthPhrase(66.6)).toBe('grown by 67%');
     expect(growthPhrase(12.4)).toBe('grown by 12%');
+  });
+
+  it('is direction-aware: a decline is "fallen by", never "grown by -5%"; a change that rounds to nothing is "barely changed"', () => {
+    expect(growthPhrase(-5)).toBe('fallen by 5%');
+    expect(growthPhrase(-12.6)).toBe('fallen by 13%');
+    expect(growthPhrase(-100)).toBe('fallen by 100%');
+    expect(growthPhrase(0)).toBe('barely changed');
+    expect(growthPhrase(0.4)).toBe('barely changed');
+    expect(growthPhrase(-0.4)).toBe('barely changed');
   });
 });
