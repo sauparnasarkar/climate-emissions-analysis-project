@@ -47,6 +47,17 @@ describe('HeroCarousel controls (decision 72)', () => {
     expect(CAROUSEL_STYLES).not.toMatch(/min-width: 28px/);
   });
 
+  it('the pill is frosted glass (decision 80): a translucent tint with a backdrop blur, guarded by @supports, with opaque fallbacks', () => {
+    const css = CAROUSEL_STYLES;
+    expect(css).toMatch(/@supports \(\(-webkit-backdrop-filter: blur\(1px\)\) or \(backdrop-filter: blur\(1px\)\)\) and \(background: color-mix/);
+    expect(css).toMatch(/background: color-mix\(in srgb, var\(--__s9cmpx-static-background-standard\) 80%, transparent\)/);
+    expect(css).toMatch(/backdrop-filter: blur\(14px\) saturate\(1\.5\)/);
+    // The plain rule stays opaque (fallback where the glass is unsupported)...
+    expect(css).toMatch(/\.hero-carousel__controls \{ position: sticky;[^}]*background: var\(--__s9cmpx-static-background-standard\);/);
+    // ...and a reduced-transparency preference turns the glass off.
+    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\)[\s\S]*backdrop-filter: none !important/);
+  });
+
   it('carries the phone layout: one non-wrapping row of 44px targets, and only the showing/leaving slide takes room', () => {
     mount();
     expect(CAROUSEL_STYLES).toMatch(/@media \(max-width: 1100px\), \(max-width: 1440px\) and \(pointer: coarse\)/);
