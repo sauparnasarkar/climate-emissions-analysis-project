@@ -53,6 +53,8 @@
           }
         ]
       }
-    ]
+    ],
+    "vintage_reconciled": true,
+    "vintage_reconciled_note": "2026-10-06: the provider's reply named the current file (high-resolution annual); its 2023/2024/2025 values (1.479/1.550/1.451 above 1850-1900) agree with Berkeley Earth's January 2026 report within its stated uncertainty. ENHANCEMENTS.md decision 83."
   }
 }

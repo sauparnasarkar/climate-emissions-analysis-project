@@ -10,8 +10,8 @@ from .conftest import make_fetched
 def test_parse_summary_uses_air_version_and_skips_comments(berkeley_text):
     df = be.parse_summary(berkeley_text)
     assert list(df.columns) == ["year", "anomaly_1951_1980_c", "uncertainty_95_c"]
-    assert df["year"].min() == 1850 and df["year"].max() == 2024
-    assert df.loc[df["year"] == 1900, "anomaly_1951_1980_c"].iloc[0] == pytest.approx(-0.4)  # air column, not the water one (-0.5)
+    assert df["year"].min() == 1850 and df["year"].max() == 2025
+    assert df.loc[df["year"] == 1900, "anomaly_1951_1980_c"].iloc[0] == pytest.approx(-0.4)
 
 
 def test_parse_summary_empty_raises():
@@ -21,7 +21,13 @@ def test_parse_summary_empty_raises():
 
 def test_parse_release(berkeley_text):
     r = be.parse_release(berkeley_text)
-    assert r["land_analysis_run"].startswith("04-Jan-2025") and r["abs_mean_1951_1980_air_c"] == pytest.approx(14.102)
+    assert r["land_analysis_run"].startswith("11-Sep-2026") and r["abs_mean_1951_1980_c"] == pytest.approx(14.107)  # the garbled uncertainty is ignored
+    assert r["preliminary"] is True
+
+
+def test_parse_release_tolerates_a_header_without_the_absolute_mean_or_preliminary_banner():
+    r = be.parse_release("% The land analysis was run on 11-Sep-2026 19:47:26\n")
+    assert "abs_mean_1951_1980_c" not in r and r["preliminary"] is False
 
 
 def test_preindustrial_offset_is_computed_from_data(berkeley_text):
@@ -49,13 +55,15 @@ class _Today:
 def test_run_flags_stale_source_file(tmp_path, berkeley_text):
     fetcher = lambda url: make_fetched(url, berkeley_text, last_modified="2025-01-10T04:48:46+00:00")  # noqa: E731
     report = be.run(fetcher, out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today=_Today)
-    assert report.records == {"temperature_anomaly_annual": 175}
+    assert report.records == {"temperature_anomaly_annual": 176}
     assert any("last modified 2025-01-10" in d for d in report.deviations)
     prov = json.loads((tmp_path / "p.json").read_text())["temperature_anomaly_annual"]
     assert prov["preindustrial_offset"]["value_c"] == pytest.approx(-0.4)
-    assert prov["non_commercial_only"] is True and prov["attribution_required"] is True and "essd-12-3469-2020" in prov["citations"][0]
+    assert prov["non_commercial_only"] is True and prov["attribution_required"] is True and "essd-2026-412" in prov["citations"][0]
+    assert prov["preliminary"] is True and any(c.startswith("PRELIMINARY") for c in prov["caveats"]) and prov["source_urls"] == [be.SUMMARY_URL]
+    assert "storage.googleapis.com/berkeley-earth-temperature-hr" in be.SUMMARY_URL and "s3" not in be.SUMMARY_URL
     assert "CC BY 4.0" not in prov["license"]  # it is CC BY-NC; a plain CC BY claim here was an error
-    assert prov["coverage"] == [1850, 2024] and prov["license"].startswith("CC BY-NC 4.0") and "berkeleyearth.org" in prov["license"]
+    assert prov["coverage"] == [1850, 2025] and prov["license"].startswith("CC BY-NC 4.0") and "berkeleyearth.org" in prov["license"]
 
 
 def test_run_fresh_source_has_no_deviations(tmp_path, berkeley_text):
@@ -122,6 +130,12 @@ def test_no_notices_file_is_fine_for_berkeley_unlike_primap(tmp_path, berkeley_t
     assert json.loads((tmp_path / "p.json").read_text())["temperature_anomaly_annual"]["provider_correspondence"]["notices"] == []
 
 
+def test_the_real_tracked_file_records_the_berkeley_reconciliation():
+    import json as _j
+    from pipeline.common import NOTICES_PATH
+    assert _j.load(open(NOTICES_PATH))["berkeley_earth"]["vintage_reconciled"] is True
+
+
 def test_the_real_tracked_file_records_the_berkeley_inquiry_sent_2026_10_02():
     from pipeline.common import NOTICES_PATH, load_source_notices
 
@@ -130,3 +144,11 @@ def test_the_real_tracked_file_records_the_berkeley_inquiry_sent_2026_10_02():
     assert "Land_and_Ocean_summary.txt" in n["subject"] and "2025-01-10" in n["dataset_version_at_notification"]
     assert len(n["questions"]) == 2 and len(n["context"]) == 3 and len(n["replies"]) == 1 and "high resolution dataset" in n["replies"][0]["text"]
     assert any("1.44" in c and "1.52" in c for c in n["context"])  # the January 2026 report figures the question rests on
+
+
+def test_a_finalized_header_without_the_preliminary_banner_publishes_no_preliminary_wording(tmp_path, berkeley_text):
+    final = "\n".join(ln for ln in berkeley_text.splitlines() if "PRELIMINARY" not in ln) + "\n"
+    fetcher = lambda url: make_fetched(url, final, last_modified="2026-09-20T00:00:00+00:00")  # noqa: E731
+    be.run(fetcher, out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today=_Today)
+    prov = json.loads((tmp_path / "p.json").read_text())["temperature_anomaly_annual"]
+    assert prov["preliminary"] is False and not any("PRELIMINARY" in c for c in prov["caveats"]) and "preliminary" not in prov["source"]

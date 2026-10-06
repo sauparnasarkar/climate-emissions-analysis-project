@@ -6,18 +6,21 @@ import pandas as pd
 import pytest
 
 from pipeline import correlation as C
+from pipeline.berkeley_earth import SUMMARY_URL
 from pipeline import harmonize
 from pipeline.tests.test_harmonize import write_inputs
 
 GTC = 44.009 / 12.011
 
 
-def stage(tmp_path, edit_inputs=None, vintage="2025-01-10T04:48:46+00:00", notices=None, drop=()):
+def stage(tmp_path, edit_inputs=None, vintage="2025-01-10T04:48:46+00:00", notices=None, drop=(), source_urls=None):
     """Synthetic inputs -> harmonize -> correlate. Returns (report, output dict)."""
     prov_path = write_inputs(tmp_path, drop=drop)
     prov = json.loads(open(prov_path).read())
     if "temperature_anomaly_annual" in prov and vintage:
         prov["temperature_anomaly_annual"]["source_release"] = {"http_last_modified": vintage}
+    if "temperature_anomaly_annual" in prov:
+        prov["temperature_anomaly_annual"]["source_urls"] = source_urls if source_urls is not None else [SUMMARY_URL]
     prov["owid_world_co2_annual"].update({"citations": ["OWID", "GCP"], "attribution_required": True, "required_citation_format": "Global Carbon Project. (<year>) ...",
                                           "land_use_license_note": "No formal license (e.g., CC BY) is stated"})
     open(prov_path, "w").write(json.dumps(prov))
@@ -152,6 +155,25 @@ def test_vintage_caveat_carries_the_file_date_until_the_owner_records_a_reconcil
     _, out2 = stage(tmp_path / "r", notices={"berkeley_earth": {"vintage_reconciled": True}}) if (tmp_path / "r").mkdir() is None else (None, None)
     assert out2["temperature_source_vintage"]["reconciled"] is True and out2["temperature_source_vintage"]["caveat"] is None
     assert not any("vintage" in c for c in out2["caveats"])
+
+
+def test_true_reconciliation_flag_is_ignored_while_provenance_still_names_the_retired_source(tmp_path):
+    """A failed Berkeley run does not block harmonize/correlate, so old provenance can sit beside this PR's tracked `vintage_reconciled: true`."""
+    old = "https://berkeley-earth-temperature.s3.us-west-1.amazonaws.com/Global/Land_and_Ocean_summary.txt"
+    _, out = stage(tmp_path, notices={"berkeley_earth": {"vintage_reconciled": True}}, source_urls=[old])
+    v = out["temperature_source_vintage"]
+    assert v["reconciled"] is False and "possible ~0.1 °C discrepancy" in v["caveat"] and v["caveat"] in out["caveats"]
+
+
+def test_reconciled_but_preliminary_source_still_carries_a_preliminary_note(tmp_path):
+    from pipeline.correlation import _vintage
+    cdir = tmp_path / "c"; cdir.mkdir()
+    (cdir / "provenance.json").write_text(json.dumps({"temperature_anomaly_annual": {"source_release": {"http_last_modified": "2026-09-14T03:30:03+00:00"}, "preliminary": True, "source_urls": [SUMMARY_URL]}}))
+    n = tmp_path / "n.json"; n.write_text(json.dumps({"berkeley_earth": {"vintage_reconciled": True}}))
+    v = _vintage(str(cdir), str(n))
+    assert v["reconciled"] is True and "preliminary release" in v["caveat"]
+    (cdir / "provenance.json").write_text(json.dumps({"temperature_anomaly_annual": {"source_release": {"http_last_modified": "2026-09-14T03:30:03+00:00"}, "source_urls": [SUMMARY_URL]}}))
+    assert _vintage(str(cdir), str(n))["caveat"] is None
 
 
 def test_unknown_vintage_date_is_stated_not_invented(tmp_path):

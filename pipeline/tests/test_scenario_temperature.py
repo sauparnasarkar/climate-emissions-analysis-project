@@ -4,6 +4,8 @@ import os
 
 import numpy as np
 import pandas as pd
+
+from pipeline.berkeley_earth import SUMMARY_URL
 import pytest
 
 from pipeline import scenario_temperature as T
@@ -68,7 +70,7 @@ def write(tmp_path, headline="ok", scenario_edit=None, owid_edit=None, world_edi
     if not no_scenario:
         proj.to_csv(tmp_path / "scenario_projections.csv", index=False)
     write_baseline(tmp_path, baseline)
-    (tmp_path / "provenance.json").write_text(json.dumps({"temperature_anomaly_annual": {"source_release": {"http_last_modified": vintage}}}))
+    (tmp_path / "provenance.json").write_text(json.dumps({"temperature_anomaly_annual": {"source_release": {"http_last_modified": vintage}, "source_urls": [SUMMARY_URL]}}))
     npath = tmp_path / "notices.json"
     npath.write_text(json.dumps(notices or {}))
 

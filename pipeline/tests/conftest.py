@@ -43,18 +43,20 @@ def law_text():
 @pytest.fixture
 def berkeley_text():
     lines = [
-        "% Berkeley fixture",
-        "% The land analysis was run on 04-Jan-2025 19:11:11",
-        "% The ocean analysis was published on 06-Jan-2025 11:47:59",
-        "%   Using air temperature above sea ice:   14.102 +/- 0.019",
-        "%   Using water temperature below sea ice: 14.698 +/- 0.019",
-        "% Year, Annual Anomaly, Annual Unc., Five-year Anomaly, Five-year Unc., Annual Anomaly, Annual Unc., Five-year Anomaly, Five-year Unc.",
+        "% PRELIMINARY DATA - SUBJECT TO CHANGE WITHOUT NOTICE - NOT YET PEER REVIEWED",
+        "% Berkeley high-resolution fixture",
+        "% The land analysis was run on 11-Sep-2026 19:47:26",
+        "% The ocean analysis was published on 13-Aug-2026 16:15:21",
+        "% Estimated Jan 1951-Dec 1980 global mean temperature (\u00b0C):",
+        "%    14.107 +/- 0.0000.0000.0000.0000.0000.0000.0000.0000.0000.000",
+        "% Land + Ocean temperature anomaly",
+        "% Year, Annual Anomaly, Annual Unc., Five-year Anomaly, Five-year Unc.",
         "",
     ]
-    for y in range(1850, 2025):
+    for y in range(1850, 2026):
         # anomaly: -0.4 for 1850-1900, then rising 0.02/yr -- known offset of exactly -0.4
         a = -0.4 if y <= 1900 else -0.4 + (y - 1900) * 0.02
-        lines.append(f"  {y}      {a:.3f}        0.100              NaN             NaN            {a - 0.1:.3f}        0.100              NaN             NaN")
+        lines.append(f"  {y}      {a:.3f}        0.100              NaN             NaN")
     return "\n".join(lines) + "\n"
 
 
