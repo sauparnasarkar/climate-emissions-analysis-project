@@ -48,6 +48,15 @@ export const CAROUSEL_STYLES = `
   /* Decision 73: a pill pinned to the bottom of the screen while the carousel is on view (it docks at the carousel's own end), so the controls are seen
      without scrolling -- like the pagination pill on the Fitch Ratings mobile hero. Page scroll-padding keeps a focused element from sitting behind it. */
   .hero-carousel__controls { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 6; align-self: center; width: fit-content; max-width: calc(100% - 24px); margin: calc(-66px - env(safe-area-inset-bottom, 0px)) 12px 0; flex-wrap: nowrap; justify-content: center; gap: 2px; padding: 4px 8px; border: 1px solid var(--__s9cmpx-static-divider-standard, #8896a8); border-radius: 999px; background: var(--__s9cmpx-static-background-standard); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); }
+  /* Decision 80: frosted glass. An 80% tint of the surface over a backdrop blur, so the picture shows through while the text keeps >= 4.5:1 against the worst backdrop
+     either theme can put under it (measured: dark 5.3:1 over white, bright 5.0:1 over black). The opaque rule above is the fallback where backdrop-filter or color-mix
+     is missing, and for visitors who ask for reduced transparency. */
+  @supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) and (background: color-mix(in srgb, red 50%, transparent)) {
+    .hero-carousel__controls { background: color-mix(in srgb, var(--__s9cmpx-static-background-standard) 80%, transparent); -webkit-backdrop-filter: blur(14px) saturate(1.5); backdrop-filter: blur(14px) saturate(1.5); border-color: color-mix(in srgb, var(--__s9cmpx-static-text-standard) 28%, transparent); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28), inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent); }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .hero-carousel__controls { background: var(--__s9cmpx-static-background-standard) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  }
   html:has(.hero-carousel__controls) { scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
   .hero-carousel__btn { min-width: 44px; height: 44px; padding: 0; }
   .hero-carousel__btn--playpause { padding: 0 12px; }
