@@ -69,7 +69,9 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
         paddingRight: 'env(safe-area-inset-right, 0px)',
       }}
     >
-      <style>{'.app-shell { min-height: 100dvh; }'}</style>
+      <style>{`.app-shell { min-height: 100dvh; }
+/* Header and mobile-menu bottom line: same visible colour as the banner lines (decision 85) -- divider-weak is lighter than the tinted light-theme page behind it. */
+.landing-header-line { border-bottom: 1px solid var(--__s9cmpx-static-divider-strong); border-bottom-color: color-mix(in srgb, var(--__s9cmpx-static-text-weak) 55%, transparent); }`}</style>
       <a
         href="#main-content"
         style={{
@@ -83,11 +85,11 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
         Skip to main content
       </a>
       <header
+        className="landing-header-line"
         style={{
           position: 'relative', display: 'flex', alignItems: 'center', gap: 24, minHeight: 68, boxSizing: 'border-box',
           padding: isMobile ? '0 16px' : '0 clamp(16px, 5.5vw, 80px)',
           background: 'var(--__s9cmpx-static-background-standard)',
-          borderBottom: '1px solid var(--__s9cmpx-static-divider-weak)',
         }}
       >
         <Link to="/" style={{ ...linkStyle, display: 'flex', alignItems: 'center', gap: 10, fontWeight: 600, fontSize: 'clamp(0.875rem, 3.9vw, 1.0625rem)', whiteSpace: 'nowrap' }}>
@@ -100,9 +102,10 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
               <nav
                 id="landing-menu"
                 aria-label="Primary"
+                className="landing-header-line"
                 style={{
                   position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50, display: 'flex', flexDirection: 'column', gap: 4, padding: 16,
-                  background: 'var(--__s9cmpx-static-background-standard)', borderBottom: '1px solid var(--__s9cmpx-static-divider-weak)',
+                  background: 'var(--__s9cmpx-static-background-standard)',
                 }}
               >
                 {NAV_ITEMS.map((item) => (
