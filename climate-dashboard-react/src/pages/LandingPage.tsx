@@ -163,7 +163,7 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           Our World in Data CO₂ · {minYear}–{maxYear} · {all.countries_count} countries
         </div>
         <h1 id="landing-title" style={{ margin: 0, fontSize: 'clamp(1.75rem, min(4.6vw, 5.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
-          Where the world’s CO₂ comes from — and where it’s heading.
+          Where the world’s CO₂ comes from.
         </h1>
         <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
           Global CO₂ emissions have {growthPhrase(all.pct_change_since_1990)} since {baselineYear}
@@ -428,7 +428,7 @@ export default function LandingPage() {
         // never blank, and the CTAs still reach the dashboard.
         <section aria-labelledby="landing-title" style={{ padding: 'clamp(32px, 4vw, 56px) var(--landing-pad-x)', display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 800 }}>
           <h1 id="landing-title" style={{ margin: 0, fontSize: 'clamp(2.25rem, 4.6vw, 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
-            Where the world’s CO₂ comes from — and where it’s heading.
+            Where the world’s CO₂ comes from.
           </h1>
           {error ? (
             <InlineAlert variant="warning">{error}</InlineAlert>
