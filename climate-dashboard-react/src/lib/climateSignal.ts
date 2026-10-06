@@ -35,7 +35,7 @@ export interface ClimateSignal {
   ppm1850: number | null;
   /** Years the pair left out, with no reason text (the baseline card says "None" when it is empty) */
   omittedYears: number[];
-  /** The Berkeley Earth file-vintage caveat, while the ~0.1 °C discrepancy is unreconciled (requirements §1.3.1); null once reconciled */
+  /** The temperature source's caveat: the file-vintage note while unreconciled, or the preliminary-release note once reconciled (requirements §1.3.1); null when the API sends none */
   vintageCaveat: string | null;
 }
 
@@ -145,7 +145,8 @@ export function spliceInfo(raw: unknown): SpliceInfo | null {
 
 function vintageCaveat(pair: CorrelationEmissionsTemperatureResponse): string | null {
   const v = pair.source_vintage;
-  return v && v.reconciled === false && typeof v.caveat === 'string' && v.caveat ? v.caveat : null;
+  // shown whenever the API sends one: reconciled only changes *which* caveat it is (vintage vs preliminary release), never whether it is surfaced
+  return v && typeof v.caveat === 'string' && v.caveat ? v.caveat : null;
 }
 
 /** "+1.62 °C" -- the sign is explicit because the value is a departure from a reference. */

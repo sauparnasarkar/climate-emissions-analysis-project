@@ -67,8 +67,9 @@ describe('buildClimateSignal', () => {
     expect(s.spliceYear).toBe(1959);
     expect(s.ppm1850).toBe(286.8);
     expect(s.vintageCaveat).toBe('Based on file vintage X; unreconciled.');
-    // once reconciled the caveat is dropped
-    expect(buildClimateSignal(pair({ source_vintage: { reconciled: true, caveat: 'old' } }), series([sp(2024, 1.6)]), conc)!.vintageCaveat).toBeNull();
+    // once reconciled the API's caveat is the preliminary-release note: still surfaced; with no caveat it is null
+    expect(buildClimateSignal(pair({ source_vintage: { reconciled: true, caveat: 'Preliminary release.' } }), series([sp(2024, 1.6)]), conc)!.vintageCaveat).toBe('Preliminary release.');
+    expect(buildClimateSignal(pair({ source_vintage: { reconciled: true, caveat: null } }), series([sp(2024, 1.6)]), conc)!.vintageCaveat).toBeNull();
   });
 
   it('returns null rather than a partial banner when any input is missing', () => {
