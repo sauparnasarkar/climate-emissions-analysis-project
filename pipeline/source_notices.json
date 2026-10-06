@@ -41,8 +41,17 @@
           "Where does the current, regularly updated version of Land_and_Ocean_summary.txt (or an equivalent annual global series) live?",
           "Is the S3 bucket still the canonical source or has it been superseded, and is the 2025 analysis in the January 2026 report based on a different vintage or method that should be used instead?"
         ],
-        "status": "sent; no reply received as of 2026-10-02",
-        "replies": []
+        "status": "replied 2026-10-06",
+        "replies": [
+          {
+            "received_at": "2026-10-06T19:04:44Z",
+            "from": "Zeke Hausfather <hausfath@gmail.com> (cc data@berkeleyearth.org)",
+            "subject": "Re: Where is the current Land_and_Ocean_summary.txt? The S3 file was last updated Jan 2025",
+            "text": "Berkeley Earth switched to our high resolution dataset as the operational product. Its available here: https://berkeleyearth.org/data/ (annual file here).",
+            "resolved_url": "https://storage.googleapis.com/berkeley-earth-temperature-hr/global/Global_TAVG_annual.txt",
+            "note": "Settles which file is current; migration is ENHANCEMENTS.md decision 83. vintage_reconciled stays unset until that PR merges."
+          }
+        ]
       }
     ]
   }

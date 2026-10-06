@@ -128,5 +128,5 @@ def test_the_real_tracked_file_records_the_berkeley_inquiry_sent_2026_10_02():
     (n,) = load_source_notices("berkeley_earth", NOTICES_PATH)
     assert n["type"] == "inquiry" and n["sent_at"] == "2026-10-02T14:20:19Z" and n["to"] == "data@berkeleyearth.org"
     assert "Land_and_Ocean_summary.txt" in n["subject"] and "2025-01-10" in n["dataset_version_at_notification"]
-    assert len(n["questions"]) == 2 and len(n["context"]) == 3 and n["replies"] == []
+    assert len(n["questions"]) == 2 and len(n["context"]) == 3 and len(n["replies"]) == 1 and "high resolution dataset" in n["replies"][0]["text"]
     assert any("1.44" in c and "1.52" in c for c in n["context"])  # the January 2026 report figures the question rests on
