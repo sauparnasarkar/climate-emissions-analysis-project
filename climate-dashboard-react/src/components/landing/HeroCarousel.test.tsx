@@ -41,6 +41,9 @@ describe('HeroCarousel controls (decision 72)', () => {
     expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__controls \{ position: sticky; bottom: 12px;[^}]*border-radius: 999px/);
     expect(CAROUSEL_STYLES).toMatch(/html:has\(\.hero-carousel__controls\) \{ scroll-padding-bottom: 84px; \}/);
     expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__btn--dot\[aria-current="true"\]::before \{ width: 32px/);
+    // every dot keeps a 44 px target (only the drawn dot is small), not just the active one
+    expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__btn--dot \{ min-width: 44px; position: relative; \}/);
+    expect(CAROUSEL_STYLES).not.toMatch(/min-width: 28px/);
   });
 
   it('carries the phone layout: one non-wrapping row of 44px targets, and only the showing/leaving slide takes room', () => {

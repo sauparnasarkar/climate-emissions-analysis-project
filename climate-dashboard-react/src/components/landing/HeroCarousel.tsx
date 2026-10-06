@@ -55,8 +55,7 @@ export const CAROUSEL_STYLES = `
   .hero-carousel__count { order: 4; display: inline; font-size: 13px; color: var(--__s9cmpx-static-text-weak); margin: 0 6px; }
   .hero-carousel__btn--next { order: 5; margin-left: auto; }
   .hero-carousel__btn--dot .hero-carousel__num, .hero-carousel__btn--dot .hero-carousel__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .hero-carousel__btn--dot { min-width: 28px; position: relative; }
-  .hero-carousel__btn--dot[aria-current="true"] { min-width: 44px; }
+  .hero-carousel__btn--dot { min-width: 44px; position: relative; } /* the target stays 44 px; only the drawn dot is small */
   .hero-carousel__btn--dot::before { content: ""; display: block; width: 12px; height: 12px; border-radius: 6px; border: 2px solid var(--__s9cmpx-static-text-standard); box-sizing: border-box; }
   .hero-carousel__btn--dot[aria-current="true"]::before { width: 32px; border-color: var(--__s9cmpx-interactive-fill-primary-default); background: var(--__s9cmpx-interactive-fill-primary-default); }
 }

@@ -9,6 +9,7 @@ import { useYearAnimation } from '../hooks/useYearAnimation';
 import { RankRace } from '../components/landing/RankRace';
 import { CLIMATE_BANNER_STYLES, ClimateSignalBanner } from '../components/landing/ClimateSignalBanner';
 import { CAROUSEL_STYLES, HeroCarousel } from '../components/landing/HeroCarousel';
+import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { ctaClass } from '../components/landing/cta';
 import { buildClimateSignal } from '../lib/climateSignal';
 import { sliceMapSeries, worldTotals } from '../lib/mapSeries';
@@ -72,11 +73,8 @@ const STYLES = `
   .landing-kpis > div:first-child { padding-left: 0 !important; }
   .landing-kpis > div > div:first-child { font-size: 1.125rem !important; }
   .landing-kpis .__s9cmpx-body3 { font-size: 12px; line-height: 1.3; }
-  /* Same order as the climate banner (decision 73): copy, figures, picture, then the buttons -- so the buttons come after the globe. */
-  .landing-hero__text { display: contents !important; }
-  .landing-hero__text > *, .landing-hero__globe { order: 0; }
-  .landing-hero__globe { order: 5; }
-  .landing-hero__ctas { order: 6; flex-direction: column; }
+  /* Same order as the climate banner (decision 73): copy, figures, picture, then the buttons (placed after the globe in the markup on a phone, so focus order matches). */
+  .landing-hero__ctas { flex-direction: column; }
   .landing-hero__ctas > a { justify-content: center; }
 }
 `;
@@ -132,6 +130,17 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
       </div>
   );
 
+  // On a phone the buttons follow the globe in the markup as well as on screen (decision 73), so focus and reading order match what is seen.
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  const ctas = (
+    <div className="landing-hero__ctas" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <Link to="/overview" className={ctaClass('primary')} style={{ textDecoration: 'none' }}>
+        Explore the data <Icon name="expand" size={16} />
+      </Link>
+      <Link to="/forecasts" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>Forecasts to {FORECAST_END_YEAR}</Link>
+    </div>
+  );
+
   return (
     <section aria-labelledby="landing-title" className="landing-hero">
       <div className="landing-hero__text">
@@ -144,12 +153,7 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
         <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
           Emissions for {all.countries_count} countries since {minYear}, ETS(A,Ad,N) forecasts to {FORECAST_END_YEAR} and scenario pathways to {SCENARIO_END_YEAR} — with an AI agent that answers questions from the same data.
         </p>
-        <div className="landing-hero__ctas" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <Link to="/overview" className={ctaClass('primary')} style={{ textDecoration: 'none' }}>
-            Explore the data <Icon name="expand" size={16} />
-          </Link>
-          <Link to="/forecasts" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>Forecasts to {FORECAST_END_YEAR}</Link>
-        </div>
+        {!isPhone && ctas}
         <div className="landing-kpis">
           <Kpi border={false} value={fmtInt(all.latest_co2_total)} label={`MtCO₂ in ${all.latest_year}, all countries`} />
           <Kpi border value={fmtPct(all.pct_change_since_1990)} label={`Change since ${baselineYear}`} color={all.pct_change_since_1990 >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR} />
@@ -198,6 +202,7 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           </div>
         </div>
       </div>
+      {isPhone && ctas}
     </section>
   );
 }

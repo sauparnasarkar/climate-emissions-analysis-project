@@ -18,7 +18,10 @@ const linkStyle = { color: 'inherit', textDecoration: 'none', fontSize: 14 } as 
 export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: (t: AppTheme) => void }) {
   const mainRef = useRef<HTMLElement>(null);
   // Portrait or landscape, a phone gets the same compact header (decision 74): narrow screens (useIsMobile) and phones turned sideways.
-  const isMobile = useIsMobile() || useMediaQuery(PHONE_LANDSCAPE_QUERY);
+  // Both hooks run on every render (a `||` would skip the second while the first is true, and rotating the phone would change the hook count).
+  const narrow = useIsMobile();
+  const landscapePhone = useMediaQuery(PHONE_LANDSCAPE_QUERY);
+  const isMobile = narrow || landscapePhone;
   const [menuOpen, setMenuOpen] = useState(false);
   const { pathname } = useLocation();
   useRouteAnnouncements(mainRef);

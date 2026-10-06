@@ -317,13 +317,33 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('link', { name: `Forecasts to ${FORECAST_END_YEAR} →` })).toHaveAttribute('href', '/forecasts');
   });
 
-  it('on a phone the emissions banner has the same order as the climate banner: copy, figures, picture, then the buttons below the globe (decision 73)', async () => {
-    mountWithClimate();
-    await screen.findByRole('region', { name: 'Featured' });
-    const css = Array.from(document.querySelectorAll('style')).map((s) => s.textContent ?? '').join('\n');
-    expect(css).toMatch(/\.landing-hero__text \{ display: contents !important; \}/);
-    expect(css).toMatch(/\.landing-hero__globe \{ order: 5; \}/);
-    expect(css).toMatch(/\.landing-hero__ctas \{ order: 6;/);
+  let savedMatchMedia = window.matchMedia;
+  const restoreMedia = () => { window.matchMedia = savedMatchMedia; }; // not vi.unstubAllGlobals: it would also drop the file's other stubs
+  const stubPhone = (phone: boolean) => { savedMatchMedia = window.matchMedia; window.matchMedia = ((q: string) => ({ matches: phone && q === '(max-width: 640px)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia; };
+  const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it('on a phone both banners put their buttons after the picture in the markup, so focus and reading order match what is seen (decision 73)', async () => {
+    stubPhone(true);
+    try {
+      mountWithClimate();
+      await screen.findByRole('region', { name: 'Featured' });
+      const climateCtas = document.querySelector('.climate-banner__ctas')!;
+      expect(follows(document.querySelector('.climate-banner__chart')!, climateCtas)).toBe(true);
+      const heroCtas = document.querySelector('.landing-hero__ctas')!;
+      expect(follows(document.querySelector('.landing-hero__globe')!, heroCtas)).toBe(true);
+      expect(follows(document.querySelector('.landing-kpis')!, heroCtas)).toBe(true);
+      expect(document.querySelectorAll('.landing-hero__ctas')).toHaveLength(1); // rendered once, not duplicated
+    } finally { restoreMedia(); }
+  });
+
+  it('above phone width the buttons stay beside the copy (before the figures/globe), as on desktop', async () => {
+    stubPhone(false);
+    try {
+      mountWithClimate();
+      await screen.findByRole('region', { name: 'Featured' });
+      expect(follows(document.querySelector('.climate-banner__ctas')!, document.querySelector('.climate-banner__chart')!)).toBe(true);
+      expect(follows(document.querySelector('.landing-hero__ctas')!, document.querySelector('.landing-hero__globe')!)).toBe(true);
+    } finally { restoreMedia(); }
   });
 
   it('states the baseline, the sources and that the chart is context, not a climate model', async () => {
