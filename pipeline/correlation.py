@@ -32,6 +32,7 @@ from statsmodels.regression.linear_model import OLS
 from statsmodels.stats.stattools import durbin_watson
 from statsmodels.tools.tools import add_constant
 
+from .berkeley_earth import PRELIMINARY_NOTE, SUMMARY_URL
 from .common import CLIMATE_DIR, NOTICES_PATH, RunReport, utc_now, write_json_atomic
 from .harmonize import _LUC_LICENSE, _LUC_UNCERTAINTY
 from .pairing import CAUSATION_NOTE, Harmonized, align_pair, load_harmonized
@@ -324,18 +325,21 @@ def _provenance(climate_dir: str, series_id: str) -> dict:
 def _vintage(climate_dir: str, notices_path: str) -> dict:
     """The temperature source's vintage and the caveat that stays until the owner records a reconciliation (decision 39).
     Read from provenance.json, not the catalog, so it is available even when the harmonized layer is not."""
-    rel = _provenance(climate_dir, "temperature_anomaly_annual").get("source_release")
+    prov = _provenance(climate_dir, "temperature_anomaly_annual")
+    rel = prov.get("source_release")
     last_modified = rel.get("http_last_modified") if isinstance(rel, dict) else None
+    # The tracked flag says the *current* file reconciles; honour it only when provenance shows that file was actually ingested. A failed Berkeley
+    # run does not block harmonize/correlate (run.DEPENDS_ON), so stale provenance from the retired source can sit beside a true flag.
+    ingested_current = SUMMARY_URL in (prov.get("source_urls") or [])
     reconciled = False
     if os.path.exists(notices_path):
-        reconciled = bool(json.load(open(notices_path)).get("berkeley_earth", {}).get("vintage_reconciled", False))
+        reconciled = bool(json.load(open(notices_path)).get("berkeley_earth", {}).get("vintage_reconciled", False)) and ingested_current
     date = last_modified[:10] if last_modified else "an unknown date"
     caveat = (f"Based on Berkeley Earth file vintage {date}; a possible ~0.1 °C discrepancy with Berkeley Earth's most recent published report text "
               "has not yet been reconciled.")
-    prelim = ("Berkeley Earth's high-resolution temperature dataset is a preliminary release (not yet peer reviewed; values may be revised).")
     caveat = None if reconciled else caveat
-    if caveat is None and _provenance(climate_dir, "temperature_anomaly_annual").get("preliminary"):
-        caveat = prelim
+    if caveat is None and prov.get("preliminary"):
+        caveat = PRELIMINARY_NOTE
     return {"file_last_modified": last_modified, "reconciled": reconciled, "caveat": caveat}
 
 

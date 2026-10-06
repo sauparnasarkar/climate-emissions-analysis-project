@@ -34,6 +34,7 @@ import numpy as np
 import pandas as pd
 
 from . import derive
+from .berkeley_earth import PRELIMINARY_NOTE
 from .common import CLIMATE_DIR, PROVENANCE_PATH, RunReport, utc_now, write_csv_atomic, write_json_atomic
 
 SCHEMA_VERSION = 1
@@ -80,7 +81,7 @@ GLOBAL_SPECS: list[Spec] = [
          "co2_concentration_annual", "NOAA's annual-mean uncertainty; null before 1959 (the Law Dome record publishes none).", 2),
     Spec("temperature_anomaly_1850_1900_c", "Global temperature anomaly (vs 1850-1900)", "°C", "anomaly", "global", "temperature_anomaly_annual.csv", "anomaly_1850_1900_c",
          "temperature_anomaly_annual", "Berkeley Earth land+ocean annual anomaly relative to the computed 1850-1900 mean.", 2, default_reference="1850_1900",
-         caveats=["The 1850-1900 offset is computed from Berkeley Earth's own early record; the source is Berkeley Earth's preliminary high-resolution release (see provenance)."]),
+         caveats=["The 1850-1900 offset is computed from Berkeley Earth's own early record; see provenance for the source's release status."]),
     Spec("temperature_anomaly_1951_1980_c", "Global temperature anomaly (vs 1951-1980)", "°C", "anomaly", "global", "temperature_anomaly_annual.csv", "anomaly_1951_1980_c",
          "temperature_anomaly_annual", "Berkeley Earth land+ocean annual anomaly on its native 1951-1980 reference.", 2, default_reference="1951_1980"),
     Spec("temperature_uncertainty_95_c", "Temperature anomaly 95% interval", "°C", "uncertainty", "global", "temperature_anomaly_annual.csv", "uncertainty_95_c",
@@ -152,6 +153,15 @@ def _provenance_link(prov: dict, series_id: str) -> dict | None:
             "raw_sha256": e.get("raw_sha256"), "checksum_verified": e.get("checksum_verified"), "source_urls": e.get("source_urls"),
             # attribution travels with the indicator too (a licence string can say "see land_use_license_note"): only the fields a source actually records
             **{k: e[k] for k in _ATTRIBUTION_FIELDS if k in e}}
+
+
+def _with_release_status(spec: Spec, provenance: dict) -> list[str]:
+    """The spec's caveats plus the temperature source's preliminary-release note, **only while its provenance says preliminary**
+    (the flag is parsed from each refresh's header, so a finalized file drops the note without a code change)."""
+    out = list(spec.caveats)
+    if spec.source_series == "temperature_anomaly_annual" and (provenance.get(spec.source_series) or {}).get("preliminary"):
+        out.append(PRELIMINARY_NOTE)
+    return out
 
 
 def _derived_entries(spec: Spec, series: pd.Series) -> tuple[list[dict], dict[str, pd.Series], dict[str, str]]:
@@ -249,7 +259,7 @@ def build(climate_dir: str, provenance: dict, report: RunReport) -> tuple[pd.Dat
             base_series[spec.id] = s
         entry = {"id": spec.id, "name": spec.name, "unit": spec.unit, "kind": spec.kind, "scope": spec.scope, "description": spec.description,
                  "decimals": spec.decimals, "source_series": spec.source_series, "provenance": _provenance_link(provenance, spec.source_series),
-                 "coverage": _span(s), "n_values": int(s.notna().sum()), "caveats": spec.caveats}
+                 "coverage": _span(s), "n_values": int(s.notna().sum()), "caveats": _with_release_status(spec, provenance)}
         if spec.default_baseline and spec.kind == "level":  # only level indicators have indices; never advertise a baseline that cannot be applied
             entry["default_baseline"] = spec.default_baseline
         if spec.default_reference:
@@ -263,6 +273,7 @@ def build(climate_dir: str, provenance: dict, report: RunReport) -> tuple[pd.Dat
                 entry["allowed_baselines"] = [k for k in derive.BASELINES if k not in excluded]
                 entry["excluded_baselines"] = excluded
             for e in derived_entries:
+                e["caveats"] = _with_release_status(spec, provenance)
                 e["provenance"] = entry["provenance"]
                 e["coverage"] = _span(derived_data[e["id"]])
                 e["n_values"] = int(derived_data[e["id"]].notna().sum())

@@ -144,3 +144,11 @@ def test_the_real_tracked_file_records_the_berkeley_inquiry_sent_2026_10_02():
     assert "Land_and_Ocean_summary.txt" in n["subject"] and "2025-01-10" in n["dataset_version_at_notification"]
     assert len(n["questions"]) == 2 and len(n["context"]) == 3 and len(n["replies"]) == 1 and "high resolution dataset" in n["replies"][0]["text"]
     assert any("1.44" in c and "1.52" in c for c in n["context"])  # the January 2026 report figures the question rests on
+
+
+def test_a_finalized_header_without_the_preliminary_banner_publishes_no_preliminary_wording(tmp_path, berkeley_text):
+    final = "\n".join(ln for ln in berkeley_text.splitlines() if "PRELIMINARY" not in ln) + "\n"
+    fetcher = lambda url: make_fetched(url, final, last_modified="2026-09-20T00:00:00+00:00")  # noqa: E731
+    be.run(fetcher, out_dir=str(tmp_path), provenance_path=str(tmp_path / "p.json"), today=_Today)
+    prov = json.loads((tmp_path / "p.json").read_text())["temperature_anomaly_annual"]
+    assert prov["preliminary"] is False and not any("PRELIMINARY" in c for c in prov["caveats"]) and "preliminary" not in prov["source"]

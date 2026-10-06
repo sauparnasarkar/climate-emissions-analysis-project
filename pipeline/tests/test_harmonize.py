@@ -358,3 +358,20 @@ def test_attribution_fields_travel_in_every_land_use_indicators_provenance_link_
         assert e["derived_from"] in {b["id"] for b in base} and "No formal license" in " ".join(e["caveats"])
     # a source that records no attribution fields gets none added (no noise)
     assert "citations" not in {x["id"]: x for x in cat["indicators"]}["temperature_anomaly_1850_1900_c"]["provenance"]
+
+
+def test_preliminary_note_follows_the_provenance_flag_on_base_and_derived_temperature_entries(tmp_path):
+    from pipeline.berkeley_earth import PRELIMINARY_NOTE
+
+    def temp_caveats(preliminary):
+        d = tmp_path / ("p" if preliminary else "f"); d.mkdir()
+        prov_path = write_inputs(d)
+        prov = json.load(open(prov_path)); prov["temperature_anomaly_annual"]["preliminary"] = preliminary
+        json.dump(prov, open(prov_path, "w"))
+        harmonize.run(str(d), prov_path)
+        cat = json.load(open(d / "indicator_catalog.json"))["indicators"]
+        return {e["id"]: e["caveats"] for e in cat if e["id"].startswith("temperature_anomaly")}
+
+    on, off = temp_caveats(True), temp_caveats(False)
+    assert on and all(PRELIMINARY_NOTE in c for c in on.values())  # base 1850/1951 and derived (mean5y) alike
+    assert not any(PRELIMINARY_NOTE in c for c in off.values())  # a finalized file drops it with no code change

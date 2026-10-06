@@ -38,6 +38,8 @@ SUMMARY_URL = "https://storage.googleapis.com/berkeley-earth-temperature-hr/glob
 SERIES_ID = "temperature_anomaly_annual"
 
 PREIND_START, PREIND_END = 1850, 1900
+# One wording, used by this module's provenance, the harmonized catalog and the correlation outputs; shown only while the parsed header says so.
+PRELIMINARY_NOTE = "Berkeley Earth's high-resolution temperature dataset is a preliminary release (not yet peer reviewed; values may be revised)."
 MAX_LAG_YEARS = 2  # alert if the latest year is older than this
 STALE_FILE_DAYS = 400  # alert if the source file itself hasn't been updated this long
 
@@ -119,6 +121,7 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
     release = parse_release(text)
     offset = preindustrial_offset(df)
     series = to_normalized(df, offset["value_c"])
+    preliminary = bool(release.get("preliminary"))
     latest = int(series["year"].max())
 
     if today.year - latest > MAX_LAG_YEARS:
@@ -145,7 +148,7 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
     write_provenance(
         SERIES_ID,
         {
-            "source": "Berkeley Earth High-Resolution Land/Ocean global temperature (annual; preliminary)",
+            "source": "Berkeley Earth High-Resolution Land/Ocean global temperature (annual" + ("; preliminary)" if preliminary else ")"),
             "source_urls": [SUMMARY_URL],
             "retrieved_at": raw.retrieved_at,
             "source_release": {"http_last_modified": raw.last_modified, **release},
@@ -155,7 +158,7 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
             "gas_scope": "not applicable (temperature)",
             "geography": "global",
             "update_cadence": "monthly (publisher); annual values close each year",
-            "preliminary": bool(release.get("preliminary")),
+            "preliminary": preliminary,
             "retired_source": "https://berkeley-earth-temperature.s3.us-west-1.amazonaws.com/Global/Land_and_Ocean_summary.txt (last modified 2025-01-10, ends 2024; superseded per the provider's reply of 2026-10-06)",
             "reference_period_native": [1951, 1980],
             "preindustrial_offset": offset,
@@ -167,7 +170,7 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
                 "computed 1850-1900 offset."
             ),
             "caveats": [
-                "PRELIMINARY: Berkeley Earth labels this dataset 'preliminary data - subject to change without notice - not yet peer reviewed'; values may be revised, and no final citation exists yet.",
+                *(["PRELIMINARY: Berkeley Earth labels this dataset 'preliminary data - subject to change without notice - not yet peer reviewed'; values may be revised, and no final citation exists yet."] if preliminary else []),
                 "Anomalies are deviations from a reference period, not absolute temperatures.",
                 "The 1850-1900 'pre-industrial' reference is a convention; the offset is computed from this dataset's own early record, whose uncertainty is largest.",
                 "Non-commercial use only (CC BY-NC): fine for this platform; any commercial use would need a licence from Berkeley Earth.",
@@ -176,7 +179,7 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
                 "CC BY-NC 4.0 International (Berkeley Earth's data page: 'in general ... for non-commercial use only'; commercial use needs "
                 "a licence from admin@berkeleyearth.org). Attribution to Berkeley Earth, including a reference to www.berkeleyearth.org. "
                 "The page's terms are stated for its data in general, including the beta high-resolution files; no separate licence is stated for this product. "
-                "Cite the description paper under review: Berkeley Earth Surface Temperature - High-Resolution (BEST-HR), ESSD Discussions, doi:10.5194/essd-2026-412."
+                "Cite the dataset's description paper (a preprint under review when this source was adopted): Berkeley Earth Surface Temperature - High-Resolution (BEST-HR), ESSD Discussions, doi:10.5194/essd-2026-412."
             ),
             "attribution_required": True,
             "non_commercial_only": True,
