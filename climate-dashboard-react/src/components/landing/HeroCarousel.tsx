@@ -33,7 +33,7 @@ export const CAROUSEL_STYLES = `
 .hero-carousel--static .hero-carousel__slide { animation: none !important; }
 .hero-carousel--static .hero-carousel__slide[data-motion^="enter"] { opacity: 1; }
 .hero-carousel--static .hero-carousel__slide[data-motion^="exit"] { visibility: hidden; opacity: 0; }
-.hero-carousel__controls { order: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 var(--landing-pad-x); padding: 10px 0 12px; border-top: 1px solid var(--__s9cmpx-static-divider-weak); }
+.hero-carousel__controls { order: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 var(--landing-pad-x); padding: 10px 0 12px; border-top: 1px solid var(--__s9cmpx-static-divider-strong); border-top-color: color-mix(in srgb, var(--__s9cmpx-static-text-weak) 55%, transparent); } /* same line as the KPI row (ClimateSignalBanner): divider tokens vanish on the tinted light background */
 .hero-carousel__btn { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 12px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 14px; color: inherit; background: transparent; border: 1px solid var(--__s9cmpx-static-divider-standard, currentColor); }
 .hero-carousel__btn[aria-current="true"] { background: var(--__s9cmpx-static-background-standard); font-weight: 600; }
 .hero-carousel__hint { margin-left: auto; font-size: 13px; color: var(--__s9cmpx-static-text-weak); }
