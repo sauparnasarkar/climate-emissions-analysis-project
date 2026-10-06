@@ -48,12 +48,14 @@ const AGENT_EXAMPLE = 'How has India’s emissions grown compared to other count
 const STYLES = `
 .landing { --landing-pad-x: clamp(20px, 5.5vw, 80px); --landing-pad-y: clamp(48px, 6vw, 88px); }
 .landing-h2 { font-size: clamp(1.75rem, 3.2vw, 2.75rem); line-height: 1.1; font-weight: 600; }
+/* Banner 2's lines: same visible colour as Banner 1's (ClimateSignalBanner) -- the divider tokens are lighter than the tinted light-theme background. */
+.landing-hero { --climate-banner-line: var(--__s9cmpx-static-divider-strong); --climate-banner-line: color-mix(in srgb, var(--__s9cmpx-static-text-weak) 55%, transparent); }
 .landing-hero { display: flex; gap: clamp(32px, 4vw, 56px); align-items: center; padding: clamp(16px, 3vh, 48px) var(--landing-pad-x); }
 .landing-hero__text { flex: 0 0 min(540px, 46%); min-width: 0; display: flex; flex-direction: column; gap: clamp(12px, 2.2vh, 24px); }
 .landing-hero__globe { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .landing-hero__controls { width: 100%; max-width: 624px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .landing-globe-title--block { display: none; width: 100%; max-width: 624px; }
-.landing-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--__s9cmpx-static-divider-weak); margin-top: 8px; }
+.landing-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--climate-banner-line); margin-top: 8px; }
 .landing-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .landing-race { display: flex; gap: clamp(32px, 5vw, 80px); align-items: flex-start; }
 .landing-race__text { flex: 0 0 min(380px, 34%); }
@@ -84,7 +86,7 @@ const STYLES = `
   .landing-globe-title--block > div > span:first-child { font-size: clamp(18px, calc(var(--globe-size, 340px) * 0.065), 22px) !important; }
   .landing-globe-title--block > div > span.__s9cmpx-body3 { font-size: clamp(12px, calc(var(--globe-size, 340px) * 0.05), 13px) !important; }
   .landing-hero__cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .landing-hero__cards > div { padding: 10px 12px; border: 1px solid var(--__s9cmpx-static-divider-weak); border-radius: 8px; min-width: 0; }
+  .landing-hero__cards > div { padding: 10px 12px; border: 1px solid var(--climate-banner-line); border-radius: 8px; min-width: 0; }
   .landing-hero__card-value { font-size: 1.5rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--__s9cmpx-static-text-strong); }
   .landing-hero__cards .__s9cmpx-body4 { color: var(--__s9cmpx-static-text-weak); }
   .landing-hero__ctas { flex-direction: column; }
@@ -101,7 +103,7 @@ const VISUALLY_HIDDEN = { position: 'absolute', width: 1, height: 1, overflow: '
 
 function Kpi({ value, label, color, border }: { value: string; label: string; color?: string; border: boolean }) {
   return (
-    <div style={{ padding: border ? '20px 16px 0 20px' : '20px 16px 0 0', borderLeft: border ? '1px solid var(--__s9cmpx-static-divider-weak)' : undefined, minWidth: 0 }}>
+    <div style={{ padding: border ? '20px 16px 0 20px' : '20px 16px 0 0', borderLeft: border ? '1px solid var(--climate-banner-line)' : undefined, minWidth: 0 }}>
       <div style={{ fontSize: 'clamp(1.25rem, 2.2vw, 1.75rem)', fontWeight: 600, color, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       <div className="__s9cmpx-body3" style={{ color: 'var(--__s9cmpx-static-text-weak)', marginTop: 4 }}>{label}</div>
     </div>
