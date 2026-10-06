@@ -1,5 +1,5 @@
 import type { ColDef } from 'ag-grid-community';
-import { ChartCard, SyChart, Select, DataTable, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
+import { ChartCard, SyChart, Select, DataTable, InlineAlert, Spinner, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
@@ -9,6 +9,7 @@ import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { CountryProfileTableRow } from '../api/types';
 import { resolveDivergingEndpointHex } from '../lib/resolveThemeColorHex';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
+import { StickyJumpLinks } from '../components/StickyJumpLinks';
 
 // The CO2 Emissions and CO2 per Capita line charts below pass no explicit `color`, so each
 // fell back to SyChart's default single-series categorical color -- theme-specific
@@ -69,7 +70,7 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Country Profile</h1>
-      <JumpLinks items={JUMP_ITEMS} />
+      <StickyJumpLinks items={JUMP_ITEMS} />
 
       <Select
         label={`Select a country (${expanded.length} available)`}

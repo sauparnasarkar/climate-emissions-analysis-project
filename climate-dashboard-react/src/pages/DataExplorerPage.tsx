@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import { Button, MultiSelect, RangeSlider, DataTable, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
+import { Button, MultiSelect, RangeSlider, DataTable, InlineAlert, Spinner, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { ExplorerMetaResponse } from '../api/types';
 import { humanize } from '../lib/humanize';
+import { StickyJumpLinks } from '../components/StickyJumpLinks';
 
 const DEFAULT_COLUMNS = ['country', 'year', 'co2', 'co2_per_capita', 'population', 'gdp', 'total_ghg'];
 const PAGE_SIZE = 50;
@@ -162,7 +163,7 @@ export default function DataExplorerPage() {
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Data Explorer</h1>
-      <JumpLinks items={JUMP_ITEMS} />
+      <StickyJumpLinks items={JUMP_ITEMS} />
       <p className="__s9cmpx-body1" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Browse the full underlying dataset behind this dashboard: every sovereign country
         (regional and income-group aggregates like &quot;World&quot; or &quot;European

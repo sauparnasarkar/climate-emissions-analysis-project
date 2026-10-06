@@ -15,6 +15,7 @@ import { HeadlineRelationship } from '../components/module/HeadlineRelationship'
 import { useAsync } from '../hooks/useAsync';
 import { useClimateSignal } from '../hooks/useClimateSignal';
 import { useElementHeight } from '../hooks/useElementHeight';
+import { useScrollSpy } from '../hooks/useScrollSpy';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { CAUSAL_CHAIN_ANCHOR, GLOBAL_RELATIONSHIP_ANCHOR, NOT_A_CLIMATE_MODEL } from '../lib/climateCopy';
 import { ALL_GAS_START_YEAR, buildAllGas } from '../lib/allGas';
@@ -82,6 +83,8 @@ export default function ClimateCorrelationPage() {
   useJumpToHashOnLoad(targetReady && stickyHeight !== null, reduceMotion);
   const jumpItems = [...(signal ? [CHAIN_JUMP, RELATIONSHIP_JUMP] : []), COUNTRY_JUMP, ...(scenarios ? [SCENARIOS_JUMP] : []), METHODOLOGY_JUMP];
 
+  const activeJumpId = useScrollSpy(jumpItems.map((i) => i.id), STICKY_HEADER_PX + jumpRowPx);
+
   return (
     <div className="climate-module">
       <style>{`.climate-module [id] { scroll-margin-top: ${STICKY_HEADER_PX + jumpRowPx}px; }`}</style>
@@ -93,7 +96,7 @@ export default function ClimateCorrelationPage() {
       <StickyAnchorRow innerRef={setStickyRow}>
         <div className="area2-anchor-line">
           <AnchorScroll>
-            <JumpLinks items={jumpItems} />
+            <JumpLinks items={jumpItems} activeId={activeJumpId} />
           </AnchorScroll>
         </div>
       </StickyAnchorRow>

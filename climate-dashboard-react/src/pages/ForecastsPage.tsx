@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import { ChartCard, SyChart, Select, DataTable, Accordion, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
+import { ChartCard, SyChart, Select, DataTable, Accordion, InlineAlert, Spinner, useReducedMotion } from 'design-system';
 import type { AccordionItem } from 'design-system/components/Accordion/Accordion';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
@@ -11,6 +11,7 @@ import type { EtsParameterRow, ForecastSummaryRow } from '../api/types';
 import { resolveCategoricalColorHex } from '../lib/resolveThemeColorHex';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
 import { humanize } from '../lib/humanize';
+import { StickyJumpLinks } from '../components/StickyJumpLinks';
 
 // A forecast is a series, not a verdict -- pure green (the previous hardcoded '#008000')
 // carries sentiment meaning elsewhere in this app and also fell short of the 3:1 non-text
@@ -161,7 +162,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>ETS(A,Ad,N) Emissions Forecasts (2019–2043)</h1>
-      <JumpLinks items={jumpItems} />
+      <StickyJumpLinks items={jumpItems} />
       <p className="__s9cmpx-body1" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Forecasts from Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, with 95% confidence intervals extending to 2043.
       </p>

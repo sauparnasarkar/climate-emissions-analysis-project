@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChartCard, SyChart, MultiSelect, Select, Button, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
+import { ChartCard, SyChart, MultiSelect, Select, Button, InlineAlert, Spinner, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
@@ -7,6 +7,7 @@ import { useCountries } from '../hooks/useCountries';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
+import { StickyJumpLinks } from '../components/StickyJumpLinks';
 
 const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value, label }));
 
@@ -55,7 +56,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
-      <JumpLinks items={JUMP_ITEMS} />
+      <StickyJumpLinks items={JUMP_ITEMS} />
 
       <div className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
         <MultiSelect
