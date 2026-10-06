@@ -167,3 +167,22 @@ export function growthPhrase(pctChange: number): string {
   if (pctChange >= 200 / 3) return 'grown by more than two-thirds';
   return `grown by ${whole}%`;
 }
+
+/** Space above the canvas inside the Globe's panel (its 12 px padding). */
+export const PHONE_GLOBE_PAD_PX = 12;
+/** Space the floating pill takes at the bottom of the screen: its 54 px, the 12 px margin under it, and a gap above it, with a little slack. */
+export const PHONE_GLOBE_PILL_ZONE_PX = 78;
+/** Height from the canvas's bottom to the legend's bottom (caption, its gap, the legend) when it has not been measured: ~41 + ~90 on a 430 px phone. */
+export const PHONE_GLOBE_BELOW_PX = 122;
+/** A phone globe is never smaller than this, however short the screen. */
+export const PHONE_GLOBE_MIN_PX = 160;
+/** The design's cap: at most this share of the screen height. */
+export const PHONE_GLOBE_MAX_SHARE = 0.62;
+
+/** The largest a phone's globe may be (px): what fits between where its column starts on the page (`top`, 0 if not yet measured) and the stable viewport's bottom,
+ * less the panel padding, what sits under the canvas (`below`: caption and legend, measured because the legend wraps more on a narrow phone) and the pill's zone,
+ * so the caption and legend sit clear of the pill at rest -- never above the design's 62% of the height or the laptop-sized `ceiling`, never below the minimum. */
+export function phoneGlobeMax({ viewportHeight, top, ceiling, below = PHONE_GLOBE_BELOW_PX }: { viewportHeight: number; top: number; ceiling: number; below?: number }): number {
+  const fit = top > 0 ? viewportHeight - top - PHONE_GLOBE_PAD_PX - below - PHONE_GLOBE_PILL_ZONE_PX : Infinity;
+  return Math.max(PHONE_GLOBE_MIN_PX, Math.min(ceiling, Math.round(viewportHeight * PHONE_GLOBE_MAX_SHARE), fit));
+}

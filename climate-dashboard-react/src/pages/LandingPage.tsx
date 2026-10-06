@@ -4,7 +4,7 @@ import { Button, Globe, Icon, InlineAlert, Slider } from 'design-system';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
-import { useViewportHeight } from '../hooks/useViewportHeight';
+import { useStableViewportHeight, useViewportHeight } from '../hooks/useViewportHeight';
 import { useInView } from '../hooks/useInView';
 import { useYearAnimation } from '../hooks/useYearAnimation';
 import { RankRace } from '../components/landing/RankRace';
@@ -18,7 +18,7 @@ import { ChainBand } from '../components/landing/ChainBand';
 import {
   FORECAST_END_YEAR, MAX_SELECTED_COUNTRIES, NEGATIVE_COLOR, POSITIVE_COLOR, SCENARIO_END_YEAR, SCENARIO_START_YEAR,
 } from '../constants';
-import { fmtInt, fmtPct, growthPhrase, latestTopShare, pickStories, RACE_SIZE, sparklinePath, type Story } from '../lib/landingData';
+import { fmtInt, fmtPct, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, RACE_SIZE, sparklinePath, type Story } from '../lib/landingData';
 import { MAGNITUDE_SCALE } from '../lib/magnitudeScale';
 import { resolveNoDataColorHex } from '../lib/resolveThemeColorHex';
 import { NAV_ITEMS } from '../navigation';
@@ -68,7 +68,10 @@ const STYLES = `
   .landing-globe-title--overlay { display: none; }
   .landing-grid3 { grid-template-columns: 1fr; }
   /* The hero banner on phones (decision 72): the three KPIs stay in one row, the buttons are full-width and stacked. */
-  .landing-hero { gap: 16px; padding-top: 12px; padding-bottom: 8px; }
+  .landing-hero { gap: 10px; padding-top: 8px; padding-bottom: 8px; }
+  /* Tighter vertical rhythm (decision 82) so the globe, its caption and the legend fit above the pill. */
+  .landing-hero__text { gap: 8px !important; }
+  .landing-hero__globe { gap: 6px; }
   .landing-hero__text > p { font-size: 0.9375rem !important; line-height: 1.45; }
   .landing-kpis > div { padding: 12px 8px 0 12px !important; }
   .landing-kpis > div:first-child { padding-left: 0 !important; }
@@ -77,7 +80,9 @@ const STYLES = `
   /* Same order as the climate banner (decision 73): copy, figures, picture, then the buttons (placed after the globe in the markup on a phone, so focus order matches). */
   /* Picture first (decision 79): the year readout is the globe's caption on one line, then two figure cards, then the buttons. */
   .landing-globe-title--block > div { flex-direction: row !important; align-items: baseline; justify-content: space-between; gap: 10px !important; }
-  .landing-globe-title--block > div > span:first-child { font-size: 22px !important; }
+  /* The readout steps down with a small globe but keeps a legible floor (decision 82): the year 22 -> 18 px, the total 13 -> 12 px. */
+  .landing-globe-title--block > div > span:first-child { font-size: clamp(18px, calc(var(--globe-size, 340px) * 0.065), 22px) !important; }
+  .landing-globe-title--block > div > span.__s9cmpx-body3 { font-size: clamp(12px, calc(var(--globe-size, 340px) * 0.05), 13px) !important; }
   .landing-hero__cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .landing-hero__cards > div { padding: 10px 12px; border: 1px solid var(--__s9cmpx-static-divider-weak); border-radius: 8px; min-width: 0; }
   .landing-hero__card-value { font-size: 1.5rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--__s9cmpx-static-text-strong); }
@@ -111,6 +116,7 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
   const maxYear = globe.years[globe.years.length - 1];
   // Autoplay begins when the globe scrolls into view, not on page load (e.g. below the fold on a phone).
   const globeRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
   const globeInView = useInView(globeRef);
   const { currentYear, isPlaying, reducedMotion, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS, stepYears: GLOBE_STEP_YEARS, startWhenVisible: globeRef, enabled: active });
   const yearIdx = currentYear - minYear;
@@ -123,7 +129,30 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
   // On a phone the globe takes at most ~62% of the screen height (Claude Design update, decision 79), so Play and the slider stay with it.
   const isPhone = useMediaQuery(PHONE_QUERY);
   const laptopMax = Math.max(300, Math.min(600, viewportHeight - 68 - 64 - 56 - 100 - 52));
-  const globeMax = isPhone ? Math.min(laptopMax, Math.round(viewportHeight * 0.62)) : laptopMax;
+  // ...and sized to what fits (decision 82): from where the globe starts on the page down to the stable (toolbars-shown) viewport's bottom, less room for its
+  // caption, the legend and the pill, so those sit clear of the pill at rest instead of under it.
+  const stableViewportHeight = useStableViewportHeight();
+  const [globeTop, setGlobeTop] = useState(0);
+  const [belowCanvas, setBelowCanvas] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section || typeof ResizeObserver === 'undefined') return;
+    const measure = () => {
+      const r = globeRef.current?.getBoundingClientRect();
+      if (!r || (r.width === 0 && r.height === 0)) return; // 0-size while its slide is hidden: keep the last values
+      setGlobeTop(Math.round(r.top + window.scrollY));
+      // The caption and legend under the canvas (the Globe's figure: canvas box, figcaption, legend), measured because the legend wraps more on a narrow phone.
+      const fig = globeRef.current?.querySelector('figure');
+      const legend = fig?.children[2];
+      if (fig?.firstElementChild && legend) setBelowCanvas(Math.round(legend.getBoundingClientRect().bottom - fig.firstElementChild.getBoundingClientRect().bottom));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(section);
+    window.addEventListener('resize', measure);
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
+  }, []);
+  const globeMax = isPhone ? phoneGlobeMax({ viewportHeight: stableViewportHeight, top: globeTop, ceiling: laptopMax, below: belowCanvas }) : laptopMax;
   const totals = useMemo(() => worldTotals(globe), [globe]);
   // Same top-10 share as the ranking-race heading (one shared computation, so the two change together).
   const topShare = useMemo(() => latestTopShare(map, all.co2_by_year), [map, all.co2_by_year]);
@@ -157,7 +186,7 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
   );
 
   return (
-    <section aria-labelledby="landing-title" className="landing-hero">
+    <section ref={sectionRef} aria-labelledby="landing-title" className="landing-hero">
       <div className="landing-hero__text">
         <div className="__s9cmpx-label3" style={{ letterSpacing: '0.08em', lineHeight: 1.5, textTransform: 'uppercase', color: 'var(--__s9cmpx-static-text-accent, inherit)' }}>
           Our World in Data CO₂ · {minYear}–{maxYear} · {all.countries_count} countries
@@ -179,7 +208,7 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
         )}
       </div>
 
-      <div className="landing-hero__globe" ref={globeRef}>
+      <div className="landing-hero__globe" ref={globeRef} style={{ ['--globe-size' as string]: `${globeMax}px` }}>
         <Globe
           isoCodes={globe.iso_codes}
           locationNames={globe.countries}

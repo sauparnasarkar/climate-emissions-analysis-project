@@ -90,7 +90,7 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
           borderBottom: '1px solid var(--__s9cmpx-static-divider-weak)',
         }}
       >
-        <Link to="/" style={{ ...linkStyle, display: 'flex', alignItems: 'center', gap: 10, fontWeight: 600, fontSize: 'clamp(1rem, 4vw, 1.0625rem)' }}>
+        <Link to="/" style={{ ...linkStyle, display: 'flex', alignItems: 'center', gap: 10, fontWeight: 600, fontSize: 'clamp(0.875rem, 3.9vw, 1.0625rem)', whiteSpace: 'nowrap' }}>
           <span aria-hidden="true">🌍</span> {PRODUCT_NAME}
         </Link>
         {isMobile ? (

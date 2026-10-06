@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MoverRow, WorldMapTimeSeries } from '../api/types';
 import { buildHeadlineSentence, headlineSegmentsToText } from './overviewHeadline';
-import { buildRaceModel, fmtInt, fmtPct, fmtSigned, growthPhrase, latestTopShare, pickStories, raceFrame, raceShare, sparklinePath } from './landingData';
+import { buildRaceModel, fmtInt, fmtPct, fmtSigned, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, raceFrame, raceShare, sparklinePath } from './landingData';
 
 const mover = (country: string, from: number | null, to: number | null): MoverRow => ({
   country,
@@ -145,5 +145,25 @@ describe('growthPhrase', () => {
     expect(growthPhrase(0)).toBe('barely changed');
     expect(growthPhrase(0.4)).toBe('barely changed');
     expect(growthPhrase(-0.4)).toBe('barely changed');
+  });
+});
+
+describe('phoneGlobeMax (decision 82)', () => {
+  it('fits the globe between where its column starts and the bottom, less the panel padding, the caption+legend below it and the pill zone', () => {
+    // 875 high, column starts 415 down: 875 - 415 - 12 - 122 - 78 = 248 (under the 62% cap of 542 and the ceiling).
+    expect(phoneGlobeMax({ viewportHeight: 875, top: 415, ceiling: 600 })).toBe(248);
+  });
+  it('uses the measured height under the canvas: a narrow phone whose legend wraps more gets a smaller globe', () => {
+    expect(phoneGlobeMax({ viewportHeight: 875, top: 415, ceiling: 600, below: 140 })).toBe(230);
+  });
+  it('never exceeds the design cap of 62% of the height, nor the ceiling', () => {
+    expect(phoneGlobeMax({ viewportHeight: 800, top: 40, ceiling: 600 })).toBe(496); // fit 548 > 62% of 800
+    expect(phoneGlobeMax({ viewportHeight: 1200, top: 100, ceiling: 400 })).toBe(400);
+  });
+  it('never drops below the minimum, however short the screen or low the globe starts', () => {
+    expect(phoneGlobeMax({ viewportHeight: 600, top: 500, ceiling: 600 })).toBe(160);
+  });
+  it('before the globe has been measured (top 0) falls back to the 62% cap', () => {
+    expect(phoneGlobeMax({ viewportHeight: 800, top: 0, ceiling: 600 })).toBe(496);
   });
 });
