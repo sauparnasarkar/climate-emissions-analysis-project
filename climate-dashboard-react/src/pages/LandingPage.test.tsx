@@ -103,7 +103,7 @@ describe('LandingPage', () => {
     vi.mocked(api.overview).mockReturnValue(new Promise(() => {}));
     vi.mocked(api.worldMapSeries).mockReturnValue(new Promise(() => {}));
     render(<MemoryRouter><LandingPage /></MemoryRouter>);
-    expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Where the world’s CO₂ comes from.' })).toBeInTheDocument(); // shortened, decision 81
     expect(screen.getByRole('status')).toHaveTextContent('Loading');
     expect(screen.getByRole('link', { name: 'Explore the data' })).toHaveAttribute('href', '/overview');
   });
@@ -300,7 +300,7 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(region).toHaveAttribute('aria-roledescription', 'carousel');
     const slides = within(region).getAllByRole('group', { hidden: true });
     expect(slides.map((s) => s.getAttribute('aria-label'))).toEqual(['1 of 2: Climate signal', '2 of 2: Where CO₂ comes from']);
-    expect(screen.getByRole('heading', { level: 1, name: /global temperature has risen with the co₂ we have accumulated/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Warming tracks the CO₂ we’ve accumulated.' })).toBeInTheDocument();
     const banner = region.querySelector('.climate-banner') as HTMLElement;
     expect(within(banner).getByText('+1.62 °C')).toBeInTheDocument();
     expect(within(banner).getByText('2024, vs 1850–1900')).toBeInTheDocument();
@@ -417,7 +417,7 @@ describe('LandingPage — climate-signal carousel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Next slide' }));
     expect(screen.getByRole('button', { name: 'Pause automatic rotation' })).toBeInTheDocument(); // still on
     expect(screen.getByRole('heading', { level: 1, name: /where the world’s co₂ comes from/i })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 1, name: /global temperature has risen/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: /^warming tracks the co₂/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Pause automatic rotation' }));
     expect(screen.getByRole('button', { name: 'Start automatic rotation' })).toBeInTheDocument();
   });
@@ -429,7 +429,7 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('button', { name: /02\s*Where CO₂ comes from/ })).toHaveAttribute('aria-current', 'true');
     fireEvent.keyDown(screen.getByRole('region', { name: 'Featured' }), { key: 'ArrowLeft' });
     expect(screen.getByRole('button', { name: /01\s*Climate signal/ })).toHaveAttribute('aria-current', 'true');
-    expect(screen.getByRole('heading', { level: 1, name: /global temperature has risen/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /^warming tracks the co₂/i })).toBeInTheDocument();
   });
 
   it('ignores arrow keys pressed in the hero\'s Year slider: they scrub the year and do not switch slides', async () => {
