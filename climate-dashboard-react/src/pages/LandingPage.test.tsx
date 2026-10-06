@@ -133,9 +133,9 @@ describe('LandingPage', () => {
     expect(globe).toHaveAttribute('data-iso', 'AAA,BBB,CCC,DDD');
     expect(globe).toHaveAttribute('data-range', '[1,300]');
     expect(globe).toHaveAttribute('data-year-index', '1'); // currentYear 2023 - first year 2022
-    // one full turn across the whole pass (3 years = 2 steps of 700 ms), colours blended over each step
-    expect(globe).toHaveAttribute('data-rotation-ms', '1400');
-    expect(globe).toHaveAttribute('data-blend-ms', '700');
+    // one full turn across the whole pass (3 years = 2 steps of 350 ms; decision 75), colours blended over each step
+    expect(globe).toHaveAttribute('data-rotation-ms', '700');
+    expect(globe).toHaveAttribute('data-blend-ms', '350');
     expect(globe).toHaveAttribute('data-auto-rotate', 'true');
   });
 

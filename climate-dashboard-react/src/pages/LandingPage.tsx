@@ -29,10 +29,10 @@ import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 
 // The landing globe is ambient (requirements §2.6, ENHANCEMENTS.md decision 12): it turns once, continuously, while the year
 // advances one at a time from GLOBE_START_YEAR to the latest, blending colours between years so the change reads as smooth
-// rather than stepped. ~700 ms a year, ~40 s for the whole pass. (Release 20's decade-by-decade steps are replaced.)
+// rather than stepped. ~350 ms a year, ~19 s for the whole pass (decision 75; it was 700 ms / ~38 s). (Release 20's decade-by-decade steps are replaced.)
 // The legend, controls, slider and total stay visible throughout; only the per-country labels are hidden while it plays.
 const GLOBE_START_YEAR = 1970;
-const GLOBE_STEP_MS = 700;
+const GLOBE_STEP_MS = 350;
 const GLOBE_STEP_YEARS = 1;
 // The rest of the landing page (stories, rank race, KPIs) still reads from 1990, the project's baseline year.
 const BASELINE_YEAR = 1990;
