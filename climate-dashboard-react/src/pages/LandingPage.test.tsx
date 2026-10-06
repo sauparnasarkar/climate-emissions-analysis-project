@@ -6,7 +6,7 @@ import { ApiError } from '../api/types';
 import type { MoverRow, OverviewResponse, OverviewTierMetrics, WorldMapTimeSeries } from '../api/types';
 import type { CorrelationConcentrationResponse, CorrelationEmissionsTemperatureResponse, CorrelationTemperatureResponse, SeriesPoint } from '../api/correlationTypes';
 import { useYearAnimation } from '../hooks/useYearAnimation';
-import { FORECAST_END_YEAR, SCENARIO_END_YEAR } from '../constants';
+import { FORECAST_END_YEAR } from '../constants';
 import LandingPage from './LandingPage';
 
 vi.mock('../api/client', () => ({
