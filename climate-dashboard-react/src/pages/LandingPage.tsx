@@ -179,9 +179,9 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           legendTitle="CO₂ (MtCO₂)"
           noDataLabel="Gray = no data"
           ariaLabel={`Globe of CO₂ emissions by country, ${minYear} to ${maxYear}, log-scaled colour from light (lowest) to deep red (highest)`}
-          // The globe turns whenever it is on screen, playing or paused (owner decision, 2026-10-06; Pause stops the years, not the turning).
+          // The globe turns whenever it is on screen (and its banner is the showing one: a hidden slide still intersects the viewport), playing or paused (owner decision, 2026-10-06; Pause stops the years, not the turning).
           // Under Reduce Motion it turns only while the visitor's own Play press runs.
-          autoRotate={reducedMotion ? isPlaying : globeInView}
+          autoRotate={active && (reducedMotion ? isPlaying : globeInView)}
           // With Reduce Motion on there is no autoplay, but the user's own Play press is a request for movement:
           // the globe spins while it runs (colour blending stays off, years just step).
           allowSpinWithReducedMotion

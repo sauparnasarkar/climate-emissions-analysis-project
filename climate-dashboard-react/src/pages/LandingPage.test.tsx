@@ -283,6 +283,13 @@ function mountWithClimate(anim: typeof ANIMATION = ANIMATION) {
 }
 
 describe('LandingPage — climate-signal carousel', () => {
+  it('does not spin the globe while its carousel slide is the hidden one (a hidden slide still intersects the viewport)', async () => {
+    mountWithClimate();
+    const region = await screen.findByRole('region', { name: 'Featured' });
+    // The climate banner is showing; the emissions hero is mounted but inactive, even though Play is "on".
+    expect(within(region).getByTestId('globe')).toHaveAttribute('data-auto-rotate', 'false');
+  });
+
   it('shows a two-slide carousel: the climate signal first (figures from the API, each with its own year), the existing hero second', async () => {
     mountWithClimate();
     const region = await screen.findByRole('region', { name: 'Featured' });
