@@ -30,7 +30,6 @@ export const CLIMATE_BANNER_STYLES = CHART_PANEL_STYLES + `
   /* As in the design frame: copy, the two figures, the chart, then the buttons (the buttons are placed after the chart in the markup on a phone, so reading and focus order match). */
   .climate-banner__text > p { font-size: 0.9375rem !important; line-height: 1.45; }
   .climate-banner__chart { padding: 12px 14px; gap: 8px; }
-  .climate-banner__forecasts { display: none; }
   .climate-banner__chart figcaption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .climate-banner__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; border: 0; }
   .climate-banner__metrics > div, .climate-banner__metrics > div + div { padding: 10px 12px; border: 1px solid var(--__s9cmpx-static-divider-weak); border-radius: 8px; } /* no fill: the figures keep the contrast they were audited against on the page background */
