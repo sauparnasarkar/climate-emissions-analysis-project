@@ -154,6 +154,17 @@ def test_vintage_caveat_carries_the_file_date_until_the_owner_records_a_reconcil
     assert not any("vintage" in c for c in out2["caveats"])
 
 
+def test_reconciled_but_preliminary_source_still_carries_a_preliminary_note(tmp_path):
+    from pipeline.correlation import _vintage
+    cdir = tmp_path / "c"; cdir.mkdir()
+    (cdir / "provenance.json").write_text(json.dumps({"temperature_anomaly_annual": {"source_release": {"http_last_modified": "2026-09-14T03:30:03+00:00"}, "preliminary": True}}))
+    n = tmp_path / "n.json"; n.write_text(json.dumps({"berkeley_earth": {"vintage_reconciled": True}}))
+    v = _vintage(str(cdir), str(n))
+    assert v["reconciled"] is True and "preliminary release" in v["caveat"]
+    (cdir / "provenance.json").write_text(json.dumps({"temperature_anomaly_annual": {"source_release": {"http_last_modified": "2026-09-14T03:30:03+00:00"}}}))
+    assert _vintage(str(cdir), str(n))["caveat"] is None
+
+
 def test_unknown_vintage_date_is_stated_not_invented(tmp_path):
     _, out = stage(tmp_path, vintage=None)
     assert "an unknown date" in out["temperature_source_vintage"]["caveat"]

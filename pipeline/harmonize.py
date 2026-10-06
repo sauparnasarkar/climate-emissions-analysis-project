@@ -80,7 +80,7 @@ GLOBAL_SPECS: list[Spec] = [
          "co2_concentration_annual", "NOAA's annual-mean uncertainty; null before 1959 (the Law Dome record publishes none).", 2),
     Spec("temperature_anomaly_1850_1900_c", "Global temperature anomaly (vs 1850-1900)", "°C", "anomaly", "global", "temperature_anomaly_annual.csv", "anomaly_1850_1900_c",
          "temperature_anomaly_annual", "Berkeley Earth land+ocean annual anomaly relative to the computed 1850-1900 mean.", 2, default_reference="1850_1900",
-         caveats=["The 1850-1900 offset is computed from Berkeley Earth's own early record; the source file's vintage is stale (see provenance)."]),
+         caveats=["The 1850-1900 offset is computed from Berkeley Earth's own early record; the source is Berkeley Earth's preliminary high-resolution release (see provenance)."]),
     Spec("temperature_anomaly_1951_1980_c", "Global temperature anomaly (vs 1951-1980)", "°C", "anomaly", "global", "temperature_anomaly_annual.csv", "anomaly_1951_1980_c",
          "temperature_anomaly_annual", "Berkeley Earth land+ocean annual anomaly on its native 1951-1980 reference.", 2, default_reference="1951_1980"),
     Spec("temperature_uncertainty_95_c", "Temperature anomaly 95% interval", "°C", "uncertainty", "global", "temperature_anomaly_annual.csv", "uncertainty_95_c",

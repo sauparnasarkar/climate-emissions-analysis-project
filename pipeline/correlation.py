@@ -332,7 +332,11 @@ def _vintage(climate_dir: str, notices_path: str) -> dict:
     date = last_modified[:10] if last_modified else "an unknown date"
     caveat = (f"Based on Berkeley Earth file vintage {date}; a possible ~0.1 °C discrepancy with Berkeley Earth's most recent published report text "
               "has not yet been reconciled.")
-    return {"file_last_modified": last_modified, "reconciled": reconciled, "caveat": None if reconciled else caveat}
+    prelim = ("Berkeley Earth's high-resolution temperature dataset is a preliminary release (not yet peer reviewed; values may be revised).")
+    caveat = None if reconciled else caveat
+    if caveat is None and _provenance(climate_dir, "temperature_anomaly_annual").get("preliminary"):
+        caveat = prelim
+    return {"file_last_modified": last_modified, "reconciled": reconciled, "caveat": caveat}
 
 
 # each variant is judged on its own inputs: the independent secondary must survive the headline's inputs being absent, and vice versa

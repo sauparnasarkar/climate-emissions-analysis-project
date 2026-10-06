@@ -1,4 +1,5 @@
-"""Global temperature anomaly: Berkeley Earth Land+Ocean annual series. Release 21, Phase 1.1.
+"""Global temperature anomaly: Berkeley Earth Land+Ocean annual series. Release 21, Phase 1.1; source moved to the
+high-resolution dataset 2026-10-06 (`ENHANCEMENTS.md` decision 83) after the provider's reply -- the S3 summary file is retired.
 
 Berkeley reports anomalies relative to 1951-1980. The platform also needs a pre-industrial
 (1850-1900) reference (`SPEC.md` §5.26 decision 8), so the offset is **computed here from
@@ -6,8 +7,9 @@ Berkeley's own data** -- the mean 1850-1900 anomaly on the native baseline -- an
 with its derivation, never hardcoded from literature. Anomalies on the 1850-1900 reference
 are `anomaly_1951_1980 - offset`.
 
-Two series exist in the file: temperature over sea ice taken from *air* (Berkeley's preferred,
-"more natural" description of surface warming) or from *water*. The air version is used.
+The high-resolution annual file carries one series (sea-ice regions extrapolated from air temperature where ice is
+present, as in the retired file's preferred version). It is a **preliminary** release -- not yet peer reviewed, subject
+to change without notice, with a description paper under review at ESSD -- and provenance says so.
 """
 
 from __future__ import annotations
@@ -31,8 +33,8 @@ from .common import (
     write_provenance,
 )
 
-# Berkeley's own data page links this S3 bucket as the canonical download location.
-SUMMARY_URL = "https://berkeley-earth-temperature.s3.us-west-1.amazonaws.com/Global/Land_and_Ocean_summary.txt"
+# Berkeley's data page (berkeleyearth.org/data) links this as the "annual file" of the high-resolution dataset, their operational product.
+SUMMARY_URL = "https://storage.googleapis.com/berkeley-earth-temperature-hr/global/Global_TAVG_annual.txt"
 SERIES_ID = "temperature_anomaly_annual"
 
 PREIND_START, PREIND_END = 1850, 1900
@@ -41,10 +43,8 @@ STALE_FILE_DAYS = 400  # alert if the source file itself hasn't been updated thi
 
 
 def parse_summary(text: str) -> pd.DataFrame:
-    """Annual anomaly (air-above-sea-ice version) and its 95% CI from the summary file's
-    first anomaly block. Comment lines start with '%'; data rows are whitespace-separated:
-    year, annual anomaly, annual unc., five-year anomaly, five-year unc., then the same four
-    for the water-above-sea-ice version (NaN where not defined)."""
+    """Annual anomaly and its 95% CI from the annual file. Comment lines start with '%'; data rows are
+    whitespace-separated: year, annual anomaly, annual unc., five-year anomaly, five-year unc. (NaN where not defined)."""
     rows = []
     for ln in text.splitlines():
         if not ln.strip() or ln.lstrip().startswith("%"):
@@ -75,9 +75,12 @@ def parse_release(text: str) -> dict:
     m = re.search(r"ocean analysis was published on ([^\n]+)", text)
     if m:
         out["ocean_analysis_published"] = m.group(1).strip()
-    m = re.search(r"Using air temperature above sea ice:\s*([\d.]+)", text)
+    # The header's line is `%    14.107 +/- ...` under "Estimated Jan 1951-Dec 1980 global mean temperature"; the uncertainty text is
+    # garbled in the preliminary release, so only the leading value is read, and its absence is not an error.
+    m = re.search(r"Estimated Jan 1951-Dec 1980 global mean temperature[^\n]*\n%\s*(\d+\.\d+)", text)
     if m:
-        out["abs_mean_1951_1980_air_c"] = float(m.group(1))
+        out["abs_mean_1951_1980_c"] = float(m.group(1))
+    out["preliminary"] = bool(re.search(r"PRELIMINARY DATA", text))
     return out
 
 
@@ -125,7 +128,7 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
         if age > STALE_FILE_DAYS:
             report.deviate(
                 f"Berkeley Earth source file last modified {raw.last_modified[:10]} ({age} days ago); it ends at {latest} -- "
-                f"the publisher's download location may not be receiving updates"
+                f"the publisher's download location may not be receiving updates (the previous S3 file went stale this way)"
             )
 
     # Correspondence with the provider (pipeline/source_notices.json, tracked) is copied into provenance each run, like PRIMAP-hist's.
@@ -142,7 +145,7 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
     write_provenance(
         SERIES_ID,
         {
-            "source": "Berkeley Earth Land/Ocean global temperature (annual)",
+            "source": "Berkeley Earth High-Resolution Land/Ocean global temperature (annual; preliminary)",
             "source_urls": [SUMMARY_URL],
             "retrieved_at": raw.retrieved_at,
             "source_release": {"http_last_modified": raw.last_modified, **release},
@@ -152,15 +155,19 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
             "gas_scope": "not applicable (temperature)",
             "geography": "global",
             "update_cadence": "monthly (publisher); annual values close each year",
+            "preliminary": bool(release.get("preliminary")),
+            "retired_source": "https://berkeley-earth-temperature.s3.us-west-1.amazonaws.com/Global/Land_and_Ocean_summary.txt (last modified 2025-01-10, ends 2024; superseded per the provider's reply of 2026-10-06)",
             "reference_period_native": [1951, 1980],
             "preindustrial_offset": offset,
             "methodology": (
-                "Berkeley Earth land-surface field combined with a reinterpolated HadSST4 ocean field; sea-ice regions "
-                "extrapolated from air temperature (the preferred version). Uncertainty is the 95% CI for statistical "
+                "Berkeley Earth High-Resolution (0.25 deg) land-surface field, with predictive structures from historical weather patterns, "
+                "combined with a reinterpolated HadSST4 ocean field; sea-ice regions extrapolated from land air temperature when ice is "
+                "present. Uncertainty is the 95% CI for statistical "
                 "and spatial undersampling effects and ocean biases. `anomaly_1850_1900_c` = native anomaly minus the "
                 "computed 1850-1900 offset."
             ),
             "caveats": [
+                "PRELIMINARY: Berkeley Earth labels this dataset 'preliminary data - subject to change without notice - not yet peer reviewed'; values may be revised, and no final citation exists yet.",
                 "Anomalies are deviations from a reference period, not absolute temperatures.",
                 "The 1850-1900 'pre-industrial' reference is a convention; the offset is computed from this dataset's own early record, whose uncertainty is largest.",
                 "Non-commercial use only (CC BY-NC): fine for this platform; any commercial use would need a licence from Berkeley Earth.",
@@ -168,12 +175,16 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
             "license": (
                 "CC BY-NC 4.0 International (Berkeley Earth's data page: 'in general ... for non-commercial use only'; commercial use needs "
                 "a licence from admin@berkeleyearth.org). Attribution to Berkeley Earth, including a reference to www.berkeleyearth.org. "
-                "Cite Rohde & Hausfather 2020, ESSD 12, 3469-3479, doi:10.5194/essd-12-3469-2020."
+                "The page's terms are stated for its data in general, including the beta high-resolution files; no separate licence is stated for this product. "
+                "Cite the description paper under review: Berkeley Earth Surface Temperature - High-Resolution (BEST-HR), ESSD Discussions, doi:10.5194/essd-2026-412."
             ),
             "attribution_required": True,
             "non_commercial_only": True,
             "provider_correspondence": {"notices": notices, "record": "pipeline/source_notices.json (tracked); copied here on every run"},
-            "citations": ["Rohde, R. A. and Hausfather, Z.: The Berkeley Earth Land/Ocean Temperature Record, Earth Syst. Sci. Data, 12, 3469-3479, https://doi.org/10.5194/essd-12-3469-2020, 2020."],
+            "citations": [
+                "Berkeley Earth Surface Temperature - High-Resolution (BEST-HR): a 0.25 deg Global Gridded Temperature Data Set for Climate Monitoring, Earth Syst. Sci. Data Discuss. (preprint under review), https://doi.org/10.5194/essd-2026-412, 2026.",
+                "Background (previous product): Rohde, R. A. and Hausfather, Z., Earth Syst. Sci. Data, 12, 3469-3479, https://doi.org/10.5194/essd-12-3469-2020, 2020.",
+            ],
             "published": True,
             "rows": len(series),
         },

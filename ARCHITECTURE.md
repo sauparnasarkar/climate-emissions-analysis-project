@@ -84,7 +84,7 @@ source, run by `python -m pipeline.run`, writing a normalized store to `data/cli
 
 ```
 NOAA GML Mauna Loa + Law Dome ice core ─▶ co2_concentration_{annual,monthly_mlo}.csv
-Berkeley Earth Land/Ocean              ─▶ temperature_anomaly_annual.csv  (+ computed 1850–1900 offset)
+Berkeley Earth High-Res Land/Ocean (prelim.) ─▶ temperature_anomaly_annual.csv  (+ computed 1850–1900 offset)
 PRIMAP-hist (Zenodo, latest release)   ─▶ primap_{country_annual,global_composition_annual}.csv, country_crosswalk.csv
 OWID (the file the refresh job downloaded; registered, not re-downloaded)
                                        ─▶ owid_world_co2_annual.csv
