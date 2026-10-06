@@ -14,10 +14,13 @@ import { ClimateScatter, ScatterLegend } from './ClimateScatter';
 // emissions set that year's temperature.
 
 export const CLIMATE_BANNER_STYLES = CHART_PANEL_STYLES + `
+/* The theme's divider tokens are tuned for white cards: on the tinted landing background (Tidewater #dce8ed) even divider-strong is 1.24:1, so the KPI row's
+   rules and the phone cards' borders vanished in the light theme. Derive the line from the themed text colour instead, so it holds contrast in both themes. */
+.climate-banner { --climate-banner-line: var(--__s9cmpx-static-divider-strong); --climate-banner-line: color-mix(in srgb, var(--__s9cmpx-static-text-weak) 55%, transparent); }
 .climate-banner { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 4vw, 56px); align-items: center; padding: clamp(16px, 3vh, 48px) var(--landing-pad-x); }
-.climate-banner__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--__s9cmpx-static-divider-weak); border-bottom: 1px solid var(--__s9cmpx-static-divider-weak); }
+.climate-banner__metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--climate-banner-line); border-bottom: 1px solid var(--climate-banner-line); }
 .climate-banner__metrics > div { padding: 14px 14px 14px 0; }
-.climate-banner__metrics > div + div { padding-left: 14px; border-left: 1px solid var(--__s9cmpx-static-divider-weak); }
+.climate-banner__metrics > div + div { padding-left: 14px; border-left: 1px solid var(--climate-banner-line); }
 /* Text on the page background (not on the dark chart panel): the design's per-theme series colours. */
 .climate-metric--temperature { color: #f2637e; }
 .climate-metric--concentration { color: #5ecbf5; }
@@ -32,7 +35,7 @@ export const CLIMATE_BANNER_STYLES = CHART_PANEL_STYLES + `
   .climate-banner__chart { padding: 12px 14px; gap: 8px; }
   .climate-banner__chart figcaption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .climate-banner__metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; border: 0; }
-  .climate-banner__metrics > div, .climate-banner__metrics > div + div { padding: 10px 12px; border: 1px solid var(--__s9cmpx-static-divider-weak); border-radius: 8px; } /* no fill: the figures keep the contrast they were audited against on the page background */
+  .climate-banner__metrics > div, .climate-banner__metrics > div + div { padding: 10px 12px; border: 1px solid var(--climate-banner-line); border-radius: 8px; } /* no fill: the figures keep the contrast they were audited against on the page background */
   .climate-banner__metrics > div:nth-child(3) { display: none; }
   .climate-banner__ctas { flex-direction: column; align-items: stretch !important; gap: 8px !important; }
   .climate-banner__ctas > a:not([class*="button"]) { text-align: center; padding: 6px 0; }
