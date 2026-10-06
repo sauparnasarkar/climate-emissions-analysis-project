@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MoverRow, WorldMapTimeSeries } from '../api/types';
 import { buildHeadlineSentence, headlineSegmentsToText } from './overviewHeadline';
-import { buildRaceModel, fmtInt, fmtPct, fmtSigned, pickStories, raceFrame, raceShare, sparklinePath } from './landingData';
+import { buildRaceModel, fmtInt, fmtPct, fmtSigned, growthPhrase, latestTopShare, pickStories, raceFrame, raceShare, sparklinePath } from './landingData';
 
 const mover = (country: string, from: number | null, to: number | null): MoverRow => ({
   country,
@@ -113,5 +113,37 @@ describe('race', () => {
     expect(raceShare(71, 100)).toBe(71);
     expect(raceShare(50, 0)).toBeNull();
     expect(raceShare(50, undefined)).toBeNull();
+  });
+
+  it('latestTopShare is the same figure the race heading shows for its last frame (decision 79: banner and heading change together)', () => {
+    const totals = [300, 400, 500];
+    const lastFrame = raceFrame(model, 2);
+    expect(latestTopShare(MAP, totals)).toBe(raceShare(lastFrame.topTotal, totals[2]));
+    expect(latestTopShare(MAP, totals)).toBe(Math.round((427 / 500) * 100));
+    expect(latestTopShare(MAP, [])).toBeNull();
+    expect(latestTopShare({ ...MAP, years: [], values: [] }, totals)).toBeNull();
+  });
+});
+
+describe('growthPhrase', () => {
+  it('words a rise: more than doubled above +100%, exactly doubled at it, more than two-thirds from 66.7%, else the plain percentage', () => {
+    expect(growthPhrase(120)).toBe('more than doubled');
+    expect(growthPhrase(100.1)).toBe('more than doubled');
+    expect(growthPhrase(100)).toBe('doubled');
+    expect(growthPhrase(99.96)).toBe('doubled');
+    expect(growthPhrase(99)).toBe('grown by more than two-thirds');
+    expect(growthPhrase(68.6)).toBe('grown by more than two-thirds');
+    expect(growthPhrase(66.7)).toBe('grown by more than two-thirds');
+    expect(growthPhrase(66.6)).toBe('grown by 67%');
+    expect(growthPhrase(12.4)).toBe('grown by 12%');
+  });
+
+  it('is direction-aware: a decline is "fallen by", never "grown by -5%"; a change that rounds to nothing is "barely changed"', () => {
+    expect(growthPhrase(-5)).toBe('fallen by 5%');
+    expect(growthPhrase(-12.6)).toBe('fallen by 13%');
+    expect(growthPhrase(-100)).toBe('fallen by 100%');
+    expect(growthPhrase(0)).toBe('barely changed');
+    expect(growthPhrase(0.4)).toBe('barely changed');
+    expect(growthPhrase(-0.4)).toBe('barely changed');
   });
 });

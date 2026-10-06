@@ -51,13 +51,20 @@ function Metric({ value, caption, tone }: { value: string; caption: string; tone
 
 export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSignal; headingId: string }) {
   const { fit, temperature, concentration } = signal;
-  // On a phone the buttons come after the chart in the markup too (not just visually), so reading and focus order match what is seen.
+  // On a phone the figures and then the buttons come after the chart in the markup too (not just visually), so reading and focus order match what is seen.
   const isPhone = useMediaQuery(PHONE_QUERY);
   const ctas = (
     <div className="climate-banner__ctas" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
       <Link to={`/overview#${CLIMATE_SIGNAL_ANCHOR}`} className={ctaClass('primary')} style={{ textDecoration: 'none' }}>See the climate signal</Link>
       <Link to="/climate-correlation" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>Explore climate correlation</Link>
       <Link to="/forecasts" className="climate-banner__forecasts" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>Forecasts to {FORECAST_END_YEAR} →</Link>
+    </div>
+  );
+  const metrics = (
+    <div className="climate-banner__metrics">
+      <Metric value={fmtAnomaly(temperature.value)} caption={`${temperature.year}, vs 1850–1900`} tone="temperature" />
+      <Metric value={`${concentration.value.toFixed(1)} ppm`} caption={`Atmospheric CO₂, ${concentration.year}`} tone="concentration" />
+      <Metric value={`${fit.slope.toFixed(2)} °C`} caption="per 1,000 GtCO₂ emitted" />
     </div>
   );
   return (
@@ -72,11 +79,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
         <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
           Emissions set off a chain reaction: CO₂ builds up in the atmosphere, traps more heat, and the planet warms. Over {fit.nYears} years, warming has followed the cumulative total, not any single year’s emissions.
         </p>
-        <div className="climate-banner__metrics">
-          <Metric value={fmtAnomaly(temperature.value)} caption={`${temperature.year}, vs 1850–1900`} tone="temperature" />
-          <Metric value={`${concentration.value.toFixed(1)} ppm`} caption={`Atmospheric CO₂, ${concentration.year}`} tone="concentration" />
-          <Metric value={`${fit.slope.toFixed(2)} °C`} caption="per 1,000 GtCO₂ emitted" />
-        </div>
+        {!isPhone && metrics}
         {!isPhone && ctas}
       </div>
       <figure className="climate-chart-panel climate-banner__chart" style={{ margin: 0 }}>
@@ -91,6 +94,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
         </div>
         <SourceNote inChartPanel sources={['Berkeley Earth', 'OWID + Global Carbon Project', 'NOAA GML + Law Dome']}>{signal.vintageCaveat ?? undefined}</SourceNote>
       </figure>
+      {isPhone && metrics}
       {isPhone && ctas}
     </div>
   );
