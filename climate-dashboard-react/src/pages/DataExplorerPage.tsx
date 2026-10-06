@@ -7,7 +7,7 @@ import { useAsync } from '../hooks/useAsync';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { ExplorerMetaResponse } from '../api/types';
 import { humanize } from '../lib/humanize';
-import { StickyJumpLinks } from '../components/StickyJumpLinks';
+import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
 
 const DEFAULT_COLUMNS = ['country', 'year', 'co2', 'co2_per_capita', 'population', 'gdp', 'total_ghg'];
 const PAGE_SIZE = 50;
@@ -158,12 +158,14 @@ export default function DataExplorerPage() {
   // Unlike the other five pages, this page's <h1> is in the outer component while
   // DataExplorerContent (and its two jump targets) mounts separately below, once meta.data
   // resolves -- ready reflects that, not just this outer component's own mount.
-  useJumpToHashOnLoad(Boolean(meta.data), reduceMotion);
+  // The deep-link jump also waits for the pinned row's first measurement: where it wraps, the offset is wrong until then.
+  const { rowReady, onRowReady } = useStickyRowReady();
+  useJumpToHashOnLoad(rowReady && Boolean(meta.data), reduceMotion);
 
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Data Explorer</h1>
-      <StickyJumpLinks items={JUMP_ITEMS} />
+      <StickyJumpLinks onReady={onRowReady} items={JUMP_ITEMS} />
       <p className="__s9cmpx-body1" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Browse the full underlying dataset behind this dashboard: every sovereign country
         (regional and income-group aggregates like &quot;World&quot; or &quot;European

@@ -11,7 +11,7 @@ import type { EtsParameterRow, ForecastSummaryRow } from '../api/types';
 import { resolveCategoricalColorHex } from '../lib/resolveThemeColorHex';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
 import { humanize } from '../lib/humanize';
-import { StickyJumpLinks } from '../components/StickyJumpLinks';
+import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
 
 // A forecast is a series, not a verdict -- pure green (the previous hardcoded '#008000')
 // carries sentiment meaning elsewhere in this app and also fell short of the 3:1 non-text
@@ -85,7 +85,9 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
   }, [targetAccordionId, allAccordionDataReady]);
 
   const hashJumpReady = targetAccordionId ? allAccordionDataReady && openAccordionIds.includes(targetAccordionId) : true;
-  useJumpToHashOnLoad(hashJumpReady, reduceMotion);
+  // The deep-link jump also waits for the pinned row's first measurement: where it wraps, the offset is wrong until then.
+  const { rowReady, onRowReady } = useStickyRowReady();
+  useJumpToHashOnLoad(rowReady && hashJumpReady, reduceMotion);
 
   const accordionItems: AccordionItem[] = [];
 
@@ -162,7 +164,7 @@ function ForecastsContent({ expanded, seedCountry }: { expanded: string[]; seedC
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>ETS(A,Ad,N) Emissions Forecasts (2019–2043)</h1>
-      <StickyJumpLinks items={jumpItems} />
+      <StickyJumpLinks onReady={onRowReady} items={jumpItems} />
       <p className="__s9cmpx-body1" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Forecasts from Holt's Damped Trend ETS(A,Ad,N) trained on 1990–2018, with 95% confidence intervals extending to 2043.
       </p>
