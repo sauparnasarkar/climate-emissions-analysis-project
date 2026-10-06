@@ -9,6 +9,7 @@ import { useYearAnimation } from '../hooks/useYearAnimation';
 import { RankRace } from '../components/landing/RankRace';
 import { CLIMATE_BANNER_STYLES, ClimateSignalBanner } from '../components/landing/ClimateSignalBanner';
 import { CAROUSEL_STYLES, HeroCarousel } from '../components/landing/HeroCarousel';
+import { PHONE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 import { ctaClass } from '../components/landing/cta';
 import { buildClimateSignal } from '../lib/climateSignal';
 import { sliceMapSeries, worldTotals } from '../lib/mapSeries';
@@ -28,10 +29,10 @@ import type { OverviewResponse, WorldMapTimeSeries } from '../api/types';
 
 // The landing globe is ambient (requirements §2.6, ENHANCEMENTS.md decision 12): it turns once, continuously, while the year
 // advances one at a time from GLOBE_START_YEAR to the latest, blending colours between years so the change reads as smooth
-// rather than stepped. ~700 ms a year, ~40 s for the whole pass. (Release 20's decade-by-decade steps are replaced.)
+// rather than stepped. ~350 ms a year, ~19 s for the whole pass (decision 75; it was 700 ms / ~38 s). (Release 20's decade-by-decade steps are replaced.)
 // The legend, controls, slider and total stay visible throughout; only the per-country labels are hidden while it plays.
 const GLOBE_START_YEAR = 1970;
-const GLOBE_STEP_MS = 700;
+const GLOBE_STEP_MS = 350;
 const GLOBE_STEP_YEARS = 1;
 // The rest of the landing page (stories, rank race, KPIs) still reads from 1990, the project's baseline year.
 const BASELINE_YEAR = 1990;
@@ -65,8 +66,16 @@ const STYLES = `
   .landing-globe-title--block { display: block; }
   .landing-globe-title--overlay { display: none; }
   .landing-grid3 { grid-template-columns: 1fr; }
-  .landing-kpis { grid-template-columns: 1fr; }
-  .landing-kpis > * + * { border-left: 0 !important; padding-left: 0 !important; border-top: 1px solid var(--__s9cmpx-static-divider-weak); }
+  /* The hero banner on phones (decision 72): the three KPIs stay in one row, the buttons are full-width and stacked. */
+  .landing-hero { gap: 16px; padding-top: 12px; padding-bottom: 8px; }
+  .landing-hero__text > p { font-size: 0.9375rem !important; line-height: 1.45; }
+  .landing-kpis > div { padding: 12px 8px 0 12px !important; }
+  .landing-kpis > div:first-child { padding-left: 0 !important; }
+  .landing-kpis > div > div:first-child { font-size: 1.125rem !important; }
+  .landing-kpis .__s9cmpx-body3 { font-size: 12px; line-height: 1.3; }
+  /* Same order as the climate banner (decision 73): copy, figures, picture, then the buttons (placed after the globe in the markup on a phone, so focus order matches). */
+  .landing-hero__ctas { flex-direction: column; }
+  .landing-hero__ctas > a { justify-content: center; }
 }
 `;
 
@@ -121,24 +130,30 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
       </div>
   );
 
+  // On a phone the buttons follow the globe in the markup as well as on screen (decision 73), so focus and reading order match what is seen.
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  const ctas = (
+    <div className="landing-hero__ctas" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <Link to="/overview" className={ctaClass('primary')} style={{ textDecoration: 'none' }}>
+        Explore the data <Icon name="expand" size={16} />
+      </Link>
+      <Link to="/forecasts" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>Forecasts to {FORECAST_END_YEAR}</Link>
+    </div>
+  );
+
   return (
     <section aria-labelledby="landing-title" className="landing-hero">
       <div className="landing-hero__text">
         <div className="__s9cmpx-label3" style={{ letterSpacing: '0.08em', lineHeight: 1.5, textTransform: 'uppercase', color: 'var(--__s9cmpx-static-text-accent, inherit)' }}>
           Our World in Data CO₂ · {minYear}–{maxYear} · {all.countries_count} countries
         </div>
-        <h1 id="landing-title" style={{ margin: 0, fontSize: 'clamp(2rem, min(4.6vw, 5.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
+        <h1 id="landing-title" style={{ margin: 0, fontSize: 'clamp(1.75rem, min(4.6vw, 5.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
           Where the world’s CO₂ comes from — and where it’s heading.
         </h1>
         <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
           Emissions for {all.countries_count} countries since {minYear}, ETS(A,Ad,N) forecasts to {FORECAST_END_YEAR} and scenario pathways to {SCENARIO_END_YEAR} — with an AI agent that answers questions from the same data.
         </p>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <Link to="/overview" className={ctaClass('primary')} style={{ textDecoration: 'none' }}>
-            Explore the data <Icon name="expand" size={16} />
-          </Link>
-          <Link to="/forecasts" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>Forecasts to {FORECAST_END_YEAR}</Link>
-        </div>
+        {!isPhone && ctas}
         <div className="landing-kpis">
           <Kpi border={false} value={fmtInt(all.latest_co2_total)} label={`MtCO₂ in ${all.latest_year}, all countries`} />
           <Kpi border value={fmtPct(all.pct_change_since_1990)} label={`Change since ${baselineYear}`} color={all.pct_change_since_1990 >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR} />
@@ -187,6 +202,7 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           </div>
         </div>
       </div>
+      {isPhone && ctas}
     </section>
   );
 }

@@ -133,9 +133,9 @@ describe('LandingPage', () => {
     expect(globe).toHaveAttribute('data-iso', 'AAA,BBB,CCC,DDD');
     expect(globe).toHaveAttribute('data-range', '[1,300]');
     expect(globe).toHaveAttribute('data-year-index', '1'); // currentYear 2023 - first year 2022
-    // one full turn across the whole pass (3 years = 2 steps of 700 ms), colours blended over each step
-    expect(globe).toHaveAttribute('data-rotation-ms', '1400');
-    expect(globe).toHaveAttribute('data-blend-ms', '700');
+    // one full turn across the whole pass (3 years = 2 steps of 350 ms; decision 75), colours blended over each step
+    expect(globe).toHaveAttribute('data-rotation-ms', '700');
+    expect(globe).toHaveAttribute('data-blend-ms', '350');
     expect(globe).toHaveAttribute('data-auto-rotate', 'true');
   });
 
@@ -315,6 +315,35 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('link', { name: 'Explore climate correlation' })).toHaveAttribute('href', '/climate-correlation');
     expect(screen.queryByRole('link', { name: 'Explore the data' })).not.toBeInTheDocument(); // the two buttons no longer both go to the Overview
     expect(screen.getByRole('link', { name: `Forecasts to ${FORECAST_END_YEAR} →` })).toHaveAttribute('href', '/forecasts');
+  });
+
+  let savedMatchMedia = window.matchMedia;
+  const restoreMedia = () => { window.matchMedia = savedMatchMedia; }; // not vi.unstubAllGlobals: it would also drop the file's other stubs
+  const stubPhone = (phone: boolean) => { savedMatchMedia = window.matchMedia; window.matchMedia = ((q: string) => ({ matches: phone && q === '(max-width: 640px)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia; };
+  const follows = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it('on a phone both banners put their buttons after the picture in the markup, so focus and reading order match what is seen (decision 73)', async () => {
+    stubPhone(true);
+    try {
+      mountWithClimate();
+      await screen.findByRole('region', { name: 'Featured' });
+      const climateCtas = document.querySelector('.climate-banner__ctas')!;
+      expect(follows(document.querySelector('.climate-banner__chart')!, climateCtas)).toBe(true);
+      const heroCtas = document.querySelector('.landing-hero__ctas')!;
+      expect(follows(document.querySelector('.landing-hero__globe')!, heroCtas)).toBe(true);
+      expect(follows(document.querySelector('.landing-kpis')!, heroCtas)).toBe(true);
+      expect(document.querySelectorAll('.landing-hero__ctas')).toHaveLength(1); // rendered once, not duplicated
+    } finally { restoreMedia(); }
+  });
+
+  it('above phone width the buttons stay beside the copy (before the figures/globe), as on desktop', async () => {
+    stubPhone(false);
+    try {
+      mountWithClimate();
+      await screen.findByRole('region', { name: 'Featured' });
+      expect(follows(document.querySelector('.climate-banner__ctas')!, document.querySelector('.climate-banner__chart')!)).toBe(true);
+      expect(follows(document.querySelector('.landing-hero__ctas')!, document.querySelector('.landing-hero__globe')!)).toBe(true);
+    } finally { restoreMedia(); }
   });
 
   it('states the baseline, the sources and that the chart is context, not a climate model', async () => {

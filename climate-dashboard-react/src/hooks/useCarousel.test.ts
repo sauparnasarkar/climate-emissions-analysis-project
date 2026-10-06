@@ -13,8 +13,8 @@ beforeEach(() => { vi.useFakeTimers(); mockReducedMotion(false); });
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('useCarousel', () => {
-  it('rotates after 5 seconds on each banner (decision 71)', () => {
-    expect(CAROUSEL_DWELL_MS).toBe(5000);
+  it('rotates after 10 seconds on each banner (decision 59; a 5 s trial was reverted, decision 72)', () => {
+    expect(CAROUSEL_DWELL_MS).toBe(10000);
   });
 
   it('rotates every dwell period while auto-rotate is on, and keeps going round', () => {

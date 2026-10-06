@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useState, type ReactNode } from 'react';
 import { Icon, useReducedMotion } from 'design-system';
 import { useCarousel } from '../../hooks/useCarousel';
 
@@ -37,7 +37,28 @@ export const CAROUSEL_STYLES = `
 .hero-carousel__btn { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; height: 36px; padding: 0 12px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 14px; color: inherit; background: transparent; border: 1px solid var(--__s9cmpx-static-divider-standard, currentColor); }
 .hero-carousel__btn[aria-current="true"] { background: var(--__s9cmpx-static-background-standard); font-weight: 600; }
 .hero-carousel__hint { margin-left: auto; font-size: 13px; color: var(--__s9cmpx-static-text-weak); }
-@media (max-width: 640px) { .hero-carousel__hint { display: none; } }
+/* Phones (decision 72): one compact row -- previous, Pause/Play, a dot per banner, "1 of 2", next -- instead of wrapped labelled buttons. */
+.hero-carousel__count { display: none; }
+@media (max-width: 640px) {
+  .hero-carousel__hint { display: none; }
+  /* The slides are stacked in one grid cell, so the tallest would set the height and leave a gap above the controls under a shorter banner: on a phone only the showing (and, during the move, the leaving) slide takes room. */
+  .hero-carousel__slide[data-motion="hidden"] { display: none; }
+  /* Decision 73: a pill pinned to the bottom of the screen while the carousel is on view (it docks at the carousel's own end), so the controls are seen
+     without scrolling -- like the pagination pill on the Fitch Ratings mobile hero. Page scroll-padding keeps a focused element from sitting behind it. */
+  .hero-carousel__controls { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 6; align-self: center; width: fit-content; max-width: calc(100% - 24px); margin: 0 12px; flex-wrap: nowrap; justify-content: center; gap: 2px; padding: 4px 8px; border: 1px solid var(--__s9cmpx-static-divider-standard, #8896a8); border-radius: 999px; background: var(--__s9cmpx-static-background-standard); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); }
+  html:has(.hero-carousel__controls) { scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+  .hero-carousel__btn { min-width: 44px; height: 44px; padding: 0; }
+  .hero-carousel__btn--playpause { padding: 0 12px; }
+  .hero-carousel__btn--prev { order: 1; margin-right: auto; }
+  .hero-carousel__btn--playpause { order: 2; }
+  .hero-carousel__btn--dot { order: 3; background: none; border: 0; }
+  .hero-carousel__count { order: 4; display: inline; font-size: 13px; color: var(--__s9cmpx-static-text-weak); margin: 0 6px; }
+  .hero-carousel__btn--next { order: 5; margin-left: auto; }
+  .hero-carousel__btn--dot .hero-carousel__num, .hero-carousel__btn--dot .hero-carousel__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .hero-carousel__btn--dot { min-width: 44px; position: relative; } /* the target stays 44 px; only the drawn dot is small */
+  .hero-carousel__btn--dot::before { content: ""; display: block; width: 12px; height: 12px; border-radius: 6px; border: 2px solid var(--__s9cmpx-static-text-standard); box-sizing: border-box; }
+  .hero-carousel__btn--dot[aria-current="true"]::before { width: 32px; border-color: var(--__s9cmpx-interactive-fill-primary-default); background: var(--__s9cmpx-interactive-fill-primary-default); }
+}
 `;
 
 export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: CarouselSlide[]; ariaLabel?: string }) {
@@ -45,7 +66,18 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
   const reducedMotion = useReducedMotion();
   const uid = useId();
   // The first slide is simply there; after a move, the new one enters and the old one leaves, each in the move's direction.
-  const motionOf = (i: number) => (i === c.index ? (c.previous === null ? 'rest' : `enter-${c.direction}`) : i === c.previous ? `exit-${c.direction}` : 'hidden');
+  // The leaving slide only needs its state while its exit runs; after that it is plainly hidden (on a phone that frees its room).
+  // `settled` is reset before paint on every move, so the leaving slide never shows a frame of "hidden" before its exit starts.
+  const [settled, setSettled] = useState(false);
+  useLayoutEffect(() => setSettled(false), [c.index]);
+  useEffect(() => {
+    if (c.previous === null) return;
+    const t = window.setTimeout(() => setSettled(true), 520);
+    return () => window.clearTimeout(t);
+  }, [c.index, c.previous]);
+  // Under reduced motion there is no exit to wait for, so the previous slide is settled at once (no delayed height change on a phone).
+  const leaving = settled || reducedMotion ? null : c.previous;
+  const motionOf = (i: number) => (i === c.index ? (c.previous === null ? 'rest' : `enter-${c.direction}`) : i === leaving ? `exit-${c.direction}` : 'hidden');
 
   return (
     <section
@@ -65,17 +97,18 @@ export function HeroCarousel({ slides, ariaLabel = 'Featured' }: { slides: Carou
       {/* First in the DOM (so first in tab order) but drawn below the slides (CSS `order`): the pause control
           must be reachable before the moving content. */}
       <div className="hero-carousel__controls">
-        <button type="button" className="hero-carousel__btn" onClick={c.autoplay ? c.pause : c.play} aria-label={c.autoplay ? 'Pause automatic rotation' : 'Start automatic rotation'}>
+        <button type="button" className="hero-carousel__btn hero-carousel__btn--playpause" onClick={c.autoplay ? c.pause : c.play} aria-label={c.autoplay ? 'Pause automatic rotation' : 'Start automatic rotation'}>
           {c.autoplay ? 'Pause' : 'Play'}
         </button>
-        <button type="button" className="hero-carousel__btn" onClick={c.prev} aria-label="Previous slide"><Icon name="chevron-left" size={16} /></button>
+        <button type="button" className="hero-carousel__btn hero-carousel__btn--prev" onClick={c.prev} aria-label="Previous slide"><Icon name="chevron-left" size={16} /></button>
         {slides.map((s, i) => (
-          <button key={s.id} type="button" className="hero-carousel__btn" aria-current={i === c.index} aria-controls={`${uid}-${s.id}`} onClick={() => c.goTo(i)}>
-            <span style={{ fontFamily: 'var(--__s9cmpx-font-families-mono, ui-monospace, monospace)', fontSize: 11, marginRight: 8 }}>{String(i + 1).padStart(2, '0')}</span>
-            {s.label}
+          <button key={s.id} type="button" className="hero-carousel__btn hero-carousel__btn--dot" aria-current={i === c.index} aria-controls={`${uid}-${s.id}`} onClick={() => c.goTo(i)}>
+            <span className="hero-carousel__num" style={{ fontFamily: 'var(--__s9cmpx-font-families-mono, ui-monospace, monospace)', fontSize: 11, marginRight: 8 }}>{String(i + 1).padStart(2, '0')}</span>
+            <span className="hero-carousel__label">{s.label}</span>
           </button>
         ))}
-        <button type="button" className="hero-carousel__btn" onClick={c.next} aria-label="Next slide"><Icon name="chevron-right" size={16} /></button>
+        <button type="button" className="hero-carousel__btn hero-carousel__btn--next" onClick={c.next} aria-label="Next slide"><Icon name="chevron-right" size={16} /></button>
+        <span className="hero-carousel__count" aria-hidden="true">{c.index + 1} of {slides.length}</span>
         <span className="hero-carousel__hint">{c.autoplay ? 'Auto-rotating · use Pause to stop' : 'Auto-rotate off · ← → to switch'}</span>
       </div>
       <div className="hero-carousel__slides" aria-live={c.autoplay ? 'off' : 'polite'}>
