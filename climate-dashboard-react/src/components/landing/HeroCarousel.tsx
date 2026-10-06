@@ -41,11 +41,13 @@ export const CAROUSEL_STYLES = `
 .hero-carousel__count { display: none; }
 @media (max-width: 1100px), (max-width: 1440px) and (pointer: coarse) {
   .hero-carousel__hint { display: none; }
+  /* Decision 79: room under each banner for the pill (54 px + gap), which docks into it at rest instead of sitting below it, so at rest it covers nothing. */
+  .hero-carousel__slides { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
   /* The slides are stacked in one grid cell, so the tallest would set the height and leave a gap above the controls under a shorter banner: on a phone only the showing (and, during the move, the leaving) slide takes room. */
   .hero-carousel__slide[data-motion="hidden"] { display: none; }
   /* Decision 73: a pill pinned to the bottom of the screen while the carousel is on view (it docks at the carousel's own end), so the controls are seen
      without scrolling -- like the pagination pill on the Fitch Ratings mobile hero. Page scroll-padding keeps a focused element from sitting behind it. */
-  .hero-carousel__controls { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 6; align-self: center; width: fit-content; max-width: calc(100% - 24px); margin: 0 12px; flex-wrap: nowrap; justify-content: center; gap: 2px; padding: 4px 8px; border: 1px solid var(--__s9cmpx-static-divider-standard, #8896a8); border-radius: 999px; background: var(--__s9cmpx-static-background-standard); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); }
+  .hero-carousel__controls { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 6; align-self: center; width: fit-content; max-width: calc(100% - 24px); margin: calc(-66px - env(safe-area-inset-bottom, 0px)) 12px 0; flex-wrap: nowrap; justify-content: center; gap: 2px; padding: 4px 8px; border: 1px solid var(--__s9cmpx-static-divider-standard, #8896a8); border-radius: 999px; background: var(--__s9cmpx-static-background-standard); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); }
   html:has(.hero-carousel__controls) { scroll-padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
   .hero-carousel__btn { min-width: 44px; height: 44px; padding: 0; }
   .hero-carousel__btn--playpause { padding: 0 12px; }

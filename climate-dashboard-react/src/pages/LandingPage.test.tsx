@@ -116,13 +116,13 @@ describe('LandingPage', () => {
   it('computes the hero KPIs, eyebrow and lede from the API responses (no literals)', async () => {
     mount();
     expect(await screen.findByText('OUR WORLD IN DATA CO₂ · 2022–2024 · 4 countries', { exact: false })).toBeInTheDocument();
-    expect(screen.getByText(/Emissions for 4 countries since 2022, ETS\(A,Ad,N\) forecasts to/)).toBeInTheDocument();
+    // +70.8% since 2022 -> "more than two-thirds"; the four fixture countries are the whole world total, so the top-10 share is 100% (same figure as the race heading's)
+    expect(screen.getByText('Global CO₂ emissions have grown by more than two-thirds since 2022, and the 10 largest emitters now account for 100% of the total.')).toBeInTheDocument();
     expect(screen.getByText('427')).toBeInTheDocument(); // latest_co2_total
     expect(screen.getByText('MtCO₂ in 2024, all countries')).toBeInTheDocument();
     expect(screen.getByText('+70.8%')).toBeInTheDocument(); // (427-250)/250
     expect(screen.getByText('Change since 2022')).toBeInTheDocument();
     expect(screen.getByText('Countries in the Expanded set').previousElementSibling).toHaveTextContent('12');
-    expect(screen.getByText(new RegExp(`ETS\\(A,Ad,N\\) forecasts to ${FORECAST_END_YEAR}.*pathways to ${SCENARIO_END_YEAR}`))).toBeInTheDocument();
     // Only ETS carries 2043 forecasts in the UI -- the lede must not credit regression/RF with them.
     expect(screen.queryByText(/regression and Random Forest/)).not.toBeInTheDocument();
   });
@@ -338,7 +338,18 @@ describe('LandingPage — climate-signal carousel', () => {
       expect(follows(document.querySelector('.climate-banner__chart')!, climateCtas)).toBe(true);
       const heroCtas = document.querySelector('.landing-hero__ctas')!;
       expect(follows(document.querySelector('.landing-hero__globe')!, heroCtas)).toBe(true);
-      expect(follows(document.querySelector('.landing-kpis')!, heroCtas)).toBe(true);
+      // Decision 79: copy -> picture -> figures -> buttons on both banners; Banner 2's three KPIs give way to two cards after the globe.
+      expect(follows(document.querySelector('.climate-banner__chart')!, document.querySelector('.climate-banner__metrics')!)).toBe(true);
+      expect(follows(document.querySelector('.climate-banner__metrics')!, climateCtas)).toBe(true);
+      expect(document.querySelector('.landing-kpis')).toBeNull();
+      const cards = document.querySelector('.landing-hero__cards')!;
+      expect(follows(document.querySelector('.landing-hero__globe')!, cards)).toBe(true);
+      expect(follows(cards, heroCtas)).toBe(true);
+      expect(cards).toHaveTextContent('+70.8%');
+      expect(cards).toHaveTextContent('100%');
+      expect(cards).toHaveTextContent('From the top 10 emitters, 2024');
+      // The year readout is the globe's caption: under the globe, not above it.
+      expect(follows(screen.getByTestId('globe'), document.querySelector('.landing-globe-title--block')!)).toBe(true);
       expect(document.querySelectorAll('.landing-hero__ctas')).toHaveLength(1); // rendered once, not duplicated
     } finally { restoreMedia(); }
   });
@@ -350,6 +361,9 @@ describe('LandingPage — climate-signal carousel', () => {
       await screen.findByRole('region', { name: 'Featured' });
       expect(follows(document.querySelector('.climate-banner__ctas')!, document.querySelector('.climate-banner__chart')!)).toBe(true);
       expect(follows(document.querySelector('.landing-hero__ctas')!, document.querySelector('.landing-hero__globe')!)).toBe(true);
+      expect(document.querySelector('.landing-kpis')).not.toBeNull(); // the three KPIs stay with the copy above phone width
+      expect(document.querySelector('.landing-hero__cards')).toBeNull();
+      expect(follows(document.querySelector('.climate-banner__metrics')!, document.querySelector('.climate-banner__chart')!)).toBe(true);
     } finally { restoreMedia(); }
   });
 

@@ -147,3 +147,18 @@ export function raceFrame(model: RaceModel, yearIdx: number): RaceFrame {
 export function raceShare(topTotal: number, worldTotal: number | undefined): number | null {
   return worldTotal && worldTotal > 0 ? Math.round((topTotal / worldTotal) * 100) : null;
 }
+
+/** The top RACE_SIZE's share of the world total in the series' final year -- the same computation the ranking-race heading
+ * ("10 countries, N% of the world's CO₂") shows for its last frame, so the banner and the heading change together. Null if unusable. */
+export function latestTopShare(map: WorldMapTimeSeries, worldTotals: ReadonlyArray<number>): number | null {
+  const last = map.years.length - 1;
+  if (last < 0) return null;
+  return raceShare(raceFrame(buildRaceModel(map), last).topTotal, worldTotals[last]);
+}
+
+/** "grown by ..." wording for a percent change since the baseline year: a plain-language fraction where it is exact enough, else the percentage. */
+export function growthPhrase(pctChange: number): string {
+  if (pctChange >= 100) return 'more than doubled';
+  if (pctChange >= 200 / 3) return 'grown by more than two-thirds';
+  return `grown by ${Math.round(pctChange)}%`;
+}

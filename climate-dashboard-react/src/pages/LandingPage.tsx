@@ -18,7 +18,7 @@ import { ChainBand } from '../components/landing/ChainBand';
 import {
   FORECAST_END_YEAR, MAX_SELECTED_COUNTRIES, NEGATIVE_COLOR, POSITIVE_COLOR, SCENARIO_END_YEAR, SCENARIO_START_YEAR,
 } from '../constants';
-import { fmtInt, fmtPct, pickStories, sparklinePath, type Story } from '../lib/landingData';
+import { fmtInt, fmtPct, growthPhrase, latestTopShare, pickStories, RACE_SIZE, sparklinePath, type Story } from '../lib/landingData';
 import { MAGNITUDE_SCALE } from '../lib/magnitudeScale';
 import { resolveNoDataColorHex } from '../lib/resolveThemeColorHex';
 import { NAV_ITEMS } from '../navigation';
@@ -75,6 +75,13 @@ const STYLES = `
   .landing-kpis > div > div:first-child { font-size: 1.125rem !important; }
   .landing-kpis .__s9cmpx-body3 { font-size: 12px; line-height: 1.3; }
   /* Same order as the climate banner (decision 73): copy, figures, picture, then the buttons (placed after the globe in the markup on a phone, so focus order matches). */
+  /* Picture first (decision 79): the year readout is the globe's caption on one line, then two figure cards, then the buttons. */
+  .landing-globe-title--block > div { flex-direction: row !important; align-items: baseline; justify-content: space-between; gap: 10px !important; }
+  .landing-globe-title--block > div > span:first-child { font-size: 22px !important; }
+  .landing-hero__cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .landing-hero__cards > div { padding: 10px 12px; border: 1px solid var(--__s9cmpx-static-divider-weak); border-radius: 8px; min-width: 0; }
+  .landing-hero__card-value { font-size: 1.5rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--__s9cmpx-static-text-strong); }
+  .landing-hero__cards .__s9cmpx-body4 { color: var(--__s9cmpx-static-text-weak); }
   .landing-hero__ctas { flex-direction: column; }
   .landing-hero__ctas > a { justify-content: center; }
 }
@@ -111,8 +118,13 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
   // header, ~64 px of carousel controls, the section's own padding, the legend and globe controls under the canvas, and the
   // Pause/year-slider row.
   const viewportHeight = useViewportHeight();
-  const globeMax = Math.max(300, Math.min(600, viewportHeight - 68 - 64 - 56 - 100 - 52));
+  // On a phone the globe takes at most ~62% of the screen height (Claude Design update, decision 79), so Play and the slider stay with it.
+  const isPhone = useMediaQuery(PHONE_QUERY);
+  const laptopMax = Math.max(300, Math.min(600, viewportHeight - 68 - 64 - 56 - 100 - 52));
+  const globeMax = isPhone ? Math.min(laptopMax, Math.round(viewportHeight * 0.62)) : laptopMax;
   const totals = useMemo(() => worldTotals(globe), [globe]);
+  // Same top-10 share as the ranking-race heading (one shared computation, so the two change together).
+  const topShare = useMemo(() => latestTopShare(map, all.co2_by_year), [map, all.co2_by_year]);
   const yearTotal = totals[yearIdx];
   // The current year and world total. On wide screens it overlays the globe's top-left corner; on a phone the globe is
   // small and centred, so the overlay would sit on the dark disc (dark text on a dark ocean) -- there it is shown
@@ -133,7 +145,6 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
   );
 
   // On a phone the buttons follow the globe in the markup as well as on screen (decision 73), so focus and reading order match what is seen.
-  const isPhone = useMediaQuery(PHONE_QUERY);
   const ctas = (
     <div className="landing-hero__ctas" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
       <Link to="/overview" className={ctaClass('primary')} style={{ textDecoration: 'none' }}>
@@ -153,18 +164,20 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           Where the world’s CO₂ comes from — and where it’s heading.
         </h1>
         <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
-          Emissions for {all.countries_count} countries since {minYear}, ETS(A,Ad,N) forecasts to {FORECAST_END_YEAR} and scenario pathways to {SCENARIO_END_YEAR} — with an AI agent that answers questions from the same data.
+          Global CO₂ emissions have {growthPhrase(all.pct_change_since_1990)} since {baselineYear}
+          {topShare != null ? `, and the ${RACE_SIZE} largest emitters now account for ${topShare}% of the total.` : '.'}
         </p>
         {!isPhone && ctas}
-        <div className="landing-kpis">
-          <Kpi border={false} value={fmtInt(all.latest_co2_total)} label={`MtCO₂ in ${all.latest_year}, all countries`} />
-          <Kpi border value={fmtPct(all.pct_change_since_1990)} label={`Change since ${baselineYear}`} color={all.pct_change_since_1990 >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR} />
-          <Kpi border value={String(overview.expanded_countries.countries_count)} label="Countries in the Expanded set" />
-        </div>
+        {!isPhone && (
+          <div className="landing-kpis">
+            <Kpi border={false} value={fmtInt(all.latest_co2_total)} label={`MtCO₂ in ${all.latest_year}, all countries`} />
+            <Kpi border value={fmtPct(all.pct_change_since_1990)} label={`Change since ${baselineYear}`} color={all.pct_change_since_1990 >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR} />
+            <Kpi border value={String(overview.expanded_countries.countries_count)} label="Countries in the Expanded set" />
+          </div>
+        )}
       </div>
 
       <div className="landing-hero__globe" ref={globeRef}>
-        <div className="landing-globe-title--block">{globeHeading}</div>
         <Globe
           isoCodes={globe.iso_codes}
           locationNames={globe.countries}
@@ -196,6 +209,8 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           transparent
           title={<div className="landing-globe-title--overlay">{globeHeading}</div>}
         />
+        {/* On a phone the year readout is the globe's caption, under it (decision 79). */}
+        <div className="landing-globe-title--block">{globeHeading}</div>
         <div className="landing-hero__controls">
           <Button variant="ghost-blue" onClick={toggle}>{isPlaying ? 'Pause' : 'Play'}</Button>
           <div style={{ flex: 1 }}>
@@ -203,6 +218,12 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           </div>
         </div>
       </div>
+      {isPhone && (
+        <div className="landing-hero__cards">
+          <div><div className="landing-hero__card-value" style={{ color: all.pct_change_since_1990 >= 0 ? NEGATIVE_COLOR : POSITIVE_COLOR }}>{fmtPct(all.pct_change_since_1990)}</div><div className="__s9cmpx-body4">{`Global CO₂ since ${baselineYear}`}</div></div>
+          {topShare != null && <div><div className="landing-hero__card-value">{topShare}%</div><div className="__s9cmpx-body4">{`From the top ${RACE_SIZE} emitters, ${all.latest_year}`}</div></div>}
+        </div>
+      )}
       {isPhone && ctas}
     </section>
   );
