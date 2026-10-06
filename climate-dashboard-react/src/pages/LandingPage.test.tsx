@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
@@ -36,7 +37,10 @@ vi.mock('design-system', async (importOriginal) => {
         data-transparent={String(props.transparent)}
         data-no-data-color={String(props.noDataColor)}
         aria-label={String(props.ariaLabel)}
-      />
+      >
+        {props.title as ReactNode}
+        {props.caption as ReactNode}
+      </div>
     ),
   };
 });
@@ -348,9 +352,28 @@ describe('LandingPage — climate-signal carousel', () => {
       expect(cards).toHaveTextContent('+70.8%');
       expect(cards).toHaveTextContent('100%');
       expect(cards).toHaveTextContent('From the top 10 emitters, 2024');
-      // The year readout is the globe's caption: under the globe, not above it.
-      expect(follows(screen.getByTestId('globe'), document.querySelector('.landing-globe-title--block')!)).toBe(true);
+      // The year readout is handed to the Globe as its caption (it renders it under the canvas, before its legend and controls), not placed as a sibling around it.
+      expect(screen.getByTestId('globe')).toContainElement(document.querySelector('.landing-globe-title--block') as HTMLElement);
       expect(document.querySelectorAll('.landing-hero__ctas')).toHaveLength(1); // rendered once, not duplicated
+    } finally { restoreMedia(); }
+  });
+
+  it('announces the year only while paused (or after a manual seek, which pauses), never while it plays; the caption itself is not a live region', async () => {
+    stubPhone(true);
+    try {
+      mountWithClimate({ ...ANIMATION, isPlaying: true });
+      await screen.findByRole('region', { name: 'Featured' });
+      const status = document.querySelector('.landing-hero [role="status"]') as HTMLElement;
+      expect(status).toHaveTextContent(/^$/); // playing: silent
+      // The carousel's own region is polite while it is paused: the caption opts out so it cannot announce each year.
+      expect(document.querySelector('.landing-globe-title--block')).toHaveAttribute('aria-live', 'off');
+    } finally { restoreMedia(); }
+    stubPhone(true);
+    try {
+      cleanup();
+      mountWithClimate({ ...ANIMATION, isPlaying: false });
+      await screen.findByRole('region', { name: 'Featured' });
+      expect(document.querySelector('.landing-hero [role="status"]')).toHaveTextContent('2023: 272 MtCO₂, all countries');
     } finally { restoreMedia(); }
   });
 

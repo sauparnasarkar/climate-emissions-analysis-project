@@ -92,6 +92,8 @@ const cardStyle = {
   border: '1px solid var(--__s9cmpx-static-divider-weak)', display: 'flex', flexDirection: 'column', gap: 12,
 } as const;
 
+const VISUALLY_HIDDEN = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const;
+
 function Kpi({ value, label, color, border }: { value: string; label: string; color?: string; border: boolean }) {
   return (
     <div style={{ padding: border ? '20px 16px 0 20px' : '20px 16px 0 0', borderLeft: border ? '1px solid var(--__s9cmpx-static-divider-weak)' : undefined, minWidth: 0 }}>
@@ -208,9 +210,11 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           maxSize={globeMax}
           transparent
           title={<div className="landing-globe-title--overlay">{globeHeading}</div>}
+          // On a phone the year readout is the globe's caption, right under it and before its legend and controls (decision 79); a figcaption, and aria-live="off" so the carousel's own live region (polite while it is paused) cannot announce each year either.
+          caption={isPhone ? <div className="landing-globe-title--block" aria-live="off">{globeHeading}</div> : undefined}
         />
-        {/* On a phone the year readout is the globe's caption, under it (decision 79). */}
-        <div className="landing-globe-title--block">{globeHeading}</div>
+        {/* The year is announced only when playback is paused or the slider is moved by hand (which pauses), never while it plays: the caption below changes every frame and is deliberately not a live region. */}
+        <span role="status" style={VISUALLY_HIDDEN}>{!isPlaying && yearTotal != null ? `${currentYear}: ${fmtInt(yearTotal)} MtCO₂, all countries` : ''}</span>
         <div className="landing-hero__controls">
           <Button variant="ghost-blue" onClick={toggle}>{isPlaying ? 'Pause' : 'Play'}</Button>
           <div style={{ flex: 1 }}>
