@@ -74,7 +74,7 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
           Climate signal · Global · {fit.start}–{fit.end}
         </div>
         <h1 id={headingId} style={{ margin: 0, fontSize: 'clamp(1.75rem, min(4.6vw, 5.8vh), 3.75rem)', lineHeight: 1.05, fontWeight: 700 }}>
-          Warming tracks the CO₂ we’ve accumulated.
+          Warming tracks the CO₂ we’ve accumulated
         </h1>
         <p className="__s9cmpx-body1" style={{ margin: 0, fontSize: 'clamp(1rem, 1.4vw, 1.125rem)', color: 'var(--__s9cmpx-static-text-weak)' }}>
           Emissions set off a chain reaction: CO₂ builds up in the atmosphere, traps more heat, and the planet warms. Over {fit.nYears} years, warming has followed the cumulative total, not any single year’s emissions.

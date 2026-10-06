@@ -103,7 +103,7 @@ describe('LandingPage', () => {
     vi.mocked(api.overview).mockReturnValue(new Promise(() => {}));
     vi.mocked(api.worldMapSeries).mockReturnValue(new Promise(() => {}));
     render(<MemoryRouter><LandingPage /></MemoryRouter>);
-    expect(screen.getByRole('heading', { level: 1, name: 'Where the world’s CO₂ comes from.' })).toBeInTheDocument(); // shortened, decision 81
+    expect(screen.getByRole('heading', { level: 1, name: 'Where the world’s CO₂ comes from' })).toBeInTheDocument(); // shortened, decision 81
     expect(screen.getByRole('status')).toHaveTextContent('Loading');
     expect(screen.getByRole('link', { name: 'Explore the data' })).toHaveAttribute('href', '/overview');
   });
@@ -300,7 +300,7 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(region).toHaveAttribute('aria-roledescription', 'carousel');
     const slides = within(region).getAllByRole('group', { hidden: true });
     expect(slides.map((s) => s.getAttribute('aria-label'))).toEqual(['1 of 2: Climate signal', '2 of 2: Where CO₂ comes from']);
-    expect(screen.getByRole('heading', { level: 1, name: 'Warming tracks the CO₂ we’ve accumulated.' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Warming tracks the CO₂ we’ve accumulated' })).toBeInTheDocument();
     const banner = region.querySelector('.climate-banner') as HTMLElement;
     expect(within(banner).getByText('+1.62 °C')).toBeInTheDocument();
     expect(within(banner).getByText('2024, vs 1850–1900')).toBeInTheDocument();
