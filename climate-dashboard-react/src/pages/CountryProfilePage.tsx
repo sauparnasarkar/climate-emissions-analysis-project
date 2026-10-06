@@ -1,5 +1,5 @@
 import type { ColDef } from 'ag-grid-community';
-import { ChartCard, SyChart, Select, DataTable, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
+import { ChartCard, SyChart, Select, DataTable, InlineAlert, Spinner, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
@@ -9,6 +9,7 @@ import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import type { CountryProfileTableRow } from '../api/types';
 import { resolveDivergingEndpointHex } from '../lib/resolveThemeColorHex';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
+import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
 
 // The CO2 Emissions and CO2 per Capita line charts below pass no explicit `color`, so each
 // fell back to SyChart's default single-series categorical color -- theme-specific
@@ -54,7 +55,9 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
   const [country, setCountry] = useSelectedCountry(featured[0], expanded);
   const { data, error, loading } = useAsync(() => api.countryProfile(country), [country]);
   const reduceMotion = useReducedMotion();
-  useJumpToHashOnLoad(Boolean(data), reduceMotion);
+  // The deep-link jump also waits for the pinned row's first measurement: where it wraps, the offset is wrong until then.
+  const { rowReady, onRowReady } = useStickyRowReady();
+  useJumpToHashOnLoad(rowReady && Boolean(data), reduceMotion);
   // Resolved once per render rather than once per YoY data point (Copilot review, PR #157) --
   // the underlying computed style can't change mid-render, so mapping every value through
   // resolveDivergingEndpointHex() individually was N redundant DOM/getComputedStyle calls for
@@ -69,7 +72,7 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Country Profile</h1>
-      <JumpLinks items={JUMP_ITEMS} />
+      <StickyJumpLinks onReady={onRowReady} items={JUMP_ITEMS} />
 
       <Select
         label={`Select a country (${expanded.length} available)`}

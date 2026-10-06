@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChartCard, SyChart, MultiSelect, Select, Button, InlineAlert, Spinner, JumpLinks, useReducedMotion } from 'design-system';
+import { ChartCard, SyChart, MultiSelect, Select, Button, InlineAlert, Spinner, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
@@ -7,6 +7,7 @@ import { useCountries } from '../hooks/useCountries';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
+import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
 
 const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value, label }));
 
@@ -50,12 +51,14 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   // Both jump targets below are always in the DOM as soon as this component mounts (h2s are
   // unconditional, only the chart content beneath each is gated) -- no data-loaded gate to wait
   // on here, unlike Overview.
-  useJumpToHashOnLoad(true, reduceMotion);
+  // The deep-link jump also waits for the pinned row's first measurement: where it wraps, the offset is wrong until then.
+  const { rowReady, onRowReady } = useStickyRowReady();
+  useJumpToHashOnLoad(rowReady, reduceMotion);
 
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
-      <JumpLinks items={JUMP_ITEMS} />
+      <StickyJumpLinks onReady={onRowReady} items={JUMP_ITEMS} />
 
       <div className="country-picker-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 12, marginBottom: 16 }}>
         <MultiSelect

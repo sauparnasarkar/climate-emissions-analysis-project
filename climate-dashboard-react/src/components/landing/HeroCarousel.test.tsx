@@ -49,7 +49,7 @@ describe('HeroCarousel controls (decision 72)', () => {
 
   it('carries the phone layout: one non-wrapping row of 44px targets, and only the showing/leaving slide takes room', () => {
     mount();
-    expect(CAROUSEL_STYLES).toMatch(/@media \(max-width: 640px\)/);
+    expect(CAROUSEL_STYLES).toMatch(/@media \(max-width: 1100px\), \(max-width: 1440px\) and \(pointer: coarse\)/);
     expect(CAROUSEL_STYLES).toMatch(/flex-wrap: nowrap/);
     expect(CAROUSEL_STYLES).toMatch(/min-width: 44px; height: 44px/);
     expect(CAROUSEL_STYLES).toMatch(/\.hero-carousel__slide\[data-motion="hidden"\] \{ display: none; \}/);

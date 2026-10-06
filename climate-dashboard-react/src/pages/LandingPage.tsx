@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
 import { useViewportHeight } from '../hooks/useViewportHeight';
+import { useInView } from '../hooks/useInView';
 import { useYearAnimation } from '../hooks/useYearAnimation';
 import { RankRace } from '../components/landing/RankRace';
 import { CLIMATE_BANNER_STYLES, ClimateSignalBanner } from '../components/landing/ClimateSignalBanner';
@@ -101,7 +102,8 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
   const maxYear = globe.years[globe.years.length - 1];
   // Autoplay begins when the globe scrolls into view, not on page load (e.g. below the fold on a phone).
   const globeRef = useRef<HTMLDivElement>(null);
-  const { currentYear, isPlaying, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS, stepYears: GLOBE_STEP_YEARS, startWhenVisible: globeRef, enabled: active });
+  const globeInView = useInView(globeRef);
+  const { currentYear, isPlaying, reducedMotion, toggle, seek } = useYearAnimation({ minYear, maxYear, intervalMs: GLOBE_STEP_MS, stepYears: GLOBE_STEP_YEARS, startWhenVisible: globeRef, enabled: active });
   const yearIdx = currentYear - minYear;
   const all = overview.all_countries;
   const noDataColorHex = useThemeColorHex(() => resolveNoDataColorHex('#6b7280'));
@@ -177,9 +179,9 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           legendTitle="CO₂ (MtCO₂)"
           noDataLabel="Gray = no data"
           ariaLabel={`Globe of CO₂ emissions by country, ${minYear} to ${maxYear}, log-scaled colour from light (lowest) to deep red (highest)`}
-          // Rotation follows the same play/pause as the year animation, so Pause (or a manual seek, which
-          // pauses) stops the whole hero -- not just the year.
-          autoRotate={isPlaying}
+          // The globe turns whenever it is on screen (and its banner is the showing one: a hidden slide still intersects the viewport), playing or paused (owner decision, 2026-10-06; Pause stops the years, not the turning).
+          // Under Reduce Motion it turns only while the visitor's own Play press runs.
+          autoRotate={active && (reducedMotion ? isPlaying : globeInView)}
           // With Reduce Motion on there is no autoplay, but the user's own Play press is a request for movement:
           // the globe spins while it runs (colour blending stays off, years just step).
           allowSpinWithReducedMotion
@@ -187,10 +189,9 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           rotationPeriodMs={Math.max(1, globe.years.length - 1) * GLOBE_STEP_MS}
           // Colours blend over the whole year-step (none under reduced motion, which Globe forces itself).
           blendMs={GLOBE_STEP_MS}
-          // The legend, the globe's own controls, the year slider and the total are always shown (owner decision, 2026-10-04,
-          // amending requirements §2.6). Only the per-country MtCO₂ labels depend on motion: they would be unreadable on a
-          // spinning globe, so they appear when it stops.
-          showLabels={!isPlaying}
+          // The legend, the globe's own controls, the year slider, the total and the per-country MtCO₂ labels are always shown, spinning or not
+          // (owner decision, 2026-10-06, reverting the labels part of decision 12).
+          showLabels
           maxSize={globeMax}
           transparent
           title={<div className="landing-globe-title--overlay">{globeHeading}</div>}

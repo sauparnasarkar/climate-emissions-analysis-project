@@ -39,7 +39,7 @@ export const CAROUSEL_STYLES = `
 .hero-carousel__hint { margin-left: auto; font-size: 13px; color: var(--__s9cmpx-static-text-weak); }
 /* Phones (decision 72): one compact row -- previous, Pause/Play, a dot per banner, "1 of 2", next -- instead of wrapped labelled buttons. */
 .hero-carousel__count { display: none; }
-@media (max-width: 640px) {
+@media (max-width: 1100px), (max-width: 1440px) and (pointer: coarse) {
   .hero-carousel__hint { display: none; }
   /* The slides are stacked in one grid cell, so the tallest would set the height and leave a gap above the controls under a shorter banner: on a phone only the showing (and, during the move, the leaving) slide takes room. */
   .hero-carousel__slide[data-motion="hidden"] { display: none; }

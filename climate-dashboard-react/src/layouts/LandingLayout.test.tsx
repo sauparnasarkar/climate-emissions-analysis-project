@@ -53,4 +53,24 @@ describe('LandingLayout header (decision 74)', () => {
     expect(screen.getByRole('button', { name: /menu/i })).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Primary' })).not.toBeInTheDocument();
   });
+
+  it('on a tablet (up to 1100 px, any pointer) shows the Menu button', () => {
+    stubMedia((q) => q.includes('(max-width: 1100px)'));
+    mount();
+    expect(screen.getByRole('button', { name: /menu/i })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Primary' })).not.toBeInTheDocument();
+  });
+
+  it('on a touch screen up to 1440 px (iPad Pro landscape) shows the Menu button', () => {
+    stubMedia((q) => q.includes('(max-width: 1440px) and (pointer: coarse)'));
+    mount();
+    expect(screen.getByRole('button', { name: /menu/i })).toBeInTheDocument();
+  });
+
+  it('on a 1440 px window with a mouse (no coarse pointer, wider than 1100 px) keeps the desktop link row', () => {
+    stubMedia((q) => q === '(max-width: 1440px)');
+    mount();
+    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /menu/i })).not.toBeInTheDocument();
+  });
 });

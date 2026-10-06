@@ -139,12 +139,12 @@ describe('LandingPage', () => {
     expect(globe).toHaveAttribute('data-auto-rotate', 'true');
   });
 
-  it('spins the globe exactly while Play is running -- also under reduced motion, where Play is the user asking for it', async () => {
+  it('spins the globe while it is on screen, playing or paused -- but under reduced motion only while Play is running (the user asking for it)', async () => {
     const { unmount } = mount();
     expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'true');
     unmount();
     const paused = mount(overview(), MAP, { ...ANIMATION, isPlaying: false });
-    expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'false');
+    expect(await screen.findByTestId('globe')).toHaveAttribute('data-auto-rotate', 'true'); // Pause stops the years, not the turning
     paused.unmount();
     // Reduced motion: no autoplay means isPlaying starts false (nothing spins at rest)...
     const reducedIdle = mount(overview(), MAP, { ...ANIMATION, isPlaying: false, reducedMotion: true });
@@ -173,10 +173,10 @@ describe('LandingPage', () => {
     expect(screen.getByText('272 MtCO₂')).toBeInTheDocument(); // the animation's current year (2023) total, from the series itself
   });
 
-  it('while the globe plays, the legend, controls, total and year slider stay; only the per-country MtCO₂ labels are hidden', async () => {
+  it('while the globe plays, the legend, controls, total, year slider and per-country MtCO₂ labels all stay', async () => {
     mount(); // ANIMATION is playing
     const globe = await screen.findByTestId('globe');
-    expect(globe).toHaveAttribute('data-show-labels', 'false');
+    expect(globe).toHaveAttribute('data-show-labels', 'true'); // owner decision 2026-10-06: labels stay while it spins
     expect(globe).not.toHaveAttribute('data-show-legend', 'false'); // left at the Globe's default (shown)
     expect(globe).not.toHaveAttribute('data-show-controls', 'false');
     expect(screen.getByText('272 MtCO₂')).toBeInTheDocument();
@@ -185,7 +185,7 @@ describe('LandingPage', () => {
     expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
   });
 
-  it('when the globe is not spinning the per-country labels appear, with everything else unchanged -- also under reduced motion, which starts paused', async () => {
+  it('when the globe is not spinning the labels are still shown, with everything else unchanged -- also under reduced motion, which starts paused', async () => {
     const { unmount } = mount(overview(), MAP, { ...ANIMATION, isPlaying: false });
     const globe = await screen.findByTestId('globe');
     expect(globe).toHaveAttribute('data-show-labels', 'true');
@@ -283,6 +283,13 @@ function mountWithClimate(anim: typeof ANIMATION = ANIMATION) {
 }
 
 describe('LandingPage — climate-signal carousel', () => {
+  it('does not spin the globe while its carousel slide is the hidden one (a hidden slide still intersects the viewport)', async () => {
+    mountWithClimate();
+    const region = await screen.findByRole('region', { name: 'Featured' });
+    // The climate banner is showing; the emissions hero is mounted but inactive, even though Play is "on".
+    expect(within(region).getByTestId('globe')).toHaveAttribute('data-auto-rotate', 'false');
+  });
+
   it('shows a two-slide carousel: the climate signal first (figures from the API, each with its own year), the existing hero second', async () => {
     mountWithClimate();
     const region = await screen.findByRole('region', { name: 'Featured' });

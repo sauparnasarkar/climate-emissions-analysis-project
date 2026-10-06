@@ -27,6 +27,7 @@ import { YearBadge } from '../components/overview/YearBadge';
 import { PathwaysSection } from '../components/overview/PathwaysSection';
 import { PATHWAYS_ANCHOR, buildPathways } from '../lib/pathways';
 import { countryValuesForYear, moversForYear } from '../lib/yearViews';
+import { useScrollSpy } from '../hooks/useScrollSpy';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { buildHeadlineSentence } from '../lib/overviewHeadline';
@@ -578,6 +579,9 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // The closing Pathways block; if the scenario output is unavailable the section (and its anchor) is simply omitted.
   const scenarioQuery = useAsync(async () => api.correlationScenarioTemperature(), []);
   const pathways = useMemo(() => buildPathways(scenarioQuery.data), [scenarioQuery.data]);
+  const jumpItems = [CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS, ...(pathways ? [PATHWAYS_JUMP] : [])];
+  // The underlined link follows the section on screen, not only the last click.
+  const activeJumpId = useScrollSpy(jumpItems.map((i) => i.id), STICKY_HEADER_PX + jumpRowPx);
   const cumulativeBase = useMemo(() => cumulativeBaseFrom(cumulativeQuery.data, CLIMATE_SERIES_START_YEAR - 1), [cumulativeQuery.data]);
   const concentrationContext = useMemo<ConcentrationContext | null>(
     () => (climate.signal ? { series: climate.signal.series.concentration, spliceYear: climate.signal.spliceYear, ppm1850: climate.signal.ppm1850 } : null),
@@ -650,7 +654,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           {/* On a phone the page year is a chip at the row's left that opens a bottom sheet (decision 69); above that, the select + Play at its right. */}
           {isPhone && <PageYearMobile stops={yearStops} year={pageYear.currentYear} isPlaying={pageYear.isPlaying} onSelect={pageYear.seek} onToggle={pageYear.toggle} />}
           <AnchorScroll>
-            <JumpLinks items={[CLIMATE_SIGNAL_JUMP, ...(climate.signal ? [RELATIONSHIP_JUMP] : []), ...JUMP_ITEMS, ...(pathways ? [PATHWAYS_JUMP] : [])]} />
+            <JumpLinks items={jumpItems} activeId={activeJumpId} />
           </AnchorScroll>
           {!isPhone && <PageYearControl stops={yearStops} year={pageYear.currentYear} isPlaying={pageYear.isPlaying} onSelect={pageYear.seek} onToggle={pageYear.toggle} />}
         </div>

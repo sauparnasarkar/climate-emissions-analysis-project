@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import { ChartCard, SyChart, MultiSelect, Radio, DataTable, InlineAlert, Spinner, Icon, JumpLinks, useReducedMotion } from 'design-system';
+import { ChartCard, SyChart, MultiSelect, Radio, DataTable, InlineAlert, Spinner, Icon, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
@@ -10,6 +10,7 @@ import { useThemeColorHex } from '../hooks/useThemeColorHex';
 import { resolveDivergingScaleReversedHex } from '../lib/resolveThemeColorHex';
 import { MAX_SELECTED_COUNTRIES, SCENARIO_PANELS } from '../constants';
 import type { ScenarioCumulativeRow } from '../api/types';
+import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
 
 // Countries whose cumulative BAU emissions fall below this share of the total are grouped
 // into a single "Other" tile rather than rendered individually -- at the treemap's default
@@ -146,12 +147,14 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
   const reduceMotion = useReducedMotion();
   // All three jump targets below are always in the DOM as soon as this component mounts (h2s
   // are unconditional, only the chart/table content beneath each is gated).
-  useJumpToHashOnLoad(true, reduceMotion);
+  // The deep-link jump also waits for the pinned row's first measurement: where it wraps, the offset is wrong until then.
+  const { rowReady, onRowReady } = useStickyRowReady();
+  useJumpToHashOnLoad(rowReady, reduceMotion);
 
   return (
     <div>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 8px' }}>Scenario Comparison (2025–2040)</h1>
-      <JumpLinks items={JUMP_ITEMS} />
+      <StickyJumpLinks onReady={onRowReady} items={JUMP_ITEMS} />
       <p className="__s9cmpx-body1" style={{ marginBottom: 16, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Compare <strong>Business as Usual (BAU)</strong>, <strong>Moderate Mitigation (−2%/yr)</strong>, and{' '}
         <strong>Aggressive Mitigation (−5%/yr)</strong> starting from 2025.
