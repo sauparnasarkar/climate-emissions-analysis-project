@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { FORECAST_END_YEAR } from '../../constants';
-import { fmtAnomaly, type ClimateSignal } from '../../lib/climateSignal';
+import { fmtAnomaly, pairedConcentration, pairedTemperature, type ClimateSignal } from '../../lib/climateSignal';
 import { CLIMATE_SIGNAL_ANCHOR, NOT_A_CLIMATE_MODEL } from '../../lib/climateCopy';
 import { CHART_PANEL_STYLES } from '../climate/chartPanel';
 import { BaselineChip } from '../climate/BaselineChip';
@@ -53,7 +53,9 @@ function Metric({ value, caption, tone }: { value: string; caption: string; tone
 }
 
 export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSignal; headingId: string }) {
-  const { fit, temperature, concentration } = signal;
+  const { fit } = signal;
+  const ppm = pairedConcentration(signal);
+  const paired = pairedTemperature(signal); // the chart's last point, so these KPIs and the chart label agree (decision 86)
   // On a phone the figures and then the buttons come after the chart in the markup too (not just visually), so reading and focus order match what is seen.
   const isPhone = useMediaQuery(PHONE_QUERY);
   const ctas = (
@@ -65,8 +67,8 @@ export function ClimateSignalBanner({ signal, headingId }: { signal: ClimateSign
   );
   const metrics = (
     <div className="climate-banner__metrics">
-      <Metric value={fmtAnomaly(temperature.value)} caption={`${temperature.year}, vs 1850–1900`} tone="temperature" />
-      <Metric value={`${concentration.value.toFixed(1)} ppm`} caption={`Atmospheric CO₂, ${concentration.year}`} tone="concentration" />
+      <Metric value={fmtAnomaly(paired.value)} caption={`${paired.year}, vs 1850–1900`} tone="temperature" />
+      <Metric value={`${ppm.value.toFixed(1)} ppm`} caption={`Atmospheric CO₂, ${ppm.year}`} tone="concentration" />
       <Metric value={`${fit.slope.toFixed(2)} °C`} caption="per 1,000 GtCO₂ emitted" />
     </div>
   );

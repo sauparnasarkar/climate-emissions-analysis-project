@@ -466,6 +466,7 @@ Sections to include:
 | v63 | Oct 2026 | §5.26: Phase 1.4 design (the seven `/api/correlation/*` endpoints: read-only over `pipeline/` outputs, 503 for missing/unavailable data, one response envelope, strict validation, the restated source/baseline matrix; decisions 44–55), written docs-first. Not an internship requirement change. |
 | v64 | Oct 2026 | §5.26: Section 2 (Frontend) implementation plan (`ENHANCEMENTS.md` Release 21, decisions 57–62): final Claude Design handoff adopted over its option tables, product renamed Climate Analytics Platform, landing carousel autoplays with Pause/Play (amends "no default auto-rotate"), additive `/country-share` extension, `SyChart` secondary axis. Docs only; no code. Not an internship requirement change. |
 | v65 | Oct 2026 | §5.26: Berkeley Earth source migrates to the high-resolution annual file after the provider's reply (`ENHANCEMENTS.md` decision 83, docs-first; resolves the decision-17 vintage discrepancy; file is preliminary/uncitable) |
+| v66 | Oct 2026 | §2.1 / §5.26 (`ENHANCEMENTS.md` decision 86): the Home Banner-1 KPI row (temperature, CO₂) is read for the same year its chart ends (the last year with emissions data, 2024 today) so figures and chart agree; the Correlation module's headline chart carries a note when the latest temperature is newer than the pair; Overview KPIs and the chain band keep the latest readings, each labelled with its year |
 
 ---
 
