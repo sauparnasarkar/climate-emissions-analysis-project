@@ -279,9 +279,9 @@ const SERIES = (points: SeriesPoint[]): CorrelationTemperatureResponse & Correla
   ...env, indicator, view: 'level', baseline: null, resolution: 'annual', start_year: null, end_year: null, coverage: null, points, notes: [], details: {},
 });
 
-function mountWithClimate(anim: typeof ANIMATION = ANIMATION) {
+function mountWithClimate(anim: typeof ANIMATION = ANIMATION, temperature = SERIES([sp(2023, 1.5), sp(2024, 1.617)])) {
   vi.mocked(api.correlationEmissionsTemperature).mockResolvedValue(PAIR);
-  vi.mocked(api.correlationTemperature).mockResolvedValue(SERIES([sp(2023, 1.5), sp(2024, 1.617)]));
+  vi.mocked(api.correlationTemperature).mockResolvedValue(temperature);
   vi.mocked(api.correlationConcentration).mockResolvedValue(SERIES([sp(2024, 424.6), sp(2025, 427.35)]));
   return mount(overview(), MAP, anim);
 }
@@ -292,6 +292,16 @@ describe('LandingPage — climate-signal carousel', () => {
     const region = await screen.findByRole('region', { name: 'Featured' });
     // The climate banner is showing; the emissions hero is mounted but inactive, even though Play is "on".
     expect(within(region).getByTestId('globe')).toHaveAttribute('data-auto-rotate', 'false');
+  });
+
+  it('keeps the banner KPI in step with its chart: it reads the chart\'s last point (2024) even when the temperature series runs on to 2025 (decision 86)', async () => {
+    mountWithClimate(ANIMATION, SERIES([sp(2024, 1.55), sp(2025, 1.45)]));
+    const region = await screen.findByRole('region', { name: 'Featured' });
+    const banner = region.querySelector('.climate-banner') as HTMLElement;
+    await within(banner).findByText('2024, vs 1850–1900');
+    expect(within(banner).getByText('+1.62 °C')).toBeInTheDocument(); // the paired point the chart labels, not the series' newer 2025 value
+    expect(within(banner).queryByText('+1.45 °C')).not.toBeInTheDocument();
+    expect(within(banner).queryByText(/\(latest\)/)).not.toBeInTheDocument();
   });
 
   it('shows a two-slide carousel: the climate signal first (figures from the API, each with its own year), the existing hero second', async () => {

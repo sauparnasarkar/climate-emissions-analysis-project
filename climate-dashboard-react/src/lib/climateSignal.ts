@@ -149,6 +149,23 @@ function vintageCaveat(pair: CorrelationEmissionsTemperatureResponse): string | 
   return v && typeof v.caveat === 'string' && v.caveat ? v.caveat : null;
 }
 
+/** The temperature at the chart's own last point (the year the pair ends), so a KPI beside the chart reads the same value the chart labels. */
+export function pairedTemperature(s: ClimateSignal): { value: number; year: number } {
+  const last = s.points[s.points.length - 1];
+  return last ? { value: last.temp, year: last.year } : s.temperature;
+}
+
+/** The paired chart (and the regression) end at the last year with emissions data, which can be earlier than the latest temperature year. */
+export function isTemperatureAheadOfPair(s: ClimateSignal): boolean {
+  return s.temperature.year > s.fit.end;
+}
+
+/** One sentence for beside the chart when the latest temperature has no emissions to pair with; null when the two end together. */
+export function pairedEndNote(s: ClimateSignal): string | null {
+  if (!isTemperatureAheadOfPair(s)) return null;
+  return `The chart ends at ${s.fit.end}, the last year with CO₂ emissions data; the latest temperature (${s.temperature.year}, ${fmtAnomaly(s.temperature.value)}) has no emissions to pair with.`;
+}
+
 /** "+1.62 °C" -- the sign is explicit because the value is a departure from a reference. */
 export function fmtAnomaly(v: number): string {
   return `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)} °C`;
