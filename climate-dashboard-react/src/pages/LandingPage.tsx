@@ -55,7 +55,7 @@ const STYLES = `
 .landing-hero__globe { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .landing-hero__controls { width: 100%; max-width: 624px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .landing-globe-title--block { display: none; width: 100%; max-width: 624px; }
-.landing-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--climate-banner-line); margin-top: 8px; }
+.landing-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--climate-banner-line); border-bottom: 1px solid var(--climate-banner-line); margin-top: 8px; }
 .landing-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
 .landing-race { display: flex; gap: clamp(32px, 5vw, 80px); align-items: flex-start; }
 .landing-race__text { flex: 0 0 min(380px, 34%); }
@@ -75,7 +75,7 @@ const STYLES = `
   .landing-hero__text { gap: 8px !important; }
   .landing-hero__globe { gap: 6px; }
   .landing-hero__text > p { font-size: 0.9375rem !important; line-height: 1.45; }
-  .landing-kpis > div { padding: 12px 8px 0 12px !important; }
+  .landing-kpis > div { padding: 12px 8px 12px 12px !important; }
   .landing-kpis > div:first-child { padding-left: 0 !important; }
   .landing-kpis > div > div:first-child { font-size: 1.125rem !important; }
   .landing-kpis .__s9cmpx-body3 { font-size: 12px; line-height: 1.3; }
@@ -103,7 +103,7 @@ const VISUALLY_HIDDEN = { position: 'absolute', width: 1, height: 1, overflow: '
 
 function Kpi({ value, label, color, border }: { value: string; label: string; color?: string; border: boolean }) {
   return (
-    <div style={{ padding: border ? '20px 16px 0 20px' : '20px 16px 0 0', borderLeft: border ? '1px solid var(--climate-banner-line)' : undefined, minWidth: 0 }}>
+    <div style={{ padding: border ? '20px 16px 16px 20px' : '20px 16px 16px 0', borderLeft: border ? '1px solid var(--climate-banner-line)' : undefined, minWidth: 0 }}>
       <div style={{ fontSize: 'clamp(1.25rem, 2.2vw, 1.75rem)', fontWeight: 600, color, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
       <div className="__s9cmpx-body3" style={{ color: 'var(--__s9cmpx-static-text-weak)', marginTop: 4 }}>{label}</div>
     </div>
