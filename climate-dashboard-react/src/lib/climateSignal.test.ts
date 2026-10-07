@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CorrelationConcentrationResponse, CorrelationEmissionsTemperatureResponse, CorrelationTemperatureResponse, SeriesPoint } from '../api/correlationTypes';
-import { buildClimateSignal, eraOf, fmtAnomaly, isTemperatureAheadOfPair, latestValue, niceTicks, olsFit, pairedEndNote, pairedTemperature } from './climateSignal';
+import { buildClimateSignal, eraOf, fmtAnomaly, isTemperatureAheadOfPair, latestValue, niceTicks, olsFit, pairedConcentration, pairedEndNote, pairedTemperature } from './climateSignal';
 
 const sp = (year: number, value: number | null): SeriesPoint => ({ year, month: null, value, uncertainty: null, deseasonalized: null });
 const base = { schema_version: 1, generated_at: null, note: '', caveats: [], attribution: [], source_vintage: null };
@@ -111,5 +111,15 @@ describe('pairedTemperature (decision 86)', () => {
     const s = buildClimateSignal(pair(), series([sp(2024, 1.55), sp(2025, 1.45)]), series([sp(2025, 427.4)]))!;
     expect(s.temperature).toEqual({ value: 1.45, year: 2025 });
     expect(pairedTemperature(s)).toEqual({ value: 1, year: 2024 }); // pair() ends 2024 at y = 1
+  });
+});
+
+describe('pairedConcentration (decision 86)', () => {
+  it('is the CO₂ value for the year the pair ends, and falls back to the latest when that year is missing', () => {
+    const s = buildClimateSignal(pair(), series([sp(2024, 1.55)]), series([sp(2024, 424.6), sp(2025, 427.35)]))!;
+    expect(s.concentration).toEqual({ value: 427.35, year: 2025 });
+    expect(pairedConcentration(s)).toEqual({ value: 424.6, year: 2024 });
+    const noMatch = buildClimateSignal(pair(), series([sp(2024, 1.55)]), series([sp(2025, 427.35)]))!;
+    expect(pairedConcentration(noMatch)).toEqual({ value: 427.35, year: 2025 });
   });
 });

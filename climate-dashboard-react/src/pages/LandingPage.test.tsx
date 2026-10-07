@@ -314,8 +314,8 @@ describe('LandingPage — climate-signal carousel', () => {
     const banner = region.querySelector('.climate-banner') as HTMLElement;
     expect(within(banner).getByText('+1.62 °C')).toBeInTheDocument();
     expect(within(banner).getByText('2024, vs 1850–1900')).toBeInTheDocument();
-    expect(within(banner).getByText('427.4 ppm')).toBeInTheDocument();
-    expect(within(banner).getByText('Atmospheric CO₂, 2025')).toBeInTheDocument();
+    expect(within(banner).getByText('424.6 ppm')).toBeInTheDocument(); // the pair's last year (2024), not the newer 2025 value, so the row shares the chart's year
+    expect(within(banner).getByText('Atmospheric CO₂, 2024')).toBeInTheDocument();
     expect(within(banner).getByText('0.52 °C')).toBeInTheDocument();
     expect(screen.getByText(/over 175 years, warming has followed the cumulative total, not any single year’s emissions/i)).toBeInTheDocument();
     // the slide hidden from assistive technology is the second (its own H1 is not exposed)

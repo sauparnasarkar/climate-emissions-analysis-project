@@ -155,6 +155,13 @@ export function pairedTemperature(s: ClimateSignal): { value: number; year: numb
   return last ? { value: last.temp, year: last.year } : s.temperature;
 }
 
+/** The CO₂ concentration for the year the pair ends (falls back to the latest when the series has no value for it), so the banner's figures share one year. */
+export function pairedConcentration(s: ClimateSignal): { value: number; year: number } {
+  const year = pairedTemperature(s).year;
+  const hit = s.series.concentration.find((p) => p.year === year);
+  return hit ? { value: hit.value, year: hit.year } : s.concentration;
+}
+
 /** The paired chart (and the regression) end at the last year with emissions data, which can be earlier than the latest temperature year. */
 export function isTemperatureAheadOfPair(s: ClimateSignal): boolean {
   return s.temperature.year > s.fit.end;
