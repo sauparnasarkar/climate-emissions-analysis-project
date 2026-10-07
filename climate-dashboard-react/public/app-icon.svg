@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><rect width="512" height="512" fill="#121e35"/>
   <defs>
     <radialGradient id="ocean" cx="38%" cy="32%" r="80%"><stop offset="0" stop-color="#4fa3e0"/><stop offset="0.6" stop-color="#2a6fb8"/><stop offset="1" stop-color="#17407c"/></radialGradient>
     <clipPath id="disc"><circle cx="256" cy="256" r="240"/></clipPath>
     <linearGradient id="land" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fcf7a"/><stop offset="1" stop-color="#3f9a55"/></linearGradient>
   </defs>
-  <g transform="translate(256 256) scale(1.0) translate(-256 -256)">
+  <g transform="translate(256 256) scale(0.7) translate(-256 -256)">
   <circle cx="256" cy="256" r="240" fill="url(#ocean)"/>
   <g clip-path="url(#disc2)" fill="url(#land)">
     <path d="M214 150C226 138 248 134 262 142C272 148 268 160 256 164C240 166 226 170 216 164Z"/>
