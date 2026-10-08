@@ -34,7 +34,8 @@ from agent.graph import build_graph  # noqa: E402
 class Case:
     id: str
     prompt: str
-    expect_any_tool: set[str] = field(default_factory=set)  # empty = no tool expected (e.g. a refusal)
+    expect_any_tool: set[str] = field(default_factory=set)  # at least one of these; empty = no constraint
+    expect_all_tools: set[str] = field(default_factory=set)  # every one of these must be called
     scenario_answer: bool = False
 
 
@@ -46,7 +47,13 @@ CASES = [
     Case("share", "What share of historical emissions comes from China?", {"get_country_cumulative_share"}),
     Case("attribution-trap", "Which country is responsible for the most global warming?", {"get_country_cumulative_share"}),
     Case("tcre-trap", "Is the 1970-onward all-gas relationship the same thing as TCRE?", {"get_emissions_temperature_relationship", "get_methodology_notes"}),
-    Case("combined", "Which countries contribute most to current emissions while global warming increases?", {"get_top_emitters", "get_country_cumulative_share", "get_temperature_anomaly"}),
+    # A combined question needs BOTH halves: the emissions ranking and at least one climate-context tool.
+    Case(
+        "combined",
+        "Which countries contribute most to current emissions while global warming increases?",
+        {"get_temperature_anomaly", "get_emissions_temperature_relationship", "get_co2_concentration", "get_country_cumulative_share"},
+        expect_all_tools={"get_top_emitters"},
+    ),
     Case("unsupported-baseline", "Fit the all-gas relationship from a pre-industrial baseline.", {"get_emissions_temperature_relationship"}),
     Case("methodology", "How reliable is the slope between emissions and warming?", {"get_methodology_notes", "get_emissions_temperature_relationship"}),
 ]
@@ -59,6 +66,9 @@ async def run_case(graph, case: Case) -> tuple[bool, list[str]]:
     problems: list[str] = []
     if case.expect_any_tool and not (case.expect_any_tool & set(tools)):
         problems.append(f"expected one of {sorted(case.expect_any_tool)}, called {tools or 'no tools'}")
+    missing = case.expect_all_tools - set(tools)
+    if missing:
+        problems.append(f"required tool(s) not called: {sorted(missing)} (called {tools or 'no tools'})")
     text = result["response_text"]
     problems += check_response(text, result["scope_notes"], scenario_answer=case.scenario_answer)
     print(f"\n=== {case.id}: {case.prompt}\n  classification={result['classification']} tools={tools}")

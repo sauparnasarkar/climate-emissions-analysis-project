@@ -38,3 +38,12 @@ def test_scenario_answers_must_say_illustrative():
     assert check_response("Aggressive implies 1.58 °C.", scenario_answer=True)
     assert check_response("Aggressive implies 1.58 °C (an illustrative translation).", scenario_answer=True) == []
     assert check_response("Aggressive implies 1.58 °C.", ["Illustrative, partial-coverage translation."], scenario_answer=True) == []
+
+
+def test_gap_figure_negation_is_judged_within_its_own_sentence():
+    # An unrelated "do not" in a neighbouring sentence must not excuse a measured-sounding claim.
+    assert check_response("The 5–8% difference is measured. These sources do not fully agree.")
+    assert check_response("Sources differ by 5 to 8% in measured terms.")
+    # ...while a negation inside the sentence that carries the figure still passes.
+    assert check_response("The 5-8% figure has not been measured for PRIMAP-hist.") == []
+    assert check_response("We do not quote 5–8% as a measured difference.") == []

@@ -22,6 +22,7 @@ _COUNTRIES = (
 _BLAME = re.compile(r"\b(caus(?:ed|es|ing)|responsible for|to blame for|driving|driven by)\b", re.I)
 _WARMING = re.compile(r"\b(warming|temperature (?:rise|increase|anomaly)|global temperature|climate change)\b", re.I)
 _PROVE = re.compile(r"\b(prove[sd]?|proven|proof)\b", re.I)
+_GAP = re.compile(r"\b5\s*(?:[-–]|to)\s*8\s*%")
 _SLOPE = re.compile(r"°C per 1,?000 ?Gt", re.I)
 
 
@@ -44,11 +45,13 @@ def check_response(text: str, scope_notes: list[str] | None = None, *, scenario_
                 violations.append(f"warming attributed to a country: {sentence!r}")
         if _PROVE.search(sentence) and re.search(r"emission|CO2|warming|temperature", sentence, re.I) and not negated:
             violations.append(f"correlation presented as proof: {sentence!r}")
+        # Negation is judged within the sentence that carries the figure: an unrelated "do not" in a
+        # neighbouring sentence must not excuse quoting the unmeasured 5-8% as a measured result.
+        if _GAP.search(sentence) and not negated:
+            violations.append(f"OWID/PRIMAP 5-8% difference quoted as measured: {sentence!r}")
 
     if _SLOPE.search(text) and not re.search(r"preliminary", combined, re.I):
         violations.append("temperature slope quoted without the preliminary-release note")
     if scenario_answer and not re.search(r"illustrative", combined, re.I):
         violations.append("scenario temperature not labelled illustrative")
-    if re.search(r"5\s*[-–]\s*8\s*%", text) and not _NEGATION.search(text):
-        violations.append("OWID/PRIMAP 5-8% difference quoted as measured")
     return violations
