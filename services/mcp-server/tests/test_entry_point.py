@@ -34,6 +34,10 @@ EXPECTED_TOOLS = {
     "get_top_emitters",
     "get_methodology_notes",
     "get_emissions_change_summary",
+    # Area 2 (root Release 21, Section 3) -- SPEC.md §5.1
+    "get_co2_concentration",
+    "get_temperature_anomaly",
+    "get_correlation_metadata",
 }
 
 

@@ -27,6 +27,11 @@ from api.tests.conftest import (  # noqa: E402, F401
     write_selected_countries_json,
 )
 
+# Area 2 fixtures: the climate directory is built by the REAL pipeline stages on small stubbed
+# inputs (api/tests/test_correlation.py's own `built`/`climate` fixtures), so a change to the
+# pipeline's output schema breaks these tests too -- never the real (gitignored) data/climate.
+from api.tests.test_correlation import built, climate  # noqa: E402, F401
+
 import mcp_server.client as mcp_client  # noqa: E402
 from mcp_server.client import ApiClient  # noqa: E402
 
@@ -55,6 +60,17 @@ async def bare_api_client(data_dir) -> ApiClient:
     """Like `api_client`, but backed only by `data_dir` with no CSVs pre-written -- for
     tests that need a specific fixture shape (e.g. world-map-series' full 1990-2024 range)
     instead of the standard `full_data` set."""
+    client = _wire_client()
+    mcp_client.set_client(client)
+    yield client
+    mcp_client.set_client(None)
+    await client.aclose()
+
+
+@pytest.fixture
+async def climate_client(climate) -> ApiClient:
+    """Like `api_client`, but backed by the Area 2 climate fixture directory instead of the
+    emissions CSVs (the two are independent data roots in api/)."""
     client = _wire_client()
     mcp_client.set_client(client)
     yield client
