@@ -574,3 +574,12 @@ Scope, one branch + PR per step:
 - **Step 6 — deploy and verify.** mcp-server first, then agent, then a frontend rebuild (the build
   is the point of no return). Walk the six starter prompts live; `OLLAMA_EVALUATION.md` note that
   Area 2 is validated on Sonnet only and Qwen stays selectable but untested for it.
+
+## Step 3.5a — answer blocks (Ask-page redesign; root decision 106)
+
+**Implemented 2026-10-08 (PR open on `feat/agent-answer-blocks`, stacked on step 3.4).** Schema: `SPEC.md` §15.11. Adds
+the deterministic blocks the redesigned Ask page renders: `kpis`, `follow_up_prompts` (chips), and per-widget
+`source_line`, `badge` and `summary`; a deterministic lead for scenario answers (no LLM call); and a compose
+prompt that now states key figures instead of avoiding them. Pairs with a small additive `get_top_emitters`
+change in `services/mcp-server` (`n_ranked`, `total_mt`, `top_n_share_pct`). Frontend is step 3.5d.
+

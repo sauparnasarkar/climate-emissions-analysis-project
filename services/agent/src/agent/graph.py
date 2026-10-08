@@ -46,7 +46,9 @@ from pydantic import BaseModel, field_validator
 
 from .cache import cache_key
 from .caveats import mandatory_notes
+from .follow_up_prompts import follow_up_prompts
 from .follow_ups import follow_up_links
+from .kpis import build_kpis, scenario_lead
 from .llm import get_llm
 from .mcp_client import get_mcp_tools
 from .payload_cap import cap_for_model
@@ -130,6 +132,8 @@ def _reset_turn_fields() -> dict[str, Any]:
         "scope_notes": [],
         "suggested_prompts": [],
         "follow_up_links": [],
+        "follow_up_prompts": [],
+        "kpis": [],
         "response_text": "",
     }
 
@@ -430,6 +434,8 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
         "widgets": widgets,
         "scope_notes": scope_notes,
         "follow_up_links": follow_up_links(state.tool_calls),
+        "follow_up_prompts": follow_up_prompts(state.tool_calls, state.current_query),
+        "kpis": build_kpis(state.tool_calls),
     }
 
     if not state.tool_calls:
@@ -470,16 +476,21 @@ def route_after_ui_selection(state: AgentState) -> Literal["compose_response", "
 
 async def compose_response_node(state: AgentState, *, llm: BaseChatModel) -> dict[str, Any]:
     structured = llm.with_structured_output(_ComposedResponse)
+    # SPEC.md §15.11: a scenario-temperature answer's lead is deterministic (one sentence from the
+    # result + the pipeline's own reading_note), so it never goes through the LLM.
+    lead = scenario_lead(state.tool_calls)
+    if lead is not None:
+        return {"response_text": lead}
     widgets_summary = []
     for w in state.widgets:
-        entry = w.model_dump(exclude={"props"})
-        # Area 2 widgets carry a small deterministic `summary` (slope, shares, levels...) the
-        # narration should quote; everything else in props stays excluded to bound context size.
-        summary = w.props.get("summary") if isinstance(w.props, dict) else None
-        if isinstance(summary, dict):
-            entry["summary"] = summary
+        entry = w.model_dump(exclude={"props", "summary", "source_line", "badge"})
+        # Each widget's key figures (WidgetSpec.summary) are what the lead quotes; everything else in
+        # props stays excluded to bound context size.
+        if w.summary:
+            entry["summary"] = w.summary
         widgets_summary.append(entry)
-    payload = json.dumps({"query": state.current_query, "widgets": widgets_summary, "scope_notes": state.scope_notes})
+    kpis = [k.model_dump(exclude_none=True) for k in state.kpis]
+    payload = json.dumps({"query": state.current_query, "widgets": widgets_summary, "kpis": kpis, "scope_notes": state.scope_notes})
     result = await structured.ainvoke([SystemMessage(content=COMPOSE_RESPONSE_SYSTEM_PROMPT), HumanMessage(content=payload)])
     return {"response_text": result.response_text}
 
@@ -515,6 +526,7 @@ def _default_checkpointer() -> MemorySaver:
             ("agent.state", "ToolCallRecord"),
             ("agent.state", "WidgetSpec"),
             ("agent.state", "FollowUpLink"),
+            ("agent.state", "Kpi"),
         ]
     )
     return MemorySaver(serde=serde)

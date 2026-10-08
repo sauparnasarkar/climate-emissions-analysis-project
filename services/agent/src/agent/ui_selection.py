@@ -20,7 +20,9 @@ from collections.abc import Callable
 
 from .cache import cache_key
 from .progress_labels import join_countries
+from .source_lines import source_line
 from .state import ToolCallRecord, WidgetSpec
+from .summaries import widget_summary
 
 # Tool -> (intent, chart_kind) for every tool with a single, unambiguous mapping (SPEC.md §3
 # table). get_top_emitters and get_country_profile are handled separately below/in graph.py.
@@ -201,7 +203,20 @@ def _title_for(record: ToolCallRecord) -> str:
     return builder(record.args)
 
 
+SCENARIO_BADGE = "Illustrative \u00b7 implied outcomes, not climate-model projections"
+
+
 def build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | None:
+    widget = _build_widget(record, current_query)
+    if widget is not None:
+        widget.source_line = source_line(record)
+        widget.summary = widget_summary(record)
+        if record.tool_name == "get_scenario_temperature":
+            widget.badge = SCENARIO_BADGE
+    return widget
+
+
+def _build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | None:
     """Builds the widget for every tool except `get_country_profile` (handled in
     `graph.py`'s `ui_selection_node`, since it's the one case needing an LLM judgment call) and
     `list_countries` (never its own widget). Returns `None` for a failed tool call (`result`
@@ -314,4 +329,7 @@ def build_country_profile_widgets(record: ToolCallRecord, *, include_chart: bool
                 props=record.result or {},
             )
         )
+    for widget in widgets:
+        widget.source_line = source_line(record)
+        widget.summary = widget_summary(record)
     return widgets

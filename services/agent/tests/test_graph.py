@@ -682,24 +682,28 @@ async def test_non_data_turns_have_no_follow_up_links():
     assert result["follow_up_links"] == []
 
 
-async def test_compose_payload_carries_area2_summaries_but_not_other_props():
+async def test_compose_payload_carries_widget_summaries_and_kpis_but_not_other_props():
     import json as _json
 
-    tool = _fake_tool("get_scenario_temperature", {"scenarios": {"BAU": [1] * 50}, "summary": {"final_year_by_scenario": {"BAU": {"headline_level_c": 1.68}}}})
+    tool = _fake_tool(
+        "get_emissions_temperature_relationship",
+        {"points": [{"year": y} for y in range(60)], "summary": {"relationship": "headline long-run relationship", "window": [1850, 2024], "fit": {"slope": 0.486}, "source": "owid_co2"}},
+    )
     llm = ScriptedChatModel(
         [
             {"classification": "data_query"},
-            AIMessage(content="", tool_calls=[_tool_call("get_scenario_temperature", {}, "s1")]),
+            AIMessage(content="", tool_calls=[_tool_call("get_emissions_temperature_relationship", {}, "r1")]),
             AIMessage(content="done"),
             {"response_text": "ok"},
         ]
     )
     graph = await build_graph(llm=llm, mcp_tools=[tool])
-    await graph.ainvoke({"current_query": "implied temperature by scenario"}, config=THREAD_CONFIG)
+    await graph.ainvoke({"current_query": "relationship between emissions and warming"}, config=THREAD_CONFIG)
     payload = _json.loads(llm.structured_calls[-1][1][-1].content)
     widget = payload["widgets"][0]
-    assert widget["summary"]["final_year_by_scenario"]["BAU"]["headline_level_c"] == 1.68
-    assert "props" not in widget and "scenarios" not in _json.dumps(widget)  # bulk props stay out
+    assert widget["summary"]["fit"]["slope"] == 0.486 and "kpis" in payload
+    assert "props" not in widget and "points" not in _json.dumps(widget)  # bulk props stay out
+    assert "source_line" not in widget and "badge" not in widget  # presentation fields stay out too
 
 
 async def test_compose_payload_has_no_summary_for_widgets_without_one():
@@ -716,3 +720,65 @@ async def test_compose_payload_has_no_summary_for_widgets_without_one():
     graph = await build_graph(llm=llm, mcp_tools=[await _make_methodology_tool()])
     await graph.ainvoke({"current_query": "how does the forecast work?"}, config=THREAD_CONFIG)
     assert "summary" not in _json.loads(llm.structured_calls[-1][1][-1].content)["widgets"][0]
+
+
+# === step 3.5a: answer blocks through the graph ===================================================
+
+_SCENARIO_RESULT = {
+    "scenarios": {},
+    "reading_note": "Scenarios diverge sharply in annual emissions by 2040 (2.2x), but temperatures differ by only 0.10 degC.",
+    "summary": {
+        "line": "both",
+        "final_year_by_scenario": {
+            "BAU": {"year": 2040, "headline_level_c": 1.68239, "annual_global_fossil_mt": 44877.4},
+            "Moderate": {"year": 2040, "headline_level_c": 1.636621, "annual_global_fossil_mt": 33145.06},
+            "Aggressive": {"year": 2040, "headline_level_c": 1.58219, "annual_global_fossil_mt": 20791.3},
+        },
+    },
+}
+
+
+async def test_a_scenario_only_turn_uses_the_deterministic_lead_with_no_compose_llm_call():
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_scenario_temperature", {}, "s1")]),
+            AIMessage(content="done"),
+            # NO compose script entry: reaching the LLM would raise "ran out of scripted responses"
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[_fake_tool("get_scenario_temperature", _SCENARIO_RESULT)])
+    result = await graph.ainvoke({"current_query": "how do temperature outcomes vary by pathway?"}, config=THREAD_CONFIG)
+    assert result["response_text"].startswith("By 2040 the platform's three emissions pathways imply 1.58\u20131.68 \u00b0C above 1850\u20131900.")
+    assert _SCENARIO_RESULT["reading_note"] in result["response_text"]
+    assert [k.label for k in result["kpis"]] == ["BAU", "Moderate", "Aggressive"]
+    assert result["widgets"][0].badge.startswith("Illustrative")
+    assert llm.exhausted
+
+
+async def test_answer_blocks_reach_the_result_event_and_reset_next_turn():
+    from agent.follow_up_prompts import P_REL
+
+    profile = {"country": "China", "years": [1990, 2023, 2024], "co2": [2483.5, 12000.0, 12289.0], "co2_per_capita": [2.15, 8.5, 8.66],
+               "table": [{"year": 2024, "co2": 12289.0, "co2_per_capita": 8.66, "co2_yoy_pct_change": 1.0}]}
+    tools = [_fake_tool("get_country_profile", profile), await _make_methodology_tool()]
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_country_profile", {"country": "China"}, "p1")]),
+            AIMessage(content="done"),
+            {"include_chart": False},
+            {"response_text": "China emitted 12,289 Mt."},
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_methodology_notes", {}, "m1")]),
+            AIMessage(content="done"),
+            {"response_text": "Method."},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=tools)
+    first = await graph.ainvoke({"current_query": "China emissions"}, config=THREAD_CONFIG)
+    assert [k.label for k in first["kpis"]] == ["CO\u2082 emissions", "Per capita", "Change vs 2023"]
+    assert first["follow_up_prompts"][0] == "What share of historical emissions comes from China?" and P_REL in first["follow_up_prompts"]
+    assert first["widgets"][0].source_line.startswith("Source: OWID, 1990\u20132024") and first["widgets"][0].summary["co2_mt"] == 12289.0
+    second = await graph.ainvoke({"current_query": "how does the forecast work?"}, config=THREAD_CONFIG)
+    assert second["kpis"] == [] and second["follow_up_prompts"] == []

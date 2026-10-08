@@ -1231,3 +1231,12 @@ Amends §3, §4, §15.2, §15.5 and §15.6; implemented in steps 3.4b-3.5d. Wher
 - **Follow-up chips** are a new, separate field of up to three prompts per answer (the handoff moves the user from emissions toward climate outcomes); chosen by a fixed per-tool lookup, shown above the docked input.
 - **Not adopted:** "click sends the prompt".
 
+**As built (step 3.5a, 2026-10-08).** Everything above is implemented as specified, in `summaries.py`, `kpis.py`, `source_lines.py`, `follow_up_prompts.py` and the wiring in `graph.py`/`server.py`; `AgentState` gains `kpis` and `follow_up_prompts`, `WidgetSpec` gains `source_line`, `badge` and `summary`, and `Kpi` is registered with the checkpointer's serde. Notes from running it end to end against the real API, MCP server and graph:
+
+- The handoff's China row is reproduced from data: 12,289 Mt, 8.66 t, +1.0% vs 2023, "4.9× the 1990 level", and the top 10's share is **71.1%** of a 37,398 Mt total (both match the handoff).
+- **"Largest of 215 countries", not 218.** The handoff's "218" is the sovereign-country count; the rank is among countries with data in that year (`n_ranked` = 215). The data-driven number is used because it is the one the rank is actually computed over.
+- The scenario answer's lead is generated from current data ("By 2040 the platform's three emissions pathways imply 1.58–1.68 °C above 1850–1900." + the pipeline's `reading_note`), replacing the handoff's stale 1.68–1.79 °C.
+- A turn where the scenario translation is the only data result makes **no compose LLM call**.
+- The compose payload now carries each widget's `summary` and the `kpis`; `source_line`, `badge` and `props` are excluded from it.
+- Not done here (steps 3.4b-3.5d): the "--"/"CO2" title fixes, the "Top 10 emitters (selected year)" title (it reads the year from args, not the result), and the duplicate single-country chart; the frontend; dashboard URL state.
+

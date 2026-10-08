@@ -351,3 +351,39 @@ async def test_query_result_event_carries_follow_up_links():
 
 async def _scenario_run() -> dict:
     return {"scenarios": {}, "summary": {"line": "both"}}
+
+
+async def test_query_result_event_carries_kpis_prompts_and_widget_answer_fields():
+    import json
+
+    scen = StructuredTool.from_function(coroutine=_scenario_blocks_run, name="get_scenario_temperature", description="fake")
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_scenario_temperature", {}, "c1")]),
+            AIMessage(content="done"),
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[scen])
+    app.dependency_overrides[get_graph] = lambda: graph
+    try:
+        response = TestClient(app).post("/query", json={"query": "temperature by scenario"})
+    finally:
+        app.dependency_overrides.pop(get_graph, None)
+    result = json.loads(_parse_sse(response.text)[-1]["data"])
+    assert [k["label"] for k in result["kpis"]] == ["BAU", "Aggressive"]
+    assert result["kpis"][0] == {"label": "BAU", "value": 1.68, "unit": "\u00b0C", "decimals": 2, "year": 2040, "sub": "44,877 MtCO\u2082 a year", "series": "BAU"}
+    assert result["follow_up_prompts"] and all(isinstance(p, str) for p in result["follow_up_prompts"])
+    widget = result["widgets"][0]
+    assert widget["badge"].startswith("Illustrative") and widget["source_line"].startswith("Source:") and widget["summary"]
+    assert result["response_text"].startswith("By 2040")
+
+
+async def _scenario_blocks_run() -> dict:
+    return {
+        "scenarios": {},
+        "summary": {"final_year_by_scenario": {
+            "BAU": {"year": 2040, "headline_level_c": 1.68, "annual_global_fossil_mt": 44877.4},
+            "Aggressive": {"year": 2040, "headline_level_c": 1.58, "annual_global_fossil_mt": 20791.3},
+        }},
+    }

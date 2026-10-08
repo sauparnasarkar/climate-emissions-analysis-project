@@ -304,6 +304,8 @@ async def stream_query(graph: CompiledStateGraph, query: str, thread_id: str, tr
                     "scope_notes": final_state.get("scope_notes", []),
                     "suggested_prompts": final_state.get("suggested_prompts", []),
                     "follow_up_links": [link.model_dump() for link in final_state.get("follow_up_links", [])],
+                    "follow_up_prompts": final_state.get("follow_up_prompts", []),
+                    "kpis": [kpi.model_dump() for kpi in final_state.get("kpis", [])],
                     "percent": 100,
                 }
             ),
