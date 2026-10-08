@@ -176,6 +176,9 @@ class ForecastSummaryRow(BaseModel):
 
 class ForecastSummaryResponse(BaseModel):
     rows: list[ForecastSummaryRow]
+    # The scope the rows really cover. "expanded" only when scope=expanded was requested AND the selected-countries file gives a list other than the
+    # featured ten: without that file the route still accepts scope=expanded but serves the featured ten (load_expanded_countries()'s fallback).
+    effective_scope: Literal["featured", "expanded"]
 
 
 class ModelComparisonResponse(BaseModel):

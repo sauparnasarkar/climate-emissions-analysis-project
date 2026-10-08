@@ -137,3 +137,19 @@ def test_feature_importance_503_when_missing(data_dir):
     resp = TestClient(app).get("/api/forecasts/feature-importance")
     assert resp.status_code == 503
     assert "feature_importance.csv" in resp.json()["detail"]
+
+
+def test_forecast_summary_effective_scope_follows_what_was_actually_served(client, full_data):
+    """`effective_scope` is on every response. With no selected_countries.json, scope=expanded is still accepted but serves the featured ten
+    (load_expanded_countries()'s fallback), so it must NOT claim 'expanded'; with the file it does."""
+    assert client.get("/api/forecasts/summary").json()["effective_scope"] == "featured"
+    assert client.get("/api/forecasts/summary", params={"scope": "featured"}).json()["effective_scope"] == "featured"
+    assert client.get("/api/forecasts/summary", params={"scope": "expanded"}).json()["effective_scope"] == "featured"  # the fallback
+
+    from .conftest import write_selected_countries_json, _clear_caches
+
+    write_selected_countries_json(full_data)  # expanded = FIXTURE_COUNTRIES + France: not the featured ten
+    _clear_caches()
+    assert client.get("/api/forecasts/summary", params={"scope": "expanded"}).json()["effective_scope"] == "expanded"
+    # asking for the featured scope never reports expanded, even when the file exists
+    assert client.get("/api/forecasts/summary", params={"scope": "featured"}).json()["effective_scope"] == "featured"

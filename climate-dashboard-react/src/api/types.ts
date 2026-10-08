@@ -121,6 +121,8 @@ export interface ForecastSummaryRow {
 
 export interface ForecastSummaryResponse {
   rows: ForecastSummaryRow[];
+  // The scope the rows really cover: 'expanded' only when the expanded list is larger than the featured ten.
+  effective_scope: 'featured' | 'expanded';
 }
 
 export interface ModelComparisonResponse {

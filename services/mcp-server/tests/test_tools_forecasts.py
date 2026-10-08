@@ -47,18 +47,20 @@ class _FakeSummaryClient:
     def __init__(self, count=12):
         self.count = count
 
-    expanded_countries = [f"C{i}" for i in range(40)]
+    # What the API reports as the scope it served (None = an older API without the field).
+    effective_scope = "expanded"
 
     async def get(self, path, params=None):
-        if path == "/countries":
-            return {"featured": [f"C{i}" for i in range(10)], "expanded": self.expanded_countries, "sovereign": self.expanded_countries}
-        assert path == "/forecasts/summary"
+        assert path == "/forecasts/summary"  # the tool must not need /countries for this
         rows = [
             {"country": f"C{i}", "actual_2020": 100.0 - i, "forecast_2030": 0.0, "forecast_2035": 0.0,
              "forecast_2040": 10.0 * i, "pct_change_2020_2040": float(i)}
             for i in range(self.count)
         ]
-        return {"rows": rows}
+        body = {"rows": rows}
+        if self.effective_scope is not None:
+            body["effective_scope"] = self.effective_scope
+        return body
 
 
 async def test_get_forecast_summary_rank_by_changes_the_cap_column(monkeypatch):
@@ -86,26 +88,16 @@ async def test_get_forecast_summary_rejects_an_unknown_rank_column(api_client):
         await get_forecast_summary(scope="featured", rank_by="forecast_2099")
 
 
-async def test_get_forecast_summary_reports_the_scope_actually_served(monkeypatch):
-    _use(monkeypatch, _FakeSummaryClient())
+async def test_get_forecast_summary_reports_the_scope_the_api_served(monkeypatch):
+    fake = _FakeSummaryClient()
+    _use(monkeypatch, fake)
     assert (await get_forecast_summary(scope="expanded"))["effective_scope"] == "expanded"
-    assert (await get_forecast_summary(scope="featured"))["effective_scope"] == "featured"
 
-    # The API's missing-selected_countries.json fallback: its "expanded" list IS the featured ten, yet scope='expanded' is still accepted.
-    degraded = _FakeSummaryClient()
-    degraded.expanded_countries = [f"C{i}" for i in range(10)]
-    _use(monkeypatch, degraded)
+    # The API's missing-selected_countries.json fallback: it accepts scope='expanded' but serves (and says) the featured ten.
+    fake.effective_scope = "featured"
     assert (await get_forecast_summary(scope="expanded"))["effective_scope"] == "featured"
 
-
-async def test_get_forecast_summary_survives_an_unavailable_country_list(monkeypatch):
-    # /countries needs the raw OWID CSV (503 without it); /forecasts/summary does not. The summary must still be served.
-    class _NoCountries(_FakeSummaryClient):
-        async def get(self, path, params=None):
-            if path == "/countries":
-                raise RuntimeError("503: owid-co2-data.csv not found")
-            return await super().get(path, params)
-
-    _use(monkeypatch, _NoCountries())
+    # An older API without the field: conservative -- featured, so no ranked cards -- and the table is still served.
+    fake.effective_scope = None
     body = await get_forecast_summary(scope="expanded", rank_by="forecast_2040")
-    assert body["rows"] and body["effective_scope"] == "featured"
+    assert body["effective_scope"] == "featured" and body["rows"]
