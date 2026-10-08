@@ -328,9 +328,9 @@ def run(fetcher=fetch, out_dir: str = CLIMATE_DIR, provenance_path: str = PROVEN
         "category": f"{CATEGORY} (national total excluding LULUCF)",
         "update_cadence": "annual release (Sep/Oct); concept record resolves to the latest; pipeline runs monthly",
         "license": (
-            "CC BY-NC-SA 4.0 (Zenodo/description; since v2.8; the dataset's YAML 'rights' says Attribution-NonCommercial -- authors asked which is authoritative). "
-            "Non-commercial use only; derived datasets published by this platform must carry the CC BY-NC-SA 4.0 notice with attribution; authors request notification of use. "
-            "Upstream sources (EDGAR non-energy parts, CDIAC, Energy Institute, FAOSTAT, others) have their own terms -- not yet verified."
+            "CC BY-NC-SA 4.0 (Zenodo/description; since v2.8). The dataset's YAML 'rights' field omits ShareAlike; the maintainer confirmed by email on 2026-10-08 that this is a mistake and 'share alike' applies everywhere. "
+            "Non-commercial use only; derived datasets published by this platform must carry the CC BY-NC-SA 4.0 notice with attribution; authors request notification of use (sent 2026-10-02). "
+            "Upstream sources (EDGAR non-energy parts, CDIAC, Energy Institute, FAOSTAT, others): the maintainer confirmed by email on 2026-10-08 that all are compatible with CC BY-NC-SA, so no additional restrictions are passed on (an informal confirmation, not a formal licence statement)."
         ),
         "citations": CITATIONS,
         "attribution_required": True,

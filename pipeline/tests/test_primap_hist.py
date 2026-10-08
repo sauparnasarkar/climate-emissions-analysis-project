@@ -338,5 +338,5 @@ def test_the_real_tracked_notices_file_records_the_2026_10_02_notification():
     assert len(n) == 1
     assert n[0]["sent_at"] == "2026-10-02T06:27:27Z" and n[0]["to"] == "nc-support@johannes-guetschow.de"
     assert n[0]["dataset_version_at_notification"] == "v2.8" and n[0]["dataset_doi"] == "10.5281/zenodo.22876287"
-    assert len(n[0]["questions"]) == 2 and n[0]["replies"] == []
+    assert len(n[0]["questions"]) == 2 and len(n[0]["replies"]) == 1 and "share alike" in n[0]["replies"][0]["answers"][0]["text"]
     assert load_source_notices("noaa_gml", NOTICES_PATH) == []  # a source with no entry has none

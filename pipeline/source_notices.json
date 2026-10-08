@@ -16,8 +16,25 @@
           "Which licence is authoritative: CC BY-NC-SA (Zenodo record and data description, since v2.8) or the dataset YAML's 'rights' field (Creative Commons Attribution-NonCommercial 4.0)?",
           "Do the upstream sources used for gap-filling (EDGAR, CDIAC, Energy Institute, FAOSTAT, Andrew cement, others) impose conditions on redistributing series derived from PRIMAP-hist?"
         ],
-        "status": "sent; no reply received as of 2026-10-02",
-        "replies": []
+        "status": "replied 2026-10-08",
+        "replies": [
+          {
+            "received_at": "2026-10-08T09:15:12Z",
+            "from": "Johannes Gütschow <nc-support@johannes-guetschow.de>",
+            "subject": "Re: Notification of use: PRIMAP-hist v2.8 in a non-commercial climate dashboard",
+            "answers": [
+              {
+                "question": 1,
+                "text": "That is a mistake on our side. It should be \"share alike\" everywhere."
+              },
+              {
+                "question": 2,
+                "text": "All upstream licenses are compatible with CC-NC-BY-SA, so you don't have to pass on additional restrictions."
+              }
+            ],
+            "summary": "CC BY-NC-SA 4.0 is authoritative (the YAML 'rights' field omitting ShareAlike is an error); upstream sources add no conditions for redistributing derived series. An informal email confirmation, not a formal licence statement."
+          }
+        ]
       }
     ]
   },
