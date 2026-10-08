@@ -52,7 +52,7 @@ const FORECAST: ForecastCountryResponse = {
   ci_upper: [11500],
   ci_lower: [10500],
 };
-const SUMMARY: ForecastSummaryResponse = { rows: [{ country: 'China', forecast_2030: 1, forecast_2035: 2, forecast_2040: 3, actual_2020: 4, pct_change_2020_2040: 5 }] };
+const SUMMARY: ForecastSummaryResponse = { rows: [{ country: 'China', forecast_2030: 1, forecast_2035: 2, forecast_2040: 3, actual_2020: 4, pct_change_2020_2040: 5 }], effective_scope: 'featured' };
 const MODEL_COMPARISON: ModelComparisonResponse = { columns: ['model', 'mae'], rows: [{ model: 'ETS', mae: 12.3 }] };
 const ETS_PARAMS: EtsParametersResponse = { rows: [{ country: 'China', alpha: 0.1, beta_star: 0.2, phi: 0.9 }] };
 const FEATURE_IMPORTANCE: FeatureImportanceResponse = { rows: [{ feature: 'co2_lag1', importance: 0.5 }] };

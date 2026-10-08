@@ -49,25 +49,16 @@ async def get_forecast_summary(scope: str = "featured", rank_by: str = "actual_2
     'forecast_2030', 'forecast_2035', 'forecast_2040' or 'pct_change_2020_2040'. **For "top N
     forecasted emitters in 2040" pass scope='expanded' and rank_by='forecast_2040'** -- ranking by
     the 2020 actuals would pick the cap from the wrong column. The response's `ranked_by` says
-    which column ordered the rows; `effective_scope` is the scope actually served ('expanded' only when the
-    expanded list really is larger than the featured ten)."""
+    which column ordered the rows; `effective_scope` is the scope actually served, as the API reports it
+    ('expanded' only when the API really served its expanded list, not the featured-ten fallback)."""
     if rank_by not in FORECAST_RANK_COLUMNS:
         raise ValueError(f"rank_by must be one of {', '.join(FORECAST_RANK_COLUMNS)}, got '{rank_by}'")
     client = get_client()
     body = await client.get("/forecasts/summary", params={"scope": scope})
-    # The scope that was ACTUALLY served: the API quietly falls back to the featured ten when its expanded list is missing (api/data_loaders.py), still
-    # accepting scope='expanded'. 'expanded' is only real when that list is strictly larger than the featured one.
-    # Best effort: /countries needs the raw OWID CSV, which /forecasts/summary does not, so the summary must never fail because of it. If the lists
-    # cannot be read the scope is unverifiable and is reported as 'featured', the conservative reading (the agent then shows no ranked cards).
-    effective_scope = "featured"
-    if scope == "expanded":
-        try:
-            lists = await fetch_country_lists()
-            if set(lists.expanded) > set(lists.featured):
-                effective_scope = "expanded"
-        except Exception:  # noqa: BLE001 -- any failure to read the lists only costs the ranked cards, never the table
-            pass
-    body["effective_scope"] = effective_scope
+    # The scope that was ACTUALLY served, as the API reports it (it quietly falls back to the featured ten when its expanded list is missing, yet still
+    # accepts scope='expanded'). A response without the field (an older API) is treated as 'featured', the conservative reading: the agent then shows no
+    # ranked cards.
+    body["effective_scope"] = "expanded" if body.get("effective_scope") == "expanded" else "featured"
     rows = sorted(
         body["rows"],
         key=lambda row: row[rank_by] if row.get(rank_by) is not None else float("-inf"),

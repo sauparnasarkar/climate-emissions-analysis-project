@@ -50,6 +50,10 @@ def get_forecast_summary(scope: Scope = "featured"):
         raise HTTPException(status_code=503, detail=e.message)
 
     countries_in_scope = FEATURED_COUNTRIES if scope == "featured" else load_expanded_countries()
+    # "expanded" only when the served pool is genuinely larger than the featured ten, i.e. a strict superset of it: with no selected_countries.json
+    # load_expanded_countries() falls back to FEATURED_COUNTRIES (scope=expanded then serves exactly those ten), and a subset or a same-size
+    # replacement list is not an expansion either. It describes the configured pool, not how many rows survive the per-country loop below.
+    effective_scope = "expanded" if scope == "expanded" and set(countries_in_scope) > set(FEATURED_COUNTRIES) else "featured"
 
     rows = []
     for c in countries_in_scope:
@@ -73,7 +77,7 @@ def get_forecast_summary(scope: Scope = "featured"):
     # Descending by forecast_2040, with missing values sorted last (matches
     # pandas' sort_values(..., ascending=False) na_position="last" default).
     rows.sort(key=lambda r: -r.forecast_2040 if r.forecast_2040 is not None else float("inf"))
-    return ForecastSummaryResponse(rows=rows)
+    return ForecastSummaryResponse(rows=rows, effective_scope=effective_scope)
 
 
 @router.get("/forecasts/model-comparison", response_model=ModelComparisonResponse)
