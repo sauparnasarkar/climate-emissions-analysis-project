@@ -443,3 +443,8 @@ Step 2 notes (as built):
   accept `primap_ghg` as an alias; the scenario gap was computed for the headline line only (now per
   returned line, `level_gap_vs_bau_c`); the pre-1970 reconstruction note fired only on the default
   range (now on any returned year before 1970).
+- Copilot's second pass on #265 also surfaced two items it had missed the first time, both valid and fixed:
+  OWID windows with a 1970 or 1990 baseline were still labelled "headline" (the headline is the
+  pre-industrial total fit only; others are now "selected-window relationship, NOT the headline fit"), and an
+  empty country-share ranking reported `shown_share_pct_total: 0.0` as if zero emissions were observed (now
+  `null` with an `unavailable` marker).

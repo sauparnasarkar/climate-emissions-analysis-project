@@ -298,3 +298,22 @@ async def test_share_primap_source_works_under_both_names(climate_client):
     b = await get_country_cumulative_share(source="primap_ghg", gas_scope="total_ghg")
     assert a["source"] == b["source"] == "primap_hist" and a["rows"] == b["rows"]
     assert "CO2-equivalent" in a["label"] or "greenhouse" in a["label"]
+
+
+async def test_owid_non_preindustrial_windows_are_not_labelled_headline(climate_client):
+    for baseline in ("1970", "1990"):
+        s = (await get_emissions_temperature_relationship(baseline=baseline))["summary"]
+        assert s["relationship"].startswith("selected-window relationship, NOT the headline fit")
+        assert f"{s['window'][0]}-{s['window'][1]}" in s["relationship"]
+    f = (await get_emissions_temperature_relationship(baseline="1970", variant="fossil"))["summary"]
+    assert "fossil-fuel-and-cement-only" in f["relationship"] and "NOT the headline" in f["relationship"]
+    # the preindustrial pair keeps its labels
+    assert (await get_emissions_temperature_relationship())["summary"]["relationship"].startswith("headline long-run")
+    assert "secondary" in (await get_emissions_temperature_relationship(variant="fossil"))["summary"]["relationship"]
+
+
+async def test_empty_ranking_is_unavailable_not_zero(climate_client):
+    body = await get_country_cumulative_share(year=1500)
+    s = body["summary"]
+    assert body["rows"] == [] and s["shown_share_pct_total"] is None and "No ranking rows" in s["unavailable"]
+    assert any("no data for 1500" in n for n in body["notes"])

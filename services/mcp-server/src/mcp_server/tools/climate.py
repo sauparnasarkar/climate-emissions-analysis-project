@@ -119,10 +119,17 @@ def reconstruction_note(years: list[dict]) -> str | None:
     )
 
 
-def _relationship_label(source: str, variant: str | None, window: list[int]) -> str:
+def _relationship_label(source: str, variant: str | None, baseline: str, window: list[int]) -> str:
+    span = f"{window[0]}-{window[1]}"
     if source == "primap_ghg":
         # The start comes from the returned window: a 1990 baseline is a shorter pair, not 1970+.
-        return f"recent all-gas relationship (PRIMAP-hist total GHG, {window[0]}-{window[1]}; never called TCRE)"
+        return f"recent all-gas relationship (PRIMAP-hist total GHG, {span}; never called TCRE)"
+    # The headline is the pre-industrial (1850-start) total fit only; a 1970 or 1990 window of the
+    # same series is a selected-window view (the 1990 one has no published fit) and must not be
+    # presented as the headline.
+    if baseline != "preindustrial":
+        what = "fossil-fuel-and-cement-only" if variant == "fossil" else "total anthropogenic CO2"
+        return f"selected-window relationship, NOT the headline fit (OWID cumulative {what} vs temperature, {span})"
     if variant == "fossil":
         return "secondary fossil-fuel-and-cement-only variant of the headline relationship"
     return "headline long-run relationship (OWID cumulative total anthropogenic CO2 vs temperature)"
@@ -151,7 +158,7 @@ async def get_emissions_temperature_relationship(
     body = await fetch_correlation("emissions-temperature", params)
     points = body["points"]
     summary: dict = {
-        "relationship": _relationship_label(body["source"], body.get("variant"), body["window"]),
+        "relationship": _relationship_label(body["source"], body.get("variant"), body["baseline"], body["window"]),
         "source": body["source"],
         "variant": body.get("variant"),
         "baseline": body["baseline"],
@@ -279,8 +286,11 @@ async def get_country_cumulative_share(
             "year": body["year"],
             "n_rows": len(rows),
             "top": [{"rank": r["rank"], "name": r["name"], "share_pct": round(r["share_pct"], 2)} for r in rows[:5]],
-            "shown_share_pct_total": round(sum(r["share_pct"] for r in rows), 2),
+            # An empty ranking is "no data for that year", not zero emissions: keep it unavailable.
+            "shown_share_pct_total": round(sum(r["share_pct"] for r in rows), 2) if rows else None,
         }
+        if not rows:
+            summary["unavailable"] = "No ranking rows for the requested year; see `notes` for the available coverage."
     summary["unit"] = body["unit"]
     summary["label"] = body["label"]
     body["summary"] = summary
