@@ -324,13 +324,18 @@ def _build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | No
 def historical_chart_covers(profile: ToolCallRecord, records: list[ToolCallRecord]) -> bool:
     """True when a successful `get_historical_emissions` in the same turn already charts this
     profile's country, so the profile's own trend chart would repeat it (the Ask-page design review
-    removed that duplicate). Matched on the RESOLVED country name in the results, not the raw args:
+    removed that duplicate), and only when that chart is for CO2 like the profile's. Matched on the RESOLVED country name in the results, not the raw args:
     the MCP guard fixes typos ("Chinaa"), so the args may not equal the name the series carries."""
     country = (profile.result or {}).get("country") if isinstance(profile.result, dict) else None
     if not country:
         return False
     for rec in records:
         if rec.tool_name != "get_historical_emissions" or is_error_result(rec.result) or not isinstance(rec.result, dict):
+            continue
+        # The profile's trend chart is CO2 (its `co2` series): only a CO2 historical chart duplicates it.
+        # A methane or nitrous-oxide history for the same country is a different chart and must not
+        # suppress it. A result with no `gas` is treated as CO2 (the tool's default).
+        if rec.result.get("gas", "co2") != "co2":
             continue
         if any(series.get("name") == country for series in rec.result.get("series") or []):
             return True
