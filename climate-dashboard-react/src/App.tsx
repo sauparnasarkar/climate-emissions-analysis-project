@@ -14,6 +14,7 @@ import DataExplorerPage from './pages/DataExplorerPage';
 import AboutPage from './pages/AboutPage';
 import AdminPage from './pages/AdminPage';
 import { AgentPage } from './pages/AgentPage';
+import { AskThreadProvider } from './agent/AskThreadProvider';
 import ClimateCorrelationPage from './pages/ClimateCorrelationPage';
 
 function App() {
@@ -42,6 +43,8 @@ function App() {
 
   return (
     <ThemeContext.Provider value={theme}>
+      {/* Above every layout, so the Ask page's thread outlives navigating to any other page (including Home) and back. */}
+      <AskThreadProvider>
       <Routes>
         {/* The landing page (Release 20, SPEC.md §5.25) has its own layout -- top nav, no sidebar. */}
         <Route element={<LandingLayout theme={theme} setTheme={setTheme} />}>
@@ -73,6 +76,7 @@ function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </AskThreadProvider>
     </ThemeContext.Provider>
   );
 }

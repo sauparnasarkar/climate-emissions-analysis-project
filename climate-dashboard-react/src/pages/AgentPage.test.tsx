@@ -1,4 +1,8 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import { useRef } from 'react';
+import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
+import { AskThreadProvider } from '../agent/AskThreadProvider';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentPage } from './AgentPage';
 import { useAgentStream } from '../agent/useAgentStream';
@@ -58,339 +62,346 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+
+function page() {
+  return (
+    <MemoryRouter>
+      <AskThreadProvider>
+        <AgentPage />
+      </AskThreadProvider>
+    </MemoryRouter>
+  );
+}
+
+function renderPage() {
+  return render(page());
+}
+
+function resultOf(overrides: Partial<AgentQueryResult> = {}): AgentQueryResult {
+  return { thread_id: 't1', widgets: [], response_text: 'Some answer.', scope_notes: [], suggested_prompts: [], percent: 100, ...overrides };
+}
+
+const METHOD_WIDGET = { intent: 'text' as const, chart_kind: null, title: 'Methodology', as_of: null, source_tool_call: 'get_methodology_notes:{}', props: { data_provenance: 'OWID CO2 dataset.' } };
+
 describe('AgentPage', () => {
-  it('shows the landing state: headline, landing PromptBar, and all four starter prompts', () => {
+  it('shows the empty state: title, hint, three category columns with a NEW tag on Climate outcomes', () => {
     stubStream({});
-    render(<AgentPage />);
-
-    expect(screen.getByText('Ask about climate emissions')).toBeInTheDocument();
-    expect(screen.getByText('What are the top 10 forecasted emitters in 2040?')).toBeInTheDocument();
-    expect(screen.getByText('Considering the top 10 emitters now and the forecasted ones in 2040, show the comparative trend for the countries.')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Send/ })).toHaveLength(1);
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Ask about emissions and climate outcomes' })).toBeInTheDocument();
+    expect(screen.getByText('Enter to send · Shift + Enter for a new line')).toBeInTheDocument();
+    for (const name of ['Historical trends', 'Climate outcomes', 'Forecasts']) {
+      expect(screen.getByRole('region', { name })).toBeInTheDocument();
+    }
+    expect(within(screen.getByRole('region', { name: 'Climate outcomes' })).getByText('NEW')).toBeInTheDocument();
+    for (const name of ['Historical trends', 'Climate outcomes', 'Forecasts']) {
+      expect(within(screen.getByRole('region', { name })).getAllByRole('button')).toHaveLength(2);
+    }
   });
 
-  it('lays out the four starter prompts in a fixed 2x2 grid, not auto-fit', () => {
-    // Now that this grid lives inside PromptBar's own expandedContent (a fixed-width container),
-    // not a full-page one, it targets an explicit 2/3-column count the same way the response
-    // widget grid does, rather than auto-fit reflowing based on available width.
-    stubStream({});
-    const { container } = render(<AgentPage />);
-
-    const grid = container.querySelector('.starter-prompt-grid') as HTMLElement;
-    expect(grid).not.toBeNull();
-    expect(grid.style.gridTemplateColumns).toBe('repeat(2, 1fr)');
-    expect(grid.children).toHaveLength(4);
-  });
-
-  it.each([
-    ['country-specific', "How has India's emissions grown compared to other countries?"],
-    ['forecast', 'What are the top 10 forecasted emitters in 2040?'],
-  ])('prefills a %s starter prompt on click, focuses the textarea, and does not submit', async (_label, prompt) => {
-    // The starter grid now lives inside PromptBar's own expandedContent (design-system PR #44) --
-    // clicking a tile moves focus there first, so this also confirms the panel doesn't collapse
-    // out from under the click, and that the new ref-based focus() call (closing "Corrections
-    // applied" #18) actually lands the user in the textarea afterward, not stuck on the tile.
-    // Both rows behave identically here (SPEC.md "Corrections applied" #26) -- the forecast row
-    // used to auto-submit instead, which read as an inconsistent surprise next to this row.
+  it('prefills a starter card on click, focuses the textarea, and does not submit', async () => {
     const submit = vi.fn();
     stubStream({ submit });
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<AgentPage />);
-
+    renderPage();
+    const prompt = 'What are the top 10 forecasted emitters in 2040?';
     await user.click(screen.getByText(prompt));
-
     expect(submit).not.toHaveBeenCalled();
     const textarea = screen.getByDisplayValue(prompt);
-    expect(textarea).toBeInTheDocument();
     expect(textarea).toHaveFocus();
   });
 
-  it('shows a labeled Progress bar and docks the PromptBar while loading', () => {
-    stubStream({ loading: true, progress: { label: 'Fetching historical emissions for China', percent: 30 } });
-    render(<AgentPage />);
-
-    expect(screen.getByText('Fetching historical emissions for China')).toBeInTheDocument();
-    expect(screen.getByText('30%')).toBeInTheDocument();
-    // Docked never autofocuses (unlike landing), and loading itself also collapses the panel --
-    // queryByRole, unlike queryByText, correctly excludes the aria-hidden tiles still in the DOM
-    // (SPEC.md: the collapsed panel is aria-hidden/inert, not unmounted, per design-system's own
-    // Drawer precedent).
-    expect(screen.queryByRole('button', { name: /forecasted emitters/ })).not.toBeInTheDocument();
-  });
-
-  it('keeps the starter grid collapsed after a response lands -- reveals it only once the docked bar is focused', async () => {
-    // Replaces the earlier "grid reappears automatically between turns" behavior: visibility is
-    // now purely focus-driven (matching the user's own "expand on clicking" request), not an
-    // approximated dismissed/idle-and-empty state machine.
-    const result: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: [],
-      response_text: 'Some answer.',
-      scope_notes: [],
-      suggested_prompts: [],
-      percent: 100,
-    };
-    stubStream({ result });
-    render(<AgentPage />);
+  it('shows the question heading, progress and a skeleton while loading', async () => {
+    const stream = mutableStream();
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-
-    expect(screen.queryByText('Ask about climate emissions')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /forecasted emitters/ })).not.toBeInTheDocument();
-
-    await user.click(screen.getByLabelText('Ask about climate emissions'));
-    expect(screen.getByRole('button', { name: /forecasted emitters/ })).toBeInTheDocument();
-  });
-
-  it('keeps the panel open through a prefill-and-edit, since focus stays inside the bar the whole time', async () => {
-    const result: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: [],
-      response_text: 'Some answer.',
-      scope_notes: [],
-      suggested_prompts: [],
-      percent: 100,
-    };
-    stubStream({ result });
-    render(<AgentPage />);
-    const { default: userEvent } = await import('@testing-library/user-event');
-    const user = userEvent.setup();
-
-    await user.click(screen.getByLabelText('Ask about climate emissions'));
-    await user.click(screen.getByText("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?"));
-    await user.clear(screen.getByLabelText('Ask about climate emissions'));
-
-    // Clicking the tile moved focus to the textarea (this same page's own prefill+focus wiring),
-    // and clearing text doesn't blur it -- so the panel is still expanded, unlike the old
-    // dismissed-on-edit approximation this test used to check for.
-    expect(
-      screen.getByText("What are China's historical emissions trends, and how do they compare to the top 10 sovereign emitters?"),
-    ).toBeInTheDocument();
-  });
-
-  it('prefills a suggested-prompt ("Try instead") tile on click, focuses the textarea, and does not submit', async () => {
-    // SPEC.md "Corrections applied" #27: these §6 reframe tiles used to call submit() directly
-    // (ResultSectionView's onSuggestedPromptClick={handleSubmit}), bypassing PromptBar's own
-    // trySubmit -- the same auto-submit inconsistency #26 fixed for the starter grid, left
-    // standing here until reported directly. Now shares AgentPage's own prefillAndFocus with
-    // the starter grid, same as the country-specific/forecast prefill test above.
-    const result: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: [],
-      response_text: "I can't offer opinions, but here's what the data shows instead.",
-      scope_notes: [],
-      suggested_prompts: ['How has emissions growth changed in China over the last decade?'],
-      percent: 100,
-    };
-    const submit = vi.fn();
-    stubStream({ result, submit });
-    const { default: userEvent } = await import('@testing-library/user-event');
-    const user = userEvent.setup();
-    render(<AgentPage />);
-
-    await user.click(screen.getByText('How has emissions growth changed in China over the last decade?'));
-
-    expect(submit).not.toHaveBeenCalled();
-    const textarea = screen.getByDisplayValue('How has emissions growth changed in China over the last decade?');
-    expect(textarea).toBeInTheDocument();
-    expect(textarea).toHaveFocus();
-  });
-
-  it("hides a turn's suggested-prompt tiles once superseded by a new submission, keeping its decline text", async () => {
-    // SPEC.md "Corrections applied" #27, second half: every past turn's "Try instead" tiles used
-    // to stay clickable forever, unlike the starter grid which disappears once you've moved past
-    // it -- a user could act on a suggestion several turns old. Only sections[0], and only while
-    // not loading, may show its own tiles now.
-    const firstResult: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: [],
-      response_text: "I can't offer opinions, but here's what the data shows instead.",
-      scope_notes: [],
-      suggested_prompts: ['How has emissions growth changed in China over the last decade?'],
-      percent: 100,
-    };
-    const stream = mutableStream({ result: firstResult });
-    const { rerender } = render(<AgentPage />);
-
-    expect(screen.getByText('How has emissions growth changed in China over the last decade?')).toBeInTheDocument();
-
-    // Submitting anything -- `loading` turning true -- hides the now-stale tile immediately,
-    // before a new result even lands, mirroring the starter grid's own collapse-on-loading
-    // behavior rather than waiting on the next section to arrive.
+    const { rerender } = renderPage();
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'China trends{Enter}');
     stream.loading = true;
-    rerender(<AgentPage />);
-    expect(screen.queryByText('How has emissions growth changed in China over the last decade?')).not.toBeInTheDocument();
-    expect(screen.getByText("I can't offer opinions, but here's what the data shows instead.")).toBeInTheDocument();
-
-    // Once a second result lands, the first turn permanently drops to index 1+ -- its tiles stay
-    // hidden even though loading is false again, but its decline text remains as chat history.
-    const secondResult: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: [],
-      response_text: 'Some answer.',
-      scope_notes: [],
-      suggested_prompts: [],
-      percent: 100,
-    };
-    stream.loading = false;
-    stream.result = secondResult;
-    rerender(<AgentPage />);
-    expect(screen.queryByText('How has emissions growth changed in China over the last decade?')).not.toBeInTheDocument();
-    expect(screen.getByText("I can't offer opinions, but here's what the data shows instead.")).toBeInTheDocument();
+    stream.progress = { label: 'Fetching historical emissions for China', percent: 30 };
+    rerender(page());
+    expect(screen.getByRole('heading', { level: 2, name: 'China trends' })).toBeInTheDocument();
+    expect(screen.getByText('Fetching historical emissions for China')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading the answer' })).toBeInTheDocument();
   });
 
-  it('surfaces a stream error as an InlineAlert', () => {
-    stubStream({ error: 'Connection to the agent failed.' });
-    render(<AgentPage />);
+  it('submits a typed question, shows it as an h2 with its category once the answer lands, and keeps earlier answers in order', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const { rerender } = renderPage();
+    const input = screen.getByLabelText('Ask about climate emissions');
+
+    await user.type(input, 'What are the top 10 forecasted emitters in 2040?{Enter}');
+    expect(stream.submit).toHaveBeenCalledWith('What are the top 10 forecasted emitters in 2040?', null);
+    stream.result = resultOf({ widgets: [METHOD_WIDGET], response_text: 'First answer.', follow_up_prompts: ['Why?'] });
+    rerender(page());
+    expect(screen.getByRole('heading', { level: 2, name: 'What are the top 10 forecasted emitters in 2040?' })).toBeInTheDocument();
+    expect(screen.getByText('Forecasts')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Second question{Enter}');
+    expect(stream.submit).toHaveBeenLastCalledWith('Second question', 't1');
+    stream.result = resultOf({ thread_id: 't1', widgets: [METHOD_WIDGET], response_text: 'Second answer.' });
+    rerender(page());
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(headings).toEqual(['What are the top 10 forecasted emitters in 2040?', 'Second question']);
+  });
+
+  it('shows follow-up chips that prefill (not send), and "+ New question" returns to the empty state', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const { rerender } = renderPage();
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
+    stream.result = resultOf({ widgets: [METHOD_WIDGET], follow_up_prompts: ['How has the mix changed?'] });
+    rerender(page());
+
+    const submitCalls = vi.mocked(stream.submit).mock.calls.length;
+    await user.click(screen.getByRole('button', { name: 'How has the mix changed?' }));
+    expect(vi.mocked(stream.submit).mock.calls.length).toBe(submitCalls);
+    expect(screen.getByDisplayValue('How has the mix changed?')).toHaveFocus();
+
+    vi.mocked(stream.reset).mockImplementation(() => {
+      stream.result = null;
+    });
+    await user.click(screen.getByRole('button', { name: '+ New question' }));
+    expect(stream.reset).toHaveBeenCalled();
+    rerender(page());
+    expect(screen.getByRole('heading', { name: 'Ask about emissions and climate outcomes' })).toBeInTheDocument();
+  });
+
+  it('renders deep links as in-app links carrying the route as given', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const { rerender } = renderPage();
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
+    stream.result = resultOf({ widgets: [METHOD_WIDGET], follow_up_links: [{ label: 'Open in Climate Correlation', route: '/climate-correlation#scenarios' }] });
+    rerender(page());
+    expect(screen.getByRole('link', { name: /Open in Climate Correlation/ })).toHaveAttribute('href', '/climate-correlation#scenarios');
+  });
+
+  it('shows a stream error with Try again, resubmits the same question, and restores the typed text', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const { rerender } = renderPage();
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'My question{Enter}');
+    stream.error = 'Connection to the agent failed.';
+    rerender(page());
     expect(screen.getByText('Connection to the agent failed.')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('My question')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(stream.submit).toHaveBeenLastCalledWith('My question', null);
   });
 
-  it('off_topic/opinion-shaped results (no widgets) render response_text as an InlineAlert, plus suggested_prompts as tiles', () => {
-    const result: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: [],
-      response_text: "I can't offer opinions, but here's what the data shows instead.",
-      scope_notes: [],
-      suggested_prompts: ['How has emissions growth changed in China over the last decade?'],
-      percent: 100,
-    };
-    stubStream({ result });
-    render(<AgentPage />);
-
-    expect(screen.getByText("I can't offer opinions, but here's what the data shows instead.")).toBeInTheDocument();
-    expect(screen.getByText('How has emissions growth changed in China over the last decade?')).toBeInTheDocument();
+  it('off-topic/opinion results (no widgets) render as an alert with "Try instead" tiles that prefill', async () => {
+    const submit = vi.fn();
+    const stream = mutableStream({ submit });
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const { rerender } = renderPage();
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Who is right?{Enter}');
+    stream.result = resultOf({ response_text: "I can't offer opinions.", suggested_prompts: ['How has growth changed in China?'] });
+    rerender(page());
+    expect(screen.getByText("I can't offer opinions.")).toBeInTheDocument();
+    await user.click(screen.getByText('How has growth changed in China?'));
+    expect(screen.getByDisplayValue('How has growth changed in China?')).toHaveFocus();
+    expect(submit).toHaveBeenCalledTimes(1);
   });
 
-  it('renders scope_notes as an InlineAlert above a data_query result\'s widgets', () => {
-    const result: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: [
-        {
-          intent: 'text',
-          chart_kind: null,
-          title: 'Methodology',
-          as_of: null,
-          source_tool_call: 'get_methodology_notes:{}',
-          props: { data_provenance: 'OWID CO2 dataset.' },
-        },
-      ],
-      response_text: 'Here is the requested methodology summary.',
+  it('renders scope_notes, the lead and the KPI row for a data answer', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const { rerender } = renderPage();
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'China?{Enter}');
+    stream.result = resultOf({
+      widgets: [METHOD_WIDGET],
+      response_text: 'China emitted 12,289 Mt of CO₂ in 2024.',
       scope_notes: ['Capped to the 10 highest-value countries.'],
-      suggested_prompts: [],
-      percent: 100,
-    };
-    stubStream({ result });
-    render(<AgentPage />);
-
+      kpis: [{ label: 'CO₂ emissions', value: 12289, unit: 'Mt', decimals: 0, year: 2024, sub: 'Largest of 215 countries', series: null }],
+    });
+    rerender(page());
     expect(screen.getByText('Capped to the 10 highest-value countries.')).toBeInTheDocument();
-    expect(screen.getByText('Here is the requested methodology summary.')).toBeInTheDocument();
+    expect(screen.getByText('China emitted 12,289 Mt of CO₂ in 2024.')).toBeInTheDocument();
+    const cards = within(screen.getByRole('list', { name: 'Key figures' })).getAllByRole('listitem');
+    expect(cards[0]).toHaveTextContent('CO₂ emissions · 2024');
     expect(screen.getByText('OWID CO2 dataset.')).toBeInTheDocument();
   });
 
-  it('shows the answer\'s KPI row under the lead, each card labelled with its data year (services/agent SPEC §15.11)', () => {
-    const result: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: [{ intent: 'text', chart_kind: null, title: 'Methodology', as_of: null, source_tool_call: 'get_methodology_notes:{}', props: { data_provenance: 'OWID.' } }],
-      response_text: 'China emitted 12,289 Mt of CO₂ in 2024.',
-      scope_notes: [],
-      suggested_prompts: [],
-      kpis: [
-        { label: 'CO₂ emissions', value: 12289, unit: 'Mt', decimals: 0, year: 2024, sub: 'Largest of 215 countries', series: null },
-        { label: 'Per capita', value: 8.66, unit: 't', decimals: 2, year: 2024, sub: null, series: null },
-      ],
-      percent: 100,
-    };
-    stubStream({ result });
-    render(<AgentPage />);
-    const cards = within(screen.getByRole('list', { name: 'Key figures' })).getAllByRole('listitem');
-    expect(cards).toHaveLength(2);
-    expect(cards[0]).toHaveTextContent('CO₂ emissions · 2024');
-    expect(cards[0]).toHaveTextContent('12,289 Mt');
-    expect(cards[0]).toHaveTextContent('Largest of 215 countries');
-  });
-
-  it('shows no KPI list for an older agent response that has none', () => {
-    const result: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: [{ intent: 'text', chart_kind: null, title: 'Methodology', as_of: null, source_tool_call: 'get_methodology_notes:{}', props: { data_provenance: 'OWID.' } }],
-      response_text: 'No answer blocks here.',
-      scope_notes: [],
-      suggested_prompts: [],
-      percent: 100,
-    };
-    stubStream({ result });
-    render(<AgentPage />);
-    expect(screen.queryByRole('list', { name: 'Key figures' })).toBeNull();
-  });
-
-  it('renders a context_reuse answer as a normal markdown response, not an InlineAlert, with no duplicate paragraph', () => {
-    // SPEC.md correction #22: a turn that answered from prior context (zero new tool calls)
-    // carries a real, often markdown-rich answer -- must render like any other data answer, not
-    // like off_topic/opinion's short guardrail text (InlineAlert), and not duplicated (the widget
-    // and response_text are the same underlying text).
-    const result: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: [
-        {
-          intent: 'text',
-          chart_kind: null,
-          title: 'Answer',
-          as_of: null,
-          source_tool_call: 'context_reuse',
-          props: { text: '## India\n\n**India** is growing fast.' },
-        },
-      ],
-      response_text: '## India\n\n**India** is growing fast.',
-      scope_notes: [],
-      suggested_prompts: [],
-      percent: 100,
-    };
-    stubStream({ result });
-    render(<AgentPage />);
-
-    expect(screen.getByRole('heading', { name: 'India' })).toBeInTheDocument();
-    expect(document.querySelector('strong')?.textContent).toBe('India');
-    // Only one rendering of the answer -- not also duplicated as a plain-text paragraph above it.
+  it('renders a context_reuse answer once, as markdown, not as an alert', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const { rerender } = renderPage();
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'More on India{Enter}');
+    const text = '## India\n\n**India** is growing fast.';
+    stream.result = resultOf({
+      widgets: [{ intent: 'text', chart_kind: null, title: 'Answer', as_of: null, source_tool_call: 'context_reuse', props: { text } }],
+      response_text: text,
+    });
+    rerender(page());
     expect(screen.getAllByText(/is growing fast/)).toHaveLength(1);
-    // Not shown as an InlineAlert (role="status" for the "default" variant used throughout this
-    // page) -- off_topic/opinion's role, not this one's.
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  function nWidgets(n: number): AgentQueryResult['widgets'] {
-    return Array.from({ length: n }, (_, i) => ({
-      intent: 'text' as const,
-      chart_kind: null,
-      title: `Widget ${i}`,
-      as_of: null,
-      source_tool_call: `get_methodology_notes:{"n":${i}}`,
-      props: { data_provenance: `source ${i}` },
-    }));
-  }
+  it('keeps the thread when the page is left and opened again (in-memory, above the routes)', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const app = () => (
+      <MemoryRouter initialEntries={['/ask']}>
+        <AskThreadProvider>
+          <Link to="/ask">ask</Link>
+          <Link to="/elsewhere">elsewhere</Link>
+          <Routes>
+            <Route path="/ask" element={<AgentPage />} />
+            <Route path="/elsewhere" element={<p>another page</p>} />
+          </Routes>
+        </AskThreadProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(app());
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
+    stream.result = resultOf({ widgets: [METHOD_WIDGET], response_text: 'First answer.' });
+    rerender(app());
+    expect(screen.getByRole('heading', { level: 2, name: 'Q1' })).toBeInTheDocument();
 
-  it.each([
-    [1, 1],
-    [2, 2],
-    [3, 3],
-    [4, 2], // deliberately not 4 -- a 4-up row of these cards reads as cramped
-    [5, 3],
-    [6, 3],
-  ])('lays out %i widgets in %i columns', (widgetCount, expectedColumns) => {
-    const result: AgentQueryResult = {
-      thread_id: 't1',
-      widgets: nWidgets(widgetCount),
-      response_text: 'Summary.',
-      scope_notes: [],
-      suggested_prompts: [],
-      percent: 100,
-    };
-    stubStream({ result });
-    const { container } = render(<AgentPage />);
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'half typed');
+    await user.click(screen.getByRole('link', { name: 'elsewhere' }));
+    expect(screen.getByText('another page')).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'ask' }));
 
-    const grid = container.querySelector('.agent-widget-grid') as HTMLElement;
-    expect(grid).not.toBeNull();
-    expect(grid.style.gridTemplateColumns).toBe(`repeat(${expectedColumns}, 1fr)`);
-    expect(grid.children).toHaveLength(widgetCount);
+    expect(screen.getByRole('heading', { level: 2, name: 'Q1' })).toBeInTheDocument();
+    expect(screen.getByText('First answer.')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('half typed')).toBeInTheDocument();
+    // a question asked now continues the same thread
+    await user.clear(screen.getByLabelText('Ask about climate emissions'));
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q2{Enter}');
+    expect(stream.submit).toHaveBeenLastCalledWith('Q2', 't1');
+  });
+
+  it('captures an answer that lands while the user is on another page', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const app = () => (
+      <MemoryRouter initialEntries={['/ask']}>
+        <AskThreadProvider>
+          <Link to="/ask">ask</Link>
+          <Link to="/elsewhere">elsewhere</Link>
+          <Routes>
+            <Route path="/ask" element={<AgentPage />} />
+            <Route path="/elsewhere" element={<p>another page</p>} />
+          </Routes>
+        </AskThreadProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(app());
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Slow one{Enter}');
+    stream.loading = true;
+    rerender(app());
+    await user.click(screen.getByRole('link', { name: 'elsewhere' }));
+    stream.loading = false;
+    stream.result = resultOf({ widgets: [METHOD_WIDGET], response_text: 'Landed while away.' });
+    rerender(app());
+    await user.click(screen.getByRole('link', { name: 'ask' }));
+    expect(screen.getByRole('heading', { level: 2, name: 'Slow one' })).toBeInTheDocument();
+    expect(screen.getByText('Landed while away.')).toBeInTheDocument();
+  });
+
+  it('restores the scroll position on return, after the layout resets it to the top', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    let y = 0;
+    Object.defineProperty(window, 'scrollY', { configurable: true, get: () => y });
+    // The same route-change scroll reset the real layout applies (useRouteAnnouncements), so the test fails if the restore does not outlast it.
+    function Shell() {
+      const ref = useRef<HTMLElement>(null);
+      useRouteAnnouncements(ref);
+      return (
+        <main ref={ref} tabIndex={-1}>
+          <Link to="/ask">ask</Link>
+          <Link to="/elsewhere">elsewhere</Link>
+          <Routes>
+            <Route path="/ask" element={<AgentPage />} />
+            <Route path="/elsewhere" element={<p>another page</p>} />
+          </Routes>
+        </main>
+      );
+    }
+    const app = () => (
+      <MemoryRouter initialEntries={['/ask']}>
+        <AskThreadProvider>
+          <Shell />
+        </AskThreadProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(app());
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
+    stream.result = resultOf({ widgets: [METHOD_WIDGET], response_text: 'First answer.' });
+    rerender(app());
+
+    y = 480;
+    window.dispatchEvent(new Event('scroll'));
+    await user.click(screen.getByRole('link', { name: 'elsewhere' }));
+    y = 0;
+    scrollTo.mockClear();
+    await user.click(screen.getByRole('link', { name: 'ask' }));
+    await waitFor(() => expect(scrollTo).toHaveBeenLastCalledWith(0, 480));
+    vi.unstubAllGlobals();
+    mockReducedMotion(false);
+  });
+
+  it('does not scroll back over an answer that lands before the queued restore frame', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 1;
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      frames.set(nextFrame, cb);
+      return nextFrame++;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+    let y = 0;
+    Object.defineProperty(window, 'scrollY', { configurable: true, get: () => y });
+    const app = () => (
+      <MemoryRouter initialEntries={['/ask']}>
+        <AskThreadProvider>
+          <Link to="/ask">ask</Link>
+          <Link to="/elsewhere">elsewhere</Link>
+          <Routes>
+            <Route path="/ask" element={<AgentPage />} />
+            <Route path="/elsewhere" element={<p>another page</p>} />
+          </Routes>
+        </AskThreadProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(app());
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
+    stream.result = resultOf({ widgets: [METHOD_WIDGET], response_text: 'First answer.' });
+    rerender(app());
+    y = 480;
+    window.dispatchEvent(new Event('scroll'));
+    await user.click(screen.getByRole('link', { name: 'elsewhere' }));
+    await user.click(screen.getByRole('link', { name: 'ask' }));
+    expect(frames.size).toBeGreaterThan(0); // the restore is queued
+
+    // a second answer lands before the frame runs
+    stream.result = resultOf({ thread_id: 't1', widgets: [METHOD_WIDGET], response_text: 'Late answer.' });
+    rerender(app());
+    expect(screen.getByText('Late answer.')).toBeInTheDocument();
+    scrollTo.mockClear();
+    for (const cb of [...frames.values()]) cb(0);
+    expect(scrollTo).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+    mockReducedMotion(false);
   });
 });
