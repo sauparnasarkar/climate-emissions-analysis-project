@@ -266,3 +266,10 @@ def test_relationship_kpis_state_cumulative_emissions_in_gt_not_the_raw_mt_pair(
 def test_relationship_kpis_degrade_without_a_fit():
     no_fit = {"summary": {**RELATIONSHIP["summary"], "fit": None}}
     assert [k.label for k in build_kpis([_rec("get_emissions_temperature_relationship", no_fit)])] == ["Cumulative emissions", "Warming"]
+
+
+def test_warming_card_always_says_1850_1900_whatever_the_emissions_window():
+    # The all-gas relationship starts its cumulative emissions in 1970, but the temperature is still the anomaly vs 1850-1900.
+    all_gas = {"summary": {**RELATIONSHIP["summary"], "source": "primap_ghg", "baseline": "1970", "window": [1970, 2024]}}
+    warming = next(k for k in build_kpis([_rec("get_emissions_temperature_relationship", all_gas)]) if k.label == "Warming")
+    assert warming.sub == "vs 1850\u20131900"

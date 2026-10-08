@@ -106,8 +106,8 @@ def _relationship_kpis(rec: ToolCallRecord) -> list[Kpi]:
         out.append(Kpi(label="Cumulative emissions", value=cum["last"], unit=str(cum["unit"]).replace("Gt ", "Gt"), decimals=0, year=cum["last_year"], sub=since))
     last = s.get("last_pair") or {}
     if last.get("temperature") is not None:
-        baseline = PREINDUSTRIAL if s.get("baseline") == "preindustrial" else str(s.get("baseline"))
-        out.append(Kpi(label="Warming", value=last["temperature"], unit="\u00b0C", decimals=2, year=last.get("year"), sub=f"vs {baseline}"))
+        # The pair's temperature is ALWAYS the anomaly vs 1850-1900 (the API's `y`); `baseline` only chooses where the cumulative emissions start.
+        out.append(Kpi(label="Warming", value=last["temperature"], unit="\u00b0C", decimals=2, year=last.get("year"), sub=f"vs {PREINDUSTRIAL}"))
     fit = s.get("fit")
     if fit and fit.get("slope") is not None:
         ci = fit.get("ci95_hac")
