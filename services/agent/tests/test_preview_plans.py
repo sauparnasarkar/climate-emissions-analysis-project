@@ -39,3 +39,23 @@ def test_unknown_questions_fall_back_to_the_methodology_plan():
 def test_the_stand_in_lead_uses_only_the_answer_blocks_it_is_given():
     text = preview.compose_text({"kpis": [{"label": "CO₂ emissions", "value": 12289, "unit": "Mt", "decimals": 0, "year": 2024}], "widgets": []})
     assert "12,289 Mt" in text and "2024" in text and "Preview lead" in text
+
+
+def _page_starter_prompts() -> list[str]:
+    """The starter prompts the CURRENT Ask page serves, read from its source so a reworded or added prompt cannot fall out of step."""
+    import re
+
+    page = Path(__file__).resolve().parents[3] / "climate-dashboard-react" / "src" / "pages" / "AgentPage.tsx"
+    if not page.exists():
+        pytest.skip("climate-dashboard-react not present")
+    src = page.read_text()
+    block = src[src.index("const STARTER_PROMPTS") : src.index("];", src.index("const STARTER_PROMPTS"))]
+    found = re.findall(r"prompt:\s*(\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*')", block)
+    return [f[1:-1].replace("\\'", "'").replace('\\"', '"') for f in found]
+
+
+def test_every_prompt_the_current_page_serves_has_a_non_default_plan():
+    prompts = _page_starter_prompts()
+    assert len(prompts) >= 4  # the scrape worked
+    for p in prompts:
+        assert preview.plan_for(p) != preview.DEFAULT_PLAN, p

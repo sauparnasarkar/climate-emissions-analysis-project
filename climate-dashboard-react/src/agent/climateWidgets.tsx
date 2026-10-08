@@ -123,8 +123,17 @@ export function ScenarioTemperatureWidget({ widget }: WidgetProps): ReactElement
 
 // --- country shares -----------------------------------------------------------------------------------------------
 
+/** `/country-share` answers a year outside its coverage (or a country with no rows) with HTTP 200 and nothing to draw, plus a note: say so, naming the
+ * year and the coverage, instead of an empty chart -- the same wording the module's country view uses. */
+function NoShares({ result }: { result: CorrelationCountryShareResponse }) {
+  const [lo, hi] = result.coverage ?? [];
+  return <Unavailable>{`No country shares are available${result.year != null ? ` for ${result.year}` : ''}.${lo != null && hi != null ? ` Coverage is ${lo}–${hi}.` : ''}`}</Unavailable>;
+}
+
 export function CountryShareWidget({ widget }: WidgetProps): ReactElement {
   const result = asResult<CorrelationCountryShareResponse>(widget);
+  const nothing = result.mode === 'series' ? !(result.series ?? []).some((s) => s.points.length > 0) : (result.rows ?? []).length === 0;
+  if (nothing) return <NoShares result={result} />;
   if (result.mode === 'series') {
     const series: SyChartSeries[] = (result.series ?? []).map((s) => ({ name: s.name, x: s.points.map((p) => p.year), y: s.points.map((p) => p.share_pct), kind: 'line' as const }));
     return (

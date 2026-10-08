@@ -37,7 +37,7 @@ export function HeadlineRelationship({ signal, headline, hasAllGas = false, embe
       <style>{CHART_PANEL_STYLES + '@media (max-width: 1100px) { .module-relationship-grid { grid-template-columns: 1fr !important; } }'}</style>
       <Heading id={ids.headingId} className="__s9cmpx-headline5" style={{ margin: '0 0 12px' }}>Global relationship</Heading>
       <div className="module-relationship-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.55fr) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
-        <ChartCard title={`Temperature anomaly vs cumulative CO₂, ${start}–${end}`} headingLevel={3}>
+        <ChartCard title={`Temperature anomaly vs cumulative CO₂, ${start}–${end}`} headingLevel={embedded ? 4 : 3}>
           <PurposeLine>show how warming tracks the total CO₂ emitted so far, rather than any single year.</PurposeLine>
           <div className="climate-chart-panel">
             <ScatterLegend />

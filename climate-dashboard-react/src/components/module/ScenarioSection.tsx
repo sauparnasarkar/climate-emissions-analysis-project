@@ -49,7 +49,7 @@ export function ScenarioSection({ view, embedded }: { view: ScenarioView; embedd
         </span>
       </div>
       <div className="module-scenario-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) 290px', gap: 16, alignItems: 'start' }}>
-        <ChartCard title="1 · Annual emissions" headingLevel={3}>
+        <ChartCard title="1 · Annual emissions" headingLevel={embedded ? 4 : 3}>
           <PurposeLine>show how far apart the pathways are in emissions, from where the record leaves off.</PurposeLine>
           <SyChart
             height={300}
@@ -66,7 +66,7 @@ export function ScenarioSection({ view, embedded }: { view: ScenarioView; embedd
           </div>
         </ChartCard>
 
-        <ChartCard title="2 · Implied temperature" headingLevel={3}>
+        <ChartCard title="2 · Implied temperature" headingLevel={embedded ? 4 : 3}>
           <PurposeLine>show what those pathways would mean for the temperature anomaly: far apart in emissions, close in temperature.</PurposeLine>
           <SyChart
             height={300}

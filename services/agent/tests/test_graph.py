@@ -12,7 +12,7 @@ fit together.
 from __future__ import annotations
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langchain_core.tools import StructuredTool
+from langchain_core.tools import StructuredTool, ToolException
 from langgraph.checkpoint.memory import MemorySaver
 
 from agent.graph import MAX_TOOL_CALLS_PER_TURN, _capability_summary, _OpinionOutput, build_graph
@@ -878,3 +878,27 @@ async def test_the_flag_is_absent_when_the_lead_is_composed_across_tools():
     result = await graph.ainvoke({"current_query": "pathways and top emitters"}, config=THREAD_CONFIG)
     scenario = next(w for w in result["widgets"] if w.source_tool_call.startswith("get_scenario_temperature"))
     assert "lead_includes_reading_note" not in (scenario.summary or {})
+
+
+async def test_the_flag_survives_a_failed_first_scenario_call_followed_by_a_successful_retry():
+    # Copilot review of #276: picking the reading note from the FIRST scenario call missed it when that call failed and the retry
+    # succeeded -- scenario_lead used the retry (with its note) but the flag stayed absent, reintroducing the duplicate paragraph.
+    state = {"n": 0}
+
+    async def _flaky(**kwargs) -> dict:
+        state["n"] += 1
+        if state["n"] == 1:
+            raise ToolException("transient")  # surfaces as an error-status tool message, like a real MCP tool error
+        return _SCENARIO_RESULT
+
+    from langchain_core.tools import StructuredTool as _ST
+
+    tool = _ST.from_function(coroutine=_flaky, name="get_scenario_temperature", description="flaky", handle_tool_error=True)
+    calls1 = [_tool_call("get_scenario_temperature", {}, "s1")]
+    calls2 = [_tool_call("get_scenario_temperature", {"line": "both"}, "s2")]  # different args so the cache does not replay the failure
+    llm = ScriptedChatModel([{"classification": "data_query"}, AIMessage(content="", tool_calls=calls1), AIMessage(content="", tool_calls=calls2), AIMessage(content="done")])
+    graph = await build_graph(llm=llm, mcp_tools=[tool])
+    result = await graph.ainvoke({"current_query": "pathways?"}, config={"configurable": {"thread_id": "retry-flag"}})
+    assert _SCENARIO_RESULT["reading_note"] in result["response_text"]
+    scenario = next(w for w in result["widgets"] if w.source_tool_call.startswith("get_scenario_temperature"))
+    assert scenario.summary["lead_includes_reading_note"] is True

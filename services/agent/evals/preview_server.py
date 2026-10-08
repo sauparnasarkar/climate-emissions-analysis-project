@@ -41,6 +41,7 @@ PLANS: list[tuple[str, list[tuple[str, dict]]]] = [
     (r"latest.*temperature|temperature anomaly", [("get_temperature_anomaly", {})]),
     (r"today's top 10 emitters compare|compare with the projected", [("get_top_emitters", {}), ("get_forecast_summary", {"scope": "expanded"})]),
     (r"top 10 forecasted", [("get_forecast_summary", {"scope": "expanded"})]),
+    (r"emitters now and the forecasted", [("get_top_emitters", {}), ("get_forecast_summary", {"scope": "expanded"})]),
     (r"china.*top 10|top 10.*china", [("get_top_emitters", {}), ("get_country_profile", {"country": "China"}), ("get_historical_emissions", {"countries": ["China", "India", "United States", "Russia", "Japan", "Germany", "Iran", "Saudi Arabia", "Indonesia", "South Korea"]})]),
     (r"india", [("get_country_profile", {"country": "India"}), ("get_historical_emissions", {"countries": TOP5})]),
 ]

@@ -52,6 +52,13 @@ describe('the headline relationship', () => {
     expect(screen.queryByText(/0\.520/)).toBeNull();
   });
 
+  it('keeps a valid heading hierarchy when embedded: the chart title is one level below the section title', async () => {
+    mount(widget('get_emissions_temperature_relationship', HEADLINE_PAIR));
+    await screen.findByRole('heading', { level: 3, name: 'Global relationship' });
+    expect(screen.getByRole('heading', { level: 4, name: /Temperature anomaly vs cumulative CO₂/ })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 3, name: /Temperature anomaly vs cumulative CO₂/ })).toBeNull();
+  });
+
   it('gives two headline answers in one thread unique ids (no duplicate-id markup)', async () => {
     render(
       <MemoryRouter>
@@ -125,6 +132,13 @@ describe('scenario temperatures', () => {
     expect(document.getElementById('scenarios')).toBeNull();
   });
 
+  it('keeps a valid heading hierarchy when embedded: both chart titles sit below the section title', async () => {
+    mount(widget('get_scenario_temperature', SCENARIO_TEMPERATURE));
+    await screen.findByRole('heading', { level: 3, name: /Implied temperature by scenario/ });
+    expect(screen.getByRole('heading', { level: 4, name: /Annual emissions/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 4, name: /Implied temperature$/ })).toBeInTheDocument();
+  });
+
   it('keeps the module\'s own reading note when the lead is composed, and drops it when the lead already carries it', async () => {
     const note = SCENARIO_TEMPERATURE.reading_note as string;
     const first = mount(widget('get_scenario_temperature', SCENARIO_TEMPERATURE));
@@ -149,6 +163,19 @@ describe('country shares', () => {
     const r = shareResponse([['CHN', 'China', [[1990, 10, null], [2024, 15, null]]], ['USA', 'United States', [[1990, 25, null], [2024, 24, null]]]]);
     mount(widget('get_country_cumulative_share', r));
     expect(JSON.parse(screen.getByTestId('sychart').dataset.series!)).toEqual([['China', 'line', 2], ['United States', 'line', 2]]);
+  });
+
+  it('a ranking outside the data\'s coverage (200 with no rows) says so instead of drawing an empty chart', () => {
+    const r = { ...shareResponse([]), mode: 'ranking', year: 1500, coverage: [1750, 2024], rows: [] };
+    mount(widget('get_country_cumulative_share', r));
+    expect(screen.queryByTestId('sychart')).toBeNull();
+    expect(screen.getByText(/No country shares are available for 1500\. Coverage is 1750–2024\./)).toBeInTheDocument();
+  });
+
+  it('a series for countries with no points is unavailable too, not an empty chart', () => {
+    mount(widget('get_country_cumulative_share', shareResponse([])));
+    expect(screen.queryByTestId('sychart')).toBeNull();
+    expect(screen.getByText(/No country shares are available/)).toBeInTheDocument();
   });
 
   it('a ranking is one bar series', () => {
