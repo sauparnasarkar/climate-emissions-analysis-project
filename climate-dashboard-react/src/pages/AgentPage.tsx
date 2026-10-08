@@ -51,16 +51,17 @@ export function AgentPage() {
   // Coming back to a thread: put the page where it was left (and leave it there rather than scrolling to the newest answer, below). The position
   // is tracked while the page is open, not read at unmount (by then the page may already have shrunk and clamped scrollY). The restore waits a frame
   // because the layout's useRouteAnnouncements runs a passive effect AFTER this page's own and scrolls to the top on every route change.
+  const restoreFrameRef = useRef(0);
   useEffect(() => {
     const onScroll = () => {
       scrollYRef.current = window.scrollY;
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     const saved = scrollYRef.current;
-    const frame = saved > 0 ? requestAnimationFrame(() => window.scrollTo(0, saved)) : 0;
+    if (saved > 0) restoreFrameRef.current = requestAnimationFrame(() => window.scrollTo(0, saved));
     return () => {
       window.removeEventListener('scroll', onScroll);
-      if (frame) cancelAnimationFrame(frame);
+      cancelAnimationFrame(restoreFrameRef.current);
     };
   }, [scrollYRef]);
 
@@ -71,6 +72,8 @@ export function AgentPage() {
   useEffect(() => {
     if (answerCount === seenCountRef.current) return;
     seenCountRef.current = answerCount;
+    // A new answer landed before the queued restore fired: the restore would scroll away from it.
+    cancelAnimationFrame(restoreFrameRef.current);
     if (answerCount > 0) newestRef.current?.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
   }, [answerCount, reduceMotion]);
 

@@ -356,4 +356,52 @@ describe('AgentPage', () => {
     vi.unstubAllGlobals();
     mockReducedMotion(false);
   });
+
+  it('does not scroll back over an answer that lands before the queued restore frame', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    const frames = new Map<number, FrameRequestCallback>();
+    let nextFrame = 1;
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      frames.set(nextFrame, cb);
+      return nextFrame++;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+    let y = 0;
+    Object.defineProperty(window, 'scrollY', { configurable: true, get: () => y });
+    const app = () => (
+      <MemoryRouter initialEntries={['/ask']}>
+        <AskThreadProvider>
+          <Link to="/ask">ask</Link>
+          <Link to="/elsewhere">elsewhere</Link>
+          <Routes>
+            <Route path="/ask" element={<AgentPage />} />
+            <Route path="/elsewhere" element={<p>another page</p>} />
+          </Routes>
+        </AskThreadProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(app());
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
+    stream.result = resultOf({ widgets: [METHOD_WIDGET], response_text: 'First answer.' });
+    rerender(app());
+    y = 480;
+    window.dispatchEvent(new Event('scroll'));
+    await user.click(screen.getByRole('link', { name: 'elsewhere' }));
+    await user.click(screen.getByRole('link', { name: 'ask' }));
+    expect(frames.size).toBeGreaterThan(0); // the restore is queued
+
+    // a second answer lands before the frame runs
+    stream.result = resultOf({ thread_id: 't1', widgets: [METHOD_WIDGET], response_text: 'Late answer.' });
+    rerender(app());
+    expect(screen.getByText('Late answer.')).toBeInTheDocument();
+    scrollTo.mockClear();
+    for (const cb of [...frames.values()]) cb(0);
+    expect(scrollTo).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+    mockReducedMotion(false);
+  });
 });
