@@ -45,12 +45,12 @@ def _page_starter_prompts() -> list[str]:
     """The starter prompts the CURRENT Ask page serves, read from its source so a reworded or added prompt cannot fall out of step."""
     import re
 
-    page = Path(__file__).resolve().parents[3] / "climate-dashboard-react" / "src" / "pages" / "AgentPage.tsx"
+    page = Path(__file__).resolve().parents[3] / "climate-dashboard-react" / "src" / "agent" / "starterPrompts.ts"
     if not page.exists():
         pytest.skip("climate-dashboard-react not present")
     src = page.read_text()
-    block = src[src.index("const STARTER_PROMPTS") : src.index("];", src.index("const STARTER_PROMPTS"))]
-    found = re.findall(r"prompt:\s*(\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*')", block)
+    block = src[src.index("export const STARTER_COLUMNS") : src.index("export const STARTER_PROMPTS")]
+    found = re.findall(r"^\s+(\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'),\s*$", block, re.M)
     return [f[1:-1].replace("\\'", "'").replace('\\"', '"') for f in found]
 
 
