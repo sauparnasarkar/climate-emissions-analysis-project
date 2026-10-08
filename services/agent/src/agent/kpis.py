@@ -82,9 +82,10 @@ def _scenario_kpis(rec: ToolCallRecord) -> list[Kpi]:
 
 def _forecast_kpis(rec: ToolCallRecord) -> list[Kpi]:
     """The three largest 2040 forecasts -- only when the ranking really is by the 2040 forecast over the whole
-    set (ranked_by forecast_2040, or nothing was capped), otherwise the top three would be a guess."""
+    ~40-country (expanded) set: ranked_by forecast_2040, or nothing was capped. Over the featured ten the "#1" would
+    only be the largest of those ten, so no ranked cards are shown for it."""
     s = widget_summary(rec)
-    if not s or not (s["ranked_by"] == "forecast_2040" or not s.get("scope_note")):
+    if not s or s.get("scope") != "expanded" or not (s["ranked_by"] == "forecast_2040" or not s.get("scope_note")):
         return []
     top = sorted((t for t in s["top"] if t.get("forecast_2040") is not None), key=lambda t: t["forecast_2040"], reverse=True)
     out = []

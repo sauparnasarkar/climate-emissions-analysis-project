@@ -80,7 +80,7 @@ def _top_emitters_summary(r: dict) -> dict | None:
     return out
 
 
-def _forecast_summary(r: dict) -> dict | None:
+def _forecast_summary(r: dict, scope: str) -> dict | None:
     """The forecast snapshot's countries in the order the tool ranked them (`ranked_by`), each with the
     figures an answer quotes -- so "the top 10 forecasted emitters in 2040" is read from the data, not
     from a grid the model never sees."""
@@ -91,6 +91,9 @@ def _forecast_summary(r: dict) -> dict | None:
     ordered = sorted(rows, key=lambda row: row.get(ranked_by) if row.get(ranked_by) is not None else float("-inf"), reverse=True)
     out = {
         "ranked_by": ranked_by,
+        # 'featured' is the 10 curated countries and 'expanded' the ~40 major emitters: a ranking over the featured ten is a ranking of those ten,
+        # not of the world, so the summary says which set it covers.
+        "scope": scope,
         "unit": "Mt CO\u2082",
         "top": [
             {
@@ -124,5 +127,5 @@ def widget_summary(record: ToolCallRecord) -> dict | None:
     if record.tool_name == "get_top_emitters":
         return _top_emitters_summary(r)
     if record.tool_name == "get_forecast_summary":
-        return _forecast_summary(r)
+        return _forecast_summary(r, str(record.args.get("scope") or "featured"))
     return None

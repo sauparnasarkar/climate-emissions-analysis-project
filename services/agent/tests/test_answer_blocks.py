@@ -221,8 +221,8 @@ def _forecast_rows(n=12):
 
 def test_forecast_summary_ranks_by_the_column_the_tool_used_and_carries_the_figures():
     rows = _forecast_rows(10)
-    s = widget_summary(_rec("get_forecast_summary", {"rows": rows, "ranked_by": "forecast_2040"}))
-    assert s["ranked_by"] == "forecast_2040" and s["unit"].startswith("Mt")
+    s = widget_summary(_rec("get_forecast_summary", {"rows": rows, "ranked_by": "forecast_2040"}, {"scope": "expanded"}))
+    assert s["scope"] == "expanded" and s["ranked_by"] == "forecast_2040" and s["unit"].startswith("Mt")
     # C9 has the largest 2040 forecast although C0 has the largest 2020 actual: the summary follows ranked_by.
     assert [t["name"] for t in s["top"]][:3] == ["C9", "C8", "C7"]
     assert s["top"][0]["forecast_2040"] == 90.0 and s["top"][0]["rank"] == 1
@@ -230,15 +230,18 @@ def test_forecast_summary_ranks_by_the_column_the_tool_used_and_carries_the_figu
 
 
 def test_forecast_kpis_are_the_three_largest_2040_forecasts_and_only_when_the_ranking_is_trustworthy():
-    ranked = _rec("get_forecast_summary", {"rows": _forecast_rows(10), "ranked_by": "forecast_2040", "scope_note": "capped"})
+    ranked = _rec("get_forecast_summary", {"rows": _forecast_rows(10), "ranked_by": "forecast_2040", "scope_note": "capped"}, {"scope": "expanded"})
     kpis = build_kpis([ranked])
     assert [k.label for k in kpis] == ["#1 C9", "#2 C8", "#3 C7"]
     assert kpis[0].value == 90.0 and kpis[0].year == 2040 and kpis[0].sub == "+22.5% vs 2020"
     # Capped by the 2020 actuals: the top three by 2040 inside that set could be wrong globally -> no cards.
-    capped_wrong = _rec("get_forecast_summary", {"rows": _forecast_rows(10), "ranked_by": "actual_2020", "scope_note": "capped"})
+    capped_wrong = _rec("get_forecast_summary", {"rows": _forecast_rows(10), "ranked_by": "actual_2020", "scope_note": "capped"}, {"scope": "expanded"})
     assert build_kpis([capped_wrong]) == []
     # Nothing capped (no scope_note): the set is complete, so ranking it here is sound.
-    assert len(build_kpis([_rec("get_forecast_summary", {"rows": _forecast_rows(5), "ranked_by": "actual_2020"})])) == 3
+    assert len(build_kpis([_rec("get_forecast_summary", {"rows": _forecast_rows(5), "ranked_by": "actual_2020"}, {"scope": "expanded"})])) == 3
+    # The featured ten (the default scope, never capped): "#1" would be the best of those ten only -> no ranked cards, and the summary says so.
+    featured = _rec("get_forecast_summary", {"rows": _forecast_rows(10), "ranked_by": "forecast_2040"})
+    assert widget_summary(featured)["scope"] == "featured" and build_kpis([featured]) == []
 
 
 RELATIONSHIP = {
