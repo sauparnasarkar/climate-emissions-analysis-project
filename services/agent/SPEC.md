@@ -1196,3 +1196,38 @@ Amends §3, §4, §15.2, §15.5 and §15.6; implemented in steps 3.4b-3.5d. Wher
 - **Follow-up chips** are a new, separate field of up to three prompts per answer (the handoff moves the user from emissions toward climate outcomes); chosen by a fixed per-tool lookup, shown above the docked input.
 - **Not adopted:** "click sends the prompt".
 
+### 15.11 Answer-block schema (step 3.5a; written before implementation, 2026-10-08)
+
+Implements ENHANCEMENTS.md decision 106. Everything below is **deterministic Python from tool results** — no new LLM call, no number typed by hand. The SSE `result` event stays additive (an unchanged frontend ignores the new fields).
+
+**New fields**
+
+| Where | Field | Type | Meaning |
+|---|---|---|---|
+| `result` event / `AgentState` | `kpis` | `list[Kpi]` | The answer's KPI row (≤3). `Kpi = {label, value: float, unit, decimals: int, year: int \| null, sub: str \| null, series: str \| null}`. The frontend formats `value`; `year` is the data year the card is labelled with; `series` names a scenario (`BAU`/`Moderate`/`Aggressive`) so the card can take that series' colour. |
+| `result` event / `AgentState` | `follow_up_prompts` | `list[str]` | ≤3 prompt chips for the docked input (decision 106; **prompts, not links** — links stay `follow_up_links`). |
+| `WidgetSpec` | `source_line` | `str \| null` | The source/scope line under the chart ("Source: OWID, 1990–2024 · territorial CO₂ from fossil fuels and cement; land-use change excluded"). |
+| `WidgetSpec` | `badge` | `str \| null` | The scenario answer's warning chip text; the frontend decides placement. |
+| `WidgetSpec` | `summary` | `dict \| null` | The widget's key figures (below). Replaces reading `props["summary"]` ad hoc; the compose node quotes it. |
+
+**Lead (`response_text`).** For a scenario-temperature answer with no other data tool in the turn, the lead is deterministic: one sentence from the result's `summary` ("By 2040 the platform's three emissions pathways imply 1.58–1.68 °C above 1850–1900.") followed by the pipeline's own `reading_note` verbatim (decision 43) — so the handoff's lead is produced from current data, not typed. Every other lead is still composed by the LLM, but `COMPOSE_RESPONSE_SYSTEM_PROMPT` changes from "don't restate numbers" to "state the key figures from each widget's `summary` and the KPIs; do not describe the chart".
+
+**Widget `summary` (key figures)**
+- Area 2 tools: the tool's own `summary` (unchanged).
+- `get_country_profile`: `{country, year, co2_mt, per_capita_t, yoy_pct, first_year, multiple_of_first_year}`.
+- `get_historical_emissions`: `{gas, series: [{name, first_year, first_value, last_year, last_value, rank}]}` (rank by last value; ≤12 series).
+- `get_top_emitters`: `{year, top: [{rank, name, co2}], n_ranked, top_n_share_pct, total_mt}` — the last three need the `get_top_emitters` fields below.
+- Every other tool: none yet.
+
+**KPIs.** `get_country_profile` -> "CO₂ emissions · {year}" (Mt; `sub` = "Largest of {n_ranked} countries"/"#k of {n_ranked}" only when a `get_top_emitters` result in the same turn ranks the country), "Per capita · {year}" (t), "Change vs {year-1}" (%; `sub` "{x}× the {first_year} level"). `get_temperature_anomaly` / `get_co2_concentration` -> the latest reading, labelled with its year. `get_scenario_temperature` -> three cards (final-year implied level, `sub` = annual emissions that year, `series` set). No KPI for other tools.
+
+**`get_top_emitters` additions (mcp-server, additive).** `n_ranked` (countries with data that year), `total_mt` (sum over them), `top_n_share_pct`. Needed for "Largest of 218" and "the top 10 are 71% of the total".
+
+**Source lines** — a fixed per-tool template filled from the result (never the mock): OWID emissions tools state "territorial CO₂ from fossil fuels and cement; land-use change excluded" (**this answers the designer's open question about land use** — OWID's `co2` column excludes it; the headline relationship is the one place land use is included, and its line says so); Area 2 lines name the source and the reference/window (NOAA GML spliced to Law Dome at the splice year; Berkeley Earth, preliminary release; PRIMAP-hist, CO₂e, excluding land use and international transport). Tools with no chart (methodology, metadata) have none.
+
+**Badge.** `get_scenario_temperature` -> "Illustrative · implied outcomes, not climate-model projections".
+
+**Follow-up prompts** — a fixed per-tool lookup of answerable prompts that move from emissions toward climate outcomes (e.g. after a country trend: that country's share of historical emissions, the relationship between cumulative emissions and warming, the 2040 forecasts), skipping any equal to the current query and any whose tool already ran this turn; ≤3, de-duplicated, stable order.
+
+**Out of scope for 3.5a:** the frontend; URL state on the dashboard pages; summaries for the forecast/scenario Stage 1 tools; the "How this is calculated" card (built by the frontend from the result's `fit`/`fit_context`, already in the payload).
+
