@@ -35,12 +35,15 @@ async def test_get_model_comparison_returns_columns_and_rows(api_client):
 class _FakeSummaryClient:
     """12 expanded-scope rows where the 2040 order differs from the 2020 order, so the cap column matters."""
 
+    def __init__(self, count=12):
+        self.count = count
+
     async def get(self, path, params=None):
         assert path == "/forecasts/summary"
         rows = [
             {"country": f"C{i}", "actual_2020": 100.0 - i, "forecast_2030": 0.0, "forecast_2035": 0.0,
              "forecast_2040": 10.0 * i, "pct_change_2020_2040": float(i)}
-            for i in range(12)
+            for i in range(self.count)
         ]
         return {"rows": rows}
 
@@ -57,6 +60,16 @@ async def test_get_forecast_summary_rank_by_changes_the_cap_column(monkeypatch):
     assert [r["country"] for r in by_2040["rows"]][:3] == ["C11", "C10", "C9"]
     assert "forecast_2040 descending" in by_2040["scope_note"]
     assert "C11" not in {r["country"] for r in by_2020["rows"]}
+
+
+async def test_get_forecast_summary_sorts_when_rows_fit_under_cap(monkeypatch):
+    from mcp_server.tools import forecasts
+
+    monkeypatch.setattr(forecasts, "get_client", lambda: _FakeSummaryClient(count=3))
+    body = await get_forecast_summary(scope="featured", rank_by="forecast_2040")
+
+    assert [r["country"] for r in body["rows"]] == ["C2", "C1", "C0"]
+    assert "scope_note" not in body
 
 
 async def test_get_forecast_summary_rejects_an_unknown_rank_column(api_client):

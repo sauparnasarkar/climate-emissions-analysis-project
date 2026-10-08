@@ -54,11 +54,15 @@ async def get_forecast_summary(scope: str = "featured", rank_by: str = "actual_2
         raise ValueError(f"rank_by must be one of {', '.join(FORECAST_RANK_COLUMNS)}, got '{rank_by}'")
     client = get_client()
     body = await client.get("/forecasts/summary", params={"scope": scope})
-    trimmed, note = trim(
+    rows = sorted(
         body["rows"],
+        key=lambda row: row[rank_by] if row.get(rank_by) is not None else float("-inf"),
+        reverse=True,
+    )
+    trimmed, note = trim(
+        rows,
         scope_label=SCOPE_LABELS[scope],
         sort_key_label=f"{rank_by} descending",
-        sort_key=lambda row: row[rank_by] if row.get(rank_by) is not None else float("-inf"),
     )
     body["rows"] = trimmed
     body["ranked_by"] = rank_by
