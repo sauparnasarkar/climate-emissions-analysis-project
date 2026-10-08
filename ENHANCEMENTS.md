@@ -3840,6 +3840,35 @@ production gate is used; `npm run build` is the deploy point of no return, so bu
 Tests: Vitest per page/component with `SyChart` stubbed (existing pattern); carousel timer logic with
 fake timers (pause on interaction, hover/focus pause, reduced motion, one-cycle stop, hidden-tab pause).
 
+### Section 3 (MCP & agent) — design (docs-first, 2026-10-08)
+
+Source: requirements doc §§3.1–3.6 and §1.4's "agent-ready" clause. Sections 1 and 2 are built; this
+section's design lives in `services/mcp-server/SPEC.md` §5.1 and `services/agent/SPEC.md` §15, with
+tracking in each sub-project's `ENHANCEMENTS.md`. The Section 3 stubs written 2026-10-01 were stale
+(EDGAR, fossil-only headline, Berkeley vintage caveat) and were replaced.
+
+| # | Decision |
+|---|---|
+| 89 | **Seven new MCP tools, one per bounded endpoint, plus an extended `get_methodology_notes`:** `get_co2_concentration`, `get_temperature_anomaly`, `get_correlation_metadata`, `get_emissions_temperature_relationship`, `get_ghg_composition`, `get_country_cumulative_share`, `get_scenario_temperature`. No aggregation tool (decision 3 holds); no change to `api/`. `include_lag_analysis` is not exposed (lag analysis out of scope, requirements §1.3.2). |
+| 90 | **"Annotated summaries" = a deterministic `summary` object computed in Python** (first/last, change, slope/R²/CI, latest readings), so the model quotes numbers instead of deriving them. Same precedent as `get_emissions_change_summary`. Tool results stay free of UI directives (mcp-server `SPEC.md` §3.5); "chart-ready structures" means the structured series the widget consumes. |
+| 91 | **Model sees a capped copy; the widget gets the full series (owner, 2026-10-08).** MCP tools return full data; the agent's `tools_node` stores the full result in `ToolCallRecord.result` and hands the model `summary` + ≤ ~25 evenly spaced points (first/last always kept) with `points_total`/`points_shown`. The cap is agent-side (`payload_cap.py`), keeping the MCP server consumer-agnostic and stateless. Envelope caveats are never capped away. |
+| 92 | **Intent routing needs no new node.** Emissions / climate-context / combined is the `guardrail_router` classification plus the model's tool choice. The real risk is `general_climate` swallowing data-shaped relationship questions (it answers without tools), so the classifier prompt gains examples; "who is responsible for warming?" is a `data_query` answered with cumulative share, not an `opinion` decline. |
+| 93 | **Caveats are structural, not prompt-only.** When any Area 2 tool ran, `finalize` appends the envelope's `caveats`/`note` to `scope_notes` (the existing `InlineAlert` channel). The Berkeley preliminary-release note always accompanies the headline slope. Deterministic, so it cannot be omitted or drift. |
+| 94 | **Terminology guardrails.** OWID cumulative CO₂ (1850+) is the "headline long-run relationship"; the PRIMAP-hist 1970+ pairing is the "recent all-gas relationship" and is never called TCRE; no country-level temperature attribution (cumulative share only); scenario temperatures are "implied" / "illustrative, partial-coverage translation". Verified by a golden-prompt eval set (real LLM, gated and skipped without a key — the repo's one-real-network-test rule). |
+| 95 | **Widget mapping reuses existing `SyChart` capabilities** (second axis, stacked area, scatter-with-fit as already built for the Correlation module): relationship → line (`y2`) / cumulative scatter; composition → stacked area; share → line or bar; scenario temperature → line; latest readings → `KpiStat` card. No new design-system work expected. |
+| 96 | **`follow_up_links` (owner approved 2026-10-08).** A new per-turn state/SSE field `[{label, route}]` of real in-app navigation links (Overview, Climate Correlation, Forecasts, Scenario Comparison), chosen by a **fixed tool→route lookup** (no model-invented routes), at most three, rendered under the latest result only. Distinct from `suggested_prompts`, which prefill the prompt bar and exist only on `opinion` turns. Additive: absent for existing turns. |
+| 97 | **Starter grid becomes 2×3 (owner).** Two "Climate context" tiles: *"Show the relationship between cumulative emissions and warming."* and *"How do temperature outcomes vary based on different emissions pathways?"* Same prefill-and-focus behavior as the existing four. |
+| 98 | **Sonnet is the validated provider for Area 2 (owner).** The Ollama/Qwen option stays selectable in the admin panel and is kept for testing, documented as not validated for climate-context questions; the guardrail eval runs on Sonnet only. Structural guardrails (decision 93, the follow-up lookup) are provider-independent. |
+| 99 | **`MAX_TOOL_CALLS_PER_TURN` stays 6.** A combined question needs ~3–4 calls; revisit only on observed truncation. |
+| 100 | **No new auth or exposed surface.** The tools call the already-public read-only `/api/correlation/*` over the existing localhost B3 leg; nothing new is exposed through the tunnel (consistent with the "API has no auth yet" constraint and decision 13). |
+| 101 | **Sequencing (one branch + PR each, docs direct to main):** 3.1 mcp-server plumbing + indicator tools; 3.2 mcp-server relationship/composition/share/scenario tools + methodology; 3.3 agent routing, guardrails, caveat channel, payload cap, eval; 3.4 agent widgets, progress labels, `follow_up_links` backend; 3.5 frontend (Ask-page renderers, link row, 2×3 grid) with visual preview before merge; 3.6 deploy (mcp-server → agent → frontend rebuild) and live walkthrough of the six starter prompts. |
+
+Open items for this section: (a) whether `get_co2_concentration`'s monthly mode earns its keep or the
+annual series suffices (default annual; decide after Step 1); (b) Overview anchors for the link row
+are only used once confirmed in the built page; (c) the OWID-vs-PRIMAP "5–8%" reconciliation figure
+was estimated against EDGAR and is still to be re-measured (requirements §1.1.2) — the agent must not
+quote it as a measured PRIMAP-hist figure until it is.
+
 ### Progress
 
 - Docs-first stage written (this entry, `SPEC.md` §5.26, sub-project pointers).
@@ -3855,6 +3884,8 @@ fake timers (pause on interaction, hover/focus pause, reduced motion, one-cycle 
 - **numpy upgrade — PR #208 merged** (verified before/after; see open item 13); the Mac Mini's venv is upgraded as step 0 of the deferred deploy. **Berkeley inquiry record — PR #210 merged** (open item 11).
 
 - **Berkeley Earth source migration — docs written and implemented 2026-10-06 (decision 83)**; PR open on `feat/berkeley-earth-hr-source`; after merge approval: Mac Mini deploy (pipeline run + API restart; no frontend rebuild needed unless copy changes).
+
+- **Section 3 (MCP & agent) — design written 2026-10-08 (decisions 89–101)**; implementation not started. Next: Step 3.1 (`services/mcp-server` plumbing + indicator tools).
 
 Revised again once each phase ships.
 

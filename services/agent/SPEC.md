@@ -561,6 +561,7 @@ Tool → intent mapping (fixed lookup, no LLM judgment except the one case noted
 | `get_emissions_change_summary` | `grid` — **title built from the tool result, not args**, see below |
 | `get_country_profile` | `card`, or `card` + `chart` — **the one non-deterministic case**, see §8 `ui_selection` |
 | `get_methodology_notes` | `text` |
+| Area 2 tools (`get_emissions_temperature_relationship`, `get_ghg_composition`, `get_country_cumulative_share`, `get_scenario_temperature`, `get_co2_concentration`, `get_temperature_anomaly`, `get_correlation_metadata`) | planned — see §15.2 |
 | `list_countries` | not user-facing via `ui_selection` — used internally by `guardrail_router`/`agent` for resolution context, never produces its own widget |
 
 Widget `title`/`as_of` captions are generated deterministically from the triggering tool call's
@@ -654,6 +655,8 @@ share this section's exact prefill-and-focus behavior via `AgentPage.tsx`'s `pre
 and are additionally gated by `showSuggestedPrompts` (§6) so only the latest, not-yet-superseded
 turn's tiles stay actionable.
 
+*Planned extension (root Release 21, Section 3): two "Climate context" tiles bring this to a 2×3 grid — see §15.6.*
+
 ## 5. Progress indicator
 
 `Progress` (labeled, not `DotTyping`) shows during the `agent`↔`tools` loop. Labels are
@@ -676,6 +679,8 @@ channel as the final response (SSE), independent of the `messages`/state channel
 | `opinion` | Declines the subjective ask specifically, offers the nearest data-backed reframe | `InlineAlert` + a `StarterPromptTile` row of `suggested_prompts` (§4) |
 | `general_climate` | Factual climate questions answerable from the model's own knowledge, constrained to factual/data-forward framing, no tool calls | `text`-intent `Card`, no chart |
 | `data_query` | Continues into the `agent`↔`tools` pipeline | `chart`/`grid`/`card` — **never `text`-only**; this is "responses should be completely data driven" made structural, not aspirational |
+
+*Planned extension (Area 2): additional guardrails for climate-context answers and a deterministic caveat channel — see §15.3.*
 
 Every response also carries `scope_notes` (trimming/resolution annotations from the MCP layer,
 plus the call-count-guard notice from §10 when it fires) rendered as an `InlineAlert` above the
@@ -1012,3 +1017,128 @@ changes which graph *new* requests see.
 `NAV_ITEMS`/`persistentAction` — same precedent as `/ask`, §1) renders one `design-system`-built
 section, `LlmProviderSection`, today; `src/admin/adminClient.ts` calls the endpoints above
 through the existing `agentProxyEntry` Vite proxy — no proxy config change needed.
+
+## 15. Area 2 climate-context capability (root Release 21, Section 3 — planned)
+
+Design written 2026-10-08, docs-first; decisions 89–101 in root `ENHANCEMENTS.md`. Depends on
+`services/mcp-server`'s Area 2 tools (its `SPEC.md` §5.1). Extends §3, §4, §6, §8 and §9 below
+rather than replacing them. No new graph node.
+
+### 15.1 Intent routing: emissions / climate-context / combined
+
+There is no separate router node. Routing is (a) the `guardrail_router` classification and (b) the
+model's tool choice, steered by `AGENT_SYSTEM_PROMPT`:
+
+- **`guardrail_router` change.** Its prompt gains examples so data-shaped relationship questions
+  ("how are emissions related to temperature?", "show CO₂ concentration vs. emissions") classify as
+  `data_query`, **not** `general_climate` (which answers with no tools and would otherwise swallow
+  them). Conceptual questions ("what is radiative forcing?") stay `general_climate`.
+- **"Who is responsible for warming?"** is not an `opinion` decline. It is a `data_query` that the
+  agent answers with `get_country_cumulative_share` and frames as cumulative share of emissions (§15.3
+  rule 3), never as a country's temperature contribution.
+- **Combined questions** ("which countries emit most while warming increases?") use emissions tools
+  and Area 2 tools in one turn; the agent states in its narration which part is country-level and
+  which is a global aggregate.
+- **Call-count guard (§10).** `MAX_TOOL_CALLS_PER_TURN` stays 6. A combined question realistically
+  needs 3–4. Revisit only if live testing shows truncated answers.
+
+### 15.2 Tool → widget mapping (extends §3's table)
+
+| Tool | Intent | Chart kind / component |
+|---|---|---|
+| `get_emissions_temperature_relationship` | `chart` | `line` with a second axis (`y2`) for the time-series form; the headline cumulative form is a scatter of cumulative emissions vs. temperature with the fit line (same construction as the Correlation module's headline chart). Fit statistics (slope, CI, R², window) in the widget caption. |
+| `get_ghg_composition` | `chart` | stacked `area` (the design system's `stackedAreaMode`); a single-year request renders as a `grid`. |
+| `get_country_cumulative_share` | `chart` (`line`, series) or `bar` (ranking) | |
+| `get_scenario_temperature` | `chart` | `line`, BAU/Moderate/Aggressive, with the fossil-only second line. |
+| `get_co2_concentration`, `get_temperature_anomaly` | `chart` (`line`) when a range is asked for; `card` (`KpiStat`) for a "latest reading" ask | Same non-deterministic-judgment seam as `get_country_profile` (§8): the keyword heuristic in `ui_selection.py`, no new LLM call. |
+| `get_correlation_metadata` | `grid` | |
+| `get_methodology_notes` | `text` | unchanged |
+
+Titles are deterministic from args/result, noun-phrased (§3), e.g. "Emissions vs. temperature
+(headline, 1850–2024)". The recent all-gas widget is titled "Recent all-gas relationship" — never
+"TCRE".
+
+### 15.3 Guardrails
+
+1. **Structural caveat channel.** When any Area 2 tool ran in the turn, `finalize` appends that
+   result's envelope `caveats` and `note` to `scope_notes` (rendered as the existing `InlineAlert`
+   above the widgets). Deterministic Python, not model-written, so they cannot be omitted or drift.
+   The Berkeley preliminary-release note is always included when the headline slope is shown.
+2. **No causal overreach.** System-prompt rules: describe correlation as long-run co-movement; say
+   that outcomes depend on multiple physical processes; the regression is a simplified, data-driven
+   analog to TCRE and not a climate model; never present it as a substitute for an Earth-system or
+   integrated assessment model.
+3. **No country attribution.** Never attribute global temperature change to one country from its
+   emissions series. Country questions are answered with cumulative share only, with the tool's own
+   no-attribution caveat.
+4. **Terminology.** The OWID cumulative-CO₂ relationship (1850+) is the "headline long-run
+   relationship"; the PRIMAP-hist 1970+ pairing is the "recent all-gas relationship"; the latter is
+   never called TCRE.
+5. **Say what the answer is based on.** Narration states global aggregate vs. country-level, and
+   historical observation vs. scenario-derived estimate; scenario temperatures are "implied" and
+   "illustrative, partial-coverage translation", not projections.
+6. **Verification.** A golden-prompt eval set (`tests/golden_area2.py`, run with the real LLM, gated
+   and skipped without `ANTHROPIC_API_KEY`, same single-real-network-test rule as `CLAUDE.md`'s
+   injectable-LLM note) asserts: headline answers carry the preliminary note; no response calls the
+   all-gas pairing TCRE; no response attributes warming to a single country; unsupported
+   source/baseline asks surface the tool error rather than a substituted baseline. Graph-routing
+   tests use a stub LLM as before.
+
+### 15.4 Model-facing payload cap
+
+The widget needs the full series; the model does not. In `tools_node`, each Area 2 result is stored
+**in full** in `ToolCallRecord.result` (the widget's source and the thread cache's value, §9) while
+the `ToolMessage` content handed back to the model is a **capped copy**: `summary` plus at most ~25
+points (evenly spaced, always including the first and last year) and the counts
+`points_total`/`points_shown` so the model knows it is seeing a sample. The cap is a per-tool
+function in a new `payload_cap.py`, keyed on tool name, with a unit test per tool. The envelope
+(`note`/`caveats`) is never capped away. This resolves the open question of whether the cap belongs
+in the MCP server (`SPEC.md` there §5.1 convention 3: it does not).
+
+### 15.5 `follow_up_links`
+
+Requirement §3.5 asks for follow-ups "linking into Overview, Forecasts, or Scenario Comparison".
+`suggested_prompts` cannot serve (they prefill the prompt bar and only exist on `opinion` turns), so a
+new field carries real navigation links:
+
+- **State.** `AgentState.follow_up_links: list[FollowUpLink] = []`, reset per turn like `widgets`.
+  `FollowUpLink = {label: str, route: str}`.
+- **Selection is a fixed lookup, not model judgment** (no invented routes), keyed on the tools that
+  ran in the turn, in `follow_ups.py`:
+
+  | Tool ran | Links |
+  |---|---|
+  | `get_co2_concentration`, `get_temperature_anomaly` | Overview (climate signal) → `/overview`; Climate Correlation → `/climate-correlation` |
+  | `get_emissions_temperature_relationship`, `get_ghg_composition` | Climate Correlation → `/climate-correlation`; Overview → `/overview` |
+  | `get_country_cumulative_share` | Climate Correlation (country view) → `/climate-correlation`; Overview (top emitters) → `/overview` |
+  | `get_scenario_temperature` | Scenario Comparison → `/scenarios`; Forecasts → `/forecasts` |
+  | any emissions-only tool (existing) | none — behavior unchanged |
+
+  At most three links per turn, de-duplicated by route, order stable. Anchors (e.g. an Overview
+  section id) are only used once confirmed to exist in the built page.
+- **Transport.** Added to the final SSE payload next to `suggested_prompts`; `finalize` writes it,
+  `stream_query` forwards it. Absent/empty for existing turns, so the frontend change is additive.
+- **Frontend.** `AgentPage` renders them as a row of link buttons under the latest result only (same
+  "latest, not-yet-superseded turn" gating as `showSuggestedPrompts`, correction #27), using
+  router navigation (`useNavigate`) — in-app, no full reload, and respecting the deploy base path.
+
+### 15.6 Starter prompts (extends §4)
+
+The grid goes from 2×2 to **2×3** (`starterPromptColumnCount` stays 2; six tiles). Two new tiles,
+category "Climate context", exact text from the owner:
+
+| Category | Prompt |
+|---|---|
+| Climate context | *Show the relationship between cumulative emissions and warming.* |
+| Climate context | *How do temperature outcomes vary based on different emissions pathways?* |
+
+Both resolve to the headline relationship and `get_scenario_temperature` respectively. Behavior is
+identical to the existing four (prefill and focus; nothing submits on click).
+
+### 15.7 Provider validation
+
+Area 2 behavior is validated on **Claude Sonnet** (`claude-sonnet-5`). `LLM_PROVIDER=ollama`
+(Qwen) remains selectable in the admin panel (§14) and is kept for testing, but is **not validated
+for climate-context questions** — the guardrail eval (§15.3 rule 6) is run against Sonnet only, and
+`OLLAMA_EVALUATION.md` gains a note to that effect when Area 2 ships. The structural guardrails
+(rules 1 and the follow-up lookup) are provider-independent by construction.

@@ -169,6 +169,45 @@ since it already does what §3.2 wants.
 | `get_methodology_notes` | Not endpoint-backed. Static text (ETS(A,Ad,N) explanation, the five-model comparison set, OWID dataset provenance/caveats, expanded-scope selection criteria per root `SPEC.md` §5.6) sourced from the shared canonical text in §3.3, so the agent quotes documented methodology instead of improvising it. |
 | `get_emissions_change_summary` | `(scope, top_n)` — thin wrap of `GET /historical/change-summary` (added to answer "how many countries increased/decreased since 1990" questions without forcing a full per-country `get_historical_emissions` series dump the caller has to reduce itself). Default `scope="sovereign"` (the one tool in this catalog that defaults to sovereign rather than expanded — the question genuinely means the real global count). Returns real `increased_count`/`decreased_count`/`unchanged_count` plus a bounded `top_n`-capped (default 10, max 25) `top_increases`/`top_decreases` list ranked by absolute Mt change, not percent (avoids micro-emitter noise like "+5000% off 0.01 Mt" dominating "biggest movers" at 209-country scope). Reported live: without this tool, both Claude Desktop and the LangGraph agent (`services/agent`) answering the same question either had to eyeball a raw per-country payload or, for the agent specifically, couldn't state a count at all -- see `services/agent/SPEC.md` "Corrections applied" #33. |
 
+### 5.1 Area 2 climate-context tools (root Release 21, Section 3 — planned)
+
+Hand-curated wrappers over the governed `GET /api/correlation/*` domain (root `SPEC.md` §5.26,
+`ENHANCEMENTS.md` decisions 89–101). Over HTTP like every other tool — never ad hoc external
+retrieval, and no change to `api/`. All follow §3 (resolution guard, trimming, methodology grounding,
+no UI directives) plus the Area 2 conventions below.
+
+| Tool | Wraps | Args | Notes |
+|---|---|---|---|
+| `get_co2_concentration` | `GET /correlation/concentration` | `start_year?`, `end_year?`, `resolution` (annual\|monthly, default annual) | NOAA GML Mauna Loa spliced to Law Dome before 1959. Always surfaces the splice year, the measured overlap gap and the latest monthly reading. The monthly series (~800 rows) is only returned on explicit request and is range-capped. |
+| `get_temperature_anomaly` | `GET /correlation/temperature` | `start_year?`, `end_year?`, `reference` (1850-1900\|1951-1980, default 1850-1900) | Berkeley Earth high-resolution annual file. Carries the **preliminary-release note** and the offset derivation. |
+| `get_emissions_temperature_relationship` | `GET /correlation/emissions-temperature` | `source` (owid_co2\|primap_total_ghg), `baseline`, `start_year?`, `end_year?`, `include_regression` (default true) | The headline long-run relationship (`owid_co2`, pre-industrial) and the "recent all-gas relationship" (`primap_total_ghg`, 1970+). The API's 422 for an unsupported source/baseline pair is returned as a tool error naming the valid combinations — never a silent substitution. `include_lag_analysis` is not exposed (lag analysis is out of scope, requirements §1.3.2). |
+| `get_ghg_composition` | `GET /correlation/ghg-composition` | `start_year?`, `end_year?`, `year?`, `countries?` | PRIMAP-hist CO₂/CH₄/N₂O/F-gases in CO₂e (AR5 GWP-100), excluding LULUCF and international transport. Excluded incomplete trailing years are reported, not hidden. |
+| `get_country_cumulative_share` | `GET /correlation/country-share` | `countries?` (series) \| `year?`/`limit?` (ranking), `gas_scope` (co2\|total_ghg), `start_year?`, `end_year?` | Through the §3.1 resolution guard. Result always carries the explicit no-attribution / no-country-regression caveat and the denominator definition (national sum, bunkers excluded — differs by design from the headline's World series). |
+| `get_scenario_temperature` | `GET /correlation/scenario-temperature` | `scenarios?` | "Illustrative, partial-coverage translation": rest-of-world held at its last-observed share, land-use CO₂ flat, OWID CO₂ slope; includes the fossil-only second line. |
+| `get_correlation_metadata` | `GET /correlation/meta` | — | Sources, coverage years (read from data), vintages, the Berkeley 1850–1900 offset and derivation, the "two global totals" statement, stale-source warnings. |
+| `get_methodology_notes` (extended) | static + `fit`/`fit_context` | `topic?` | Gains Area 2 topics: headline derivation trail (HAC CI, land-use sensitivity, bootstrap stability), source reconciliation (OWID vs PRIMAP-hist, expected 5–8% directional difference — to be re-measured), licences/attribution. Text lives in `methodology.py` (§3.3); numbers are read from the API response, never retyped. |
+
+**Area 2 conventions (apply to every tool above):**
+
+1. **Envelope pass-through.** Every result keeps the API envelope's `note`, `caveats`, `attribution`
+   and `source_vintage` verbatim. The agent depends on these for its deterministic caveat channel
+   (agent `SPEC.md` §15.3).
+2. **Deterministic `summary`.** Each tool adds a `summary` object computed in Python from the data
+   (first/last value and year, absolute and percent change, slope/R²/CI where a fit is present,
+   latest-year readings). The model quotes `summary`; it should never need to derive a figure from a
+   raw series. Same precedent as `get_emissions_change_summary` (agent `SPEC.md` "Corrections applied"
+   #33).
+3. **Full data stays in the result.** Tools return the full `points`/`years`/`rows` — the widget needs
+   the full series. Capping what the *model* sees is the agent's job (agent `SPEC.md` §15.4), so this
+   server stays stateless and consumer-agnostic. The one exception is the monthly concentration
+   series, which is range-capped here because it has no chart consumer in the agent.
+4. **Interpretive-context wording lives in tool descriptions.** Each tool's MCP description states
+   what it is *not* (not a climate model; correlation, not proof of cause; no country attribution),
+   so any MCP client — Claude Desktop included, not just the agent — gets the framing.
+5. **Naming.** The headline long-run relationship may be called TCRE-style; the PRIMAP-hist 1970+
+   pairing is the "recent all-gas relationship" and is never called TCRE in a description, summary
+   or note.
+
 ### Explicitly out of scope for V1
 
 | Endpoint(s) | Why excluded |

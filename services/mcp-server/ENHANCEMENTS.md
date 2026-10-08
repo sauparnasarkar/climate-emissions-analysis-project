@@ -379,18 +379,27 @@ file's "no changes folded in unprompted" convention — `services/agent`'s own d
 
 ---
 
-## Planned — Area 2 climate-context tools (root Release 21, Section 3; docs-first stub, 2026-10-01)
+## Planned — Area 2 climate-context tools (root Release 21, Section 3; docs-first, rewritten 2026-10-08)
 
-**Status: Planned — not started; sequenced as the last phase of root `ENHANCEMENTS.md` Release 21**
-(after the `api/` `correlation` domain ships). Full design decisions live in root `SPEC.md` §5.26;
-this entry only records what this sub-project must add so Section 3 has its own tracking.
+**Status: Planned — design written, no implementation started.** Section 1 (backend) and Section 2
+(frontend) of root Release 21 are built; the `GET /api/correlation/*` domain this work wraps is live.
+Design decisions are numbered 89–101 in root `ENHANCEMENTS.md` ("Section 3 — design"); the tool catalog
+and conventions are `SPEC.md` §5.1 (new). The 2026-10-01 stub that stood here predated three decisions
+(EDGAR shelved for PRIMAP-hist, decisions 20–22; headline redefined to total anthropogenic CO₂,
+decision 40; Berkeley vintage caveat replaced by a preliminary-release note, decision 83) and has been
+replaced, not amended.
 
-- New hand-curated tools wrapping the governed `GET /api/correlation/*` endpoints (`concentration`,
-  `temperature`, `emissions-temperature`, `ghg-composition`, `country-share`, `scenario-temperature`,
-  `meta`) — over HTTP like any other consumer, never ad hoc external retrieval.
-- Tool results carry source/baseline/coverage/uncertainty metadata so callers can cite provenance;
-  chart-ready structures follow the dashboard's rendering contracts.
-- No aggregation tool beyond what the bounded endpoints provide (root decision 3).
-- A `SPEC.md` section (tool catalog additions + guardrail text: correlation ≠ causation, no
-  country-level temperature attribution, the headline model is not a climate model) is written
-  **before** implementation starts.
+Scope (one branch + PR per step, per the repo convention):
+
+- **Step 1 — plumbing + indicator tools.** `client.py` methods for the correlation domain, a
+  shared envelope pass-through (`note`/`caveats`/`attribution`/`source_vintage` survive every tool),
+  deterministic `summary` builders, Area 2 text in `methodology.py`; tools `get_co2_concentration`,
+  `get_temperature_anomaly`, `get_correlation_metadata`.
+- **Step 2 — relationship tools.** `get_emissions_temperature_relationship`, `get_ghg_composition`,
+  `get_country_cumulative_share`, `get_scenario_temperature`; `get_methodology_notes` extended with
+  the Area 2 topics (including the decision-42 "how this number was derived" trail, read from the
+  API's `fit`/`fit_context`, never retyped).
+- No aggregation tool beyond what the bounded endpoints provide (root decision 3), no change to
+  `api/`, no UI directives in any tool result (`SPEC.md` §3.5).
+- Tests mirror `tests/conftest.py`'s fixture pattern; error paths (422 source/baseline matrix,
+  unresolved country, 503 stale source) are asserted as tool errors, not swallowed.

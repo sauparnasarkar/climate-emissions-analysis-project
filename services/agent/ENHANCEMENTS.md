@@ -553,17 +553,24 @@ one-section-per-branch convention -- this entry will be revised once each lands.
 
 ---
 
-## Planned — Area 2 climate-context intents (root Release 21, Section 3; docs-first stub, 2026-10-01)
+## Planned — Area 2 climate-context capability (root Release 21, Section 3; docs-first, rewritten 2026-10-08)
 
-**Status: Planned — not started; depends on `services/mcp-server`'s Area 2 tools** (see its
-`ENHANCEMENTS.md`) **and root `SPEC.md` §5.26.**
+**Status: Planned — design written, no implementation started;** depends on `services/mcp-server`'s
+Area 2 tools (its `ENHANCEMENTS.md`). Full design is `SPEC.md` §15; decisions 89–101 are in root
+`ENHANCEMENTS.md`. The 2026-10-01 stub that stood here referred to an "EDGAR 1970+ pairing" and an
+unqualified "headline" model; both were superseded (PRIMAP-hist, decisions 20–22; total
+anthropogenic CO₂, decision 40) and the stub has been replaced.
 
-- Intent routing between emissions-only, climate-context and combined questions; use the new
-  correlation tools when a query references warming, temperature, concentration or relationships.
-- Guardrails: distinguish correlation / physical science / application-model output; no direct
-  attribution of global temperature to one country; state whether an answer is global-aggregate,
-  country-level, historical or scenario-derived; surface source/baseline/coverage/uncertainty; the
-  OWID cumulative-CO₂ regression is the "headline" view and the EDGAR 1970+ pairing is the "recent
-  all-gas relationship" — never conflated or called TCRE interchangeably (root decision 4).
-- Ask page: Area 2 example prompts and follow-ups linking to Overview, Forecasts and Scenario Comparison.
-- A `SPEC.md` section (node/intent catalog additions) is written **before** implementation starts.
+Scope, one branch + PR per step:
+
+- **Step 3 — routing, guardrails, caveat channel.** `guardrail_router` examples; Area 2 system-prompt
+  rules; deterministic envelope-caveat channel into `scope_notes`; `payload_cap.py` (model sees a
+  capped copy, the widget the full series); golden-prompt eval (Sonnet only).
+- **Step 4 — widgets and follow-ups (backend).** `ui_selection`/title/progress-label entries for the
+  seven new tools; `follow_ups.py` lookup; `AgentState.follow_up_links`; SSE payload field.
+- **Step 5 — frontend (`climate-dashboard-react`).** Renderers for the new chart shapes, the
+  `follow_up_links` row, the 2×3 starter grid with the two "Climate context" prompts. Visual preview
+  and owner confirmation before merge.
+- **Step 6 — deploy and verify.** mcp-server first, then agent, then a frontend rebuild (the build
+  is the point of no return). Walk the six starter prompts live; `OLLAMA_EVALUATION.md` note that
+  Area 2 is validated on Sonnet only and Qwen stays selectable but untested for it.
