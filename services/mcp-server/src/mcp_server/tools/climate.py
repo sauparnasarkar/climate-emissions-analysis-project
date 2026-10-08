@@ -102,12 +102,27 @@ INTERPRETATION_NOTE_SHARE = (
     "against the global temperature series."
 )
 COMPOSITION_DEFAULT_START = 1970  # requirements §2.5: the recent all-gas view starts in 1970
+# country-share publishes PRIMAP-hist as `primap_hist`; emissions-temperature calls the same source
+# `primap_ghg`. Accept both so a caller following either endpoint's vocabulary succeeds.
+SHARE_SOURCE_ALIASES = {"primap_ghg": "primap_hist"}
 SCENARIO_NAMES = {"bau": "BAU", "moderate": "Moderate", "aggressive": "Aggressive"}
 
 
-def _relationship_label(source: str, variant: str | None) -> str:
+def reconstruction_note(years: list[dict]) -> str | None:
+    """A note whenever any returned year predates 1970, however the range was asked for."""
+    early = [y["year"] for y in years if y["year"] < COMPOSITION_DEFAULT_START]
+    if not early:
+        return None
+    return (
+        f"{len(early)} returned year(s) ({min(early)}-{max(early)}) predate {COMPOSITION_DEFAULT_START}: PRIMAP-hist values "
+        "before then are reconstructions from historical datasets, not country-reported data -- say so when quoting them."
+    )
+
+
+def _relationship_label(source: str, variant: str | None, window: list[int]) -> str:
     if source == "primap_ghg":
-        return "recent all-gas relationship (PRIMAP-hist total GHG, 1970+; never called TCRE)"
+        # The start comes from the returned window: a 1990 baseline is a shorter pair, not 1970+.
+        return f"recent all-gas relationship (PRIMAP-hist total GHG, {window[0]}-{window[1]}; never called TCRE)"
     if variant == "fossil":
         return "secondary fossil-fuel-and-cement-only variant of the headline relationship"
     return "headline long-run relationship (OWID cumulative total anthropogenic CO2 vs temperature)"
@@ -136,7 +151,7 @@ async def get_emissions_temperature_relationship(
     body = await fetch_correlation("emissions-temperature", params)
     points = body["points"]
     summary: dict = {
-        "relationship": _relationship_label(body["source"], body.get("variant")),
+        "relationship": _relationship_label(body["source"], body.get("variant"), body["window"]),
         "source": body["source"],
         "variant": body.get("variant"),
         "baseline": body["baseline"],
@@ -179,10 +194,10 @@ async def get_ghg_composition(
         start_year = COMPOSITION_DEFAULT_START
     body = await fetch_correlation("ghg-composition", {"start_year": start_year, "end_year": end_year, "year": year})
     if defaulted:
-        body["notes"].append(
-            f"Showing {COMPOSITION_DEFAULT_START} onward: PRIMAP-hist values before {COMPOSITION_DEFAULT_START} are "
-            "reconstructions from historical datasets (pass start_year to include them)."
-        )
+        body["notes"].append(f"Showing {COMPOSITION_DEFAULT_START} onward by default (pass start_year to include earlier years).")
+    note = reconstruction_note(body["years"])
+    if note:
+        body["notes"].append(note)
     years = body["years"]
     summary: dict = {"n_years": len(years), "excluded_incomplete_years": body.get("excluded_incomplete_years", [])}
     if years:
@@ -222,16 +237,17 @@ async def get_country_cumulative_share(
     default 15, max 50; each row has cumulative and annual share), or pass `countries` (common
     English names, e.g. 'China', 'United States'; ISO3 codes also accepted; at most 10) for a
     SERIES over `start_year`..`end_year` (`year` and `limit` do not apply to a series).
-    `source` is 'owid_co2' (fossil + cement CO2, longest history, default) or 'primap_ghg'
-    (total GHG in CO2e, excluding land use); `gas_scope` is 'co2' or 'total_ghg' and normally
-    follows from `source`. An unmatched country name is an explicit error with a suggestion.
+    `source` is 'owid_co2' (fossil + cement CO2, longest history, default; gas_scope 'co2') or
+    'primap_hist' (PRIMAP-hist; gas_scope 'co2' or 'total_ghg' -- total GHG in CO2e, excluding
+    land use; 'primap_ghg' is accepted as an alias). Omit `gas_scope` to get the source's
+    default; an unpublished source/gas_scope pair is rejected with the published ones. An unmatched country name is an explicit error with a suggestion.
     IMPORTANT: this is cumulative share of EMISSIONS, not a country's contribution to
     temperature -- never say or imply a country caused a given amount of warming, and never
     regress a country against the global temperature series. The response carries
     `interpretation_note` and the source `caveats` stating this; keep that framing in your
     answer. The denominator is the national sum excluding international aviation and shipping
     (it differs by design from the World series in the headline regression)."""
-    params = {"source": source, "gas_scope": gas_scope}
+    params = {"source": SHARE_SOURCE_ALIASES.get(source, source), "gas_scope": gas_scope}
     if countries:
         # The endpoint takes ISO3 codes; resolve names against its own country set first, one
         # extra call (a full ranking carries every country's code and name).
@@ -307,10 +323,13 @@ async def get_scenario_temperature(scenarios: list[str] | None = None, line: str
             "annual_global_fossil_mt": last.get("global_fossil_mt"),
         }
     summary: dict = {"final_year_by_scenario": final, "line": body["line"]}
-    bau = final.get("BAU", {}).get("headline_level_c")
-    if bau is not None:
-        summary["headline_level_gap_vs_bau_c"] = {
-            n: round(f["headline_level_c"] - bau, 3) for n, f in final.items() if n != "BAU" and f["headline_level_c"] is not None
-        }
+    # Gap versus BAU for every line the response carries (the API drops the other line's fields).
+    gaps: dict = {}
+    for key, label in (("headline_level_c", "headline"), ("fossil_only_level_c", "fossil_only")):
+        bau = final.get("BAU", {}).get(key)
+        if bau is not None:
+            gaps[label] = {n: round(f[key] - bau, 3) for n, f in final.items() if n != "BAU" and f[key] is not None}
+    if gaps:
+        summary["level_gap_vs_bau_c"] = gaps
     body["summary"] = summary
     return body

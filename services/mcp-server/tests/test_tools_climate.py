@@ -147,6 +147,7 @@ async def test_all_gas_relationship_is_never_called_tcre_and_has_no_ar6_comparis
     body = await get_emissions_temperature_relationship(source="primap_ghg")
     s = body["summary"]
     assert s["relationship"].startswith("recent all-gas relationship") and s["baseline"] == "1970"
+    assert f"{s['window'][0]}-{s['window'][1]}" in s["relationship"]  # window from the response, not hard-coded
     assert "vs_ar6" not in s
     # the label may say "never called TCRE" but must not present the all-gas fit AS the TCRE
     assert "headline" not in s["relationship"]
@@ -225,8 +226,8 @@ async def test_scenario_summary_has_final_year_levels_and_gap_vs_bau(climate_cli
     assert set(s["final_year_by_scenario"]) == {"BAU", "Moderate", "Aggressive"}
     assert "step_check" not in body["base"]  # internal QA record trimmed
     assert body["assumptions"]
-    gap = s["headline_level_gap_vs_bau_c"]
-    assert set(gap) == {"Moderate", "Aggressive"}
+    gap = s["level_gap_vs_bau_c"]["headline"]
+    assert set(gap) == {"Moderate", "Aggressive"} and set(s["level_gap_vs_bau_c"]) == {"headline", "fossil_only"}
     assert gap["Aggressive"] <= 0  # a more aggressive pathway never implies a warmer outcome than BAU
 
 
@@ -264,11 +265,36 @@ async def test_methodology_all_merges_and_unknown_topic_is_rejected(climate_clie
         await get_methodology_notes(topic="weather")
 
 
-async def test_composition_defaults_to_1970_with_a_note_and_honours_an_explicit_start(climate_client):
+async def test_composition_defaults_to_1970_and_honours_an_explicit_start(climate_client):
     default = await get_ghg_composition()
-    assert any("before 1970 are reconstructions" in n for n in default["notes"])
+    assert any("1970 onward by default" in n for n in default["notes"])
     explicit = await get_ghg_composition(start_year=2023)
     assert explicit["summary"]["first_year"] == 2023
-    assert not any("reconstructions" in n for n in explicit["notes"])
-    # a single year is not given a default start either
-    assert not any("reconstructions" in n for n in (await get_ghg_composition(year=2024))["notes"])
+    assert not any("by default" in n for n in explicit["notes"])
+    assert not any("by default" in n for n in (await get_ghg_composition(year=2024))["notes"])
+
+
+def test_reconstruction_note_fires_for_any_pre_1970_year_however_requested():
+    from mcp_server.tools.climate import reconstruction_note
+
+    assert reconstruction_note([{"year": 1970}, {"year": 2024}]) is None
+    n = reconstruction_note([{"year": 1750}, {"year": 1960}, {"year": 1970}])
+    assert "2 returned year(s) (1750-1960)" in n and "reconstructions" in n
+
+
+async def test_a_1990_all_gas_pair_is_not_labelled_1970(climate_client):
+    s = (await get_emissions_temperature_relationship(source="primap_ghg", baseline="1990"))["summary"]
+    assert s["window"][0] == 1990 and "1990-" in s["relationship"] and "1970" not in s["relationship"]
+
+
+async def test_fossil_only_line_still_reports_a_gap_vs_bau(climate_client):
+    s = (await get_scenario_temperature(line="fossil_only"))["summary"]
+    assert set(s["level_gap_vs_bau_c"]) == {"fossil_only"}
+    assert s["level_gap_vs_bau_c"]["fossil_only"]["Aggressive"] <= 0
+
+
+async def test_share_primap_source_works_under_both_names(climate_client):
+    a = await get_country_cumulative_share(source="primap_hist", gas_scope="total_ghg")
+    b = await get_country_cumulative_share(source="primap_ghg", gas_scope="total_ghg")
+    assert a["source"] == b["source"] == "primap_hist" and a["rows"] == b["rows"]
+    assert "CO2-equivalent" in a["label"] or "greenhouse" in a["label"]

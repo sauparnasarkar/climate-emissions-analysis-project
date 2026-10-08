@@ -437,3 +437,9 @@ Step 2 notes (as built):
 - Payload sizes on real data, all pre-cap: headline pair 29 KB, all-gas 15 KB, composition from 1970
   (smaller than the 147 KB full-coverage run), scenario 36 KB, methodology(climate) 14 KB. The agent-side
   cap (agent `SPEC.md` §15.4, Step 3.3) covers them.
+- Copilot review of PR #265 (4 findings, all valid, all fixed): the all-gas label hard-coded "1970+"
+  (now read from the returned window); country-share publishes PRIMAP-hist as `primap_hist`, not
+  `primap_ghg` (my smoke test only exercised `owid_co2`) — the tool and docs now use `primap_hist` and
+  accept `primap_ghg` as an alias; the scenario gap was computed for the headline line only (now per
+  returned line, `level_gap_vs_bau_c`); the pre-1970 reconstruction note fired only on the default
+  range (now on any returned year before 1970).
