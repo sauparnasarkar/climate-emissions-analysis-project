@@ -77,3 +77,21 @@ def test_progress_label_scenario_cumulative_interpolates_sort_by():
     assert progress_label("get_scenario_cumulative_impact", {}) == (
         "Fetching cumulative scenario impact (sorted by BAU)"
     )
+
+
+def test_every_area2_tool_has_a_plain_language_label_that_never_names_the_tool():
+    area2 = [
+        "get_co2_concentration", "get_temperature_anomaly", "get_correlation_metadata",
+        "get_emissions_temperature_relationship", "get_ghg_composition",
+        "get_country_cumulative_share", "get_scenario_temperature",
+    ]
+    for name in area2:
+        label = progress_label(name, {})
+        assert not label.startswith("Calling ") and name not in label and "None" not in label
+
+
+def test_area2_labels_switch_on_their_arguments():
+    assert "all-gas" in progress_label("get_emissions_temperature_relationship", {"source": "primap_ghg"})
+    assert "long-run" in progress_label("get_emissions_temperature_relationship", {})
+    assert "China" in progress_label("get_country_cumulative_share", {"countries": ["China"]})
+    assert "Ranking" in progress_label("get_country_cumulative_share", {})

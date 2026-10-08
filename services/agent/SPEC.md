@@ -1060,10 +1060,20 @@ Titles are deterministic from args/result, noun-phrased (§3), e.g. "Emissions v
 
 ### 15.3 Guardrails
 
-1. **Structural caveat channel.** When any Area 2 tool ran in the turn, `finalize` appends that
-   result's envelope `caveats` and `note` to `scope_notes` (rendered as the existing `InlineAlert`
-   above the widgets). Deterministic Python, not model-written, so they cannot be omitted or drift.
-   The Berkeley preliminary-release note is always included when the headline slope is shown.
+1. **Structural caveat channel (as built, `caveats.py`).** After the tools run, `ui_selection_node`
+   appends fixed, per-tool statements to `scope_notes` (rendered as the existing `InlineAlert` above
+   the widgets). Deterministic Python, so a required statement cannot be omitted or drift:
+   the Berkeley preliminary-release note on every temperature-bearing result; the long-run /
+   not-a-climate-model / not-proof-of-cause note on the relationship; the all-gas-is-not-the-headline
+   note when `source=primap_ghg`; the "illustrative, partial-coverage translation" note on scenario
+   temperatures; the composition scope note; the splice note (year read from the result) on
+   concentration; and the country-share tool's own `interpretation_note`. Failed calls contribute
+   nothing; notes are de-duplicated. **Deliberately not a pass-through of each result's raw envelope
+   `caveats`** (a refinement of the 2026-10-08 design, ENHANCEMENTS.md decision 93): those lists run to
+   seven items per call and carry pipeline-internal and licence prose, some of it already outdated
+   upstream, which does not belong in a user-facing alert. The model still receives the full envelope
+   in the tool result. Known gap: a follow-up turn that answers from earlier context with no new tool
+   call re-attaches no notes.
 2. **No causal overreach.** System-prompt rules: describe correlation as long-run co-movement; say
    that outcomes depend on multiple physical processes; the regression is a simplified, data-driven
    analog to TCRE and not a climate model; never present it as a substitute for an Earth-system or
@@ -1077,23 +1087,38 @@ Titles are deterministic from args/result, noun-phrased (§3), e.g. "Emissions v
 5. **Say what the answer is based on.** Narration states global aggregate vs. country-level, and
    historical observation vs. scenario-derived estimate; scenario temperatures are "implied" and
    "illustrative, partial-coverage translation", not projections.
-6. **Verification.** A golden-prompt eval set (`tests/golden_area2.py`, run with the real LLM, gated
-   and skipped without `ANTHROPIC_API_KEY`, same single-real-network-test rule as `CLAUDE.md`'s
-   injectable-LLM note) asserts: headline answers carry the preliminary note; no response calls the
-   all-gas pairing TCRE; no response attributes warming to a single country; unsupported
-   source/baseline asks surface the tool error rather than a substituted baseline. Graph-routing
-   tests use a stub LLM as before.
+6. **Verification.** Three layers. (a) Hermetic unit tests: the caveat table, the payload cap, the
+   prompts' required phrases, and `area2_lint.py` — deterministic checks that flag an all-gas answer
+   called TCRE, warming attributed to a named country, correlation presented as proof, a quoted slope
+   with no preliminary-release note, an unlabelled scenario temperature, or the 5–8% figure quoted as
+   measured (negations such as "never called TCRE" are recognised). (b) Graph-routing tests with a stub
+   LLM. (c) A **manually-run** golden-prompt script, `evals/run_area2.py` (ten prompts: the six starter
+   prompts plus attribution, TCRE, combined, unsupported-baseline and reliability traps), run against a
+   live `api/` + `services/mcp-server` on Sonnet before deploying a prompt or guardrail change; it exits
+   non-zero on any flagged case. It is a script, not a pytest file, because `CLAUDE.md` allows exactly
+   one gated real-network LLM test (`tests/test_llm_smoke.py`). The lint is a coarse net, not proof.
 
-### 15.4 Model-facing payload cap
+### 15.4 Model-facing payload cap (as built, `payload_cap.py`)
 
-The widget needs the full series; the model does not. In `tools_node`, each Area 2 result is stored
-**in full** in `ToolCallRecord.result` (the widget's source and the thread cache's value, §9) while
-the `ToolMessage` content handed back to the model is a **capped copy**: `summary` plus at most ~25
-points (evenly spaced, always including the first and last year) and the counts
-`points_total`/`points_shown` so the model knows it is seeing a sample. The cap is a per-tool
-function in a new `payload_cap.py`, keyed on tool name, with a unit test per tool. The envelope
-(`note`/`caveats`) is never capped away. This resolves the open question of whether the cap belongs
-in the MCP server (`SPEC.md` there §5.1 convention 3: it does not).
+The widget needs the full series; the model does not. In `tools_node`, each result is stored **in
+full** in `ToolCallRecord.result` (the widget's source and the thread cache's value, §9) while the
+`ToolMessage` handed to the model — on both the fresh-call and the cache-hit path — is a capped copy
+(`cap_for_model`, which never mutates its input):
+
+- series tools (`get_co2_concentration`, `get_temperature_anomaly`,
+  `get_emissions_temperature_relationship`): `points` become at most 25 evenly spaced points, first and
+  last always kept, with `points_total`/`points_shown`; the relationship also drops the bulky
+  `land_use_weight_scan` diagnostic;
+- `get_ghg_composition`: `years` likewise (`years_total`/`years_shown`);
+- `get_country_cumulative_share`: each series' `points` likewise;
+- `get_correlation_metadata`: per-source prose and URLs (`methodology`, `citations`,
+  `required_citation_format`, `source_urls`, `land_use_license_note`) dropped, licence/coverage/release/
+  caveats kept; `get_methodology_notes`: the weight scan dropped;
+- every other tool (all Stage 1 emissions tools, `get_scenario_temperature`) passes through unchanged.
+
+`summary`, `fit` and the envelope (`note`, `caveats`, `attribution`) are never touched, and a
+`model_view_note` tells the model it is seeing a sample. Applying it to the MCP server instead was
+rejected (mcp-server `SPEC.md` §5.1 convention 3): the server stays consumer-agnostic.
 
 ### 15.5 `follow_up_links`
 
@@ -1137,7 +1162,7 @@ category "Climate context", exact text from the owner:
 | Climate context | *Show the relationship between cumulative emissions and warming.* |
 | Climate context | *How do temperature outcomes vary based on different emissions pathways?* |
 
-Both resolve to the headline relationship and `get_scenario_temperature` respectively. Behavior is
+Both resolve to the headline relationship and `get_scenario_temperature` respectively. (Not built in step 3.3; the grid change is step 3.5.) Behavior is
 identical to the existing four (prefill and focus; nothing submits on click).
 
 ### 15.7 Provider validation
@@ -1147,3 +1172,16 @@ Area 2 behavior is validated on **Claude Sonnet** (`claude-sonnet-5`). `LLM_PROV
 for climate-context questions** — the guardrail eval (§15.3 rule 6) is run against Sonnet only, and
 `OLLAMA_EVALUATION.md` gains a note to that effect when Area 2 ships. The structural guardrails
 (rules 1 and the follow-up lookup) are provider-independent by construction.
+
+### 15.8 As-built notes for step 3.3 (2026-10-08)
+
+- Built: `payload_cap.py`, `caveats.py`, `area2_lint.py`, the `guardrail_router` / `AGENT_SYSTEM_PROMPT` /
+  `COMPOSE_RESPONSE_SYSTEM_PROMPT` changes, `evals/run_area2.py`, and **progress labels for the seven new
+  tools** (pulled forward from step 3.4: an unlisted tool falls back to "Calling <tool name>", which would
+  show a raw tool name to users, against correction #28).
+- `test_get_tools_lists_all_fourteen` (a real-MCP-subprocess test) had been failing on `main` since the
+  mcp-server grew to 21 tools in steps 3.1–3.2, because those PRs did not run this sub-project's suite.
+  Fixed here and renamed `test_get_tools_lists_every_tool`. Lesson recorded: an mcp-server tool change
+  must also run `services/agent`'s suite.
+- Not yet built (steps 3.4–3.5): widgets for the new tools (`ui_selection`), `follow_up_links`,
+  the frontend. Until 3.4 a data_query that calls only Area 2 tools produces no widget.

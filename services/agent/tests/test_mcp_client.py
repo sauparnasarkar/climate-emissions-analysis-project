@@ -25,10 +25,18 @@ EXPECTED_TOOLS = {
     "get_top_emitters",
     "get_methodology_notes",
     "get_emissions_change_summary",
+    # Area 2 (root Release 21, Section 3)
+    "get_co2_concentration",
+    "get_temperature_anomaly",
+    "get_correlation_metadata",
+    "get_emissions_temperature_relationship",
+    "get_ghg_composition",
+    "get_country_cumulative_share",
+    "get_scenario_temperature",
 }
 
 
-async def test_get_tools_lists_all_fourteen(running_mcp_server):
+async def test_get_tools_lists_every_tool(running_mcp_server):
     client = build_mcp_client(running_mcp_server)
     tools = await client.get_tools()
     names = {t.name for t in tools}

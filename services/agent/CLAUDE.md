@@ -109,6 +109,13 @@ design changes here, not just this file.
   result carries one metric (`co2`), so there's no second dimension for a treemap's tile color
   to encode — see `SPEC.md` "Corrections applied" #17. `WidgetSpec.chart_kind`'s `Literal`
   excludes `"treemap"`.
+- **Area 2 climate-context guardrails are structural where they can be (`SPEC.md` §15).** The model
+  sees a capped copy of long Area 2 results (`payload_cap.py`) while `ToolCallRecord.result` keeps the
+  full series for widgets; required statements (the Berkeley preliminary-release note, the
+  not-a-climate-model note, the scenario "illustrative" label) are fixed text appended to `scope_notes`
+  by `caveats.py`, never left to model narration. An `mcp-server` tool change must also run this
+  sub-project's suite (it exercises the real tool list). The golden-prompt eval is
+  `evals/run_area2.py`, run by hand on Sonnet; do not turn it into a pytest test.
 - **Scope:** classical build discipline, same as the rest of this repo — no scope creep beyond
   `SPEC.md`'s node catalog and UI-intent schema.
 

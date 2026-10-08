@@ -45,8 +45,10 @@ from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, field_validator
 
 from .cache import cache_key
+from .caveats import mandatory_notes
 from .llm import get_llm
 from .mcp_client import get_mcp_tools
+from .payload_cap import cap_for_model
 from .progress_labels import progress_label
 from .prompts import (
     AGENT_SYSTEM_PROMPT,
@@ -313,7 +315,8 @@ async def tools_node(
             # guarantee (no re-fetch, still counts toward the §10 cap) is unaffected.
             record = tool_cache[key]
             is_error = isinstance(record.result, dict) and "error" in record.result
-            content = record.result["error"] if is_error else json.dumps(record.result)
+            # The model sees the capped view (payload_cap.py); the record keeps the full result.
+            content = record.result["error"] if is_error else json.dumps(cap_for_model(call["name"], record.result)[0])
             new_messages.append(
                 ToolMessage(content=content, tool_call_id=call["id"], status="error" if is_error else "success")
             )
@@ -342,6 +345,16 @@ async def tools_node(
                     logger.warning("tools_node: %s failed: %s", call["name"], result.get("error"))
                 logger.info("tool_call name=%s cache=miss status=%s elapsed=%.3fs", call["name"], status, elapsed)
                 record = ToolCallRecord(tool_name=call["name"], args=call["args"], result=result, progress_label=label)
+                # SPEC.md §15.4: `record.result` stays full (widget source, thread cache); the model
+                # is handed a capped copy when the tool's payload has anything it can't use.
+                model_view, capped = cap_for_model(call["name"], result)
+                if capped:
+                    tool_message = ToolMessage(
+                        content=json.dumps(model_view),
+                        tool_call_id=call["id"],
+                        status=tool_message.status,
+                        name=tool_message.name,
+                    )
                 new_messages.append(tool_message)
             tool_cache[key] = record
 
@@ -406,6 +419,10 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
             ", ".join(sorted({record.tool_name for record in failed_records})),
         )
         scope_notes = [*scope_notes, note]
+
+    # SPEC.md §15.3 rule 1: deterministic climate-context statements, appended after the failure
+    # notes so the order reads "what went wrong" then "how to read what came back".
+    scope_notes = [*scope_notes, *(n for n in mandatory_notes(state.tool_calls) if n not in scope_notes)]
 
     result: dict[str, Any] = {"widgets": widgets, "scope_notes": scope_notes}
 
