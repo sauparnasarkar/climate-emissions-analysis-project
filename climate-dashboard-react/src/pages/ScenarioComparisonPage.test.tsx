@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
 import type { CountriesResponse, ScenarioCompareResponse, ScenarioCumulativeResponse } from '../api/types';
@@ -163,12 +164,27 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
 
     expect(await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'BAU' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Moderate' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Aggressive' })).toBeInTheDocument();
+    expect(vi.mocked(api.scenarioCompare)).toHaveBeenCalledWith(['China']);
+  });
+
+  it('opens on the countries in ?countries= (validated against the expanded list) and falls back for unknown ones', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    const { unmount } = render(<MemoryRouter initialEntries={['/scenarios?countries=vietnam&countries=Atlantis']}><ScenarioComparisonPage /></MemoryRouter>);
+    await screen.findByRole('heading', { name: 'BAU' });
+    expect(vi.mocked(api.scenarioCompare)).toHaveBeenCalledWith(['Vietnam']);
+    unmount();
+
+    vi.mocked(api.scenarioCompare).mockClear();
+    render(<MemoryRouter initialEntries={['/scenarios?countries=Atlantis']}><ScenarioComparisonPage /></MemoryRouter>);
+    await screen.findByRole('heading', { name: 'BAU' });
     expect(vi.mocked(api.scenarioCompare)).toHaveBeenCalledWith(['China']);
   });
 
@@ -184,7 +200,7 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
     await screen.findByRole('heading', { name: 'BAU' });
 
     const treemapChart = screen.getAllByTestId('sychart')[0];
@@ -206,7 +222,7 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
     await screen.findByRole('heading', { name: 'BAU' });
 
     const nav = await screen.findByRole('navigation', { name: 'Jump links' });
@@ -224,7 +240,7 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
     await screen.findByRole('heading', { name: 'BAU' });
 
     const updated: ScenarioCompareResponse = { ...COMPARE, countries: ['China', 'Vietnam'] };
@@ -242,7 +258,7 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
     await screen.findByRole('heading', { name: 'BAU' });
 
     vi.mocked(api.scenarioCompare).mockClear();
@@ -261,7 +277,7 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries');
 
     // The treemap is always the first SyChart rendered on this page (the 3 per-scenario
@@ -286,7 +302,7 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
     await screen.findByRole('heading', { name: 'BAU' });
 
     // Panel order: treemap (index 0), then BAU/Moderate/Aggressive panels (indices 1-3).
@@ -310,7 +326,7 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries');
 
     await user.click(screen.getByRole('radio', { name: 'Aggressive' }));
@@ -326,7 +342,7 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 2 Expanded Countries');
 
     expect(screen.queryByText(/Cumulative BAU: 1[,   ]000 MtCO/)).not.toBeInTheDocument();
@@ -345,7 +361,7 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
     const { default: userEvent } = await import('@testing-library/user-event');
     const user = userEvent.setup();
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 4 Expanded Countries');
 
     // China and India clear the 1% threshold and stay individual; Vietnam and Fiji (0.3%/0.7%)
@@ -381,7 +397,7 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE_AT_THRESHOLD_BOUNDARY);
     vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
     await screen.findByText('Cumulative Emissions & Reduction Scenarios — BAU — 3 Expanded Countries');
 
     // Qatar (110/10000 = 1.1%) clears the OLD 1% cutoff but falls under the CURRENT 1.25% one
@@ -399,14 +415,14 @@ describe('ScenarioComparisonPage', () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
     vi.mocked(api.scenarioCompare).mockRejectedValue(new Error('Failed to load data.'));
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
 
     expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
   });
 
   it('renders an inline error instead of crashing when listCountries fails', async () => {
     vi.mocked(api.listCountries).mockRejectedValue(new Error('Failed to load data.'));
-    render(<ScenarioComparisonPage />);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
 
     expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
     expect(vi.mocked(api.scenarioCompare)).not.toHaveBeenCalled();

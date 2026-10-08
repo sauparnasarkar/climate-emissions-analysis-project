@@ -81,6 +81,22 @@ describe('HistoricalTrendsPage', () => {
     expect(vi.mocked(api.historicalDecadeComposition)).toHaveBeenCalledWith(FEATURED);
   });
 
+  it('opens on the gas in ?gas= (so a link from the Ask page lands on the same metric) and ignores an unknown one', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+    vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    const { unmount } = render(<MemoryRouter initialEntries={['/historical?gas=methane']}><HistoricalTrendsPage /></MemoryRouter>);
+    await screen.findByText('Methane (CH₄) Emissions by Country');
+    expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(FEATURED, 'methane');
+    unmount();
+
+    vi.mocked(api.historicalTimeseries).mockClear();
+    render(<MemoryRouter initialEntries={['/historical?gas=plutonium']}><HistoricalTrendsPage /></MemoryRouter>);
+    await screen.findByText('CO₂ Emissions by Country');
+    expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(FEATURED, 'co2');
+    expect(vi.mocked(api.historicalTimeseries)).not.toHaveBeenCalledWith(FEATURED, 'plutonium');
+  });
+
   it('renders a Jump To nav under the h1 linking to both sections', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
