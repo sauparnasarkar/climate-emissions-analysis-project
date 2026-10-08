@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { ChartCard, SyChart, MultiSelect, Select, Button, InlineAlert, Spinner, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
@@ -6,10 +5,12 @@ import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
+import { useUrlChoice } from '../hooks/useUrlChoice';
 import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
 
 const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value, label }));
+const GAS_KEYS = Object.keys(GAS_COLUMNS);
 
 // Stable labels (SPEC.md §5.19) -- distinct from the h2s' own gas-dependent text (e.g. "CO₂
 // Emissions Over Time" vs. "Methane Emissions Over Time"), which would otherwise relabel the
@@ -27,7 +28,8 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   // (previously just the first 5 here — inconsistent with the rest of the app).
   // URL-backed (?countries=…, SPEC.md §5.25) so links can open with a chosen selection.
   const [selectedCountries, setSelectedCountries] = useSelectedCountries(featured, expanded);
-  const [gas, setGas] = useState('co2');
+  // URL-backed too (?gas=methane), so "Open in Historical Trends" from the Ask page lands on the same gas.
+  const [gas, setGas] = useUrlChoice('gas', GAS_KEYS, 'co2');
 
   const timeseries = useAsync(
     () => api.historicalTimeseries(selectedCountries, gas),

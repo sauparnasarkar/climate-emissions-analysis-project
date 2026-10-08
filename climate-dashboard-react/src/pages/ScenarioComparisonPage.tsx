@@ -5,6 +5,7 @@ import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks'
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
+import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
 import { resolveDivergingScaleReversedHex } from '../lib/resolveThemeColorHex';
@@ -56,7 +57,8 @@ const JUMP_ITEMS: JumpLinkItem[] = [
 // list (and its featured-default seed) are already known — avoiding a wasted initial fetch
 // for an undefined selection before GET /api/countries resolves.
 function ScenarioComparisonContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
-  const [selectedCountries, setSelectedCountries] = useState<string[]>(featured);
+  // URL-backed (?countries=…, like Historical Trends and Overview) so a link opens with a chosen selection.
+  const [selectedCountries, setSelectedCountries] = useSelectedCountries(featured, expanded);
   const [treemapScenario, setTreemapScenario] = useState<string>('BAU');
   // Touch-friendly surface for the treemap's hover info (SPEC.md §5.10): a tap never produces
   // a hover on touch devices, so tapping a tile shows the same size + color values here
