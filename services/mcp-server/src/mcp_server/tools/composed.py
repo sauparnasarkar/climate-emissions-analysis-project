@@ -37,7 +37,9 @@ async def get_top_emitters(year: int | None = None, n: int = 10) -> dict:
     a specific year. Composed from /overview/world-map-series -- fetched fresh on every call, no
     server-side cache (SPEC.md §6.2), since no ranked-by-year endpoint exists to wrap directly.
     Countries with no data at `year` are excluded from the ranking, not treated as zero. The
-    response's `year` is the year actually used."""
+    response's `year` is the year actually used, `n_ranked` is how many countries have data that
+    year, and `top_n_share_pct` is the share of their combined total that the returned top `n`
+    account for."""
     client = get_client()
     data = await client.get("/overview/world-map-series")
     if year is None:
@@ -66,7 +68,17 @@ async def get_top_emitters(year: int | None = None, n: int = 10) -> dict:
         key=lambda row: row["co2"],
         reverse=True,
     )
-    return {"year": year, "emitters": ranked[:n]}
+    top = ranked[:n]
+    total = sum(row["co2"] for row in ranked)
+    return {
+        "year": year,
+        "emitters": top,
+        # For the Ask page's lead and KPIs ("the top 10 are 71% of the total", "largest of N
+        # countries"): computed over the same ranked set, so the share cannot drift from the list.
+        "n_ranked": len(ranked),
+        "total_mt": round(total, 3),
+        "top_n_share_pct": round(sum(row["co2"] for row in top) / total * 100, 1) if total else None,
+    }
 
 
 @mcp.tool()

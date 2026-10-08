@@ -144,3 +144,29 @@ async def test_get_top_emitters_default_skips_a_trailing_all_null_year():
     finally:
         mcp_client.set_client(None)
     assert body["year"] == 2023 and [r["country"] for r in body["emitters"]] == ["B", "A"]
+
+
+async def test_get_top_emitters_reports_the_ranked_count_total_and_top_n_share(bare_api_client, data_dir):
+    owid_raw_world_map_series_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    full = await get_top_emitters(year=2000, n=100)
+    top1 = await get_top_emitters(year=2000, n=1)
+    assert full["n_ranked"] == len(full["emitters"]) and full["top_n_share_pct"] == 100.0
+    assert top1["n_ranked"] == full["n_ranked"] and top1["total_mt"] == full["total_mt"]
+    assert top1["total_mt"] == round(sum(r["co2"] for r in full["emitters"]), 3)
+    assert top1["top_n_share_pct"] == round(top1["emitters"][0]["co2"] / top1["total_mt"] * 100, 1)
+    assert 0 < top1["top_n_share_pct"] < 100
+
+
+async def test_get_top_emitters_share_is_none_when_the_total_is_zero():
+    import mcp_server.client as mcp_client
+
+    class FakeClient:
+        async def get(self, path, params=None):
+            return {"years": [2024], "countries": ["A"], "iso_codes": ["AAA"], "values": [[0.0]]}
+
+    mcp_client.set_client(FakeClient())
+    try:
+        body = await get_top_emitters()
+    finally:
+        mcp_client.set_client(None)
+    assert body["total_mt"] == 0 and body["top_n_share_pct"] is None
