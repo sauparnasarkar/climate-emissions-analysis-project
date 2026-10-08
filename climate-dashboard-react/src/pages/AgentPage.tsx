@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { Button, InlineAlert, Progress, PromptBar, useReducedMotion } from 'design-system';
 import { AnswerSection, QuestionHeading } from '../agent/AnswerSection';
 import { AnswerSkeleton } from '../agent/AnswerSkeleton';
@@ -48,11 +48,19 @@ export function AgentPage() {
 
   const hasSubmitted = answers.length > 0 || loading || error != null;
 
-  // Coming back to a thread: put the page where it was left, and leave the position alone (below) rather than scrolling to the newest answer.
-  useLayoutEffect(() => {
-    if (scrollYRef.current > 0) window.scrollTo?.(0, scrollYRef.current);
-    return () => {
+  // Coming back to a thread: put the page where it was left (and leave it there rather than scrolling to the newest answer, below). The position
+  // is tracked while the page is open, not read at unmount (by then the page may already have shrunk and clamped scrollY). The restore waits a frame
+  // because the layout's useRouteAnnouncements runs a passive effect AFTER this page's own and scrolls to the top on every route change.
+  useEffect(() => {
+    const onScroll = () => {
       scrollYRef.current = window.scrollY;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    const saved = scrollYRef.current;
+    const frame = saved > 0 ? requestAnimationFrame(() => window.scrollTo(0, saved)) : 0;
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (frame) cancelAnimationFrame(frame);
     };
   }, [scrollYRef]);
 

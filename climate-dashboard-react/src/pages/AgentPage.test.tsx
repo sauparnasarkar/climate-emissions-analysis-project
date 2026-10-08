@@ -1,4 +1,6 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
+import { useRef } from 'react';
+import { useRouteAnnouncements } from '../hooks/useRouteAnnouncements';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AskThreadProvider } from '../agent/AskThreadProvider';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -307,5 +309,51 @@ describe('AgentPage', () => {
     await user.click(screen.getByRole('link', { name: 'ask' }));
     expect(screen.getByRole('heading', { level: 2, name: 'Slow one' })).toBeInTheDocument();
     expect(screen.getByText('Landed while away.')).toBeInTheDocument();
+  });
+
+  it('restores the scroll position on return, after the layout resets it to the top', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const scrollTo = vi.fn();
+    vi.stubGlobal('scrollTo', scrollTo);
+    let y = 0;
+    Object.defineProperty(window, 'scrollY', { configurable: true, get: () => y });
+    // The same route-change scroll reset the real layout applies (useRouteAnnouncements), so the test fails if the restore does not outlast it.
+    function Shell() {
+      const ref = useRef<HTMLElement>(null);
+      useRouteAnnouncements(ref);
+      return (
+        <main ref={ref} tabIndex={-1}>
+          <Link to="/ask">ask</Link>
+          <Link to="/elsewhere">elsewhere</Link>
+          <Routes>
+            <Route path="/ask" element={<AgentPage />} />
+            <Route path="/elsewhere" element={<p>another page</p>} />
+          </Routes>
+        </main>
+      );
+    }
+    const app = () => (
+      <MemoryRouter initialEntries={['/ask']}>
+        <AskThreadProvider>
+          <Shell />
+        </AskThreadProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(app());
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
+    stream.result = resultOf({ widgets: [METHOD_WIDGET], response_text: 'First answer.' });
+    rerender(app());
+
+    y = 480;
+    window.dispatchEvent(new Event('scroll'));
+    await user.click(screen.getByRole('link', { name: 'elsewhere' }));
+    y = 0;
+    scrollTo.mockClear();
+    await user.click(screen.getByRole('link', { name: 'ask' }));
+    await waitFor(() => expect(scrollTo).toHaveBeenLastCalledWith(0, 480));
+    vi.unstubAllGlobals();
+    mockReducedMotion(false);
   });
 });
