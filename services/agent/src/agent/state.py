@@ -28,6 +28,22 @@ class WidgetSpec(BaseModel):
     as_of: str | None = None
     source_tool_call: str
     props: dict
+    # Answer-block fields (SPEC.md §15.11): deterministic, filled from the tool result.
+    source_line: str | None = None  # "Source: ..." under the chart
+    badge: str | None = None  # the scenario answer's warning chip text
+    summary: dict | None = None  # key figures the compose node quotes
+
+
+class Kpi(BaseModel):
+    """One card of an answer's KPI row (SPEC.md §15.11). The frontend formats `value`."""
+
+    label: str
+    value: float
+    unit: str
+    decimals: int = 0
+    year: int | None = None  # the data year the card is labelled with
+    sub: str | None = None
+    series: str | None = None  # a scenario name, so the card can take that series' colour
 
 
 class FollowUpLink(BaseModel):
@@ -48,4 +64,6 @@ class AgentState(BaseModel):
     widgets: list[WidgetSpec] = Field(default_factory=list)
     suggested_prompts: list[str] = Field(default_factory=list)
     follow_up_links: list[FollowUpLink] = Field(default_factory=list)
+    follow_up_prompts: list[str] = Field(default_factory=list)
+    kpis: list[Kpi] = Field(default_factory=list)
     response_text: str = ""

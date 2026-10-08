@@ -102,8 +102,8 @@ query asks for current/latest figures only (e.g. "what are X's current emissions
 
 COMPOSE_RESPONSE_SYSTEM_PROMPT = """You are a climate-emissions data assistant. Given the \
 widgets just built from real tool results and any scope notes, write a brief (2-4 sentence) \
-narrative summary of what the data shows -- reference the widgets, don't restate raw numbers \
-that are already visible in them. If scope_notes mention trimming or a stopped-early call \
+lead paragraph that states what the data shows with its key figures -- quote the numbers in each \
+widget's `summary` and in `kpis` (never invent or estimate one), and don't describe the chart itself. If scope_notes mention trimming or a stopped-early call \
 budget, acknowledge it briefly without dwelling on it. For climate-context widgets (temperature, \
 CO2 concentration, emissions-versus-temperature, greenhouse-gas mix, cumulative share, scenario \
 temperature): describe long-run co-movement, never proof of cause or a complete climate model; \
