@@ -37,7 +37,29 @@ _TOOL_INTENT: dict[str, tuple[str, str | None]] = {
     "get_forecast_summary": ("grid", None),
     "get_scenario_cumulative_impact": ("grid", None),
     "get_methodology_notes": ("text", None),
+    # Area 2 (SPEC.md §15.2, §15.10). The frontend picks a renderer by tool NAME and wraps the
+    # Correlation module's own components (decision 105), so `chart_kind` is only informational
+    # here: None where there is no generic SyChart kind to name.
+    "get_emissions_temperature_relationship": ("chart", None),
+    "get_scenario_temperature": ("chart", "line"),
+    "get_correlation_metadata": ("grid", None),
 }
+
+# Area 2 tools whose widget kind depends on the result or the query (SPEC.md §15.2); the rest of the
+# Area 2 tools are fixed in `_TOOL_INTENT` above.
+_LATEST_MARKERS = ("latest", "current", "currently", "right now", "today", "most recent", "now ")
+_TREND_MARKERS = ("over time", "trend", "history", "historical", "since", "change", "changed", "compared", "versus", " vs", "relationship", "rise", "growth", "from ")
+
+
+def select_indicator_intent(current_query: str) -> str:
+    """`card` (one KPI) for a "what is it now" ask, `chart` for anything trend- or comparison-shaped.
+    Deterministic keyword heuristic, the same seam `select_top_emitters_chart_kind` uses -- no LLM
+    call. A query with both kinds of marker is a trend ask (the chart still shows the latest point)."""
+    query = f" {current_query.lower()} "
+    if any(m in query for m in _TREND_MARKERS):
+        return "chart"
+    return "card" if any(m in query for m in _LATEST_MARKERS) else "chart"
+
 
 _GEOGRAPHIC_MARKERS = ("where", "map", "geographic", "geography", "around the world", "by region")
 
@@ -101,10 +123,78 @@ _TITLE_BUILDERS: dict[str, Callable[[dict], str]] = {
 }
 
 
+def _span(summary: dict, *keys: str) -> str:
+    a, b = (summary.get(k) for k in keys)
+    return f"{a}\u2013{b}" if a is not None and b is not None else ""
+
+
+def _relationship_title(record: ToolCallRecord) -> str:
+    # Built from the RESULT (the label and window the tool actually returned), not the args: the
+    # default baseline per source is applied server-side. The all-gas relationship is never titled
+    # with "TCRE" and a non-headline OWID window is never titled "headline" (SPEC.md §15.2).
+    summary = (record.result or {}).get("summary") or {}
+    label = summary.get("relationship", "")
+    window = summary.get("window") or []
+    span = f"{window[0]}\u2013{window[1]}" if len(window) == 2 else ""
+    if label.startswith("recent all-gas"):
+        return f"Recent all-gas relationship ({span})" if span else "Recent all-gas relationship"
+    if label.startswith("headline"):
+        kind = "headline"
+    elif label.startswith("secondary"):
+        kind = "fossil-only variant"
+    else:
+        kind = "selected window"
+    return f"Emissions vs. temperature ({', '.join(filter(None, [kind, span]))})"
+
+
+def _composition_title(record: ToolCallRecord) -> str:
+    s = (record.result or {}).get("summary") or {}
+    if s.get("n_years") == 1:
+        return f"Greenhouse-gas mix, {s.get('first_year')}"
+    span = _span(s, "first_year", "last_year")
+    return f"Greenhouse-gas mix ({span})" if span else "Greenhouse-gas mix"
+
+
+def _share_title(record: ToolCallRecord) -> str:
+    s = (record.result or {}).get("summary") or {}
+    if s.get("mode") == "series":
+        names = [c.get("name") for c in s.get("countries", []) if c.get("name")]
+        return f"Cumulative share of emissions -- {join_countries(names)}"
+    n = s.get("n_rows")
+    lead = f"Top {n} countries" if n else "Countries"
+    return f"{lead} by cumulative share of emissions ({s.get('year')})"
+
+
+def _indicator_title(label: str):
+    def build(record: ToolCallRecord) -> str:
+        span = _span((record.result or {}).get("summary") or {}, "first_year", "last_year")
+        return f"{label} ({span})" if span else label
+
+    return build
+
+
+# Area 2 titles are built from the tool RESULT (defaults such as the baseline are applied
+# server-side, so the args alone do not say what came back); `_title_for` tries these first.
+_RESULT_TITLE_BUILDERS: dict[str, Callable[[ToolCallRecord], str]] = {
+    "get_emissions_temperature_relationship": _relationship_title,
+    "get_ghg_composition": _composition_title,
+    "get_country_cumulative_share": _share_title,
+    "get_co2_concentration": _indicator_title("Atmospheric CO\u2082 concentration, ppm"),
+    "get_temperature_anomaly": lambda r: _indicator_title(
+        f"Global temperature anomaly, \u00b0C vs {((r.result or {}).get('summary') or {}).get('reference', '1850-1900')}"
+    )(r),
+    "get_scenario_temperature": lambda r: "Implied temperature by scenario (illustrative)",
+    "get_correlation_metadata": lambda r: "Climate data sources and methodology",
+}
+
+
 def _title_for(record: ToolCallRecord) -> str:
     # Deterministic, generated from tool args (SPEC.md §3), noun-phrased for a permanent
     # widget header -- see `_TITLE_BUILDERS`'s own comment for why this is a separate table
     # from progress_labels.py's verb-phrased `_BUILDERS` rather than a reuse of it.
+    result_builder = _RESULT_TITLE_BUILDERS.get(record.tool_name)
+    if result_builder is not None:
+        return result_builder(record)
     builder = _TITLE_BUILDERS.get(record.tool_name)
     if builder is None:
         return record.tool_name.replace("_", " ").capitalize()
@@ -125,6 +215,35 @@ def build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | Non
         return WidgetSpec(
             intent="chart",
             chart_kind=select_top_emitters_chart_kind(current_query),
+            title=_title_for(record),
+            source_tool_call=source,
+            props=record.result or {},
+        )
+
+    if record.tool_name in ("get_co2_concentration", "get_temperature_anomaly"):
+        return WidgetSpec(
+            intent=select_indicator_intent(current_query),
+            chart_kind="line" if select_indicator_intent(current_query) == "chart" else None,
+            title=_title_for(record),
+            source_tool_call=source,
+            props=record.result or {},
+        )
+
+    if record.tool_name == "get_ghg_composition":
+        single_year = ((record.result or {}).get("summary") or {}).get("n_years") == 1
+        return WidgetSpec(
+            intent="grid" if single_year else "chart",
+            chart_kind=None,
+            title=_title_for(record),
+            source_tool_call=source,
+            props=record.result or {},
+        )
+
+    if record.tool_name == "get_country_cumulative_share":
+        series = ((record.result or {}).get("summary") or {}).get("mode") == "series"
+        return WidgetSpec(
+            intent="chart",
+            chart_kind="line" if series else "bar",
             title=_title_for(record),
             source_tool_call=source,
             props=record.result or {},

@@ -566,7 +566,7 @@ Scope, one branch + PR per step:
 - **Step 3 — routing, guardrails, caveat channel. Implemented 2026-10-08 (PR open on `feat/agent-area2-guardrails`; see `SPEC.md` §15.8).** `guardrail_router` examples; Area 2 system-prompt
   rules; deterministic envelope-caveat channel into `scope_notes`; `payload_cap.py` (model sees a
   capped copy, the widget the full series); golden-prompt eval (Sonnet only).
-- **Step 4 — widgets and follow-ups (backend).** `ui_selection`/title/progress-label entries for the
+- **Step 4 — widgets and follow-ups (backend). Implemented 2026-10-08 (PR open on `feat/agent-area2-widgets-followups`; `SPEC.md` §15.2, §15.5, §15.9).** `ui_selection`/title/progress-label entries for the
   seven new tools; `follow_ups.py` lookup; `AgentState.follow_up_links`; SSE payload field.
 - **Step 5 — frontend (`climate-dashboard-react`).** Renderers for the new chart shapes, the
   `follow_up_links` row, the 2×3 starter grid with the two "Climate context" prompts. Visual preview

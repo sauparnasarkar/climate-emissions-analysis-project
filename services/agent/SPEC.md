@@ -1042,21 +1042,33 @@ model's tool choice, steered by `AGENT_SYSTEM_PROMPT`:
 - **Call-count guard (§10).** `MAX_TOOL_CALLS_PER_TURN` stays 6. A combined question realistically
   needs 3–4. Revisit only if live testing shows truncated answers.
 
-### 15.2 Tool → widget mapping (extends §3's table)
+### 15.2 Tool → widget mapping (extends §3's table; as built in step 3.4)
+
+`WidgetSpec.chart_kind` is unchanged (`line`/`bar`/`band`/`choropleth`). **Revised 2026-10-08 (decision 105):** the frontend chooses a renderer by tool *name* and wraps the Correlation module's own components with the tool result as props, so the new widgets carry no generic chart kind (`None`) — an earlier draft of this table added `scatter` and `area`, now removed. `props` is the tool's full result, unshaped.
 
 | Tool | Intent | Chart kind / component |
 |---|---|---|
-| `get_emissions_temperature_relationship` | `chart` | `line` with a second axis (`y2`) for the time-series form; the headline cumulative form is a scatter of cumulative emissions vs. temperature with the fit line (same construction as the Correlation module's headline chart). Fit statistics (slope, CI, R², window) in the widget caption. |
-| `get_ghg_composition` | `chart` | stacked `area` (the design system's `stackedAreaMode`); a single-year request renders as a `grid`. |
-| `get_country_cumulative_share` | `chart` (`line`, series) or `bar` (ranking) | |
-| `get_scenario_temperature` | `chart` | `line`, BAU/Moderate/Aggressive, with the fossil-only second line. |
-| `get_co2_concentration`, `get_temperature_anomaly` | `chart` (`line`) when a range is asked for; `card` (`KpiStat`) for a "latest reading" ask | Same non-deterministic-judgment seam as `get_country_profile` (§8): the keyword heuristic in `ui_selection.py`, no new LLM call. |
+| `get_emissions_temperature_relationship` | `chart` | none — rendered by the module's headline-relationship component (cumulative-emissions/temperature *pairs* with the fit from `summary.fit`) |
+| `get_ghg_composition` | `chart` over a range, `grid` for a single year | none — the module's gas-composition component; single year → `grid` |
+| `get_country_cumulative_share` | `chart` | `line` for a country series, `bar` for a ranking (decided from `summary.mode`) |
+| `get_scenario_temperature` | `chart` | `line`, BAU/Moderate/Aggressive, with the fossil-only second line |
+| `get_co2_concentration`, `get_temperature_anomaly` | `card` (`KpiStat`) for a "what is it now" ask, else `chart` (`line`) | `select_indicator_intent`: a deterministic keyword heuristic on `current_query` (trend/comparison markers win over "latest"), the same seam as `select_top_emitters_chart_kind` — no LLM call |
 | `get_correlation_metadata` | `grid` | |
 | `get_methodology_notes` | `text` | unchanged |
 
-Titles are deterministic from args/result, noun-phrased (§3), e.g. "Emissions vs. temperature
-(headline, 1850–2024)". The recent all-gas widget is titled "Recent all-gas relationship" — never
-"TCRE".
+**Titles are built from the tool *result*, not the args** (the default baseline per source is applied
+server-side, so the args alone do not say what came back), noun-phrased, deterministic:
+
+- headline → `Emissions vs. temperature (headline, 1850–2024)`
+- fossil variant → `Emissions vs. temperature (fossil-only variant, 1850–2024)`
+- any other OWID window → `Emissions vs. temperature (selected window, 1990–2024)` — never "headline"
+- all-gas → `Recent all-gas relationship (1970–2024)` — never "TCRE", never "headline"
+- composition → `Greenhouse-gas mix (1970–2024)` / `Greenhouse-gas mix, 2024`; share → `Top 15 countries by cumulative share of emissions (2024)` / `Cumulative share of emissions -- China, India`; scenarios → `Implied temperature by scenario (illustrative)`; concentration/temperature carry the unit/reference and span.
+
+**`compose_response` sees each Area 2 widget's `summary`** (slope, shares, levels, window…) alongside its
+title; every other widget's `props` stays excluded to bound context size. Without this the narration
+could not quote a figure (the same reason `get_emissions_change_summary`'s title carries its counts,
+"Corrections applied" #33).
 
 ### 15.3 Guardrails
 
@@ -1152,6 +1164,13 @@ new field carries real navigation links:
   "latest, not-yet-superseded turn" gating as `showSuggestedPrompts`, correction #27), using
   router navigation (`useNavigate`) — in-app, no full reload, and respecting the deploy base path.
 
+**As built (step 3.4, revised per decisions 105/107):** links carry confirmed hash anchors (e.g. `/climate-correlation#global-relationship`; the all-gas relationship goes to `#recent-all-gas`) and labels follow the handoff ("Open in …"); a test reads the dashboard's source to verify every path and anchor. `follow_ups.py` holds the lookup (all 18 data tools; `get_methodology_notes`,
+`get_correlation_metadata` and `list_countries` have none), `AgentState.follow_up_links` is reset per turn
+in `_reset_turn_fields`, computed in `ui_selection_node` from the *successful* calls (a failed call yields no
+link), and sent as `follow_up_links: [{label, route}]` in the SSE `result` event (always present, `[]` when
+none). `FollowUpLink` is registered with the checkpointer's serde. A test pins every route to the
+dashboard's real page paths. Anchors are still unused (open item b).
+
 ### 15.6 Starter prompts (extends §4)
 
 The grid goes from 2×2 to **2×3** (`starterPromptColumnCount` stays 2; six tiles). Two new tiles,
@@ -1183,6 +1202,22 @@ for climate-context questions** — the guardrail eval (§15.3 rule 6) is run ag
   mcp-server grew to 21 tools in steps 3.1–3.2, because those PRs did not run this sub-project's suite.
   Fixed here and renamed `test_get_tools_lists_every_tool`. Lesson recorded: an mcp-server tool change
   must also run `services/agent`'s suite.
+- Step 3.4 (2026-10-08) built the widgets/titles for the seven tools and `follow_up_links` (§15.2, §15.5).
+  Not yet built (step 3.5): the frontend. The backend contract is additive: `chart_kind` gains `scatter`/`area`
+  and the `result` event gains `follow_up_links`; an unchanged frontend ignores both, but would render a
+  `scatter`/`area` widget as an unknown kind until 3.5 ships.
+
+### 15.9 Step 3.4 verification and sizes (2026-10-08)
+
+Run end to end against the real `data/climate` output through a real `api/` and `services/mcp-server`
+(scripted LLM choosing the tool, everything else real): all nine Area 2 calls built the expected widget,
+title and links with no errors. Result sizes, full (widget) vs what the model sees after the cap:
+concentration 26→4 KB, temperature 20→6, headline relationship 29→17, all-gas 15→12, composition (1970+)
+33→18, share series 46→16, metadata 32→25; ranking (12) and scenarios (36) are uncapped. The relationship,
+composition and metadata views are still the largest; whether to trim them further (the remaining bulk is
+`fit_context`, the per-year gas rows and per-source fields) is a tuning decision to make after the live
+eval shows what the model actually uses.
+
 - Not yet built (steps 3.4–3.5): widgets for the new tools (`ui_selection`), `follow_up_links`,
   the frontend. Until 3.4 a data_query that calls only Area 2 tools produces no widget.
 

@@ -3898,6 +3898,8 @@ quote it as a measured PRIMAP-hist figure until it is.
 
 - **Section 3 step 3.3 — implemented 2026-10-08** (`services/agent`): model-facing payload cap, deterministic climate notes, guardrail prompts and routing examples, lint + a manually-run golden-prompt eval, progress labels for the seven new tools. The live eval has **not** been run (no `ANTHROPIC_API_KEY` in the dev environment) — to be run on the Mac Mini before deploy (step 3.6). Also fixed a stale agent test left failing by steps 3.1–3.2.
 
+- **Section 3 step 3.4 — implemented 2026-10-08** (`services/agent`): widgets/titles for the seven Area 2 tools (titles built from the result so the all-gas relationship is never titled TCRE/headline and non-headline OWID windows never "headline"), `follow_up_links` (lookup, state, SSE field; emissions-only tools included per the owner), and Area 2 `summary` objects reaching the compose node. Verified end to end against the real API + MCP server. PR #267 (3.3) merged after a four-round Copilot loop.
+
 Revised again once each phase ships.
 
 

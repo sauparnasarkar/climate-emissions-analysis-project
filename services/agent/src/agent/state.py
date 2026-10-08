@@ -30,6 +30,13 @@ class WidgetSpec(BaseModel):
     props: dict
 
 
+class FollowUpLink(BaseModel):
+    """A real in-app navigation link (SPEC.md §15.5), not a prompt: `route` is a dashboard path."""
+
+    label: str
+    route: str
+
+
 class AgentState(BaseModel):
     messages: Annotated[list, add_messages] = Field(default_factory=list)
     current_query: str = ""
@@ -40,4 +47,5 @@ class AgentState(BaseModel):
     scope_notes: list[str] = Field(default_factory=list)
     widgets: list[WidgetSpec] = Field(default_factory=list)
     suggested_prompts: list[str] = Field(default_factory=list)
+    follow_up_links: list[FollowUpLink] = Field(default_factory=list)
     response_text: str = ""
