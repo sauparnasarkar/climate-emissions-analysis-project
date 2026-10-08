@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { InlineAlert, Progress, PromptBar } from 'design-system';
 import { StarterPromptTile } from '../components/StarterPromptTile';
 import { useAgentStream } from '../agent/useAgentStream';
+import { KpiRow } from '../agent/KpiRow';
 import { MarkdownText } from '../agent/MarkdownText';
 import { WidgetRenderer } from '../agent/WidgetRenderer';
 import { toolNameFromSourceTaggedCall } from '../agent/types';
@@ -137,6 +138,8 @@ function ResultSectionView({
       ) : (
         <>
           {!textOnly && <MarkdownText text={result.response_text} />}
+          {/* The answer's KPI row (services/agent SPEC.md §15.11): figures read from the tool results, labelled with their data year. */}
+          <KpiRow kpis={result.kpis ?? []} />
           <div
             className="agent-widget-grid"
             style={{ display: 'grid', gridTemplateColumns: `repeat(${widgetColumnCount(result.widgets.length)}, 1fr)`, gap: 16 }}

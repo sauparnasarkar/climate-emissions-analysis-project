@@ -3917,6 +3917,8 @@ quote it as a measured PRIMAP-hist figure until it is.
 - **Section 3 step 3.4b — implemented 2026-10-08** (`services/agent`): the agent-side decision-108 fixes (year from the result, omit-the-year prompt rule, "–"/"CO₂" typography, resolved-name headers, no duplicate single-country chart). Steps 3.4, 3.4b-MCP and 3.5a are merged (#268–#271).
 - **Section 3 step 3.5b — implemented 2026-10-08** (`climate-dashboard-react`): `?gas=` on Historical Trends and URL-backed `?countries=` on Scenario Comparison (decision 107, corrected). The agent's `follow_up_links` then add these params (a small follow-up in `services/agent`).
 
+- **Section 3 step 3.5d-1 — implemented 2026-10-08** (`climate-dashboard-react`, plus a small `services/agent` addition): `WidgetRenderer` entries for the seven Area 2 tools — the module's own headline, all-gas, composition and scenario components fed the tool result through its pure builders (new `embedded` option: unique ids, level-3 heading, no page anchor, so an answer can repeat them), plain charts/cards/table for the rest — plus `KpiRow` and the per-widget source line. Verified on real data through a preview server (`services/agent/evals/preview_server.py`: real graph, MCP and API, stand-in LLM). Found and fixed in preview: the deterministic scenario lead already contains the reading note, so the embedded section printed it twice (the agent now flags the widget; the section drops its own panel). The answer-level scenario chip is placed by 3.5d-2 (the section already carries its own).
+
 Revised again once each phase ships.
 
 

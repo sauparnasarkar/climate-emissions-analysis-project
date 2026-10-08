@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentPage } from './AgentPage';
 import { useAgentStream } from '../agent/useAgentStream';
@@ -286,6 +286,42 @@ describe('AgentPage', () => {
     expect(screen.getByText('Capped to the 10 highest-value countries.')).toBeInTheDocument();
     expect(screen.getByText('Here is the requested methodology summary.')).toBeInTheDocument();
     expect(screen.getByText('OWID CO2 dataset.')).toBeInTheDocument();
+  });
+
+  it('shows the answer\'s KPI row under the lead, each card labelled with its data year (services/agent SPEC §15.11)', () => {
+    const result: AgentQueryResult = {
+      thread_id: 't1',
+      widgets: [{ intent: 'text', chart_kind: null, title: 'Methodology', as_of: null, source_tool_call: 'get_methodology_notes:{}', props: { data_provenance: 'OWID.' } }],
+      response_text: 'China emitted 12,289 Mt of CO₂ in 2024.',
+      scope_notes: [],
+      suggested_prompts: [],
+      kpis: [
+        { label: 'CO₂ emissions', value: 12289, unit: 'Mt', decimals: 0, year: 2024, sub: 'Largest of 215 countries', series: null },
+        { label: 'Per capita', value: 8.66, unit: 't', decimals: 2, year: 2024, sub: null, series: null },
+      ],
+      percent: 100,
+    };
+    stubStream({ result });
+    render(<AgentPage />);
+    const cards = within(screen.getByRole('list', { name: 'Key figures' })).getAllByRole('listitem');
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toHaveTextContent('CO₂ emissions · 2024');
+    expect(cards[0]).toHaveTextContent('12,289 Mt');
+    expect(cards[0]).toHaveTextContent('Largest of 215 countries');
+  });
+
+  it('shows no KPI list for an older agent response that has none', () => {
+    const result: AgentQueryResult = {
+      thread_id: 't1',
+      widgets: [{ intent: 'text', chart_kind: null, title: 'Methodology', as_of: null, source_tool_call: 'get_methodology_notes:{}', props: { data_provenance: 'OWID.' } }],
+      response_text: 'No answer blocks here.',
+      scope_notes: [],
+      suggested_prompts: [],
+      percent: 100,
+    };
+    stubStream({ result });
+    render(<AgentPage />);
+    expect(screen.queryByRole('list', { name: 'Key figures' })).toBeNull();
   });
 
   it('renders a context_reuse answer as a normal markdown response, not an InlineAlert, with no duplicate paragraph', () => {

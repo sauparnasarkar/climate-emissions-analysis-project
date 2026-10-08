@@ -13,6 +13,32 @@ export interface WidgetSpec {
   // cache_key) -- no real tool name contains a colon, so splitting on the first one recovers it.
   source_tool_call: string
   props: Record<string, unknown>
+  // Answer-block fields (services/agent SPEC.md §15.11). Optional: an older agent build does not send them.
+  /** The "Source: ..." line under the chart. */
+  source_line?: string | null
+  /** The scenario answer's warning chip text. */
+  badge?: string | null
+  /** The widget's key figures (what the lead quotes). */
+  summary?: Record<string, unknown> | null
+}
+
+/** One card of an answer's KPI row; `value` is a number, formatted by the card. */
+export interface Kpi {
+  label: string
+  value: number
+  unit: string
+  decimals: number
+  /** The data year the card is labelled with. */
+  year: number | null
+  sub: string | null
+  /** A scenario name (BAU / Moderate / Aggressive), so the card takes that series' colour. */
+  series: string | null
+}
+
+/** A real in-app navigation link (route may carry ?query and #anchor), distinct from a follow-up prompt. */
+export interface FollowUpLink {
+  label: string
+  route: string
 }
 
 export interface AgentQueryResult {
@@ -21,6 +47,11 @@ export interface AgentQueryResult {
   response_text: string
   scope_notes: string[]
   suggested_prompts: string[]
+  // Answer blocks (services/agent SPEC.md §15.11); optional so a response from an older agent still parses.
+  kpis?: Kpi[]
+  follow_up_links?: FollowUpLink[]
+  /** Prompt chips for the docked input: prompts, not links. */
+  follow_up_prompts?: string[]
   percent: number
 }
 

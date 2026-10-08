@@ -1,4 +1,5 @@
 import { ChartCard } from 'design-system';
+import { useSectionIds } from './useSectionIds';
 import { ALL_GAS_TAG } from '../../lib/climateCopy';
 import { ALL_GAS_ANCHOR, type AllGas } from '../../lib/allGas';
 import { BaselineChip } from '../climate/BaselineChip';
@@ -24,13 +25,14 @@ const NEAR_CHART = /short window|time|CO2-equivalent|incomplete/i;
  * 1970 onward, against the temperature anomaly. A recent co-movement over a short window, tagged "not TCRE": it is never given that name and never
  * compared with the AR6 range or the long-run CO₂ slope. Every figure and sentence about the fit is the API's.
  */
-export function AllGasRelationship({ allGas }: { allGas: AllGas }) {
+export function AllGasRelationship({ allGas, embedded }: { allGas: AllGas; embedded?: boolean }) {
+  const ids = useSectionIds(embedded, ALL_GAS_ANCHOR, 'all-gas-heading');
   const { slope, ciLow, ciHigh, rSquared, start, end, nYears, bootstrap, stabilitySummary, caveats, omittedYears } = allGas;
   const near = caveats.filter((c) => NEAR_CHART.test(c));
   return (
-    <section id={ALL_GAS_ANCHOR} aria-labelledby="all-gas-heading" style={{ marginBottom: 24 }}>
+    <section id={ids.sectionId} aria-labelledby={ids.headingId} style={{ marginBottom: 24 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 12px', margin: '0 0 12px' }}>
-        <h3 id="all-gas-heading" className="__s9cmpx-headline6" style={{ margin: 0 }}>Recent all-gas relationship, {start} onward</h3>
+        <h3 id={ids.headingId} className="__s9cmpx-headline6" style={{ margin: 0 }}>Recent all-gas relationship, {start} onward</h3>
         <span className="__s9cmpx-label4" style={{ padding: '2px 8px', borderRadius: 3, background: 'var(--__s9cmpx-static-background-strong, rgba(127,127,127,0.18))' }}>{ALL_GAS_TAG}</span>
       </div>
       <div className="module-relationship-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.55fr) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
