@@ -136,6 +136,11 @@ async def test_headline_relationship_is_labelled_and_carries_the_fit(climate_cli
     assert s["vs_ar6"] is not None  # the headline is compared with AR6
     assert s["first_pair"]["year"] == s["window"][0] and s["last_pair"]["year"] == s["window"][1]
     assert body["points"]  # full pairs stay in the result
+    # The cumulative figures are stated in Gt with their unit, so the model never converts the Mt pairs itself.
+    c = s["cumulative"]
+    assert c["unit"].startswith("Gt") and c["last_year"] == s["window"][1]
+    assert c["last"] == round(s["last_pair"]["cumulative_emissions"] / 1000)
+    assert s["pair_unit"]["cumulative_emissions"].startswith("Mt")
 
 
 async def test_fossil_variant_is_labelled_secondary(climate_client):

@@ -9,7 +9,7 @@ added. Capping what the *model* sees is the agent's job (agent SPEC.md §15.4), 
 
 from __future__ import annotations
 
-from ..climate import fetch_correlation, resolve_share_countries, summarize_points
+from ..climate import fetch_correlation, normalize_typography, resolve_share_countries, summarize_points
 from ..server import mcp
 
 # Tool-facing reference label -> the API's `baseline` value.
@@ -150,7 +150,7 @@ async def get_emissions_temperature_relationship(
     '1970' (primap_ghg default) or '1990' (a short pair with no fit); an unsupported
     source/baseline pair is rejected with the valid combinations -- relay that rather than
     substituting another baseline. The response carries `summary` (relationship label, window,
-    slope with its HAC 95% interval and unit, R², and, for the pre-industrial OWID fits only (the headline and its fossil-only
+    slope with its HAC 95% interval and unit, R², `cumulative` (the first/last cumulative emissions already in GtCO2 -- quote it; the raw `points` are in Mt, never convert them yourself), and, for the pre-industrial OWID fits only (the headline and its fossil-only
     variant), the comparison with the AR6 very-likely range; the all-gas relationship and the
     1970/1990 windows never carry one) -- quote
     that. Always say this is a long-run relationship, not a complete climate model and not proof
@@ -173,6 +173,19 @@ async def get_emissions_temperature_relationship(
         first, last = points[0], points[-1]
         summary["first_pair"] = first
         summary["last_pair"] = last
+        # The pairs' cumulative figures are in the API's own unit (Mt CO2 / Mt CO2e); the model kept misreading them as Gt (1000x). State the
+        # unit, and give the Gt figures ready to quote -- never to be derived from the pairs.
+        x_unit = (body.get("x") or {}).get("unit") or "Mt CO2"
+        summary["pair_unit"] = {"cumulative_emissions": x_unit, "temperature": "°C"}
+        if x_unit.startswith("Mt"):
+            gt_unit = normalize_typography("Gt" + x_unit[2:])
+            summary["cumulative"] = {
+                "unit": gt_unit,
+                "first_year": first["year"],
+                "first": round(first["cumulative_emissions"] / 1000),
+                "last_year": last["year"],
+                "last": round(last["cumulative_emissions"] / 1000),
+            }
         summary["temperature_change_c"] = round(last["temperature"] - first["temperature"], 3)
     ctx = body.get("fit_context") or {}
     if body["source"] == "owid_co2" and ctx.get("vs_ar6") is not None:

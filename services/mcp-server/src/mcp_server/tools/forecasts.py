@@ -33,22 +33,35 @@ async def get_forecast(country: str) -> dict:
     return await client.get(f"/forecasts/{resolved}")
 
 
+# The columns `get_forecast_summary` can rank (and cap) by -- the API's row fields.
+FORECAST_RANK_COLUMNS = ("actual_2020", "forecast_2030", "forecast_2035", "forecast_2040", "pct_change_2020_2040")
+
+
 @mcp.tool()
-async def get_forecast_summary(scope: str = "featured") -> dict:
+async def get_forecast_summary(scope: str = "featured", rank_by: str = "actual_2020") -> dict:
     """2030/2035/2040 forecast snapshot table. `scope` is 'featured' (10, default) or
     'expanded' (~40). This tool has no country-list argument, so trimming (SPEC.md §3.2)
     always applies when there are more than 10 rows: capped to the 10 countries with the
-    highest actual_2020 value, with a scope_note explaining the cap. At `scope='featured'`
-    there are exactly 10 rows already, so no trimming occurs there in practice."""
+    highest `rank_by` value, with a scope_note explaining the cap. At `scope='featured'`
+    there are exactly 10 rows already, so no trimming occurs there in practice.
+
+    `rank_by` is the column the cap (and the order of the rows) follows: 'actual_2020' (default),
+    'forecast_2030', 'forecast_2035', 'forecast_2040' or 'pct_change_2020_2040'. **For "top N
+    forecasted emitters in 2040" pass scope='expanded' and rank_by='forecast_2040'** -- ranking by
+    the 2020 actuals would pick the cap from the wrong column. The response's `ranked_by` says
+    which column ordered the rows."""
+    if rank_by not in FORECAST_RANK_COLUMNS:
+        raise ValueError(f"rank_by must be one of {', '.join(FORECAST_RANK_COLUMNS)}, got '{rank_by}'")
     client = get_client()
     body = await client.get("/forecasts/summary", params={"scope": scope})
     trimmed, note = trim(
         body["rows"],
         scope_label=SCOPE_LABELS[scope],
-        sort_key_label="actual_2020 descending",
-        sort_key=lambda row: row["actual_2020"] if row["actual_2020"] is not None else float("-inf"),
+        sort_key_label=f"{rank_by} descending",
+        sort_key=lambda row: row[rank_by] if row.get(rank_by) is not None else float("-inf"),
     )
     body["rows"] = trimmed
+    body["ranked_by"] = rank_by
     if note is not None:
         body["scope_note"] = note
     return body
