@@ -57,11 +57,17 @@ def _result(record: ToolCallRecord) -> dict:
 def _historical(record: ToolCallRecord) -> list[FollowUpLink]:
     r = _result(record)
     # A sovereign-scope result can hold countries the page cannot show: its picker validates against the EXPANDED list and
-    # silently falls back to the default selection for names it does not know, so the link would open a different view than
-    # the answer's. Carry the countries only for the scopes the page can represent (expanded, featured; the tool's default is
-    # expanded and it resolves explicit names against the chosen scope). The gas is still carried: every page knows it.
-    representable = record.args.get("scope", "expanded") != "sovereign"
-    names = [s["name"] for s in r.get("series") or [] if isinstance(s, dict) and s.get("name")][:MAX_LINK_COUNTRIES] if representable else []
+    # silently falls back to its defaults for names it does not know, so a link carrying them would open a different view than
+    # the answer's. The MCP tool marks each series `in_expanded_scope`; carry exactly the flagged names (an explicit China at
+    # sovereign scope is still representable). When the flag is absent (an older MCP build) fall back to the scope: sovereign
+    # carries none, anything narrower carries all. The gas is carried regardless: every page knows it.
+    scope = record.args.get("scope", "expanded")
+
+    def representable(series: dict) -> bool:
+        flag = series.get("in_expanded_scope")
+        return flag if isinstance(flag, bool) else scope != "sovereign"
+
+    names = [s["name"] for s in r.get("series") or [] if isinstance(s, dict) and s.get("name") and representable(s)][:MAX_LINK_COUNTRIES]
     params = [("countries", n) for n in names]
     if r.get("gas") and r["gas"] != "co2":  # co2 is the page's default
         params.append(("gas", r["gas"]))

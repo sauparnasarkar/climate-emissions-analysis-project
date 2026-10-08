@@ -154,3 +154,32 @@ def test_scenario_and_profile_links_are_unaffected_because_their_tools_enforce_t
     # server, so their results cannot hold a name the page does not know; their links keep their params.
     assert _link(_rec("compare_scenarios_across_countries", {"countries": ["China"], "scenarios": {}})).route == "/scenarios?countries=China"
     assert _link(_rec("get_country_profile", {"country": "China"})).route == "/country-profile?country=China"
+
+
+# --- the in_expanded_scope flag from the MCP tool (Copilot, second pass on #275) -------------------------------------
+
+
+def test_a_sovereign_result_carries_exactly_the_names_the_page_can_show():
+    # An explicit China at sovereign scope IS representable; Bhutan is not. The blunt "omit all" rule threw China away.
+    r = {"gas": "co2", "series": [{"name": "China", "in_expanded_scope": True}, {"name": "Bhutan", "in_expanded_scope": False}, {"name": "India", "in_expanded_scope": True}]}
+    link = _link(_rec("get_historical_emissions", r, {"scope": "sovereign"}))
+    assert _query(link.route) == {"countries": ["China", "India"]}
+
+
+def test_a_sovereign_result_with_no_representable_name_opens_the_bare_page():
+    r = {"gas": "co2", "series": [{"name": "Bhutan", "in_expanded_scope": False}, {"name": "Nepal", "in_expanded_scope": False}]}
+    assert _link(_rec("get_historical_emissions", r, {"scope": "sovereign"})).route == "/historical"
+
+
+def test_the_flag_wins_over_the_scope_either_way():
+    # a flagged-true name is carried even though the scope says sovereign; a flagged-false one is dropped even at expanded scope
+    carried = _link(_rec("get_historical_emissions", {"series": [{"name": "China", "in_expanded_scope": True}]}, {"scope": "sovereign"}))
+    assert _query(carried.route)["countries"] == ["China"]
+    dropped = _link(_rec("get_historical_emissions", {"series": [{"name": "Atlantis", "in_expanded_scope": False}]}, {"scope": "expanded"}))
+    assert dropped.route == "/historical"
+
+
+def test_without_the_flag_an_older_mcp_build_falls_back_to_the_scope_rule():
+    r = {"gas": "co2", "series": [{"name": "China"}]}
+    assert _link(_rec("get_historical_emissions", r, {"scope": "sovereign"})).route == "/historical"
+    assert _query(_link(_rec("get_historical_emissions", r, {"scope": "expanded"})).route)["countries"] == ["China"]
