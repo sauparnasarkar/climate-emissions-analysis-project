@@ -96,3 +96,16 @@ async def test_get_forecast_summary_reports_the_scope_actually_served(monkeypatc
     degraded.expanded_countries = [f"C{i}" for i in range(10)]
     _use(monkeypatch, degraded)
     assert (await get_forecast_summary(scope="expanded"))["effective_scope"] == "featured"
+
+
+async def test_get_forecast_summary_survives_an_unavailable_country_list(monkeypatch):
+    # /countries needs the raw OWID CSV (503 without it); /forecasts/summary does not. The summary must still be served.
+    class _NoCountries(_FakeSummaryClient):
+        async def get(self, path, params=None):
+            if path == "/countries":
+                raise RuntimeError("503: owid-co2-data.csv not found")
+            return await super().get(path, params)
+
+    _use(monkeypatch, _NoCountries())
+    body = await get_forecast_summary(scope="expanded", rank_by="forecast_2040")
+    assert body["rows"] and body["effective_scope"] == "featured"

@@ -57,8 +57,17 @@ async def get_forecast_summary(scope: str = "featured", rank_by: str = "actual_2
     body = await client.get("/forecasts/summary", params={"scope": scope})
     # The scope that was ACTUALLY served: the API quietly falls back to the featured ten when its expanded list is missing (api/data_loaders.py), still
     # accepting scope='expanded'. 'expanded' is only real when that list is strictly larger than the featured one.
-    lists = await fetch_country_lists()
-    body["effective_scope"] = "expanded" if scope == "expanded" and set(lists.expanded) > set(lists.featured) else "featured"
+    # Best effort: /countries needs the raw OWID CSV, which /forecasts/summary does not, so the summary must never fail because of it. If the lists
+    # cannot be read the scope is unverifiable and is reported as 'featured', the conservative reading (the agent then shows no ranked cards).
+    effective_scope = "featured"
+    if scope == "expanded":
+        try:
+            lists = await fetch_country_lists()
+            if set(lists.expanded) > set(lists.featured):
+                effective_scope = "expanded"
+        except Exception:  # noqa: BLE001 -- any failure to read the lists only costs the ranked cards, never the table
+            pass
+    body["effective_scope"] = effective_scope
     rows = sorted(
         body["rows"],
         key=lambda row: row[rank_by] if row.get(rank_by) is not None else float("-inf"),
