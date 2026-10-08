@@ -395,7 +395,7 @@ Scope (one branch + PR per step, per the repo convention):
   shared envelope pass-through (`note`/`caveats`/`attribution`/`source_vintage` survive every tool),
   deterministic `summary` builders, Area 2 text in `methodology.py`; tools `get_co2_concentration`,
   `get_temperature_anomaly`, `get_correlation_metadata`.
-- **Step 2 — relationship tools.** `get_emissions_temperature_relationship`, `get_ghg_composition`,
+- **Step 2 — relationship tools. Implemented 2026-10-08 (PR open on `feat/mcp-area2-relationship-tools`).** `get_emissions_temperature_relationship`, `get_ghg_composition`,
   `get_country_cumulative_share`, `get_scenario_temperature`; `get_methodology_notes` extended with
   the Area 2 topics (including the decision-42 "how this number was derived" trail, read from the
   API's `fit`/`fit_context`, never retyped).
@@ -419,3 +419,21 @@ Step 1 notes (as built):
 - Verified against the real `data/climate` output through the in-process API: 2025 anomaly 1.451 °C,
   offset −0.265 °C, splice year 1959 with its overlap gap, and the Berkeley preliminary-release note
   arrives in `caveats`.
+
+Step 2 notes (as built):
+
+- The draft tool arguments in `SPEC.md` §5.1 were corrected to the API's real parameters (see that
+  section): `emissions-temperature` has no year range or `include_regression`; the source id is
+  `primap_ghg`; `ghg-composition` has no `countries`; `country-share` takes ISO3 codes.
+- `country-share` name resolution is a second §3.1-style guard (`resolve_share_countries`) against the
+  endpoint's own country set, not `/countries`. Limitation recorded: a country whose record ended
+  before the latest year cannot be requested by name.
+- `get_ghg_composition` defaults to 1970 onward (PRIMAP-hist pre-1970 is reconstruction); found when a
+  real-data run summarised 1750 as 95% methane.
+- `get_methodology_notes(topic='climate'|'all')` is backward compatible: no `topic` is byte-for-byte the
+  old behaviour. The derivation figures are fetched live (two concurrent calls: total and fossil-only).
+- Verified on real `data/climate`: headline slope 0.486 (HAC CI 0.442–0.530, R² 0.888), all-gas slope
+  0.572, Aggressive 2040 level 0.10 °C below BAU — all matching the requirements doc's revision notes.
+- Payload sizes on real data, all pre-cap: headline pair 29 KB, all-gas 15 KB, composition from 1970
+  (smaller than the 147 KB full-coverage run), scenario 36 KB, methodology(climate) 14 KB. The agent-side
+  cap (agent `SPEC.md` §15.4, Step 3.3) covers them.

@@ -18,8 +18,10 @@ from __future__ import annotations
 import json
 
 import httpx
+from rapidfuzz import fuzz, process
 
 from .client import get_client
+from .resolution import AUTO_RESOLVE_THRESHOLD, CountryResolutionError
 
 
 class ClimateApiError(Exception):
@@ -80,3 +82,31 @@ def summarize_points(points: list[dict], *, include_pct: bool) -> dict:
     if last.get("uncertainty") is not None:
         summary["last_uncertainty"] = _round(last["uncertainty"])
     return summary
+
+
+def resolve_share_countries(names: list[str], universe: list[dict]) -> list[str]:
+    """Resolve country names to the ISO3 codes `/correlation/country-share` takes (§5.1).
+
+    Unlike the emissions tools, this endpoint's identifier set is the pipeline's own ISO3
+    crosswalk, not `/countries`' OWID names, so the §3.1 guard is applied against that set
+    (`universe`: the endpoint's own `{country, name}` rows): an ISO3 code or exact name matches
+    directly, a confident fuzzy name match auto-resolves, anything else is an explicit error with
+    a suggestion -- never a silent drop.
+    """
+    by_code = {u["country"].upper(): u["country"] for u in universe}
+    by_name = {u["name"]: u["country"] for u in universe}
+    resolved: list[str] = []
+    for raw in names:
+        if raw.strip().upper() in by_code:
+            resolved.append(by_code[raw.strip().upper()])
+        elif raw in by_name:
+            resolved.append(by_name[raw])
+        else:
+            match = process.extractOne(raw, list(by_name), scorer=fuzz.WRatio)
+            if match is None:
+                raise CountryResolutionError(f"No match for '{raw}' in the country-share country list.")
+            candidate, score, _ = match
+            if score < AUTO_RESOLVE_THRESHOLD:
+                raise CountryResolutionError(f"No match for '{raw}' — did you mean: {candidate}?")
+            resolved.append(by_name[candidate])
+    return list(dict.fromkeys(resolved))

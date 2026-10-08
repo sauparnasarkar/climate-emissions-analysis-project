@@ -38,6 +38,10 @@ EXPECTED_TOOLS = {
     "get_co2_concentration",
     "get_temperature_anomaly",
     "get_correlation_metadata",
+    "get_emissions_temperature_relationship",
+    "get_ghg_composition",
+    "get_country_cumulative_share",
+    "get_scenario_temperature",
 }
 
 
