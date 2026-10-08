@@ -10,7 +10,7 @@ need to happen here.
 from __future__ import annotations
 
 FORECASTING_METHODOLOGY = (
-    "Forecasts use ETS(A,Ad,N) -- Holt's Damped Trend (statsmodels ExponentialSmoothing, "
+    "Forecasts use ETS(A,Ad,N) – Holt's Damped Trend (statsmodels ExponentialSmoothing, "
     "trend='add', damped_trend=True, seasonal=None). The damped trend prevents unbounded "
     "long-range extrapolation and better captures emissions slowdowns in developed countries "
     "(e.g. UK, Germany) than an undamped trend or ARIMA would. Deep learning and LLM-based "
@@ -26,7 +26,7 @@ MODEL_COMPARISON_SET = (
 
 DATA_PROVENANCE = (
     "All figures derive from Our World in Data's owid-co2-data.csv. Classical machine "
-    "learning only (Linear Regression, Random Forest, ETS) -- no Prophet (inappropriate for "
+    "learning only (Linear Regression, Random Forest, ETS) – no Prophet (inappropriate for "
     "annual data), no deep learning, no LLM-based forecasting."
 )
 
@@ -43,7 +43,7 @@ SCOPE_CRITERIA = (
 # wording is identical everywhere a scope_note appears rather than re-described per tool.
 SCOPE_LABELS = {
     "featured": "Featured scope — the original 10 curated countries",
-    "expanded": "Expanded scope — coverage ≥ natural gap threshold, ≥100 Mt latest-year CO2",
+    "expanded": "Expanded scope — coverage ≥ natural gap threshold, ≥100 Mt latest-year CO₂",
     "sovereign": "Sovereign scope — every country with a real ISO-3 code",
 }
 
@@ -72,18 +72,18 @@ CLIMATE_METHODOLOGY = {
     ),
     "headline_long_run_relationship": (
         "Ordinary least squares of the Berkeley Earth global temperature anomaly (1850-1900 "
-        "reference) on cumulative OWID total anthropogenic CO2 since 1850 (fossil fuel, cement "
+        "reference) on cumulative OWID total anthropogenic CO₂ since 1850 (fossil fuel, cement "
         "and land-use change; OWID's World series, which includes international aviation and "
         "shipping). A simplified, data-driven analog to the IPCC's TCRE (AR6 best estimate about "
-        "0.45 degC per 1,000 GtCO2, very likely range 0.27-0.63), not a restatement of it: it also "
-        "absorbs warming from non-CO2 gases and aerosols that varies with CO2, uses one observed "
+        "0.45 °C per 1,000 GtCO₂, very likely range 0.27–0.63), not a restatement of it: it also "
+        "absorbs warming from non-CO₂ gases and aerosols that varies with CO₂, uses one observed "
         "climate history rather than a multi-model ensemble, and depends on uncertain land-use "
         "estimates. The confidence interval uses Newey-West (HAC) standard errors because plain "
         "OLS errors are too narrow for autocorrelated annual series. Fossil + cement only is the "
         "labelled secondary variant."
     ),
     "recent_all_gas_relationship": (
-        "A separate, secondary relationship: PRIMAP-hist cumulative national total GHG in CO2e "
+        "A separate, secondary relationship: PRIMAP-hist cumulative national total GHG in CO₂e "
         "(AR5 GWP-100, excluding land use and international aviation/shipping) from 1970 against "
         "the same temperature series. It is a descriptive regression and is never called TCRE and "
         "never compared with the AR6 range."
@@ -99,13 +99,13 @@ CLIMATE_METHODOLOGY = {
     "scenario_temperature_translation": (
         "An illustrative, partial-coverage translation, not a climate-model projection: the "
         "BAU/Moderate/Aggressive pathways apply to the covered country set only; the rest of the "
-        "world is held at its last-observed share of the global total; land-use CO2 is held flat "
-        "after the last observed year; the OWID CO2 headline slope converts added cumulative "
+        "world is held at its last-observed share of the global total; land-use CO₂ is held flat "
+        "after the last observed year; the OWID CO₂ headline slope converts added cumulative "
         "emissions to implied temperature, with a second line from the fossil-only slope. The "
         "output depends on the regression period, the emissions source and these assumptions."
     ),
     "source_reconciliation": (
-        "OWID/GCP and PRIMAP-hist CO2 are deliberately not forced to agree: scope boundaries, "
+        "OWID/GCP and PRIMAP-hist CO₂ are deliberately not forced to agree: scope boundaries, "
         "treatment of international bunker fuels, treatment of cement and process emissions, "
         "methodology and data-vintage differences all produce expected directional differences. "
         "The 5-8% figure in the requirements was estimated against EDGAR and has not yet been "
@@ -117,7 +117,7 @@ CLIMATE_METHODOLOGY = {
         "file is a preliminary release, not yet peer reviewed; values may be revised. NOAA GML "
         "Mauna Loa and the Law Dome ice-core record are spliced at 1959 (the splice year and the "
         "measured overlap gap are published with the series). EDGAR is not published (its "
-        "fuel-combustion CO2 is IEA data under CC BY-NC-ND 4.0)."
+        "fuel-combustion CO₂ is IEA data under CC BY-NC-ND 4.0)."
     ),
     "not_a_climate_model": (
         "Everything here is descriptive analysis of observed series. Correlation and regression "
@@ -129,7 +129,7 @@ CLIMATE_METHODOLOGY = {
 
 # The order the headline derivation is told in (decision 42); the figures come from the API.
 HEADLINE_DERIVATION_OUTLINE = [
-    "1. What is regressed on what, and why total anthropogenic CO2 (the fossil-only result beside it).",
+    "1. What is regressed on what, and why total anthropogenic CO₂ (the fossil-only result beside it).",
     "2. Uncertainty: HAC standard errors and why plain errors are too narrow, with the bandwidth sensitivity.",
     "3. Sensitivity: estimation window and land-use scaling.",
     "4. Stability: residual bootstrap (not a pairs bootstrap) and decade holdouts; in-sample vs out-of-sample.",

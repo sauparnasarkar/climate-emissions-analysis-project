@@ -3900,6 +3900,7 @@ quote it as a measured PRIMAP-hist figure until it is.
 
 - **Section 3 step 3.4 — implemented 2026-10-08** (`services/agent`): widgets/titles for the seven Area 2 tools (titles built from the result so the all-gas relationship is never titled TCRE/headline and non-headline OWID windows never "headline"), `follow_up_links` (lookup, state, SSE field; emissions-only tools included per the owner), and Area 2 `summary` objects reaching the compose node. Verified end to end against the real API + MCP server. PR #267 (3.3) merged after a four-round Copilot loop.
 
+- **Section 3 step 3.4b — implemented 2026-10-08** (`services/agent`): the agent-side decision-108 fixes (year from the result, omit-the-year prompt rule, "–"/"CO₂" typography, resolved-name headers, no duplicate single-country chart). Steps 3.4, 3.4b-MCP and 3.5a are merged (#268–#271).
 - **Section 3 step 3.5b — implemented 2026-10-08** (`climate-dashboard-react`): `?gas=` on Historical Trends and URL-backed `?countries=` on Scenario Comparison (decision 107, corrected). The agent's `follow_up_links` then add these params (a small follow-up in `services/agent`).
 
 Revised again once each phase ships.

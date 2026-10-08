@@ -297,7 +297,7 @@ async def test_share_primap_source_works_under_both_names(climate_client):
     a = await get_country_cumulative_share(source="primap_hist", gas_scope="total_ghg")
     b = await get_country_cumulative_share(source="primap_ghg", gas_scope="total_ghg")
     assert a["source"] == b["source"] == "primap_hist" and a["rows"] == b["rows"]
-    assert "CO2-equivalent" in a["label"] or "greenhouse" in a["label"]
+    assert "CO₂-equivalent" in a["label"] or "greenhouse" in a["label"]
 
 
 async def test_owid_non_preindustrial_windows_are_not_labelled_headline(climate_client):

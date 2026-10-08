@@ -1275,3 +1275,12 @@ Implements ENHANCEMENTS.md decision 106. Everything below is **deterministic Pyt
 - The compose payload now carries each widget's `summary` and the `kpis`; `source_line`, `badge` and `props` are excluded from it.
 - Not done here (steps 3.4b-3.5d): the "--"/"CO2" title fixes, the "Top 10 emitters (selected year)" title (it reads the year from args, not the result), and the duplicate single-country chart; the frontend; dashboard URL state.
 
+### 15.12 Ask-page polish (step 3.4b; root ENHANCEMENTS.md decision 108)
+
+The agent-side half of the design review's independent fixes (the MCP half, `get_top_emitters` defaulting to the latest year, shipped in #269):
+
+- **Top-emitters year.** `AGENT_SYSTEM_PROMPT` tells the model to leave `year` out unless the user names one; the widget title and the progress label read the year from the *result* ("Top 10 emitters (2024)"; "for the latest year"), and show the count actually returned.
+- **Typo-proof headers.** The profile card's title uses the resolved country from the result, not the raw argument ("China emissions profile", not "Chinaa …").
+- **Typography.** User-facing titles, scope notes and the off-topic message use "–" in place of "--", and "CO₂" in place of "CO2" (progress label, composition note). A test fails if a title or note regresses. Text that is written for the model, not shown to users (tool-message errors, docstrings), is unchanged; the MCP tools' own methodology and note strings still contain plain "CO2" (separate sub-project).
+- **No duplicate single-country chart.** When a successful `get_historical_emissions` in the turn already charts the profile's country (matched on the resolved name, so typos still match), the profile contributes its KPI card only, and the "chart or card?" LLM judgment call is skipped. A historical chart for *other* countries, or no historical call at all, leaves the existing behaviour (§8 `ui_selection`) untouched.
+

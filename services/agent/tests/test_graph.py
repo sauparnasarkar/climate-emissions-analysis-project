@@ -782,3 +782,80 @@ async def test_answer_blocks_reach_the_result_event_and_reset_next_turn():
     assert first["widgets"][0].source_line.startswith("Source: OWID, 1990\u20132024") and first["widgets"][0].summary["co2_mt"] == 12289.0
     second = await graph.ainvoke({"current_query": "how does the forecast work?"}, config=THREAD_CONFIG)
     assert second["kpis"] == [] and second["follow_up_prompts"] == []
+
+
+# === Ask-page polish: no duplicate single-country chart ===========================================
+
+_PROFILE_CHINA = {"country": "China", "years": [1990, 2024], "co2": [2483.5, 12289.0], "co2_per_capita": [2.15, 8.66],
+                  "table": [{"year": 2024, "co2": 12289.0, "co2_per_capita": 8.66, "co2_yoy_pct_change": 1.0}]}
+
+
+def _historical(*names):
+    return {"gas": "co2", "series": [{"name": n, "years": [1990, 2024], "values": [1.0, 2.0]} for n in names]}
+
+
+async def _profile_turn(historical_names, profile_arg="China", script_chart_choice=None):
+    calls = [_tool_call("get_country_profile", {"country": profile_arg}, "p1")]
+    tools = [_fake_tool("get_country_profile", _PROFILE_CHINA)]
+    if historical_names:
+        calls.append(_tool_call("get_historical_emissions", {"countries": historical_names}, "h1"))
+        tools.append(_fake_tool("get_historical_emissions", _historical(*historical_names)))
+    script = [{"classification": "data_query"}, AIMessage(content="", tool_calls=calls), AIMessage(content="done")]
+    if script_chart_choice is not None:
+        script.append({"include_chart": script_chart_choice})
+    script.append({"response_text": "ok"})
+    llm = ScriptedChatModel(script)
+    graph = await build_graph(llm=llm, mcp_tools=tools)
+    result = await graph.ainvoke({"current_query": "China's emissions trend"}, config=THREAD_CONFIG)
+    return result, llm
+
+
+async def test_profile_chart_is_dropped_when_a_historical_chart_already_covers_the_country():
+    # No "include_chart" entry is scripted: reaching that LLM judgment call would raise.
+    result, llm = await _profile_turn(["China", "India"], script_chart_choice=None)
+    profile_widgets = [w for w in result["widgets"] if w.source_tool_call.startswith("get_country_profile")]
+    assert [w.intent for w in profile_widgets] == ["card"]
+    assert any(w.intent == "chart" and w.source_tool_call.startswith("get_historical_emissions") for w in result["widgets"])
+    assert llm.exhausted
+
+
+async def test_the_match_uses_the_resolved_country_name_so_a_typo_still_dedupes():
+    result, llm = await _profile_turn(["China"], profile_arg="Chinaa")  # the fake returns the resolved "China"
+    assert [w.intent for w in result["widgets"] if w.source_tool_call.startswith("get_country_profile")] == ["card"]
+    assert llm.exhausted
+
+
+async def test_the_profile_chart_is_kept_when_the_historical_chart_is_about_other_countries():
+    result, llm = await _profile_turn(["India", "Brazil"], script_chart_choice=True)
+    assert sorted(w.intent for w in result["widgets"] if w.source_tool_call.startswith("get_country_profile")) == ["card", "chart"]
+    assert llm.exhausted
+
+
+async def test_the_profile_chart_choice_is_unchanged_with_no_historical_call_at_all():
+    result, llm = await _profile_turn(None, script_chart_choice=True)
+    assert sorted(w.intent for w in result["widgets"]) == ["card", "chart"] and llm.exhausted
+
+
+async def test_the_profile_chart_is_kept_when_the_historical_chart_is_a_different_gas():
+    # Copilot review of #272: a methane/nitrous-oxide history for the same country is not a duplicate
+    # of the profile's CO2 trend chart, so the profile chart (and its LLM choice) must stay.
+    for gas in ("methane", "nitrous_oxide"):
+        calls = [_tool_call("get_country_profile", {"country": "China"}, "p1"), _tool_call("get_historical_emissions", {"countries": ["China"], "gas": gas}, "h1")]
+        hist = {"gas": gas, "series": [{"name": "China", "years": [1990, 2024], "values": [1.0, 2.0]}]}
+        tools = [_fake_tool("get_country_profile", _PROFILE_CHINA), _fake_tool("get_historical_emissions", hist)]
+        llm = ScriptedChatModel([{"classification": "data_query"}, AIMessage(content="", tool_calls=calls), AIMessage(content="done"), {"include_chart": True}, {"response_text": "ok"}])
+        graph = await build_graph(llm=llm, mcp_tools=tools)
+        result = await graph.ainvoke({"current_query": "China's emissions"}, config={"configurable": {"thread_id": f"gas-{gas}"}})
+        assert sorted(w.intent for w in result["widgets"] if w.source_tool_call.startswith("get_country_profile")) == ["card", "chart"], gas
+        assert llm.exhausted
+
+
+def test_a_historical_result_with_no_gas_field_is_treated_as_co2():
+    from agent.state import ToolCallRecord
+    from agent.ui_selection import historical_chart_covers
+
+    profile = ToolCallRecord(tool_name="get_country_profile", args={}, result={"country": "China"}, progress_label="x")
+    bare = ToolCallRecord(tool_name="get_historical_emissions", args={}, result={"series": [{"name": "China"}]}, progress_label="x")
+    methane = ToolCallRecord(tool_name="get_historical_emissions", args={}, result={"gas": "methane", "series": [{"name": "China"}]}, progress_label="x")
+    assert historical_chart_covers(profile, [profile, bare]) is True
+    assert historical_chart_covers(profile, [profile, methane]) is False

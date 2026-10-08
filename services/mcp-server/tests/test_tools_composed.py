@@ -170,3 +170,96 @@ async def test_get_top_emitters_share_is_none_when_the_total_is_zero():
     finally:
         mcp_client.set_client(None)
     assert body["total_mt"] == 0 and body["top_n_share_pct"] is None
+
+
+def test_returned_methodology_text_uses_co2_subscript_degree_sign_and_en_dashes():
+    # Ask-page design review: these strings reach users (through the agent's answers and alerts), so
+    # plain "CO2", "degC" and a "--" stand-in for a dash must not appear. File names and identifiers
+    # (owid-co2-data.csv, `owid_co2`) are not text and stay as they are.
+    import re
+
+    from mcp_server.methodology import (
+        CLIMATE_METHODOLOGY,
+        HEADLINE_DERIVATION_OUTLINE,
+        SCOPE_LABELS,
+        methodology_notes,
+    )
+
+    texts = [*CLIMATE_METHODOLOGY.values(), *HEADLINE_DERIVATION_OUTLINE, *SCOPE_LABELS.values(), *methodology_notes().values()]
+    assert len(texts) > 15
+    for t in texts:
+        assert not re.search(r"\bCO2e?\b|GtCO2|non-CO2|degC", t), t
+        assert " -- " not in t, t
+    assert "owid-co2-data.csv" in methodology_notes()["data_provenance"]  # the file name is untouched
+
+
+async def test_relationship_labels_use_the_co2_subscript(climate_client):
+    from mcp_server.tools.climate import get_emissions_temperature_relationship
+
+    for kwargs in ({}, {"variant": "fossil", "baseline": "1970"}, {"baseline": "1990"}):
+        label = (await get_emissions_temperature_relationship(**kwargs))["summary"]["relationship"]
+        assert "CO2" not in label, label
+
+
+# --- API-derived text is normalised too (Copilot review of #273) ------------------------------
+
+
+def _walk_strings(obj, path=""):
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield from _walk_strings(v, f"{path}.{k}")
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            yield from _walk_strings(v, f"{path}[{i}]")
+    elif isinstance(obj, str):
+        yield path, obj
+
+
+def _assert_no_plain_co2(body):
+    bad = [(p, s) for p, s in _walk_strings(body) if not s.startswith("http") and ("CO2" in s or "degC" in s)]
+    assert not bad, bad[:5]
+
+
+async def test_relationship_result_has_no_plain_co2_in_the_api_derived_fit_labels_or_units(climate_client):
+    from mcp_server.tools.climate import get_emissions_temperature_relationship
+
+    body = await get_emissions_temperature_relationship()
+    assert "CO₂" in body["summary"]["fit"]["label"] and "GtCO₂" in body["summary"]["fit"]["unit"]
+    _assert_no_plain_co2(body)
+
+
+async def test_methodology_climate_topic_live_fit_has_no_plain_co2(climate_client):
+    body = await get_methodology_notes(topic="climate")
+    _assert_no_plain_co2(body)
+    assert "GtCO₂" in body["headline_derivation"]["fit"]["unit"]
+
+
+async def test_every_other_correlation_tool_result_is_normalised_too(climate_client):
+    from mcp_server.tools.climate import (
+        get_co2_concentration,
+        get_correlation_metadata,
+        get_country_cumulative_share,
+        get_ghg_composition,
+        get_scenario_temperature,
+        get_temperature_anomaly,
+    )
+
+    for body in [
+        await get_co2_concentration(),
+        await get_temperature_anomaly(),
+        await get_correlation_metadata(),
+        await get_ghg_composition(),
+        await get_country_cumulative_share(),
+        await get_scenario_temperature(),
+    ]:
+        _assert_no_plain_co2(body)
+
+
+def test_normalisation_leaves_keys_urls_identifiers_and_non_strings_alone():
+    from mcp_server.climate import normalize_typography
+
+    out = normalize_typography({"CO2_key": "Total CO2, 5 MtCO2e and 1 GtCO2", "url": "https://x.org/CO2_data", "id": "owid_co2", "n": 3, "none": None,
+                                "nested": [{"u": "°C per 1,000 GtCO2"}, "0.45 degC"]})
+    assert out["CO2_key"] == "Total CO₂, 5 MtCO₂e and 1 GtCO₂"  # the KEY is not text, so it keeps its spelling
+    assert out["url"] == "https://x.org/CO2_data" and out["id"] == "owid_co2" and out["n"] == 3 and out["none"] is None
+    assert out["nested"] == [{"u": "°C per 1,000 GtCO₂"}, "0.45 °C"]
