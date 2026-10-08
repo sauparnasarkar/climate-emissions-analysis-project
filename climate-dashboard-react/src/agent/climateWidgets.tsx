@@ -127,7 +127,7 @@ export function ScenarioTemperatureWidget({ widget }: WidgetProps): ReactElement
  * year and the coverage, instead of an empty chart -- the same wording the module's country view uses. */
 function NoShares({ result }: { result: CorrelationCountryShareResponse }) {
   const [lo, hi] = result.coverage ?? [];
-  return <Unavailable>{`No country shares are available${result.year != null ? ` for ${result.year}` : ''}.${lo != null && hi != null ? ` Coverage is ${lo}–${hi}.` : ''}`}</Unavailable>;
+  return <Unavailable>{`No country shares are available${result.year != null ? ` for ${result.year}` : ''}.${lo != null && hi != null ? ` Coverage is ${lo}–${hi}.` : ''}${result.notes.length ? ` ${result.notes.join(' ')}` : ''}`}</Unavailable>;
 }
 
 export function CountryShareWidget({ widget }: WidgetProps): ReactElement {

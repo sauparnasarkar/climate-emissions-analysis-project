@@ -166,10 +166,11 @@ describe('country shares', () => {
   });
 
   it('a ranking outside the data\'s coverage (200 with no rows) says so instead of drawing an empty chart', () => {
-    const r = { ...shareResponse([]), mode: 'ranking', year: 1500, coverage: [1750, 2024], rows: [] };
+    const r = { ...shareResponse([]), mode: 'ranking', year: 1500, coverage: [1750, 2024], rows: [], notes: ['no data for 1500: coverage is 1750-2024'] };
     mount(widget('get_country_cumulative_share', r));
     expect(screen.queryByTestId('sychart')).toBeNull();
     expect(screen.getByText(/No country shares are available for 1500\. Coverage is 1750–2024\./)).toBeInTheDocument();
+    expect(screen.getByText(/no data for 1500: coverage is 1750-2024/)).toBeInTheDocument();
   });
 
   it('a series for countries with no points is unavailable too, not an empty chart', () => {
