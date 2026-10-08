@@ -33,6 +33,11 @@ export function useAgentStream(): UseAgentStreamResult {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const reset = useCallback(() => {
+    // Abort and invalidate the in-flight request, not just clear state: otherwise its late result/error would still land after the caller has
+    // moved on (e.g. the Ask page's "+ New question" mid-answer) and be consumed with no question attached.
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    requestIdRef.current++;
     setProgress(null);
     setResult(null);
     setError(null);
