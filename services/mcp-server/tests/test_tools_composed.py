@@ -110,3 +110,37 @@ async def test_get_methodology_notes_returns_canonical_sections():
 async def test_get_forecast_comparison_rejects_an_explicit_empty_countries_list(api_client):
     with pytest.raises(CountryResolutionError, match="empty list"):
         await get_forecast_comparison(countries=[])
+
+
+async def test_get_top_emitters_defaults_to_the_latest_year_with_data(bare_api_client, data_dir):
+    # Reported in the Ask-page design review: the agent ranked 2020 because `year` was required and
+    # the model had to guess one. Omitting it must use the latest populated year, and say which.
+    owid_raw_world_map_series_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    explicit_latest = await get_top_emitters(year=2024, n=3)
+    default = await get_top_emitters(n=3)
+    assert default["year"] == 2024 and default == explicit_latest
+
+
+async def test_get_top_emitters_explicit_year_is_unchanged(bare_api_client, data_dir):
+    owid_raw_world_map_series_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
+    assert (await get_top_emitters(year=2000, n=1))["year"] == 2000
+
+
+async def test_get_top_emitters_default_skips_a_trailing_all_null_year():
+    import mcp_server.client as mcp_client
+
+    class FakeClient:
+        async def get(self, path, params=None):
+            return {
+                "years": [2022, 2023, 2024],
+                "countries": ["A", "B"],
+                "iso_codes": ["AAA", "BBB"],
+                "values": [[5.0, 9.0], [6.0, 8.0], [None, None]],  # 2024 column exists but is empty
+            }
+
+    mcp_client.set_client(FakeClient())
+    try:
+        body = await get_top_emitters(n=2)
+    finally:
+        mcp_client.set_client(None)
+    assert body["year"] == 2023 and [r["country"] for r in body["emitters"]] == ["B", "A"]

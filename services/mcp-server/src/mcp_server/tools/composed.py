@@ -31,19 +31,30 @@ from ..trimming import trim
 
 
 @mcp.tool()
-async def get_top_emitters(year: int, n: int = 10) -> dict:
-    """The top `n` CO2 emitters for a specific `year`, ranked descending. Composed from
-    /overview/world-map-series -- fetched fresh on every call, no server-side cache (SPEC.md
-    §6.2), since no ranked-by-year endpoint exists to wrap directly. Countries with no data
-    at `year` are excluded from the ranking, not treated as zero."""
+async def get_top_emitters(year: int | None = None, n: int = 10) -> dict:
+    """The top `n` CO2 emitters for a `year`, ranked descending. **Omit `year` to use the latest
+    year with data** (the same year the dashboard defaults to) -- pass it only when the user names
+    a specific year. Composed from /overview/world-map-series -- fetched fresh on every call, no
+    server-side cache (SPEC.md §6.2), since no ranked-by-year endpoint exists to wrap directly.
+    Countries with no data at `year` are excluded from the ranking, not treated as zero. The
+    response's `year` is the year actually used."""
     client = get_client()
     data = await client.get("/overview/world-map-series")
-    try:
-        year_idx = data["years"].index(year)
-    except ValueError:
-        raise ValueError(
-            f"No data for year {year}. Available years: {data['years'][0]}-{data['years'][-1]}."
-        ) from None
+    if year is None:
+        # The latest year in which at least one country has a value; a trailing all-null year
+        # (a data vintage that has the column but no values yet) must not be ranked as "latest".
+        populated = [i for i, row in enumerate(data["values"]) if any(v is not None for v in row)]
+        if not populated:
+            raise ValueError("The emissions series has no data for any year.")
+        year_idx = populated[-1]
+        year = data["years"][year_idx]
+    else:
+        try:
+            year_idx = data["years"].index(year)
+        except ValueError:
+            raise ValueError(
+                f"No data for year {year}. Available years: {data['years'][0]}-{data['years'][-1]}."
+            ) from None
 
     year_values = data["values"][year_idx]
     ranked = sorted(

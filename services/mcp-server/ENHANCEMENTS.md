@@ -467,3 +467,14 @@ Step 2 notes (as built):
 and `compare_scenarios_across_countries` (no countries sent). All four resolve through
 `resolve_countries`, so the guard lives there once (`SPEC.md` §3.1 case 5). One regression test per tool,
 each confirmed to fail without the guard. No change to `api/`, and omitting `countries` behaves as before.
+
+
+---
+
+## Fix — `get_top_emitters` defaults to the latest year (Ask-page design review, 2026-10-08)
+
+`year` was required, so the model guessed one and the agent's answers showed 2020 while the dashboard
+defaults to 2024. `year` is now optional and means "latest year with data"; a trailing all-null year is
+skipped rather than ranked, and the response reports the year used. An explicit year behaves as before.
+Root `ENHANCEMENTS.md` decision 108; the matching agent-side changes (a prompt rule to omit the year, a
+title/progress label that reads the year from the result) follow in the agent's 3.4b PR.
