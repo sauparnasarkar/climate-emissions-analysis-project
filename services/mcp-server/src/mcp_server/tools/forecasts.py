@@ -33,22 +33,53 @@ async def get_forecast(country: str) -> dict:
     return await client.get(f"/forecasts/{resolved}")
 
 
+# The columns `get_forecast_summary` can rank (and cap) by -- the API's row fields.
+FORECAST_RANK_COLUMNS = ("actual_2020", "forecast_2030", "forecast_2035", "forecast_2040", "pct_change_2020_2040")
+
+
 @mcp.tool()
-async def get_forecast_summary(scope: str = "featured") -> dict:
+async def get_forecast_summary(scope: str = "featured", rank_by: str = "actual_2020") -> dict:
     """2030/2035/2040 forecast snapshot table. `scope` is 'featured' (10, default) or
     'expanded' (~40). This tool has no country-list argument, so trimming (SPEC.md §3.2)
     always applies when there are more than 10 rows: capped to the 10 countries with the
-    highest actual_2020 value, with a scope_note explaining the cap. At `scope='featured'`
-    there are exactly 10 rows already, so no trimming occurs there in practice."""
+    highest `rank_by` value, with a scope_note explaining the cap. At `scope='featured'`
+    there are exactly 10 rows already, so no trimming occurs there in practice.
+
+    `rank_by` is the column the cap (and the order of the rows) follows: 'actual_2020' (default),
+    'forecast_2030', 'forecast_2035', 'forecast_2040' or 'pct_change_2020_2040'. **For "top N
+    forecasted emitters in 2040" pass scope='expanded' and rank_by='forecast_2040'** -- ranking by
+    the 2020 actuals would pick the cap from the wrong column. The response's `ranked_by` says
+    which column ordered the rows; `effective_scope` is the scope actually served ('expanded' only when the
+    expanded list really is larger than the featured ten)."""
+    if rank_by not in FORECAST_RANK_COLUMNS:
+        raise ValueError(f"rank_by must be one of {', '.join(FORECAST_RANK_COLUMNS)}, got '{rank_by}'")
     client = get_client()
     body = await client.get("/forecasts/summary", params={"scope": scope})
-    trimmed, note = trim(
+    # The scope that was ACTUALLY served: the API quietly falls back to the featured ten when its expanded list is missing (api/data_loaders.py), still
+    # accepting scope='expanded'. 'expanded' is only real when that list is strictly larger than the featured one.
+    # Best effort: /countries needs the raw OWID CSV, which /forecasts/summary does not, so the summary must never fail because of it. If the lists
+    # cannot be read the scope is unverifiable and is reported as 'featured', the conservative reading (the agent then shows no ranked cards).
+    effective_scope = "featured"
+    if scope == "expanded":
+        try:
+            lists = await fetch_country_lists()
+            if set(lists.expanded) > set(lists.featured):
+                effective_scope = "expanded"
+        except Exception:  # noqa: BLE001 -- any failure to read the lists only costs the ranked cards, never the table
+            pass
+    body["effective_scope"] = effective_scope
+    rows = sorted(
         body["rows"],
+        key=lambda row: row[rank_by] if row.get(rank_by) is not None else float("-inf"),
+        reverse=True,
+    )
+    trimmed, note = trim(
+        rows,
         scope_label=SCOPE_LABELS[scope],
-        sort_key_label="actual_2020 descending",
-        sort_key=lambda row: row["actual_2020"] if row["actual_2020"] is not None else float("-inf"),
+        sort_key_label=f"{rank_by} descending",
     )
     body["rows"] = trimmed
+    body["ranked_by"] = rank_by
     if note is not None:
         body["scope_note"] = note
     return body

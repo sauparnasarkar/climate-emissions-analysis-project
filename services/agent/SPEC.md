@@ -1292,3 +1292,10 @@ The agent-side half of the design review's independent fixes (the MCP half, `get
 
  When the deterministic scenario lead already carries the pipeline's `reading_note` (all three pathways shown, scenario the only data result), the scenario widget's `summary` gains `lead_includes_reading_note: true`, so the frontend's embedded scenario section drops its own "Reading note" panel instead of printing the same paragraph a second time. Absent when the lead is composed across tools. `evals/preview_server.py` serves the real app with a stand-in LLM that picks tools from the question (a review aid for the Ask page; its plans are tested against the starter prompts and chips).
 
+### 15.15 Live-walkthrough fixes (step 3.6; root ENHANCEMENTS.md "Step 3.5d-2 shipped; Step 3.6 deployed")
+
+Two starter-prompt answers were weak on the live agent; both are fixed by computing the figures deterministically (the model only phrases them):
+
+- **Forecast ranking.** `get_forecast_summary` gained a `rank_by` argument (mcp-server SPEC §5), and `summaries._forecast_summary` now gives the widget a `summary` -- `ranked_by`, `unit`, and the ten countries in that order with 2030/2040/2020 figures. `kpis._forecast_kpis` adds the three largest 2040 forecasts as cards, **only** when the ranking is by `forecast_2040` or nothing was capped (a cap by 2020 actuals would make the top three a guess).
+- **Cumulative units.** `get_emissions_temperature_relationship`'s summary states `pair_unit` (the raw points are in Mt) and a `cumulative` block already in GtCO₂ (rounded), so the lead never converts Mt itself (the model had written "2,751,504 GtCO₂", 1000x too high). `kpis._relationship_kpis` adds Cumulative emissions, Warming and Slope cards from the summary (slope with its 95% interval and R² in the sub-line).
+

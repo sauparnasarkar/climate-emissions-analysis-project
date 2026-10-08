@@ -80,6 +80,40 @@ def _top_emitters_summary(r: dict) -> dict | None:
     return out
 
 
+def _forecast_summary(r: dict) -> dict | None:
+    """The forecast snapshot's countries in the order the tool ranked them (`ranked_by`), each with the
+    figures an answer quotes -- so "the top 10 forecasted emitters in 2040" is read from the data, not
+    from a grid the model never sees."""
+    rows = [row for row in (r.get("rows") or []) if row.get("country")]
+    if not rows:
+        return None
+    ranked_by = r.get("ranked_by") or "actual_2020"
+    ordered = sorted(rows, key=lambda row: row.get(ranked_by) if row.get(ranked_by) is not None else float("-inf"), reverse=True)
+    out = {
+        "ranked_by": ranked_by,
+        # The scope the tool actually served (not the one requested: the API falls back to the featured ten when its expanded list is missing).
+        # 'featured' is the 10 curated countries, 'expanded' the ~40 major emitters; a ranking over the featured ten is a ranking of those ten, not
+        # of the world. A result without the field (an older server) is treated as featured, the conservative reading.
+        "scope": r.get("effective_scope") or "featured",
+        "unit": "Mt CO\u2082",
+        "top": [
+            {
+                "rank": i,
+                "name": row["country"],
+                "forecast_2030": row.get("forecast_2030"),
+                "forecast_2040": row.get("forecast_2040"),
+                "actual_2020": row.get("actual_2020"),
+                "pct_change_2020_2040": row.get("pct_change_2020_2040"),
+            }
+            for i, row in enumerate(ordered[:10], start=1)
+        ],
+        "n_rows": len(rows),
+    }
+    if r.get("scope_note"):
+        out["scope_note"] = r["scope_note"]
+    return out
+
+
 def widget_summary(record: ToolCallRecord) -> dict | None:
     r = _ok(record)
     if r is None:
@@ -93,4 +127,6 @@ def widget_summary(record: ToolCallRecord) -> dict | None:
         return _historical_summary(r)
     if record.tool_name == "get_top_emitters":
         return _top_emitters_summary(r)
+    if record.tool_name == "get_forecast_summary":
+        return _forecast_summary(r)
     return None

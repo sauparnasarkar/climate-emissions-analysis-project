@@ -206,3 +206,76 @@ def test_scenario_source_line_names_the_slope_that_was_actually_used():
     assert "fossil-only regression slope" in line("fossil_only") and "headline" not in line("fossil_only")
     assert "the headline regression slope \u00b7" in line("headline")
     assert "headline regression slope (with a fossil-only second line)" in line("both")
+
+
+# --- live-walkthrough fixes (ENHANCEMENTS.md Step 3.6): forecast ranking and cumulative units -----------------
+
+
+def _forecast_rows(n=12):
+    return [
+        {"country": f"C{i}", "actual_2020": 100.0 - i, "forecast_2030": 5.0 * i, "forecast_2035": 6.0 * i,
+         "forecast_2040": 10.0 * i, "pct_change_2020_2040": 2.5 * i}
+        for i in range(n)
+    ]
+
+
+def test_forecast_summary_ranks_by_the_column_the_tool_used_and_carries_the_figures():
+    rows = _forecast_rows(10)
+    s = widget_summary(_rec("get_forecast_summary", {"rows": rows, "ranked_by": "forecast_2040", "effective_scope": "expanded"}))
+    assert s["scope"] == "expanded" and s["ranked_by"] == "forecast_2040" and s["unit"].startswith("Mt")
+    # C9 has the largest 2040 forecast although C0 has the largest 2020 actual: the summary follows ranked_by.
+    assert [t["name"] for t in s["top"]][:3] == ["C9", "C8", "C7"]
+    assert s["top"][0]["forecast_2040"] == 90.0 and s["top"][0]["rank"] == 1
+    assert widget_summary(_rec("get_forecast_summary", {"rows": []})) is None
+
+
+def test_forecast_kpis_are_the_three_largest_2040_forecasts_and_only_when_the_ranking_is_trustworthy():
+    ranked = _rec("get_forecast_summary", {"rows": _forecast_rows(10), "ranked_by": "forecast_2040", "scope_note": "capped", "effective_scope": "expanded"})
+    kpis = build_kpis([ranked])
+    assert [k.label for k in kpis] == ["#1 C9", "#2 C8", "#3 C7"]
+    assert kpis[0].value == 90.0 and kpis[0].year == 2040 and kpis[0].sub == "+22.5% vs 2020"
+    # Capped by the 2020 actuals: the top three by 2040 inside that set could be wrong globally -> no cards.
+    capped_wrong = _rec("get_forecast_summary", {"rows": _forecast_rows(10), "ranked_by": "actual_2020", "scope_note": "capped", "effective_scope": "expanded"})
+    assert build_kpis([capped_wrong]) == []
+    # Nothing capped (no scope_note): the set is complete, so ranking it here is sound.
+    assert len(build_kpis([_rec("get_forecast_summary", {"rows": _forecast_rows(5), "ranked_by": "actual_2020", "effective_scope": "expanded"})])) == 3
+    # The featured ten (the default scope, never capped): "#1" would be the best of those ten only -> no ranked cards, and the summary says so.
+    featured = _rec("get_forecast_summary", {"rows": _forecast_rows(10), "ranked_by": "forecast_2040"})
+    assert widget_summary(featured)["scope"] == "featured" and build_kpis([featured]) == []
+    # Asked for 'expanded' but the API served the featured ten (its fallback): the RESULT's effective scope decides, not the request.
+    degraded = _rec("get_forecast_summary", {"rows": _forecast_rows(10), "ranked_by": "forecast_2040", "effective_scope": "featured"}, {"scope": "expanded"})
+    assert widget_summary(degraded)["scope"] == "featured" and build_kpis([degraded]) == []
+
+
+RELATIONSHIP = {
+    "summary": {
+        "window": [1850, 2024],
+        "baseline": "preindustrial",
+        "first_pair": {"year": 1850, "cumulative_emissions": 2910.87, "temperature": -0.0757},
+        "last_pair": {"year": 2024, "cumulative_emissions": 2751504.433, "temperature": 1.5503},
+        "cumulative": {"unit": "GtCO₂", "first_year": 1850, "first": 3, "last_year": 2024, "last": 2752},
+        "fit": {"slope": 0.4856, "ci95_hac": [0.4416, 0.5297], "r_squared": 0.888, "unit": "°C per 1,000 GtCO₂"},
+    }
+}
+
+
+def test_relationship_kpis_state_cumulative_emissions_in_gt_not_the_raw_mt_pair():
+    kpis = build_kpis([_rec("get_emissions_temperature_relationship", RELATIONSHIP)])
+    assert [k.label for k in kpis] == ["Cumulative emissions", "Warming", "Slope"]
+    cum, warm, slope = kpis
+    assert (cum.value, cum.unit, cum.year, cum.sub) == (2752, "GtCO₂", 2024, "since 1850")
+    assert (warm.value, warm.unit, warm.sub) == (1.5503, "°C", "vs 1850–1900")
+    assert slope.unit == "°C per 1,000 GtCO₂" and "95% interval 0.44–0.53" in slope.sub and "R² 0.89" in slope.sub
+    assert all(k.value != 2751504.433 for k in kpis)
+
+
+def test_relationship_kpis_degrade_without_a_fit():
+    no_fit = {"summary": {**RELATIONSHIP["summary"], "fit": None}}
+    assert [k.label for k in build_kpis([_rec("get_emissions_temperature_relationship", no_fit)])] == ["Cumulative emissions", "Warming"]
+
+
+def test_warming_card_always_says_1850_1900_whatever_the_emissions_window():
+    # The all-gas relationship starts its cumulative emissions in 1970, but the temperature is still the anomaly vs 1850-1900.
+    all_gas = {"summary": {**RELATIONSHIP["summary"], "source": "primap_ghg", "baseline": "1970", "window": [1970, 2024]}}
+    warming = next(k for k in build_kpis([_rec("get_emissions_temperature_relationship", all_gas)]) if k.label == "Warming")
+    assert warming.sub == "vs 1850\u20131900"

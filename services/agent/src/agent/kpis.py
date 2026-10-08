@@ -80,6 +80,45 @@ def _scenario_kpis(rec: ToolCallRecord) -> list[Kpi]:
     return out
 
 
+def _forecast_kpis(rec: ToolCallRecord) -> list[Kpi]:
+    """The three largest 2040 forecasts -- only when the ranking really is by the 2040 forecast over the whole
+    ~40-country (expanded) set: ranked_by forecast_2040, or nothing was capped. Over the featured ten the "#1" would
+    only be the largest of those ten, so no ranked cards are shown for it."""
+    s = widget_summary(rec)
+    if not s or s.get("scope") != "expanded" or not (s["ranked_by"] == "forecast_2040" or not s.get("scope_note")):
+        return []
+    top = sorted((t for t in s["top"] if t.get("forecast_2040") is not None), key=lambda t: t["forecast_2040"], reverse=True)
+    out = []
+    for i, t in enumerate(top[:MAX_KPIS], start=1):
+        pct = t.get("pct_change_2020_2040")
+        sub = f"{pct:+.1f}% vs 2020" if pct is not None else None
+        out.append(Kpi(label=f"#{i} {t['name']}", value=t["forecast_2040"], unit="Mt", decimals=0, year=2040, sub=sub))
+    return out
+
+
+def _relationship_kpis(rec: ToolCallRecord) -> list[Kpi]:
+    """Cumulative emissions, warming and the fitted slope -- each from the tool's own summary, in the unit it states."""
+    s = widget_summary(rec) or {}
+    out: list[Kpi] = []
+    window = s.get("window") or []
+    cum = s.get("cumulative")
+    if cum and cum.get("last") is not None:
+        since = f"since {cum['first_year']}"
+        out.append(Kpi(label="Cumulative emissions", value=cum["last"], unit=str(cum["unit"]).replace("Gt ", "Gt"), decimals=0, year=cum["last_year"], sub=since))
+    last = s.get("last_pair") or {}
+    if last.get("temperature") is not None:
+        # The pair's temperature is ALWAYS the anomaly vs 1850-1900 (the API's `y`); `baseline` only chooses where the cumulative emissions start.
+        out.append(Kpi(label="Warming", value=last["temperature"], unit="\u00b0C", decimals=2, year=last.get("year"), sub=f"vs {PREINDUSTRIAL}"))
+    fit = s.get("fit")
+    if fit and fit.get("slope") is not None:
+        ci = fit.get("ci95_hac")
+        parts = [f"95% interval {ci[0]:.2f}\u2013{ci[1]:.2f}"] if ci and len(ci) == 2 else []
+        if fit.get("r_squared") is not None:
+            parts.append(f"R\u00b2 {fit['r_squared']:.2f}")
+        out.append(Kpi(label="Slope", value=fit["slope"], unit=str(fit.get("unit") or "\u00b0C per 1,000 GtCO\u2082"), decimals=2, year=window[1] if len(window) == 2 else None, sub=" \u00b7 ".join(parts) or None))
+    return out
+
+
 def build_kpis(records: list[ToolCallRecord]) -> list[Kpi]:
     out: list[Kpi] = []
     for rec in records:
@@ -91,6 +130,10 @@ def build_kpis(records: list[ToolCallRecord]) -> list[Kpi]:
             out += _indicator_kpi(rec)
         elif rec.tool_name == "get_scenario_temperature":
             out += _scenario_kpis(rec)
+        elif rec.tool_name == "get_forecast_summary":
+            out += _forecast_kpis(rec)
+        elif rec.tool_name == "get_emissions_temperature_relationship":
+            out += _relationship_kpis(rec)
     return out[:MAX_KPIS]
 
 
