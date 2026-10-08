@@ -49,11 +49,16 @@ async def get_forecast_summary(scope: str = "featured", rank_by: str = "actual_2
     'forecast_2030', 'forecast_2035', 'forecast_2040' or 'pct_change_2020_2040'. **For "top N
     forecasted emitters in 2040" pass scope='expanded' and rank_by='forecast_2040'** -- ranking by
     the 2020 actuals would pick the cap from the wrong column. The response's `ranked_by` says
-    which column ordered the rows."""
+    which column ordered the rows; `effective_scope` is the scope actually served ('expanded' only when the
+    expanded list really is larger than the featured ten)."""
     if rank_by not in FORECAST_RANK_COLUMNS:
         raise ValueError(f"rank_by must be one of {', '.join(FORECAST_RANK_COLUMNS)}, got '{rank_by}'")
     client = get_client()
     body = await client.get("/forecasts/summary", params={"scope": scope})
+    # The scope that was ACTUALLY served: the API quietly falls back to the featured ten when its expanded list is missing (api/data_loaders.py), still
+    # accepting scope='expanded'. 'expanded' is only real when that list is strictly larger than the featured one.
+    lists = await fetch_country_lists()
+    body["effective_scope"] = "expanded" if scope == "expanded" and set(lists.expanded) > set(lists.featured) else "featured"
     rows = sorted(
         body["rows"],
         key=lambda row: row[rank_by] if row.get(rank_by) is not None else float("-inf"),
