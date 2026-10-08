@@ -478,3 +478,10 @@ defaults to 2024. `year` is now optional and means "latest year with data"; a tr
 skipped rather than ranked, and the response reports the year used. An explicit year behaves as before.
 Root `ENHANCEMENTS.md` decision 108; the matching agent-side changes (a prompt rule to omit the year, a
 title/progress label that reads the year from the result) follow in the agent's 3.4b PR.
+
+
+## Addition — `get_top_emitters` reports its own share (Ask-page answer blocks, 2026-10-08)
+
+Additive fields `n_ranked`, `total_mt`, `top_n_share_pct`, so the agent can state "the top 10 are 71% of the
+total" and "largest of N countries" from the tool result instead of the model estimating them. Existing fields
+are unchanged. Stacked on the latest-year fix above.
