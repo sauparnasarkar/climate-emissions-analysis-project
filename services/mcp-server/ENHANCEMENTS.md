@@ -391,7 +391,7 @@ replaced, not amended.
 
 Scope (one branch + PR per step, per the repo convention):
 
-- **Step 1 — plumbing + indicator tools.** `client.py` methods for the correlation domain, a
+- **Step 1 — plumbing + indicator tools. Implemented 2026-10-08 (PR open on `feat/mcp-area2-indicator-tools`).** `client.py` methods for the correlation domain, a
   shared envelope pass-through (`note`/`caveats`/`attribution`/`source_vintage` survive every tool),
   deterministic `summary` builders, Area 2 text in `methodology.py`; tools `get_co2_concentration`,
   `get_temperature_anomaly`, `get_correlation_metadata`.
@@ -403,3 +403,19 @@ Scope (one branch + PR per step, per the repo convention):
   `api/`, no UI directives in any tool result (`SPEC.md` §3.5).
 - Tests mirror `tests/conftest.py`'s fixture pattern; error paths (422 source/baseline matrix,
   unresolved country, 503 stale source) are asserted as tool errors, not swallowed.
+
+Step 1 notes (as built):
+
+- `climate.py` holds `fetch_correlation` (turns the API's 422/503 into a `ClimateApiError` carrying the
+  API's own `detail`, so the model can self-correct) and `summarize_points` (percent change is omitted
+  for anomaly series, where it is meaningless). `tools/climate.py` holds the three tools.
+- `get_correlation_metadata` drops the 81-entry indicator catalog (replaced by `indicator_count`) but is
+  still ~32 KB on real data, driven by per-source methodology text. The agent-side payload cap
+  (agent `SPEC.md` §15.4, Step 3.3) must cover it.
+- `get_co2_concentration` is annual-only (owner, 2026-10-08).
+- Tests add `climate_client`, built from `api/tests/test_correlation.py`'s `built`/`climate` fixtures (the
+  real pipeline stages on stubbed inputs). That pulls `statsmodels`/`scipy`/`openpyxl` into this
+  sub-project's **dev** extras only; runtime deps are unchanged.
+- Verified against the real `data/climate` output through the in-process API: 2025 anomaly 1.451 °C,
+  offset −0.265 °C, splice year 1959 with its overlap gap, and the Berkeley preliminary-release note
+  arrives in `caveats`.

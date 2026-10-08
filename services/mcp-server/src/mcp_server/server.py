@@ -106,7 +106,13 @@ to the scenario tools (the get_scenario_projection family) only when the questio
 invokes scenarios, policy pathways, or BAU/Moderate/Aggressive. For "how many countries
 increased/decreased" or "biggest movers since 1990" questions, use
 get_emissions_change_summary -- it returns real counts and a bounded top-N list computed
-server-side, not a per-country series you'd have to eyeball or count yourself.\
+server-side, not a per-country series you'd have to eyeball or count yourself.
+
+Climate-context tools (get_co2_concentration, get_temperature_anomaly,
+get_correlation_metadata) serve global observed indicators -- atmospheric CO2 concentration
+and temperature anomaly -- from the same governed API. Quote their `summary`, mention their
+`caveats` (notably that the temperature dataset is a preliminary release), and never attribute
+a global temperature change to any single country.\
 """
 
 mcp = MCPServer("climate-emissions", instructions=SERVER_INSTRUCTIONS)
@@ -125,7 +131,7 @@ async def list_countries() -> dict:
 
 # Import tool modules for their @mcp.tool() registration side effects -- must come after
 # `mcp` is defined above, since each tools/*.py module does `from ..server import mcp`.
-from .tools import composed, countries, forecasts, historical, scenarios  # noqa: E402, F401
+from .tools import climate, composed, countries, forecasts, historical, scenarios  # noqa: E402, F401
 
 
 def _timestamp_uvicorn_logs() -> None:
