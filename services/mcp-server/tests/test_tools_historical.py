@@ -88,3 +88,17 @@ async def test_get_historical_emissions_rejects_an_explicit_empty_countries_list
 async def test_get_gas_composition_by_decade_rejects_an_explicit_empty_countries_list(api_client):
     with pytest.raises(CountryResolutionError, match="empty list"):
         await get_gas_composition_by_decade(countries=[])
+
+
+async def test_each_series_says_whether_its_country_is_in_the_expanded_scope(api_client):
+    # Canada is a real country that exists only at sovereign scope (not in the fixture's expanded list); China is in it.
+    body = await get_historical_emissions(countries=["China", "Canada"], scope="sovereign")
+    flags = {s["name"]: s["in_expanded_scope"] for s in body["series"]}
+    assert flags == {"China": True, "Canada": False}
+
+
+async def test_every_series_is_flagged_true_at_expanded_scope_and_the_api_fields_are_untouched(api_client):
+    body = await get_historical_emissions(countries=["China"])
+    series = body["series"][0]
+    assert series["in_expanded_scope"] is True
+    assert {"name", "years", "values"} <= set(series)  # what the API returned is still there
