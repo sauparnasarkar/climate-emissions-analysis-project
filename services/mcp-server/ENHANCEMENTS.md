@@ -485,3 +485,15 @@ title/progress label that reads the year from the result) follow in the agent's 
 Additive fields `n_ranked`, `total_mt`, `top_n_share_pct`, so the agent can state "the top 10 are 71% of the
 total" and "largest of N countries" from the tool result instead of the model estimating them. Existing fields
 are unchanged. Stacked on the latest-year fix above.
+
+
+## Fix — "CO₂", "°C" and en dashes in the strings the tools return (Ask-page design review, 2026-10-08)
+
+The design review asked for "CO₂" and proper dashes on the Ask page. The agent's own text was fixed in the
+agent's step 3.4b; this is the MCP server's half. In `methodology.py` (the forecasting, provenance, scope-label
+and Area 2 methodology text, the derivation outline) and the relationship labels in `tools/climate.py`: plain
+"CO2" → "CO₂" (including "CO₂e", "GtCO₂", "non-CO₂"), "degC" → "°C", " -- " → " – ", and the "0.27-0.63" range
+→ "0.27–0.63". The `scope_note` wording ("≥100 Mt latest-year CO₂") changes with it, since it surfaces in the
+agent's alerts. File names and identifiers (`owid-co2-data.csv`, `owid_co2`) are not text and are unchanged, and
+tool *docstrings* (descriptions written for the model) are left alone. A test scans every returned methodology
+string so plain "CO2"/"degC"/"--" cannot return.

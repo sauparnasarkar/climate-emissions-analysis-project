@@ -170,3 +170,32 @@ async def test_get_top_emitters_share_is_none_when_the_total_is_zero():
     finally:
         mcp_client.set_client(None)
     assert body["total_mt"] == 0 and body["top_n_share_pct"] is None
+
+
+def test_returned_methodology_text_uses_co2_subscript_degree_sign_and_en_dashes():
+    # Ask-page design review: these strings reach users (through the agent's answers and alerts), so
+    # plain "CO2", "degC" and a "--" stand-in for a dash must not appear. File names and identifiers
+    # (owid-co2-data.csv, `owid_co2`) are not text and stay as they are.
+    import re
+
+    from mcp_server.methodology import (
+        CLIMATE_METHODOLOGY,
+        HEADLINE_DERIVATION_OUTLINE,
+        SCOPE_LABELS,
+        methodology_notes,
+    )
+
+    texts = [*CLIMATE_METHODOLOGY.values(), *HEADLINE_DERIVATION_OUTLINE, *SCOPE_LABELS.values(), *methodology_notes().values()]
+    assert len(texts) > 15
+    for t in texts:
+        assert not re.search(r"\bCO2e?\b|GtCO2|non-CO2|degC", t), t
+        assert " -- " not in t, t
+    assert "owid-co2-data.csv" in methodology_notes()["data_provenance"]  # the file name is untouched
+
+
+async def test_relationship_labels_use_the_co2_subscript(climate_client):
+    from mcp_server.tools.climate import get_emissions_temperature_relationship
+
+    for kwargs in ({}, {"variant": "fossil", "baseline": "1970"}, {"baseline": "1990"}):
+        label = (await get_emissions_temperature_relationship(**kwargs))["summary"]["relationship"]
+        assert "CO2" not in label, label
