@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#e9e7e2;font-family:Inter,system-ui,sans-serif}a{color:#5FD8F7;text-decoration:none}a:hover{color:#9be8fb}button{font-family:inherit}.dv-turn{padding:40px 44px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:600 10px 'JetBrains Mono',ui-monospace,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 Inter,system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px 'JetBrains Mono',ui-monospace,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.3 Inter,system-ui,sans-serif;color:rgba(0,0,0,.6)}.dv-card{max-width:100%;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}</style>
+</helmet>
+
+<section class="dv-turn" id="notes">
+<div class="dv-thd"><a class="dv-tid" href="#notes">0</a><span class="dv-tname">Ask the Agent · redesign notes</span></div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,560px));gap:40px;font-size:13px;line-height:1.55;color:#2c2c2c">
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6b6b6b">WHAT CHANGED</div>
+<ol style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px">
+<li>Title covers emissions and climate outcomes. The subtitle says what the agent answers from.</li>
+<li>The input is its own field with a 40px send button. The focus ring goes around the whole field, not inside it. Prompts sit below the field, outside it.</li>
+<li>Six prompts in three columns: Historical trends, Climate outcomes (the two new prompts), Forecasts. Copy fixed on the India and 2040 prompts. The Tweaks panel switches to the 2×3 grid Claude Code is building.</li>
+<li>Answers: the question as a heading, a lead with figures, KPIs for the latest year, then charts. One highlighted series and greyed others replace the 10-colour spaghetti chart; the duplicate China chart is gone; bars use one colour.</li>
+<li>Every chart has a source and scope line. Each answer links to the dashboard page with the same data. The input becomes a sticky bar at the bottom with follow-up prompts above it.</li>
+</ol>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6b6b6b">AREA 2 RULES FOR AGENT ANSWERS</div>
+<ol type="A" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px">
+<li>Climate answers reuse the Correlation module’s figures and caveats: 0.520 slope with its CI, IPCC 0.45 (0.27–0.63) for comparison only, the illustrative chip, the Berkeley Earth vintage caveat.</li>
+<li>Pathway temperatures come from the module’s <b>#scenarios</b> translation (1.39 °C anchor, 0.520 slope, 40-country coverage). The agent doesn’t run its own calculation.</li>
+<li>No warming is attributed to any country. Country answers can point to global climate context, never to a country’s share of warming.</li>
+<li>The agent doesn’t correlate annual emissions with annual temperature.</li>
+</ol>
+<div style="font-size:12px;color:#6b6b6b;margin-top:4px">As given: 12,289 Mt, 8.66 t, +1.0%, 71%, and all pathway and slope figures. Mock: country series, the 2.5× and “nearly fivefold” ratios, per-capita comparisons and other countries’ 2024 values. Confirm the emissions scope label (with or without land use) for country charts.</div>
+</div>
+</div>
+</section>
+
+<section class="dv-turn" id="desktop">
+<div class="dv-thd"><a class="dv-tid" href="#desktop">1</a><span class="dv-tname">Desktop · Dark</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="A1">
+<div class="dv-olabel"><a class="dv-oid" href="#A1">A1</a>Empty state</div>
+<div class="dv-card" style="width:1280px;background:#121e35;color:#d7e0f0">
+<div style="display:flex;align-items:center;height:60px;padding:0 24px;background:#1e2f52;border-bottom:1px solid #2c3e63;gap:16px"><div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;color:#fff"><span style="width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#7fd6ea,#2d7fa3)"></span>Climate Analytics Platform</div><div style="margin-left:auto;display:flex;gap:12px;align-items:center"><div style="display:flex;background:#121e35;border-radius:4px;padding:3px;font-size:12.5px"><span style="padding:4px 8px">Light</span><span style="padding:4px 8px;background:#fff;color:#121e35;border-radius:3px">Dark</span></div><div style="border:1px solid #5FD8F7;background:#24395f;border-radius:6px;padding:8px 14px;font-size:14px;color:#fff">✦ Ask the Agent</div></div></div>
+<div style="display:flex;min-height:820px">
+<nav aria-label="Sections" style="width:200px;flex:none;background:#172544;border-right:1px solid #2c3e63;padding:20px 12px;display:flex;flex-direction:column;gap:2px;font-size:13.5px;box-sizing:border-box"><span style="padding:8px 10px">Home</span><span style="margin-top:20px;padding:12px 10px 6px;border-top:1px solid #2c3e63;font-size:11px;font-weight:600;letter-spacing:.06em;color:#a9b7cf">EXPLORATION</span><span style="padding:8px 10px">Overview</span><span style="padding:8px 10px">Historical Trends</span><span style="padding:8px 10px">Country Profile</span><span style="padding:8px 10px">Data Explorer</span><span style="padding:8px 10px;display:flex;justify-content:space-between;align-items:center;gap:6px">Climate Correlation<span style="font-size:10.5px;font-weight:600;color:#7be0a0">NEW</span></span><span style="margin-top:16px;padding:12px 10px 6px;border-top:1px solid #2c3e63;font-size:11px;font-weight:600;letter-spacing:.06em;color:#a9b7cf">PROJECTION</span><span style="padding:8px 10px">Forecasts</span><span style="padding:8px 10px">Scenario Comparison</span><span style="margin-top:auto;padding:12px 10px 8px;border-top:1px solid #2c3e63">About</span></nav>
+<main style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 64px;gap:32px;box-sizing:border-box">
+<div style="display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;max-width:680px">
+<h1 style="margin:0;font-size:30px;font-weight:600;color:#f1f5fb;letter-spacing:-.01em">Ask about emissions and climate outcomes</h1>
+<p style="margin:0;font-size:15.5px;line-height:1.55;color:#a9b7cf;text-wrap:pretty">Answers from emissions data for 1990–2024, global temperature and CO₂ records, and the platform’s forecasts. Every chart shows its source.</p>
+</div>
+<div style="width:100%;max-width:960px;display:flex;flex-direction:column;gap:28px">
+<div style="display:flex;flex-direction:column;gap:8px"><div style="display:flex;align-items:center;gap:12px;background:#1b2a4a;border:1px solid #5FD8F7;box-shadow:0 0 0 3px rgba(95,216,247,.22);border-radius:12px;padding:12px 12px 12px 18px;min-height:64px;box-sizing:border-box"><span style="flex:1;font-size:15px;color:#a9b7cf">Ask about emissions, warming or pathways…</span><button aria-label="Send" style="width:40px;height:40px;flex:none;border:0;border-radius:8px;background:#5FD8F7;color:#0b1626;font-size:18px;font-weight:700;cursor:pointer">↑</button></div><span style="font-size:12px;color:#a9b7cf">Enter to send · Shift + Enter for a new line</span></div>
+
+<sc-if value="{{ byCat }}" hint-placeholder-val="{{ true }}">
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px">
+<div style="display:flex;flex-direction:column;gap:10px"><span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#a9b7cf">HISTORICAL TRENDS</span>
+<div style="display:flex;justify-content:space-between;gap:12px;background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 16px;min-height:84px;box-sizing:border-box;font-size:14px;line-height:1.45;color:#f1f5fb;cursor:pointer" style-hover="border-color:#5FD8F7"><span>What are China’s historical emissions trends, and how do they compare to the other top 10 emitters?</span><span style="color:#a9b7cf;align-self:flex-end">→</span></div>
+<div style="display:flex;justify-content:space-between;gap:12px;background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 16px;min-height:84px;box-sizing:border-box;font-size:14px;line-height:1.45;color:#f1f5fb;cursor:pointer" style-hover="border-color:#5FD8F7"><span>How have India’s emissions grown compared with other countries?</span><span style="color:#a9b7cf;align-self:flex-end">→</span></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px"><span style="display:flex;gap:8px;align-items:baseline;font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#a9b7cf">CLIMATE OUTCOMES<span style="font-family:Inter,sans-serif;font-size:10.5px;color:#7be0a0;letter-spacing:0">NEW</span></span>
+<div style="display:flex;justify-content:space-between;gap:12px;background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 16px;min-height:84px;box-sizing:border-box;font-size:14px;line-height:1.45;color:#f1f5fb;cursor:pointer" style-hover="border-color:#5FD8F7"><span>Show the relationship between cumulative emissions and warming.</span><span style="color:#a9b7cf;align-self:flex-end">→</span></div>
+<div style="display:flex;justify-content:space-between;gap:12px;background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 16px;min-height:84px;box-sizing:border-box;font-size:14px;line-height:1.45;color:#f1f5fb;cursor:pointer" style-hover="border-color:#5FD8F7"><span>How do temperature outcomes vary based on different emissions pathways?</span><span style="color:#a9b7cf;align-self:flex-end">→</span></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:10px"><span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#a9b7cf">FORECASTS</span>
+<div style="display:flex;justify-content:space-between;gap:12px;background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 16px;min-height:84px;box-sizing:border-box;font-size:14px;line-height:1.45;color:#f1f5fb;cursor:pointer" style-hover="border-color:#5FD8F7"><span>What are the top 10 forecasted emitters in 2040?</span><span style="color:#a9b7cf;align-self:flex-end">→</span></div>
+<div style="display:flex;justify-content:space-between;gap:12px;background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 16px;min-height:84px;box-sizing:border-box;font-size:14px;line-height:1.45;color:#f1f5fb;cursor:pointer" style-hover="border-color:#5FD8F7"><span>How do today’s top 10 emitters compare with the projected top 10 in 2040?</span><span style="color:#a9b7cf;align-self:flex-end">→</span></div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ grid }}" hint-placeholder-val="{{ false }}">
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+<sc-for list="{{ prompts }}" as="p" hint-placeholder-count="6"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:12px 16px;min-height:64px;box-sizing:border-box;cursor:pointer" style-hover="border-color:#5FD8F7"><span style="display:flex;flex-direction:column;gap:3px"><span style="font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#a9b7cf">{{ p.cat }}</span><span style="font-size:14px;line-height:1.4;color:#f1f5fb">{{ p.q }}</span></span><span style="color:#a9b7cf">→</span></div></sc-for>
+</div>
+</sc-if>
+</div>
+</main>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="A2">
+<div class="dv-olabel"><a class="dv-oid" href="#A2">A2</a>Answer · Historical trends (China). Input pinned to the bottom of the viewport.</div>
+<div class="dv-card" style="width:1280px;background:#121e35;color:#d7e0f0">
+<div style="display:flex;align-items:center;height:60px;padding:0 24px;background:#1e2f52;border-bottom:1px solid #2c3e63;gap:16px"><div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;color:#fff"><span style="width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#7fd6ea,#2d7fa3)"></span>Climate Analytics Platform</div><div style="margin-left:auto;display:flex;gap:12px;align-items:center"><div style="display:flex;background:#121e35;border-radius:4px;padding:3px;font-size:12.5px"><span style="padding:4px 8px">Light</span><span style="padding:4px 8px;background:#fff;color:#121e35;border-radius:3px">Dark</span></div><div style="border:1px solid #5FD8F7;background:#24395f;border-radius:6px;padding:8px 14px;font-size:14px;color:#fff">✦ Ask the Agent</div></div></div>
+<div style="display:flex">
+<nav aria-label="Sections" style="width:200px;flex:none;background:#172544;border-right:1px solid #2c3e63;padding:20px 12px;display:flex;flex-direction:column;gap:2px;font-size:13.5px;box-sizing:border-box"><span style="padding:8px 10px">Home</span><span style="margin-top:20px;padding:12px 10px 6px;border-top:1px solid #2c3e63;font-size:11px;font-weight:600;letter-spacing:.06em;color:#a9b7cf">EXPLORATION</span><span style="padding:8px 10px">Overview</span><span style="padding:8px 10px">Historical Trends</span><span style="padding:8px 10px">Country Profile</span><span style="padding:8px 10px">Data Explorer</span><span style="padding:8px 10px;display:flex;justify-content:space-between;align-items:center;gap:6px">Climate Correlation<span style="font-size:10.5px;font-weight:600;color:#7be0a0">NEW</span></span><span style="margin-top:16px;padding:12px 10px 6px;border-top:1px solid #2c3e63;font-size:11px;font-weight:600;letter-spacing:.06em;color:#a9b7cf">PROJECTION</span><span style="padding:8px 10px">Forecasts</span><span style="padding:8px 10px">Scenario Comparison</span><span style="margin-top:auto;padding:12px 10px 8px;border-top:1px solid #2c3e63">About</span></nav>
+<main style="flex:1;display:flex;flex-direction:column;align-items:center;padding:28px 64px 0;box-sizing:border-box">
+<div style="width:100%;max-width:900px;display:flex;flex-direction:column;gap:22px">
+<div style="display:flex;justify-content:flex-end"><span style="font-size:13px;color:#d7e0f0;border:1px solid #3d5580;border-radius:6px;padding:7px 12px">+ New question</span></div>
+<div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#a9b7cf">HISTORICAL TRENDS</span><h2 style="margin:0;font-size:24px;line-height:1.3;font-weight:600;color:#f1f5fb;text-wrap:pretty">What are China’s historical emissions trends, and how do they compare to the other top 10 emitters?</h2></div>
+<p style="margin:0;font-size:16px;line-height:1.65;color:#d7e0f0;text-wrap:pretty">China emitted <b style="color:#fff">12,289 MtCO₂ in 2024</b>, the most of any country and about 2.5 times the United States. Its emissions have grown nearly fivefold since 1990, with the steepest rise between 2002 and 2013, while US emissions have fallen slightly. Together, the 10 largest emitters account for <b style="color:#fff">71%</b> of the world total.</p>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><span style="font-size:12.5px;color:#a9b7cf">CO₂ emissions · 2024</span><span style="font-size:28px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums">12,289 <span style="font-size:15px;font-weight:500;color:#a9b7cf">Mt</span></span><span style="font-size:12.5px;color:#a9b7cf">Largest of 218 countries</span></div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><span style="font-size:12.5px;color:#a9b7cf">Per capita · 2024</span><span style="font-size:28px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums">8.66 <span style="font-size:15px;font-weight:500;color:#a9b7cf">t</span></span><span style="font-size:12.5px;color:#a9b7cf">United States 14.2 t · world 4.7 t</span></div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><span style="font-size:12.5px;color:#a9b7cf">Change vs 2023</span><span style="font-size:28px;font-weight:600;color:#FFC774;font-variant-numeric:tabular-nums">+1.0%</span><span style="font-size:12.5px;color:#a9b7cf">4.9× the 1990 level</span></div>
+</div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;flex-direction:column;gap:3px"><h3 style="margin:0;font-size:16px;font-weight:600;color:#f1f5fb">CO₂ emissions of the top 10 emitters, 1990–2024</h3><span style="font-size:13px;color:#a9b7cf">MtCO₂ · China highlighted, the other nine in grey · hover a line to name it</span></div>
+<div style="background:#0f1a2e;border-radius:6px;padding:8px">
+<svg viewBox="0 0 780 300" role="img" aria-label="CO2 emissions of the top 10 emitters 1990 to 2024, China highlighted" style="width:100%;display:block">
+<line x1="56" x2="690" y1="262.0" y2="262.0" stroke="#22324f"></line><text x="48" y="262.0" fill="#a9b7cf" font-size="12" text-anchor="end" dominant-baseline="middle">0</text><line x1="56" x2="690" y1="186.9" y2="186.9" stroke="#22324f"></line><text x="48" y="186.9" fill="#a9b7cf" font-size="12" text-anchor="end" dominant-baseline="middle">4k</text><line x1="56" x2="690" y1="111.8" y2="111.8" stroke="#22324f"></line><text x="48" y="111.8" fill="#a9b7cf" font-size="12" text-anchor="end" dominant-baseline="middle">8k</text><line x1="56" x2="690" y1="36.8" y2="36.8" stroke="#22324f"></line><text x="48" y="36.8" fill="#a9b7cf" font-size="12" text-anchor="end" dominant-baseline="middle">12k</text>
+<text x="56.0" y="290" fill="#a9b7cf" font-size="12" text-anchor="middle">1990</text><text x="149.2" y="290" fill="#a9b7cf" font-size="12" text-anchor="middle">1995</text><text x="242.5" y="290" fill="#a9b7cf" font-size="12" text-anchor="middle">2000</text><text x="335.7" y="290" fill="#a9b7cf" font-size="12" text-anchor="middle">2005</text><text x="428.9" y="290" fill="#a9b7cf" font-size="12" text-anchor="middle">2010</text><text x="522.2" y="290" fill="#a9b7cf" font-size="12" text-anchor="middle">2015</text><text x="615.4" y="290" fill="#a9b7cf" font-size="12" text-anchor="middle">2020</text>
+<sc-for list="{{ lc.others }}" as="o"><path d="{{ o.d }}" stroke="#56688c" stroke-width="1.3" fill="none"></path></sc-for>
+<path d="{{ lc.china }}" stroke="#5FD8F7" stroke-width="2.75" fill="none"></path>
+<text x="698" y="31.3" fill="#5FD8F7" font-size="12" font-weight="600" dominant-baseline="middle">China</text><text x="698" y="170.0" fill="#d7e0f0" font-size="12" font-weight="500" dominant-baseline="middle">United States</text><text x="698" y="202.1" fill="#d7e0f0" font-size="12" font-weight="500" dominant-baseline="middle">India</text>
+</svg>
+</div>
+<span style="font-size:12px;color:#a9b7cf">Source: OWID CO₂, 1990–2024 · territorial emissions · scope label to confirm</span>
+</div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;flex-direction:column;gap:3px"><h3 style="margin:0;font-size:16px;font-weight:600;color:#f1f5fb">Top 10 emitters, 2024</h3><span style="font-size:13px;color:#a9b7cf">MtCO₂ · 71% of the world total</span></div>
+<div style="display:flex;flex-direction:column;gap:6px">
+<sc-for list="{{ bars }}" as="b" hint-placeholder-count="10"><div style="display:grid;grid-template-columns:120px minmax(0,1fr) 64px;align-items:center;gap:12px;font-size:13px"><span style="color:{{ b.tc }}">{{ b.n }}</span><div style="height:16px;background:#0f1a2e;border-radius:3px"><div style="height:16px;width:{{ b.w }};background:{{ b.c }};border-radius:3px"></div></div><span style="text-align:right;color:{{ b.tc }};font-variant-numeric:tabular-nums">{{ b.v }}</span></div></sc-for>
+</div>
+<span style="font-size:12px;color:#a9b7cf">Source: OWID CO₂, 2024 · same scope as above</span>
+</div>
+<div style="display:flex;gap:20px;flex-wrap:wrap;font-size:14px;font-weight:600"><a href="#A2">Open in Historical Trends →</a><a href="#A2">Open China in Country Profile →</a></div>
+<div style="height:8px"></div>
+</div>
+<div style="position:sticky;bottom:0;align-self:stretch;margin:0 -64px;padding:14px 64px 18px;background:#121e35;border-top:1px solid #2c3e63;display:flex;justify-content:center">
+<div style="width:100%;max-width:900px;display:flex;flex-direction:column;gap:10px">
+<sc-if value="{{ followUps }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:8px;flex-wrap:wrap"><span style="font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:16px;padding:6px 12px">How does China’s per-capita figure compare with others?</span><span style="font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:16px;padding:6px 12px">How has global CO₂ tracked warming since 1850?</span><span style="font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:16px;padding:6px 12px">Who are the top emitters forecast to be in 2040?</span></div></sc-if>
+<div style="display:flex;align-items:center;gap:12px;background:#1b2a4a;border:1px solid #3d5580;border-radius:12px;padding:10px 10px 10px 18px;box-sizing:border-box"><span style="flex:1;font-size:15px;color:#a9b7cf">Ask a follow-up…</span><button aria-label="Send" style="width:40px;height:40px;flex:none;border:0;border-radius:8px;background:#5FD8F7;color:#0b1626;font-size:18px;font-weight:700">↑</button></div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="A3">
+<div class="dv-olabel"><a class="dv-oid" href="#A3">A3</a>Answer · Climate outcomes (pathways). Reuses the Correlation module’s #scenarios output.</div>
+<div class="dv-card" style="width:1280px;background:#121e35;color:#d7e0f0">
+<div style="display:flex;align-items:center;height:60px;padding:0 24px;background:#1e2f52;border-bottom:1px solid #2c3e63;gap:16px"><div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:17px;color:#fff"><span style="width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#7fd6ea,#2d7fa3)"></span>Climate Analytics Platform</div><div style="margin-left:auto;display:flex;gap:12px;align-items:center"><div style="display:flex;background:#121e35;border-radius:4px;padding:3px;font-size:12.5px"><span style="padding:4px 8px">Light</span><span style="padding:4px 8px;background:#fff;color:#121e35;border-radius:3px">Dark</span></div><div style="border:1px solid #5FD8F7;background:#24395f;border-radius:6px;padding:8px 14px;font-size:14px;color:#fff">✦ Ask the Agent</div></div></div>
+<div style="display:flex">
+<nav aria-label="Sections" style="width:200px;flex:none;background:#172544;border-right:1px solid #2c3e63;padding:20px 12px;display:flex;flex-direction:column;gap:2px;font-size:13.5px;box-sizing:border-box"><span style="padding:8px 10px">Home</span><span style="margin-top:20px;padding:12px 10px 6px;border-top:1px solid #2c3e63;font-size:11px;font-weight:600;letter-spacing:.06em;color:#a9b7cf">EXPLORATION</span><span style="padding:8px 10px">Overview</span><span style="padding:8px 10px">Historical Trends</span><span style="padding:8px 10px">Country Profile</span><span style="padding:8px 10px">Data Explorer</span><span style="padding:8px 10px;display:flex;justify-content:space-between;align-items:center;gap:6px">Climate Correlation<span style="font-size:10.5px;font-weight:600;color:#7be0a0">NEW</span></span><span style="margin-top:16px;padding:12px 10px 6px;border-top:1px solid #2c3e63;font-size:11px;font-weight:600;letter-spacing:.06em;color:#a9b7cf">PROJECTION</span><span style="padding:8px 10px">Forecasts</span><span style="padding:8px 10px">Scenario Comparison</span><span style="margin-top:auto;padding:12px 10px 8px;border-top:1px solid #2c3e63">About</span></nav>
+<main style="flex:1;display:flex;flex-direction:column;align-items:center;padding:28px 64px 0;box-sizing:border-box">
+<div style="width:100%;max-width:900px;display:flex;flex-direction:column;gap:22px">
+<div style="display:flex;justify-content:flex-end"><span style="font-size:13px;color:#d7e0f0;border:1px solid #3d5580;border-radius:6px;padding:7px 12px">+ New question</span></div>
+<div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#a9b7cf">CLIMATE OUTCOMES</span><h2 style="margin:0;font-size:24px;line-height:1.3;font-weight:600;color:#f1f5fb">How do temperature outcomes vary based on different emissions pathways?</h2></div>
+<span style="align-self:flex-start;font:500 11px 'JetBrains Mono',monospace;letter-spacing:.04em;color:#FFC774;background:rgba(255,181,77,.12);padding:4px 8px;border-radius:3px">ILLUSTRATIVE · IMPLIED OUTCOMES, NOT CLIMATE-MODEL PROJECTIONS</span>
+<p style="margin:0;font-size:16px;line-height:1.65;color:#d7e0f0;text-wrap:pretty">By 2040 the platform’s three emissions pathways imply <b style="color:#fff">1.68–1.79 °C</b> of warming above 1850–1900. Annual emissions in 2040 differ 2.2× between them, but the implied temperatures differ by only <b style="color:#fff">0.11 °C</b>, because 78% of the 2040 level (1.39 °C) was already reached by 2024. The pathways change only the warming still to come: the Aggressive pathway adds 28% less of it than BAU.</p>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-top:3px solid #FFB54D;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><span style="font-size:12.5px;color:#a9b7cf">BAU · 2040</span><span style="font-size:28px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums">1.79 <span style="font-size:15px;font-weight:500;color:#a9b7cf">°C</span></span><span style="font-size:12.5px;color:#a9b7cf">46,647 MtCO₂ a year</span></div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-top:3px solid #5FD8F7;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><span style="font-size:12.5px;color:#a9b7cf">Moderate · 2040</span><span style="font-size:28px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums">1.73 <span style="font-size:15px;font-weight:500;color:#a9b7cf">°C</span></span><span style="font-size:12.5px;color:#a9b7cf">30,400 MtCO₂ a year</span></div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-top:3px solid #5AB4AC;border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><span style="font-size:12.5px;color:#a9b7cf">Aggressive · 2040</span><span style="font-size:28px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums">1.68 <span style="font-size:15px;font-weight:500;color:#a9b7cf">°C</span></span><span style="font-size:12.5px;color:#a9b7cf">21,611 MtCO₂ a year</span></div>
+</div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:18px 20px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;flex-direction:column;gap:3px"><h3 style="margin:0;font-size:16px;font-weight:600;color:#f1f5fb">Implied temperature by pathway, 2015–2040</h3><span style="font-size:13px;color:#a9b7cf">°C above 1850–1900 · from cumulative CO₂ × the long-run slope</span></div>
+<div style="background:#0f1a2e;border-radius:6px;padding:8px">
+<svg viewBox="0 0 780 290" role="img" aria-label="Implied temperature by pathway 2015 to 2040" style="width:100%;display:block">
+<line x1="56" x2="680" y1="226.3" y2="226.3" stroke="#22324f"></line><text x="48" y="226.3" fill="#a9b7cf" font-size="12" text-anchor="end" dominant-baseline="middle">1.2</text><line x1="56" x2="680" y1="166.8" y2="166.8" stroke="#22324f"></line><text x="48" y="166.8" fill="#a9b7cf" font-size="12" text-anchor="end" dominant-baseline="middle">1.4</text><line x1="56" x2="680" y1="107.3" y2="107.3" stroke="#22324f"></line><text x="48" y="107.3" fill="#a9b7cf" font-size="12" text-anchor="end" dominant-baseline="middle">1.6</text><line x1="56" x2="680" y1="47.8" y2="47.8" stroke="#22324f"></line><text x="48" y="47.8" fill="#a9b7cf" font-size="12" text-anchor="end" dominant-baseline="middle">1.8</text>
+<text x="56.0" y="280" fill="#a9b7cf" font-size="12" text-anchor="middle">2015</text><text x="180.8" y="280" fill="#a9b7cf" font-size="12" text-anchor="middle">2020</text><text x="305.6" y="280" fill="#a9b7cf" font-size="12" text-anchor="middle">2025</text><text x="430.4" y="280" fill="#a9b7cf" font-size="12" text-anchor="middle">2030</text><text x="555.2" y="280" fill="#a9b7cf" font-size="12" text-anchor="middle">2035</text><text x="680.0" y="280" fill="#a9b7cf" font-size="12" text-anchor="middle">2040</text>
+<line x1="{{ tc.ax }}" x2="{{ tc.ax }}" y1="16" y2="256" stroke="#2c3e63" stroke-dasharray="3 3"></line>
+<path d="{{ tc.hist }}" stroke="#ecf0f6" stroke-width="2.25" fill="none"></path>
+<path d="{{ tc.bau }}" stroke="#FFB54D" stroke-width="2.25" fill="none"></path>
+<path d="{{ tc.mod }}" stroke="#5FD8F7" stroke-width="2.25" fill="none"></path>
+<path d="{{ tc.agg }}" stroke="#5AB4AC" stroke-width="2.25" fill="none"></path>
+<circle cx="{{ tc.ax }}" cy="{{ tc.ay }}" r="4.5" fill="#fff"></circle><text x="{{ tc.ax }}" y="{{ tc.aly }}" fill="#fff" font-size="12" text-anchor="end" dx="-8">1.39 °C in 2024</text>
+<text x="688" y="47.7" fill="#FFB54D" font-size="12" font-weight="600" dominant-baseline="middle">BAU 1.79</text><text x="688" y="68.6" fill="#5FD8F7" font-size="12" font-weight="600" dominant-baseline="middle">Moderate 1.73</text><text x="688" y="87.5" fill="#5AB4AC" font-size="12" font-weight="600" dominant-baseline="middle">Aggressive 1.68</text>
+</svg>
+</div>
+<span style="font-size:12px;color:#a9b7cf">Starts from OWID World cumulative CO₂ to 2024. Pathways cover 40 countries; the rest of the world is held at its 2024 share.</span>
+</div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:18px 20px;display:flex;flex-direction:column;gap:12px">
+<h3 style="margin:0;font-size:16px;font-weight:600;color:#f1f5fb">How this is calculated</h3>
+<div style="display:grid;grid-template-columns:220px minmax(0,1fr);gap:8px 16px;font-size:14px;line-height:1.5"><span style="color:#a9b7cf">Slope used</span><span style="color:#f1f5fb">0.520 °C per 1,000 GtCO₂ (95% CI 0.480–0.559), 1850–2024, total CO₂ including land use</span><span style="color:#a9b7cf">IPCC for comparison</span><span style="color:#f1f5fb">AR6 best estimate 0.45 (likely range 0.27–0.63)</span><span style="color:#a9b7cf">Gases</span><span style="color:#f1f5fb">CO₂ only, not an all-gas slope</span></div>
+<span style="font-size:13.5px;line-height:1.55;color:#d7e0f0">A relationship in observed data, not a climate model. Results depend on the regression period, emissions source and assumptions.</span>
+<span style="font-size:13px;line-height:1.5;color:#FFC774;background:rgba(255,181,77,.12);border-radius:6px;padding:8px 10px">Based on Berkeley Earth file vintage 2025-01-10; a possible ~0.1 °C discrepancy with Berkeley Earth’s most recent published report text has not yet been reconciled.</span>
+</div>
+<div style="display:flex;gap:20px;flex-wrap:wrap;font-size:14px;font-weight:600"><a href="#A3">Open in Climate Correlation →</a><a href="#A3">Open in Scenario Comparison →</a></div>
+<div style="height:8px"></div>
+</div>
+<div style="position:sticky;bottom:0;align-self:stretch;margin:0 -64px;padding:14px 64px 18px;background:#121e35;border-top:1px solid #2c3e63;display:flex;justify-content:center">
+<div style="width:100%;max-width:900px;display:flex;flex-direction:column;gap:10px">
+<sc-if value="{{ followUps }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:8px;flex-wrap:wrap"><span style="font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:16px;padding:6px 12px">Why do the pathways differ so little by 2040?</span><span style="font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:16px;padding:6px 12px">How was the 0.520 slope derived?</span><span style="font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:16px;padding:6px 12px">Show the relationship between cumulative emissions and warming.</span></div></sc-if>
+<div style="display:flex;align-items:center;gap:12px;background:#1b2a4a;border:1px solid #3d5580;border-radius:12px;padding:10px 10px 10px 18px;box-sizing:border-box"><span style="flex:1;font-size:15px;color:#a9b7cf">Ask a follow-up…</span><button aria-label="Send" style="width:40px;height:40px;flex:none;border:0;border-radius:8px;background:#5FD8F7;color:#0b1626;font-size:18px;font-weight:700">↑</button></div>
+</div>
+</div>
+</main>
+</div>
+</div>
+</div>
+
+</div>
+</section>
+
+<section class="dv-turn" id="mobile">
+<div class="dv-thd"><a class="dv-tid" href="#mobile">2</a><span class="dv-tname">Mobile · 390px · Dark</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="M1">
+<div class="dv-olabel"><a class="dv-oid" href="#M1">M1</a>Empty state · prompts in one column</div>
+<div class="dv-card" style="width:390px;background:#121e35;color:#d7e0f0">
+<div style="display:flex;align-items:center;gap:12px;height:56px;padding:0 12px;background:#1e2f52;border-bottom:1px solid #2c3e63"><span aria-label="Menu" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff">≡</span><span style="font-weight:600;font-size:16px;color:#fff">Ask the Agent</span></div>
+<div style="padding:24px 16px 28px;display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;flex-direction:column;gap:8px"><h1 style="margin:0;font-size:24px;line-height:1.25;font-weight:600;color:#f1f5fb">Ask about emissions and climate outcomes</h1><p style="margin:0;font-size:14.5px;line-height:1.55;color:#a9b7cf">Answers from emissions data for 1990–2024, global temperature and CO₂ records, and the platform’s forecasts. Every chart shows its source.</p></div>
+<div style="display:flex;align-items:center;gap:10px;background:#1b2a4a;border:1px solid #3d5580;border-radius:12px;padding:8px 8px 8px 14px;min-height:60px;box-sizing:border-box"><span style="flex:1;font-size:15px;color:#a9b7cf">Ask a question…</span><button aria-label="Send" style="width:44px;height:44px;flex:none;border:0;border-radius:8px;background:#5FD8F7;color:#0b1626;font-size:18px;font-weight:700">↑</button></div>
+<sc-for list="{{ groups }}" as="g" hint-placeholder-count="3"><div style="display:flex;flex-direction:column;gap:8px"><span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#a9b7cf">{{ g.cat }}</span><sc-for list="{{ g.qs }}" as="q"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:12px 14px;min-height:56px;box-sizing:border-box;font-size:14px;line-height:1.4;color:#f1f5fb"><span>{{ q }}</span><span style="color:#a9b7cf">→</span></div></sc-for></div></sc-for>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="M2">
+<div class="dv-olabel"><a class="dv-oid" href="#M2">M2</a>Answer · China · follow-ups scroll sideways</div>
+<div class="dv-card" style="width:390px;background:#121e35;color:#d7e0f0">
+<div style="display:flex;align-items:center;gap:12px;height:56px;padding:0 12px;background:#1e2f52;border-bottom:1px solid #2c3e63"><span aria-label="Menu" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff">≡</span><span style="font-weight:600;font-size:16px;color:#fff">Ask the Agent</span><span style="margin-left:auto;font-size:13px;color:#d7e0f0;border:1px solid #3d5580;border-radius:6px;padding:0 12px;height:36px;display:flex;align-items:center">+ New</span></div>
+<div style="padding:20px 16px 16px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-direction:column;gap:6px"><span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#a9b7cf">HISTORICAL TRENDS</span><h2 style="margin:0;font-size:19px;line-height:1.35;font-weight:600;color:#f1f5fb">What are China’s historical emissions trends, and how do they compare to the other top 10 emitters?</h2></div>
+<p style="margin:0;font-size:15px;line-height:1.6;color:#d7e0f0">China emitted <b style="color:#fff">12,289 MtCO₂ in 2024</b>, the most of any country and about 2.5 times the United States. Its emissions have grown nearly fivefold since 1990, with the steepest rise between 2002 and 2013, while US emissions have fallen slightly. Together, the 10 largest emitters account for <b style="color:#fff">71%</b> of the world total.</p>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#a9b7cf">2024 · Mt</span><span style="font-size:19px;font-weight:600;color:#fff">12,289</span></div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#a9b7cf">Per capita · t</span><span style="font-size:19px;font-weight:600;color:#fff">8.66</span></div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#a9b7cf">vs 2023</span><span style="font-size:19px;font-weight:600;color:#FFC774">+1.0%</span></div>
+</div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 12px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;flex-direction:column;gap:2px"><h3 style="margin:0;font-size:15px;font-weight:600;color:#f1f5fb">Top 10 emitters, 1990–2024</h3><span style="font-size:12.5px;color:#a9b7cf">MtCO₂ · China highlighted</span></div>
+<div style="background:#0f1a2e;border-radius:6px;padding:6px">
+<svg viewBox="0 0 360 230" role="img" aria-label="CO2 emissions of the top 10 emitters, China highlighted" style="width:100%;display:block">
+<line x1="34" x2="290" y1="200.0" y2="200.0" stroke="#22324f"></line><text x="28" y="200.0" fill="#a9b7cf" font-size="11" text-anchor="end" dominant-baseline="middle">0</text><line x1="34" x2="290" y1="142.8" y2="142.8" stroke="#22324f"></line><text x="28" y="142.8" fill="#a9b7cf" font-size="11" text-anchor="end" dominant-baseline="middle">4k</text><line x1="34" x2="290" y1="85.5" y2="85.5" stroke="#22324f"></line><text x="28" y="85.5" fill="#a9b7cf" font-size="11" text-anchor="end" dominant-baseline="middle">8k</text><line x1="34" x2="290" y1="28.3" y2="28.3" stroke="#22324f"></line><text x="28" y="28.3" fill="#a9b7cf" font-size="11" text-anchor="end" dominant-baseline="middle">12k</text>
+<text x="34.0" y="222" fill="#a9b7cf" font-size="11" text-anchor="middle">1990</text><text x="109.3" y="222" fill="#a9b7cf" font-size="11" text-anchor="middle">2000</text><text x="184.6" y="222" fill="#a9b7cf" font-size="11" text-anchor="middle">2010</text><text x="259.9" y="222" fill="#a9b7cf" font-size="11" text-anchor="middle">2020</text>
+<sc-for list="{{ lcm.others }}" as="o"><path d="{{ o.d }}" stroke="#56688c" stroke-width="1.1" fill="none"></path></sc-for>
+<path d="{{ lcm.china }}" stroke="#5FD8F7" stroke-width="2.5" fill="none"></path>
+<text x="295" y="24.2" fill="#5FD8F7" font-size="11" font-weight="600" dominant-baseline="middle">China</text><text x="295" y="129.9" fill="#d7e0f0" font-size="11" font-weight="500" dominant-baseline="middle">US</text><text x="295" y="154.4" fill="#d7e0f0" font-size="11" font-weight="500" dominant-baseline="middle">India</text>
+</svg>
+</div>
+<span style="font-size:11.5px;color:#a9b7cf">Source: OWID CO₂ · territorial emissions</span>
+</div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 12px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;flex-direction:column;gap:2px"><h3 style="margin:0;font-size:15px;font-weight:600;color:#f1f5fb">Top 10 emitters, 2024</h3><span style="font-size:12.5px;color:#a9b7cf">MtCO₂ · 71% of the world total</span></div>
+<div style="display:flex;flex-direction:column;gap:5px">
+<sc-for list="{{ bars }}" as="b" hint-placeholder-count="10"><div style="display:grid;grid-template-columns:86px minmax(0,1fr) 50px;align-items:center;gap:8px;font-size:12.5px"><span style="color:{{ b.tc }}">{{ b.s }}</span><div style="height:12px;background:#0f1a2e;border-radius:2px"><div style="height:12px;width:{{ b.w }};background:{{ b.c }};border-radius:2px"></div></div><span style="text-align:right;color:{{ b.tc }};font-variant-numeric:tabular-nums">{{ b.v }}</span></div></sc-for>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:2px;font-size:14px;font-weight:600"><a href="#M2" style="min-height:44px;display:flex;align-items:center">Open in Historical Trends →</a><a href="#M2" style="min-height:44px;display:flex;align-items:center">Open China in Country Profile →</a></div>
+</div>
+<div style="position:sticky;bottom:0;background:#121e35;border-top:1px solid #2c3e63;padding:10px 0 14px;display:flex;flex-direction:column;gap:8px">
+<sc-if value="{{ followUps }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:8px;overflow-x:auto;padding:0 16px"><span style="flex:none;font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:18px;padding:0 12px;height:36px;display:flex;align-items:center">China’s per capita vs others</span><span style="flex:none;font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:18px;padding:0 12px;height:36px;display:flex;align-items:center">Global CO₂ and warming</span><span style="flex:none;font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:18px;padding:0 12px;height:36px;display:flex;align-items:center">Top emitters in 2040</span></div></sc-if>
+<div style="margin:0 16px;display:flex;align-items:center;gap:10px;background:#1b2a4a;border:1px solid #3d5580;border-radius:12px;padding:6px 6px 6px 14px"><span style="flex:1;font-size:15px;color:#a9b7cf">Ask a follow-up…</span><button aria-label="Send" style="width:44px;height:44px;flex:none;border:0;border-radius:8px;background:#5FD8F7;color:#0b1626;font-size:18px;font-weight:700">↑</button></div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="M3">
+<div class="dv-olabel"><a class="dv-oid" href="#M3">M3</a>Answer · pathways · method collapsed by default</div>
+<div class="dv-card" style="width:390px;background:#121e35;color:#d7e0f0">
+<div style="display:flex;align-items:center;gap:12px;height:56px;padding:0 12px;background:#1e2f52;border-bottom:1px solid #2c3e63"><span aria-label="Menu" style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff">≡</span><span style="font-weight:600;font-size:16px;color:#fff">Ask the Agent</span><span style="margin-left:auto;font-size:13px;color:#d7e0f0;border:1px solid #3d5580;border-radius:6px;padding:0 12px;height:36px;display:flex;align-items:center">+ New</span></div>
+<div style="padding:20px 16px 16px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-direction:column;gap:6px"><span style="font:600 11px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#a9b7cf">CLIMATE OUTCOMES</span><h2 style="margin:0;font-size:19px;line-height:1.35;font-weight:600;color:#f1f5fb">How do temperature outcomes vary based on different emissions pathways?</h2></div>
+<span style="align-self:flex-start;font:500 10.5px 'JetBrains Mono',monospace;letter-spacing:.04em;color:#FFC774;background:rgba(255,181,77,.12);padding:4px 8px;border-radius:3px">ILLUSTRATIVE · IMPLIED, NOT PROJECTIONS</span>
+<p style="margin:0;font-size:15px;line-height:1.6;color:#d7e0f0">By 2040 the platform’s three emissions pathways imply <b style="color:#fff">1.68–1.79 °C</b> of warming above 1850–1900. Annual emissions in 2040 differ 2.2× between them, but the implied temperatures differ by only <b style="color:#fff">0.11 °C</b>, because 78% of the 2040 level (1.39 °C) was already reached by 2024.</p>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-top:3px solid #FFB54D;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#a9b7cf">BAU</span><span style="font-size:20px;font-weight:600;color:#fff">1.79 °C</span></div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-top:3px solid #5FD8F7;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#a9b7cf">Moderate</span><span style="font-size:20px;font-weight:600;color:#fff">1.73 °C</span></div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-top:3px solid #5AB4AC;border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#a9b7cf">Aggressive</span><span style="font-size:20px;font-weight:600;color:#fff">1.68 °C</span></div>
+</div>
+<div style="background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:14px 12px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;flex-direction:column;gap:2px"><h3 style="margin:0;font-size:15px;font-weight:600;color:#f1f5fb">Implied temperature, 2015–2040</h3><span style="font-size:12.5px;color:#a9b7cf">°C above 1850–1900</span></div>
+<div style="background:#0f1a2e;border-radius:6px;padding:6px">
+<svg viewBox="0 0 360 230" role="img" aria-label="Implied temperature by pathway 2015 to 2040" style="width:100%;display:block">
+<line x1="34" x2="290" y1="176.8" y2="176.8" stroke="#22324f"></line><text x="28" y="176.8" fill="#a9b7cf" font-size="11" text-anchor="end" dominant-baseline="middle">1.2</text><line x1="34" x2="290" y1="130.3" y2="130.3" stroke="#22324f"></line><text x="28" y="130.3" fill="#a9b7cf" font-size="11" text-anchor="end" dominant-baseline="middle">1.4</text><line x1="34" x2="290" y1="83.8" y2="83.8" stroke="#22324f"></line><text x="28" y="83.8" fill="#a9b7cf" font-size="11" text-anchor="end" dominant-baseline="middle">1.6</text><line x1="34" x2="290" y1="37.3" y2="37.3" stroke="#22324f"></line><text x="28" y="37.3" fill="#a9b7cf" font-size="11" text-anchor="end" dominant-baseline="middle">1.8</text>
+<text x="34.0" y="222" fill="#a9b7cf" font-size="11" text-anchor="middle">2015</text><text x="136.4" y="222" fill="#a9b7cf" font-size="11" text-anchor="middle">2025</text><text x="238.8" y="222" fill="#a9b7cf" font-size="11" text-anchor="middle">2035</text>
+<path d="{{ tcm.hist }}" stroke="#ecf0f6" stroke-width="2" fill="none"></path><path d="{{ tcm.bau }}" stroke="#FFB54D" stroke-width="2" fill="none"></path><path d="{{ tcm.mod }}" stroke="#5FD8F7" stroke-width="2" fill="none"></path><path d="{{ tcm.agg }}" stroke="#5AB4AC" stroke-width="2" fill="none"></path>
+<circle cx="{{ tcm.ax }}" cy="{{ tcm.ay }}" r="4" fill="#fff"></circle><text x="{{ tcm.ax }}" y="{{ tcm.aly }}" fill="#fff" font-size="11" text-anchor="end" dx="-6">1.39 °C</text>
+<text x="295" y="36.6" fill="#FFB54D" font-size="11" font-weight="600" dominant-baseline="middle">1.79</text><text x="295" y="53.5" fill="#5FD8F7" font-size="11" font-weight="600" dominant-baseline="middle">1.73</text><text x="295" y="69.2" fill="#5AB4AC" font-size="11" font-weight="600" dominant-baseline="middle">1.68</text>
+</svg>
+</div>
+<span style="font-size:11.5px;color:#a9b7cf">Pathways cover 40 countries; rest of world held at its 2024 share.</span>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center;min-height:48px;background:#1b2a4a;border:1px solid #2c3e63;border-radius:10px;padding:0 14px;font-size:14.5px;font-weight:600;color:#f1f5fb"><span>How this is calculated</span><span style="color:#a9b7cf">▾</span></div>
+<span style="font-size:12.5px;line-height:1.5;color:#FFC774;background:rgba(255,181,77,.12);border-radius:6px;padding:8px 10px">Berkeley Earth vintage 2025-01-10; a possible ~0.1 °C discrepancy with its latest report text is not yet reconciled.</span>
+<div style="display:flex;flex-direction:column;gap:2px;font-size:14px;font-weight:600"><a href="#M3" style="min-height:44px;display:flex;align-items:center">Open in Climate Correlation →</a><a href="#M3" style="min-height:44px;display:flex;align-items:center">Open in Scenario Comparison →</a></div>
+</div>
+<div style="position:sticky;bottom:0;background:#121e35;border-top:1px solid #2c3e63;padding:10px 0 14px;display:flex;flex-direction:column;gap:8px">
+<sc-if value="{{ followUps }}" hint-placeholder-val="{{ true }}"><div style="display:flex;gap:8px;overflow-x:auto;padding:0 16px"><span style="flex:none;font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:18px;padding:0 12px;height:36px;display:flex;align-items:center">Why so little difference?</span><span style="flex:none;font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:18px;padding:0 12px;height:36px;display:flex;align-items:center">How was 0.520 derived?</span><span style="flex:none;font-size:13px;color:#f1f5fb;border:1px solid #3d5580;border-radius:18px;padding:0 12px;height:36px;display:flex;align-items:center">Cumulative CO₂ and warming</span></div></sc-if>
+<div style="margin:0 16px;display:flex;align-items:center;gap:10px;background:#1b2a4a;border:1px solid #3d5580;border-radius:12px;padding:6px 6px 6px 14px"><span style="flex:1;font-size:15px;color:#a9b7cf">Ask a follow-up…</span><button aria-label="Send" style="width:44px;height:44px;flex:none;border:0;border-radius:8px;background:#5FD8F7;color:#0b1626;font-size:18px;font-weight:700">↑</button></div>
+</div>
+</div>
+</div>
+
+</div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;promptLayout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;By category&quot;,&quot;Grid 2×3&quot;],&quot;default&quot;:&quot;By category&quot;,&quot;tsType&quot;:&quot;'By category' | 'Grid 2×3'&quot;,&quot;section&quot;:&quot;Empty state&quot;},&quot;followUps&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Answers&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const layout = this.props.promptLayout ?? 'By category';
+    const K = {
+      China:[[1990,2480],[1995,3320],[2000,3640],[2002,4100],[2005,6260],[2010,8880],[2013,9950],[2016,9750],[2020,11200],[2024,12289]],
+      'United States':[[1990,5120],[2000,6000],[2005,6130],[2010,5680],[2015,5370],[2019,5260],[2020,4720],[2024,4900]],
+      India:[[1990,580],[2000,980],[2010,1680],[2019,2620],[2020,2440],[2024,3190]],
+      Russia:[[1990,2520],[1998,1600],[2010,1700],[2024,1780]],
+      Japan:[[1990,1160],[2005,1290],[2013,1310],[2024,960]],
+      Iran:[[1990,200],[2024,800]], 'Saudi Arabia':[[1990,160],[2024,700]], Indonesia:[[1990,160],[2024,730]],
+      Germany:[[1990,1050],[2024,570]], 'South Korea':[[1990,260],[2018,680],[2024,600]]
+    };
+    const at = (k, y) => { for (let i = 1; i < k.length; i++) if (y <= k[i][0]) { const [a, va] = k[i-1], [b, vb] = k[i]; return va + (vb - va) * (y - a) / (b - a); } return k[k.length-1][1]; };
+    const yrs = []; for (let y = 1990; y <= 2024; y++) yrs.push(y);
+    const line = (w, l, r, t, b, short) => {
+      const X = y => l + (y - 1990) / 34 * (r - l), Y = v => b - v / 13000 * (b - t);
+      const path = k => yrs.map((y, i) => (i ? 'L' : 'M') + X(y).toFixed(1) + ' ' + Y(at(k, y)).toFixed(1)).join('');
+      const lab = (n, s, c, wt) => ({ n, s, c, w: wt, y: Y(K[n][K[n].length-1][1]) });
+      return {
+        yT: [0, 4000, 8000, 12000].map(v => ({ y: Y(v), l: v ? (v/1000) + 'k' : '0' })),
+        xT: (short ? [1990, 2000, 2010, 2020] : [1990, 1995, 2000, 2005, 2010, 2015, 2020]).map(y => ({ x: X(y), l: y })),
+        others: Object.keys(K).filter(n => n !== 'China').map(n => ({ d: path(K[n]) })),
+        china: path(K.China),
+        labels: [lab('China', 'China', '#5FD8F7', 600), lab('United States', 'US', '#d7e0f0', 500), lab('India', 'India', '#d7e0f0', 500)]
+      };
+    };
+    const temp = (l, r, t, b, short) => {
+      const X = y => l + (y - 2015) / 25 * (r - l), Y = v => b - (v - 1.1) / 0.8 * (b - t);
+      const f = (y, g) => { const s = (y - 2024) / 16; return 1.39 + 0.025 * (y - 2024) - g * s * s; };
+      const p = (a, z, fn) => { const o = []; for (let y = a; y <= z; y++) o.push((y === a ? 'M' : 'L') + X(y).toFixed(1) + ' ' + Y(fn(y)).toFixed(1)); return o.join(''); };
+      return {
+        yT: [1.2, 1.4, 1.6, 1.8].map(v => ({ y: Y(v), l: v.toFixed(1) })),
+        xT: (short ? [2015, 2025, 2035] : [2015, 2020, 2025, 2030, 2035, 2040]).map(y => ({ x: X(y), l: y })),
+        hist: p(2015, 2024, y => 1.39 - 0.021 * (2024 - y)),
+        bau: p(2024, 2040, y => f(y, 0)), mod: p(2024, 2040, y => f(y, 0.06)), agg: p(2024, 2040, y => f(y, 0.11)),
+        ax: X(2024), ay: Y(1.39), aly: Y(1.39) - 12,
+        labels: [{ n: 'BAU 1.79', v: '1.79', c: '#FFB54D', y: Y(1.79) - 3 }, { n: 'Moderate 1.73', v: '1.73', c: '#5FD8F7', y: Y(1.73) }, { n: 'Aggressive 1.68', v: '1.68', c: '#5AB4AC', y: Y(1.68) + 4 }]
+      };
+    };
+    const vals = [['China','China',12289],['United States','US',4900],['India','India',3190],['Russia','Russia',1780],['Japan','Japan',960],['Iran','Iran',800],['Indonesia','Indonesia',730],['Saudi Arabia','Saudi Arabia',700],['South Korea','South Korea',600],['Germany','Germany',570]];
+    const bars = vals.map(([n, s, v], i) => ({ n, s, v: v.toLocaleString('en-US'), w: (v / 12289 * 100).toFixed(1) + '%', c: i ? '#4a6290' : '#5FD8F7', tc: i ? '#d7e0f0' : '#fff' }));
+    const P = {
+      'HISTORICAL TRENDS': ['What are China’s historical emissions trends, and how do they compare to the other top 10 emitters?', 'How have India’s emissions grown compared with other countries?'],
+      'CLIMATE OUTCOMES': ['Show the relationship between cumulative emissions and warming.', 'How do temperature outcomes vary based on different emissions pathways?'],
+      'FORECASTS': ['What are the top 10 forecasted emitters in 2040?', 'How do today’s top 10 emitters compare with the projected top 10 in 2040?']
+    };
+    const groups = Object.keys(P).map(cat => ({ cat, qs: P[cat] }));
+    const prompts = groups.flatMap(g => g.qs.map(q => ({ cat: g.cat, q })));
+    return {
+      byCat: layout === 'By category', grid: layout !== 'By category',
+      followUps: this.props.followUps ?? true,
+      lc: line(780, 56, 690, 18, 262, false), lcm: line(360, 34, 290, 14, 200, true),
+      tc: temp(56, 680, 18, 256, false), tcm: temp(34, 290, 14, 200, true),
+      bars, groups, prompts
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#e9e7e2;font-family:Inter,system-ui,sans-serif}a{color:#0A6E8C;text-decoration:none}a:hover{color:#085972}button{font-family:inherit}.dv-turn{padding:40px 44px 40px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}.dv-tid{font:600 10px 'JetBrains Mono',ui-monospace,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 Inter,system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px 'JetBrains Mono',ui-monospace,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.3 Inter,system-ui,sans-serif;color:rgba(0,0,0,.6)}.dv-card{max-width:100%;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}</style>
+</helmet>
+
+<section class="dv-turn" id="review">
+<div class="dv-thd"><a class="dv-tid" href="#review">0</a><span class="dv-tname">Final pass · checked against the Area 2 requirements doc (rev. 2026-10-02), §2.1–2.6</span></div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,560px));gap:40px;font-size:13px;line-height:1.55;color:#2c2c2c">
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6b6b6b">CHANGED IN THIS PASS</div>
+<ol style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px">
+<li>Landing: Banner 1 subhead uses the “chain reaction” wording; its CTA goes to <b>Overview #climate-signal</b> (§2.1), and “Explore the data” and “Forecasts to 2043” remain as secondary links.</li>
+<li>Mobile layouts for both banners and the Overview (§2.1, §2.2 wireframe requirements).</li>
+<li>Overview follows the §2.2 order: climate signal → relationship → top emitters → share → pathways, with deep links for each.</li>
+<li>KPI strip: “change since baseline” is now its own card (1990 = 100), and every KPI opens a baseline panel listing year, reference period, formula, source range and excluded years (§2.5).</li>
+<li>Leading-emitter ranking is back beside the map, synced to the selected year and mode (§2.2 block 3, §2.6).</li>
+<li>“Why emissions matter” now states the full chain, the ocean–climate response note, and the global vs country distinction (§2.2).</li>
+<li>Pathways closes the page with links to Forecasts and Scenario Comparison (§2.2 block 5).</li>
+<li>Correlation module adds the 1970+ recent all-gas view, gas composition, a full causal-chain diagram, a purpose line on every chart, and in-module sources and baselines (§2.4, acceptance criteria).</li>
+<li>One page year: a sticky Year control (also set by the map's decade stops) drives the map, Share, By Country, Top Movers and % Change. Share's playback becomes a replay that returns to the page year.</li>
+</ol>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6b6b6b">DECISIONS (CONFIRMED 2026-10-04)</div>
+<ol type="A" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:5px">
+<li><b>Headline definition:</b> follow decision 40. The headline is total CO₂ including land use (0.520); fossil + cement (0.797) is shown for comparison. Doc §1.3.1 and §2.4 should be amended to match.</li>
+<li><b>IPCC comparator:</b> 0.45 shown as the best estimate within the AR6 0.27–0.63 range.</li>
+<li><b>Ranking:</b> the top-5 leading-emitter ranking for all countries stays beside the map, as the doc requires.</li>
+<li><b>Lag analysis (§1.3.2):</b> out of scope for this design.</li>
+</ol>
+<div style="font-size:12px;color:#6b6b6b;margin-top:4px">Figures marked in the docs (37,398 Mt, 424.6 ppm, +1.62 °C, 0.520, CI, scenario values) are used as given. Chart curves, R², the all-gas slope, gas shares, country shares and rankings before 2024 are mock data.</div>
+</div>
+</div>
+</section>
+
+<section class="dv-turn" id="landing">
+<div class="dv-thd"><a class="dv-tid" href="#landing">1</a><span class="dv-tname">Landing (§2.1, §2.6)</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="L1">
+<div class="dv-olabel"><a class="dv-oid" href="#L1">L1</a>Desktop · Dark · carousel is live (tabs, arrows, ← → when focused)</div>
+<div style="display:flex;gap:24px;align-items:flex-start">
+<div class="dv-card" style="width:1280px;background:#121e35;color:#d7e0f0;font-family:Inter,sans-serif">
+<div style="display:flex;align-items:center;gap:22px;padding:0 32px;height:64px;background:#1e2f52;border-bottom:1px solid #2c3e63">
+<div style="display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px;color:#fff;white-space:nowrap;flex:none"><span style="width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#7fd6ea,#2d7fa3)"></span>Climate Analytics Platform</div>
+<nav aria-label="Main" style="display:flex;gap:14px;font-size:13.5px;color:#d7e0f0;white-space:nowrap"><span>Overview</span><span>Historical Trends</span><span>Country Profile</span><span>Climate Correlation</span><span>Forecasts</span><span>Scenario Comparison</span></nav>
+<div style="margin-left:auto;display:flex;gap:12px;align-items:center;flex:none;white-space:nowrap"><div style="display:flex;background:#121e35;border-radius:4px;padding:3px;font-size:13px"><span style="padding:4px 8px">Light</span><span style="padding:4px 8px;background:#fff;color:#121e35;border-radius:3px">Dark</span></div><div style="border:1px solid #3d5580;border-radius:6px;padding:8px 14px;font-size:14px;color:#fff">✦ Ask the Agent</div></div>
+</div>
+
+<div role="region" aria-roledescription="carousel" aria-label="Featured stories" tabIndex="0" onKeyDown="{{ carKey }}" style="padding:52px 48px 26px;outline:none">
+<sc-if value="{{ slide0 }}" hint-placeholder-val="{{ true }}">
+<div role="group" aria-roledescription="slide" aria-label="1 of 2: Climate signal" style="display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:52px;align-items:center;min-height:500px">
+<div style="display:flex;flex-direction:column;gap:20px">
+<div style="font-size:13px;font-weight:600;letter-spacing:.08em;color:#d7e0f0">CLIMATE SIGNAL · GLOBAL · 1850–2024</div>
+<h1 style="margin:0;font-size:52px;line-height:1.06;font-weight:700;color:#fff;letter-spacing:-.01em;text-wrap:pretty">Global temperature has risen with the CO₂ we have accumulated.</h1>
+<p style="margin:0;font-size:18px;line-height:1.6;color:#b9c6dd;text-wrap:pretty">Emissions set off a chain reaction: CO₂ builds up in the atmosphere, traps more heat, and the planet warms. Over 175 years, warming has followed the cumulative total, not any single year’s emissions.</p>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #2c3e63;border-bottom:1px solid #2c3e63">
+<div style="padding:14px 14px 14px 0;display:flex;flex-direction:column;gap:2px;border-right:1px solid #2c3e63"><span style="font-size:28px;font-weight:600;color:#f2637e">+1.62 °C</span><span style="font-size:13px;color:#b9c6dd">2024, vs 1850–1900</span></div>
+<div style="padding:14px;display:flex;flex-direction:column;gap:2px;border-right:1px solid #2c3e63"><span style="font-size:28px;font-weight:600;color:#5ecbf5">424.6 ppm</span><span style="font-size:13px;color:#b9c6dd">Atmospheric CO₂, 2024</span></div>
+<div style="padding:14px 0 14px 14px;display:flex;flex-direction:column;gap:2px"><span style="font-size:28px;font-weight:600;color:#fff">0.52 °C</span><span style="font-size:13px;color:#b9c6dd">per 1,000 GtCO₂ emitted</span></div>
+</div>
+<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="background:#2d9cbd;color:#fff;font-weight:600;font-size:16px;padding:12px 20px;border-radius:4px">See the climate signal</div><div style="border:1px solid #3d5580;color:#fff;font-size:16px;padding:12px 20px;border-radius:4px">Explore the data</div><span style="font-size:15px;font-weight:600;color:#fff;padding:0 6px">Forecasts to 2043 →</span></div>
+</div>
+<div style="background:#1e2f52;border:1px solid #2c3e63;border-radius:8px;padding:18px 18px 10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin:0 0 4px"><div style="font-size:14px;font-weight:600;color:#fff">Temperature anomaly vs cumulative CO₂</div><div style="display:flex;gap:12px;font-size:12px;color:#8fa2c4"><span style="display:flex;gap:5px;align-items:center"><span style="width:8px;height:8px;border-radius:50%;background:#8fa2c4"></span>to 1899</span><span style="display:flex;gap:5px;align-items:center"><span style="width:8px;height:8px;border-radius:50%;background:#e5b955"></span>1900–69</span><span style="display:flex;gap:5px;align-items:center"><span style="width:8px;height:8px;border-radius:50%;background:#f2637e"></span>1970+</span></div></div>
+<svg viewBox="0 0 600 330" role="img" aria-label="Scatter of yearly global temperature anomaly against cumulative CO2 since 1850; points rise along a straight line to 1.62 degrees in 2024." style="width:100%;display:block">
+<rect x="50" y="20" width="530" height="270" fill="#182746"></rect>
+<sc-for list="{{ syT }}" as="t"><line x1="50" x2="580" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#263757"></line></sc-for><text x="42" y="240.9" fill="#8fa2c4" font-size="11" text-anchor="end" dominant-baseline="middle">0</text><text x="42" y="179.5" fill="#8fa2c4" font-size="11" text-anchor="end" dominant-baseline="middle">0.5</text><text x="42" y="118.2" fill="#8fa2c4" font-size="11" text-anchor="end" dominant-baseline="middle">1.0</text><text x="42" y="56.8" fill="#8fa2c4" font-size="11" text-anchor="end" dominant-baseline="middle">1.5</text>
+<text x="50.0" y="308" fill="#8fa2c4" font-size="11" text-anchor="middle">0</text><text x="148.1" y="308" fill="#8fa2c4" font-size="11" text-anchor="middle">500</text><text x="246.3" y="308" fill="#8fa2c4" font-size="11" text-anchor="middle">1,000</text><text x="344.4" y="308" fill="#8fa2c4" font-size="11" text-anchor="middle">1,500</text><text x="442.6" y="308" fill="#8fa2c4" font-size="11" text-anchor="middle">2,000</text><text x="540.7" y="308" fill="#8fa2c4" font-size="11" text-anchor="middle">2,500</text>
+<path d="{{ fit }}" stroke="#d7e0f0" stroke-width="1.5" stroke-dasharray="5 4" fill="none"></path>
+<sc-for list="{{ scD }}" as="p"><circle cx="{{ p.cx }}" cy="{{ p.cy }}" r="3" fill="{{ p.fill }}" fill-opacity=".85"></circle></sc-for>
+<text x="575" y="326" fill="#8fa2c4" font-size="11" text-anchor="end">Cumulative CO₂ since 1850 (GtCO₂)</text>
+<text x="56" y="36" fill="#8fa2c4" font-size="11">°C above 1850–1900</text>
+<text x="{{ lab24x }}" y="{{ lab24y }}" fill="#fff" font-size="12" font-weight="600" text-anchor="end">2024 · +1.62 °C</text>
+</svg>
+<div style="font-size:12px;color:#8fa2c4;padding:2px 0 6px">Global series. Long-term co-movement, shown as context; not a climate model.</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ slide1 }}" hint-placeholder-val="{{ false }}">
+<div role="group" aria-roledescription="slide" aria-label="2 of 2: Where CO₂ comes from" style="display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:52px;align-items:center;min-height:500px">
+<div style="display:flex;flex-direction:column;gap:20px">
+<div style="font-size:13px;font-weight:600;letter-spacing:.08em;color:#d7e0f0">OUR WORLD IN DATA CO₂ · 1990–2024 · 218 COUNTRIES</div>
+<h1 style="margin:0;font-size:52px;line-height:1.06;font-weight:700;color:#fff;letter-spacing:-.01em">Where the world’s CO₂ comes from — and where it’s heading.</h1>
+<p style="margin:0;font-size:18px;line-height:1.6;color:#b9c6dd">Global CO₂ emissions have grown by more than two-thirds since 1990, and the 10 largest emitters now account for 71% of the total.</p>
+<div style="display:flex;gap:12px"><div style="background:#2d9cbd;color:#fff;font-weight:600;font-size:16px;padding:12px 20px;border-radius:4px">Explore the data</div><div style="border:1px solid #3d5580;color:#fff;font-size:16px;padding:12px 20px;border-radius:4px">Forecasts to 2043</div></div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #2c3e63;padding-top:14px">
+<div style="display:flex;flex-direction:column;gap:2px;border-right:1px solid #2c3e63"><span style="font-size:28px;font-weight:600;color:#fff">37,398</span><span style="font-size:13px;color:#b9c6dd">MtCO₂ in 2024, all countries</span></div>
+<div style="display:flex;flex-direction:column;gap:2px;border-right:1px solid #2c3e63;padding-left:14px"><span style="font-size:28px;font-weight:600;color:#e5b955">+68.6%</span><span style="font-size:13px;color:#b9c6dd">Change since 1990</span></div>
+<div style="display:flex;flex-direction:column;gap:2px;padding-left:14px"><span style="font-size:28px;font-weight:600;color:#fff">40</span><span style="font-size:13px;color:#b9c6dd">Countries in the Expanded set</span></div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+<div style="width:420px;height:420px;border-radius:50%;background:repeating-linear-gradient(135deg,#1e2f52 0 10px,#182746 10px 20px);border:3px solid #3d5580;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font:12px/1.6 'JetBrains Mono',monospace;color:#8fa2c4;padding:60px;box-sizing:border-box"><span style="font:600 34px Inter;color:#fff">1997</span>existing Globe · right of the copy<br>continuous rotation 1970 → 2024<br>only the year shows while playing<br>legend, labels and values on pause</div>
+</div>
+</div>
+</sc-if>
+
+<div style="display:flex;align-items:center;gap:12px;margin-top:22px;padding-top:16px;border-top:1px solid #263757">
+<button onClick="{{ flip }}" aria-label="Previous banner" style="width:40px;height:40px;border-radius:4px;border:1px solid #3d5580;background:transparent;color:#fff;font-size:16px;cursor:pointer">←</button>
+<div role="tablist" aria-label="Choose banner" style="display:flex;gap:8px">
+<sc-for list="{{ tabs }}" as="d" hint-placeholder-count="2"><button role="tab" aria-selected="{{ d.sel }}" onClick="{{ d.go }}" style="display:flex;align-items:center;gap:8px;border:1px solid {{ d.bd }};background:{{ d.bg }};color:{{ d.fg }};border-radius:4px;padding:9px 12px;font-size:13px;cursor:pointer"><span style="font:500 11px 'JetBrains Mono',monospace">{{ d.n }}</span>{{ d.t }}</button></sc-for>
+</div>
+<button onClick="{{ flip }}" aria-label="Next banner" style="width:40px;height:40px;border-radius:4px;border:1px solid #3d5580;background:transparent;color:#fff;font-size:16px;cursor:pointer">→</button>
+<div style="margin-left:auto;font-size:12px;color:#8fa2c4">No auto-rotation · 300 ms crossfade · ← → when focused</div>
+</div>
+</div>
+
+<div style="background:#1e2f52;padding:48px 48px 52px">
+<div style="display:flex;justify-content:space-between;align-items:flex-end;margin:0 0 24px;gap:24px"><div style="display:flex;flex-direction:column;gap:8px"><h2 id="chain-h" style="margin:0;font-size:36px;font-weight:700;color:#fff">The chain reaction, step by step</h2><div style="font-size:17px;color:#b9c6dd">Global totals, built up over time. One country’s emissions in one year do not set that year’s temperature.</div></div><span style="font-size:15px;font-weight:600;color:#fff;flex:none">Open the Correlation module →</span></div>
+<ol aria-labelledby="chain-h" style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(0,1fr) 22px minmax(0,1fr) 22px minmax(0,.9fr) 22px minmax(0,1fr);gap:8px;align-items:stretch">
+<li style="background:#121e35;border:1px solid #263757;border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:8px"><div style="font:500 11px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#e5b955">01 · EMISSIONS</div><div style="font-size:30px;font-weight:600;color:#fff">37,398 <span style="font-size:14px;color:#8fa2c4">MtCO₂</span></div><div style="font-size:13px;color:#b9c6dd;line-height:1.5">Released worldwide in 2024. Each year adds to the running total.</div><svg viewBox="0 0 300 80" preserveAspectRatio="none" aria-hidden="true" style="width:100%;height:48px"><path d="{{ sparkE }}" stroke="#e5b955" stroke-width="2" fill="none" vector-effect="non-scaling-stroke"></path></svg><div style="font-size:14px;font-weight:600;color:#fff;margin-top:auto">On the Overview →</div></li>
+<li aria-hidden="true" style="display:flex;align-items:center;justify-content:center;color:#5c7aa8;font-size:18px">→</li>
+<li style="background:#121e35;border:1px solid #263757;border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:8px"><div style="font:500 11px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#5ecbf5">02 · CONCENTRATION</div><div style="font-size:30px;font-weight:600;color:#fff">424.6 <span style="font-size:14px;color:#8fa2c4">ppm</span></div><div style="font-size:13px;color:#b9c6dd;line-height:1.5">CO₂ in the air, 2024. Up 49% since 1850.</div><svg viewBox="0 0 300 80" preserveAspectRatio="none" aria-hidden="true" style="width:100%;height:48px"><line x1="{{ spliceX }}" x2="{{ spliceX }}" y1="0" y2="80" stroke="#3d5580" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"></line><path d="{{ sparkC }}" stroke="#5ecbf5" stroke-width="2" fill="none" vector-effect="non-scaling-stroke"></path></svg><div style="font-size:14px;font-weight:600;color:#fff;margin-top:auto">On the Overview →</div></li>
+<li aria-hidden="true" style="display:flex;align-items:center;justify-content:center;color:#5c7aa8;font-size:18px">→</li>
+<li style="border:1.5px dashed #3d5580;border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:8px"><div style="font:500 11px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#8fa2c4">03 · RADIATIVE FORCING</div><div style="font-size:19px;font-weight:600;color:#d7e0f0">Explained, not measured</div><div style="font-size:13px;color:#b9c6dd;line-height:1.55">More CO₂ traps more of the heat Earth radiates to space. The platform describes this step but holds no forcing data.</div></li>
+<li aria-hidden="true" style="display:flex;align-items:center;justify-content:center;color:#5c7aa8;font-size:18px">→</li>
+<li style="background:#121e35;border:1px solid #263757;border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:8px"><div style="font:500 11px 'JetBrains Mono',monospace;letter-spacing:.08em;color:#f2637e">04 · TEMPERATURE ANOMALY</div><div style="font-size:30px;font-weight:600;color:#fff">+1.62 <span style="font-size:14px;color:#8fa2c4">°C</span></div><div style="font-size:13px;color:#b9c6dd;line-height:1.5">2024, above the 1850–1900 average.</div><svg viewBox="0 0 300 80" preserveAspectRatio="none" aria-hidden="true" style="width:100%;height:48px"><path d="{{ sparkT }}" stroke="#f2637e" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"></path></svg><div style="font-size:14px;font-weight:600;color:#fff;margin-top:auto">On the Overview →</div></li>
+</ol>
+</div>
+<div style="padding:18px 48px;border-top:1px solid #263757;font:12px 'JetBrains Mono',monospace;color:#8fa2c4">Existing sections continue unchanged below: Three stories · 10 countries ranking race · Everything you need · Ask the Agent · Built on</div>
+</div>
+<div style="width:300px;display:flex;flex-direction:column;gap:10px;font-size:12.5px;line-height:1.5;color:#3a3a3a;padding-top:4px">
+<div style="font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6b6b6b">SPEC NOTES</div>
+<div><b>Carousel.</b> Two banners, manual only. The tab buttons, arrows and ← → keys all switch banners. The crossfade never moves text or metrics.</div>
+<div><b>Banner 1 order.</b> Eyebrow → headline → “chain reaction” subhead → supporting metrics → chart → CTA (mobile: chart before metrics). Data comes from the Area 2 layer.</div>
+<div><b>Banner 1 → existing paths.</b> The primary CTA opens /overview#climate-signal. “Explore the data” and “Forecasts to 2043” are kept as secondary actions.</div>
+<div><b>Banner 2.</b> The current hero, with the body copy shortened. Globe, time span, country count, stats and CTAs are kept. The globe sits right of the copy on desktop and below the copy on mobile.</div>
+<div><b>Four-step band.</b> Sits between the hero and the rest of the page. It's an ordered list labelled by its heading, each step has a text description, and the arrows are hidden from screen readers. Only the links are focusable. Forcing is copy-only.</div>
+<div><b>No same-year claim.</b> The band shows global accumulated totals and says so in its subhead.</div>
+<div><b>Globe (§2.6).</b> Rotates continuously from 1970 to 2024. While it plays, only the year counter shows; legend and labels appear on pause. With reduced motion it starts paused.</div>
+<div><b>Nav.</b> Overview, Forecasts, Scenario Comparison and Ask the Agent stay in place. Climate Correlation is added; Data Explorer and About move to the footer and the menu to fit one line at 1280px.</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="L2">
+<div class="dv-olabel"><a class="dv-oid" href="#L2">L2</a>Mobile · Light · Banner 1, Banner 2, then the band</div>
+<div style="display:flex;gap:28px;align-items:flex-start">
+<div style="width:390px;border:10px solid #15191d;border-radius:44px;overflow:hidden;background:#DCE8ED;color:#3C5460;box-shadow:0 2px 10px rgba(0,0,0,.15)">
+<div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:14px;font-weight:600;color:#071C24;background:#fff"><span>9:41</span><span style="font-size:12px">●●● ▮</span></div>
+<div style="display:flex;align-items:center;gap:10px;padding:0 16px;height:52px;background:#fff;border-bottom:1px solid #C7D9E0"><span style="width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#9FD5E8,#0A6E8C)"></span><span style="font-size:15px;font-weight:600;color:#1F4B5E">Climate Analytics Platform</span><span style="margin-left:auto;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#071C24">☰</span></div>
+<div style="padding:24px 18px 18px;display:flex;flex-direction:column;gap:14px">
+<div style="font-size:11px;font-weight:600;letter-spacing:.08em;color:#3C5460">CLIMATE SIGNAL · GLOBAL · 1850–2024</div>
+<h1 style="margin:0;font-size:31px;line-height:1.1;font-weight:700;color:#071C24">Global temperature has risen with the CO₂ we have accumulated.</h1>
+<p style="margin:0;font-size:16px;line-height:1.55">Emissions set off a chain reaction: CO₂ builds up in the atmosphere, traps more heat, and the planet warms. Warming has followed the cumulative total, not any single year.</p>
+<div style="background:#061E28;border-radius:8px;padding:8px 6px 4px">
+<svg viewBox="0 0 600 330" role="img" aria-label="Temperature anomaly against cumulative CO2" style="width:100%;display:block">
+<sc-for list="{{ syT }}" as="t"><line x1="50" x2="580" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#123544"></line></sc-for><text x="42" y="240.9" fill="#94B4C0" font-size="18" text-anchor="end" dominant-baseline="middle">0</text><text x="42" y="179.5" fill="#94B4C0" font-size="18" text-anchor="end" dominant-baseline="middle">0.5</text><text x="42" y="118.2" fill="#94B4C0" font-size="18" text-anchor="end" dominant-baseline="middle">1.0</text><text x="42" y="56.8" fill="#94B4C0" font-size="18" text-anchor="end" dominant-baseline="middle">1.5</text>
+<path d="{{ fit }}" stroke="#E4F2F8" stroke-width="2" stroke-dasharray="6 5" fill="none"></path>
+<sc-for list="{{ scL }}" as="p"><circle cx="{{ p.cx }}" cy="{{ p.cy }}" r="4.5" fill="{{ p.fill }}" fill-opacity=".9"></circle></sc-for>
+<text x="575" y="320" fill="#94B4C0" font-size="18" text-anchor="end">Cumulative CO₂ →</text>
+</svg>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<div style="background:#fff;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:24px;font-weight:600;color:#B3261E">+1.62 °C</span><span style="font-size:12px;color:#5C7683">2024, vs 1850–1900</span></div>
+<div style="background:#fff;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:24px;font-weight:600;color:#0A6E8C">424.6 ppm</span><span style="font-size:12px;color:#5C7683">Atmospheric CO₂</span></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px"><div style="background:#0A6E8C;color:#fff;font-weight:600;font-size:16px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:4px">See the climate signal</div><div style="background:#fff;border:1px solid #C7D9E0;color:#071C24;font-size:16px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:4px">Explore the data</div></div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding-top:6px"><span style="width:44px;height:44px;border:1px solid #C7D9E0;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fff;color:#071C24">←</span><div style="display:flex;gap:8px;align-items:center"><span style="width:22px;height:8px;border-radius:4px;background:#0A6E8C"></span><span style="width:8px;height:8px;border-radius:4px;background:#94B4C0"></span><span style="font-size:12px;color:#5C7683;margin-left:6px">1 of 2</span></div><span style="width:44px;height:44px;border:1px solid #C7D9E0;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fff;color:#071C24">→</span></div>
+</div>
+<div style="background:#fff;padding:22px 18px 26px;display:flex;flex-direction:column;gap:12px;border-top:1px solid #C7D9E0">
+<h2 style="margin:0;font-size:22px;font-weight:700;color:#071C24">The chain reaction, step by step</h2>
+<div style="font-size:14px;color:#5C7683;line-height:1.5">Global totals, built up over time.</div>
+<ol style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column">
+<li style="display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:12px 0;border-top:1px solid #E5EEF1"><span style="font:500 11px 'JetBrains Mono',monospace;color:#8A5A00">01</span><div style="display:flex;flex-direction:column"><span style="font-size:15px;font-weight:600;color:#071C24">Emissions</span><span style="font-size:12px;color:#5C7683">Released worldwide, 2024</span></div><span style="font-size:16px;font-weight:600;color:#071C24">37,398 Mt</span></li>
+<li style="display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:12px 0;border-top:1px solid #E5EEF1"><span style="font:500 11px 'JetBrains Mono',monospace;color:#0A6E8C">02</span><div style="display:flex;flex-direction:column"><span style="font-size:15px;font-weight:600;color:#071C24">Concentration</span><span style="font-size:12px;color:#5C7683">CO₂ in the air, +49% on 1850</span></div><span style="font-size:16px;font-weight:600;color:#071C24">424.6 ppm</span></li>
+<li style="display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:center;padding:12px 0;border-top:1px solid #E5EEF1"><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">03</span><div style="display:flex;flex-direction:column;border:1.5px dashed #BDD3DB;border-radius:6px;padding:8px 10px"><span style="font-size:15px;font-weight:600;color:#071C24">Radiative forcing</span><span style="font-size:12px;color:#5C7683">More CO₂ traps more heat. Explained, not measured.</span></div></li>
+<li style="display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center;padding:12px 0;border-top:1px solid #E5EEF1;border-bottom:1px solid #E5EEF1"><span style="font:500 11px 'JetBrains Mono',monospace;color:#B3261E">04</span><div style="display:flex;flex-direction:column"><span style="font-size:15px;font-weight:600;color:#071C24">Temperature anomaly</span><span style="font-size:12px;color:#5C7683">2024, vs 1850–1900</span></div><span style="font-size:16px;font-weight:600;color:#071C24">+1.62 °C</span></li>
+</ol>
+</div>
+</div>
+
+<div style="width:390px;border:10px solid #15191d;border-radius:44px;overflow:hidden;background:#DCE8ED;color:#3C5460;box-shadow:0 2px 10px rgba(0,0,0,.15)">
+<div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:14px;font-weight:600;color:#071C24;background:#fff"><span>9:41</span><span style="font-size:12px">●●● ▮</span></div>
+<div style="display:flex;align-items:center;gap:10px;padding:0 16px;height:52px;background:#fff;border-bottom:1px solid #C7D9E0"><span style="width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#9FD5E8,#0A6E8C)"></span><span style="font-size:15px;font-weight:600;color:#1F4B5E">Climate Analytics Platform</span><span style="margin-left:auto;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#071C24">☰</span></div>
+<div style="padding:24px 18px 22px;display:flex;flex-direction:column;gap:14px">
+<div style="font-size:11px;font-weight:600;letter-spacing:.08em;color:#3C5460">OUR WORLD IN DATA CO₂ · 1990–2024 · 218 COUNTRIES</div>
+<h1 style="margin:0;font-size:31px;line-height:1.1;font-weight:700;color:#3C5460">Where the world’s CO₂ comes from — and where it’s heading.</h1>
+<p style="margin:0;font-size:16px;line-height:1.55">Global CO₂ emissions have grown by more than two-thirds since 1990, and the 10 largest emitters now account for 71% of the total.</p>
+<div style="display:flex;flex-direction:column;gap:8px;align-items:center">
+<div style="width:300px;height:300px;border-radius:50%;background:repeating-linear-gradient(135deg,#0b2a37 0 10px,#061E28 10px 20px);border:5px solid #CFE3EA;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font:11px/1.6 'JetBrains Mono',monospace;color:#94B4C0;padding:40px;box-sizing:border-box">Globe below the copy<br>max ~62% of viewport height;<br>tap to pause</div>
+<div style="align-self:stretch;display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:0 2px"><span style="font-size:22px;font-weight:700;color:#071C24">2024</span><span style="font-size:13px;color:#3C5460">37,398 MtCO₂ · all countries</span></div>
+<div style="align-self:stretch;height:44px;display:flex;align-items:center;gap:10px;font:11px 'JetBrains Mono',monospace;color:#5C7683;border:1.5px dashed #BDD3DB;border-radius:6px;padding:0 10px;box-sizing:border-box">Play · year slider · legend</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<div style="background:#fff;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:24px;font-weight:600;color:#8A5A00">+68.6%</span><span style="font-size:12px;color:#5C7683">Global CO₂ since 1990</span></div>
+<div style="background:#fff;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:24px;font-weight:600;color:#071C24">71%</span><span style="font-size:12px;color:#5C7683">From the top 10 emitters, 2024</span></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px"><div style="background:#0A6E8C;color:#fff;font-weight:600;font-size:16px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:4px">Explore the data</div><div style="background:#fff;border:1px solid #C7D9E0;color:#071C24;font-size:16px;height:48px;display:flex;align-items:center;justify-content:center;border-radius:4px">Forecasts to 2043</div></div>
+<div style="display:flex;align-items:center;justify-content:space-between"><span style="width:44px;height:44px;border:1px solid #C7D9E0;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fff;color:#071C24">←</span><div style="display:flex;gap:8px;align-items:center"><span style="width:8px;height:8px;border-radius:4px;background:#94B4C0"></span><span style="width:22px;height:8px;border-radius:4px;background:#0A6E8C"></span><span style="font-size:12px;color:#5C7683;margin-left:6px">2 of 2</span></div><span style="width:44px;height:44px;border:1px solid #C7D9E0;border-radius:4px;display:flex;align-items:center;justify-content:center;background:#fff;color:#071C24">→</span></div>
+</div>
+</div>
+<div style="width:250px;display:flex;flex-direction:column;gap:10px;font-size:12.5px;line-height:1.5;color:#3a3a3a;padding-top:4px">
+<div style="font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6b6b6b">MOBILE RULES</div>
+<div>Both banners stack copy → visual → figures → CTAs. CTAs go full width at 48px tall.</div>
+<div>Swipe changes banners as well as the 44px arrows. The banner height is fixed to the taller one, so the page below doesn't jump.</div>
+<div>Banner 1 metrics drop to two (temperature, ppm). The slope stays in the chart caption on tablet and up.</div>
+<div>The band becomes a vertical list with values right-aligned. Sparklines are dropped below 600px.</div>
+<div>Globe sits directly under the copy, capped at ~62% of viewport height so Play and the slider stay with it. The year readout is its caption, so the 37,398 and “Expanded set” stats are dropped on mobile. On touch, tap pauses it and reveals labels.</div>
+<div>Carousel controls stay in the page flow under the CTAs on mobile. A floating pill must not cover the chart or globe; if kept, pad each banner by the pill height.</div>
+</div>
+</div>
+</div>
+
+</div>
+</section>
+
+<section class="dv-turn" id="overview">
+<div class="dv-thd"><a class="dv-tid" href="#overview">2</a><span class="dv-tname">Overview (§2.2, §2.5, §2.6)</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="O1">
+<div class="dv-olabel"><a class="dv-oid" href="#O1">O1</a>Desktop · Light · live: page year (sticky select + ▶, or map stops), map mode, share replay, By Country and % Change by year, KPI baseline panel, chart toggle</div>
+<div style="display:flex;gap:24px;align-items:flex-start">
+<div class="dv-card" style="width:1280px;background:#DCE8ED;color:#3C5460;font-family:Inter,sans-serif">
+<div style="display:flex;align-items:center;gap:12px;padding:0 24px;height:60px;background:#06222D;border-bottom:2px solid #0A6E8C"><span style="width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#9FD5E8,#0A6E8C)"></span><span style="font-size:21px;font-weight:600;color:#fff">Climate Analytics Platform</span><div style="margin-left:auto;display:flex;gap:12px;align-items:center"><div style="display:flex;background:#1C3E4C;border-radius:4px;padding:3px;font-size:13px"><span style="padding:4px 8px;background:#fff;color:#071C24;border-radius:3px">Light</span><span style="padding:4px 8px;color:#E4F2F8">Dark</span></div><div style="border:1px solid #1C3E4C;border-radius:6px;padding:8px 14px;font-size:14px;color:#fff">✦ Ask the Agent</div></div></div>
+<div style="display:grid;grid-template-columns:210px minmax(0,1fr)">
+<div style="background:#fff;border-right:1px solid #C7D9E0;padding:20px 12px;display:flex;flex-direction:column;gap:2px;font-size:14px;color:#3C5460">
+<div style="padding:9px 12px">Home</div>
+<div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:#5C7683;padding:20px 12px 6px;border-top:1px solid #C7D9E0;margin-top:12px">EXPLORATION</div>
+<div style="padding:9px 12px;background:#E4F2F8;color:#0A6E8C;font-weight:600;border-radius:4px">Overview</div>
+<div style="padding:9px 12px">Historical Trends</div><div style="padding:9px 12px">Country Profile</div><div style="padding:9px 12px">Data Explorer</div>
+<div style="padding:9px 12px;display:flex;align-items:center;gap:8px">Climate Correlation<span style="font:500 10px 'JetBrains Mono',monospace;background:#E4F6EC;color:#0F7A47;padding:2px 5px;border-radius:3px">NEW</span></div>
+<div style="font-size:11px;font-weight:600;letter-spacing:.06em;color:#5C7683;padding:20px 12px 6px;border-top:1px solid #C7D9E0;margin-top:12px">PROJECTION</div>
+<div style="padding:9px 12px">Forecasts</div><div style="padding:9px 12px">Scenario Comparison</div>
+</div>
+<div style="padding:26px 30px 40px;display:flex;flex-direction:column;gap:20px;min-width:0">
+<div style="display:flex;flex-direction:column;gap:12px"><h1 style="margin:0;font-size:34px;font-weight:600;color:#3C5460">Overview</h1>
+<div style="position:sticky;top:0;z-index:4;display:flex;align-items:flex-end;gap:16px;border-bottom:1px solid #C7D9E0;background:#DCE8ED">
+<nav aria-label="On this page" style="display:flex;gap:20px;font-size:15px;color:#5C7683"><span style="color:#071C24;font-weight:600;padding-bottom:8px;border-bottom:2px solid #0A6E8C">Climate signal</span><span>Relationship</span><span>Top emitters</span><span>Share</span><span>By Country</span><span>% Change</span><span>Pathways</span></nav>
+<div role="group" aria-label="Page year" style="margin-left:auto;display:flex;align-items:center;gap:8px;padding-bottom:6px">
+<span style="font-size:12px;color:#5C7683">Year</span>
+<select value="{{ yr }}" onChange="{{ pickYear }}" aria-label="Year for map, share, by country and % change" style="font:600 14px Inter,sans-serif;color:#071C24;border:1px solid #C7D9E0;border-radius:4px;padding:5px 8px;background:#fff;cursor:pointer"><sc-for list="{{ yearOpts }}" as="o" hint-placeholder-count="7"><option value="{{ o.v }}">{{ o.v }}</option></sc-for></select>
+<button onClick="{{ pageToggle }}" aria-label="Play decades" style="width:32px;height:32px;border:0;border-radius:4px;background:#0A6E8C;color:#fff;font-size:12px;cursor:pointer">{{ pagePlayLabel }}</button>
+</div>
+</div></div>
+
+<div style="display:flex;align-items:baseline;gap:10px"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">What is happening globally</h2><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#climate-signal</span></div>
+<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">
+<div style="background:#fff;border-radius:8px;border-top:3px solid #B07A10;padding:14px 16px;display:flex;flex-direction:column;gap:5px"><div style="display:flex;justify-content:space-between;font-size:13px;color:#5C7683"><span>Global CO₂ emissions · 2024</span><span aria-label="Baseline details" style="width:20px;height:20px;border:1px solid #C7D9E0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px">i</span></div><div style="font-size:27px;font-weight:600;color:#071C24">37,398 <span style="font-size:14px;color:#5C7683">MtCO₂</span></div><svg viewBox="0 0 300 80" preserveAspectRatio="none" aria-hidden="true" style="width:100%;height:30px"><path d="{{ sparkI }}" stroke="#B07A10" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"></path></svg><span style="align-self:flex-start;font:500 11px 'JetBrains Mono',monospace;background:#ECF1F3;padding:3px 6px;border-radius:3px">All countries · OWID · 1990–2024</span></div>
+<div style="position:relative;background:#fff;border-radius:8px;border-top:3px solid #B07A10;padding:14px 16px;display:flex;flex-direction:column;gap:5px"><div style="display:flex;justify-content:space-between;font-size:13px;color:#5C7683"><span>Change since baseline</span><button onClick="{{ togglePop }}" aria-expanded="{{ pop }}" aria-label="Baseline details" style="width:20px;height:20px;border:1px solid {{ popBd }};background:{{ popBg }};color:{{ popFg }};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;cursor:pointer;padding:0">i</button></div><div style="font-size:27px;font-weight:600;color:#071C24">168.6 <span style="font-size:14px;color:#5C7683">index</span></div><div style="font-size:13px;color:#8A5A00">+68.6% since 1990</div><span style="align-self:flex-start;font:500 11px 'JetBrains Mono',monospace;background:#ECF1F3;padding:3px 6px;border-radius:3px">1990 = 100 · OWID</span>
+<sc-if value="{{ pop }}" hint-placeholder-val="{{ true }}">
+<div role="dialog" aria-label="Baseline for this figure" style="position:absolute;top:44px;left:12px;right:-60px;z-index:3;background:#071C24;color:#E4F2F8;border-radius:8px;padding:14px 16px;box-shadow:0 8px 24px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:8px;font-size:12.5px">
+<div style="font-weight:600;color:#fff">Baseline for this figure</div>
+<div style="display:grid;grid-template-columns:96px 1fr;gap:5px 10px"><span style="color:#94B4C0">Baseline year</span><span>1990</span><span style="color:#94B4C0">Reference</span><span>1990 value = 100</span><span style="color:#94B4C0">Formula</span><span style="font-family:'JetBrains Mono',monospace;font-size:11.5px">value ÷ value₁₉₉₀ × 100</span><span style="color:#94B4C0">Source range</span><span>OWID CO₂, 1990–2024</span><span style="color:#94B4C0">Excluded years</span><span>None</span></div>
+<div style="color:#94B4C0;font-size:11.5px;line-height:1.45">Kept at 1990 to match the ML training window used across the existing views.</div>
+</div>
+</sc-if>
+</div>
+<div style="background:#fff;border-radius:8px;border-top:3px solid #0A6E8C;padding:14px 16px;display:flex;flex-direction:column;gap:5px"><div style="display:flex;justify-content:space-between;font-size:13px;color:#5C7683"><span>Atmospheric CO₂ · 2024</span><span style="width:20px;height:20px;border:1px solid #C7D9E0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px">i</span></div><div style="font-size:27px;font-weight:600;color:#071C24">424.6 <span style="font-size:14px;color:#5C7683">ppm</span></div><svg viewBox="0 0 300 80" preserveAspectRatio="none" aria-hidden="true" style="width:100%;height:30px"><path d="{{ sparkC }}" stroke="#0A6E8C" stroke-width="1.5" fill="none" vector-effect="non-scaling-stroke"></path></svg><span style="align-self:flex-start;font:500 11px 'JetBrains Mono',monospace;background:#ECF1F3;padding:3px 6px;border-radius:3px">+49% vs 1850 · NOAA + Law Dome</span></div>
+<div style="background:#fff;border-radius:8px;border-top:3px solid #B3261E;padding:14px 16px;display:flex;flex-direction:column;gap:5px"><div style="display:flex;justify-content:space-between;font-size:13px;color:#5C7683"><span>Temperature anomaly · 2024</span><span style="width:20px;height:20px;border:1px solid #C7D9E0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px">i</span></div><div style="font-size:27px;font-weight:600;color:#071C24">+1.62 <span style="font-size:14px;color:#5C7683">°C</span></div><svg viewBox="0 0 300 80" preserveAspectRatio="none" aria-hidden="true" style="width:100%;height:30px"><path d="{{ sparkT }}" stroke="#B3261E" stroke-width="1.2" fill="none" vector-effect="non-scaling-stroke"></path></svg><span style="align-self:flex-start;font:500 11px 'JetBrains Mono',monospace;background:#ECF1F3;padding:3px 6px;border-radius:3px">vs 1850–1900 · Berkeley Earth</span></div>
+</div>
+
+<div style="display:flex;align-items:baseline;gap:10px;padding-top:10px"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">Why the trend matters</h2><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#relationship</span></div>
+<div style="display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:14px;align-items:start">
+<div style="background:#fff;border-radius:8px;border-top:3px solid #0A6E8C;padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div style="font-size:17px;font-weight:600;color:#071C24">{{ ovTitle }}</div>
+<div role="radiogroup" aria-label="Chart view" style="display:flex;background:#ECF1F3;border:1px solid #C7D9E0;border-radius:6px;padding:3px;flex:none"><sc-for list="{{ ovSeg }}" as="o" hint-placeholder-count="2"><button role="radio" aria-checked="{{ o.sel }}" onClick="{{ o.go }}" style="border:0;background:{{ o.bg }};color:{{ o.fg }};font-size:13px;font-weight:500;padding:6px 12px;border-radius:4px;cursor:pointer">{{ o.t }}</button></sc-for></div></div>
+<div style="font-size:13px;color:#5C7683"><b style="color:#3C5460">Purpose:</b> {{ ovPurpose }}</div>
+<div style="background:#061E28;border-radius:6px;padding:10px 6px 4px">
+<sc-if value="{{ ovTime }}" hint-placeholder-val="{{ true }}">
+<svg viewBox="0 0 760 280" role="img" aria-label="Annual CO2 emissions bars with temperature anomaly line, 1970 to 2024" style="width:100%;display:block">
+<sc-for list="{{ bTicksL }}" as="t"><line x1="40" x2="740" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#123544"></line></sc-for><text x="34" y="250.0" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">0</text><text x="34" y="195.0" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">10</text><text x="34" y="140.0" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">20</text><text x="34" y="85.0" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">30</text><text x="34" y="30.0" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">40</text>
+<text x="746" y="250.0" fill="#EA5B62" font-size="11" dominant-baseline="middle">0.0</text><text x="746" y="188.9" fill="#EA5B62" font-size="11" dominant-baseline="middle">0.5</text><text x="746" y="127.8" fill="#EA5B62" font-size="11" dominant-baseline="middle">1.0</text><text x="746" y="66.7" fill="#EA5B62" font-size="11" dominant-baseline="middle">1.5</text>
+<sc-for list="{{ bars }}" as="b"><rect x="{{ b.x }}" y="{{ b.y }}" width="9" height="{{ b.h }}" fill="#FFB54D" fill-opacity=".75"></rect></sc-for>
+<path d="{{ bLine }}" stroke="#EA5B62" stroke-width="2.5" fill="none"></path>
+<text x="50.5" y="270" fill="#94B4C0" font-size="11" text-anchor="middle">1970</text><text x="176.5" y="270" fill="#94B4C0" font-size="11" text-anchor="middle">1980</text><text x="302.5" y="270" fill="#94B4C0" font-size="11" text-anchor="middle">1990</text><text x="428.5" y="270" fill="#94B4C0" font-size="11" text-anchor="middle">2000</text><text x="554.5" y="270" fill="#94B4C0" font-size="11" text-anchor="middle">2010</text><text x="680.5" y="270" fill="#94B4C0" font-size="11" text-anchor="middle">2020</text>
+<text x="46" y="14" fill="#94B4C0" font-size="11">GtCO₂ / yr</text><text x="740" y="14" fill="#EA5B62" font-size="11" text-anchor="end">°C vs 1850–1900</text>
+</svg>
+</sc-if>
+<sc-if value="{{ ovCum }}" hint-placeholder-val="{{ false }}">
+<svg viewBox="0 0 600 330" role="img" aria-label="Temperature anomaly against cumulative CO2" style="height:282px;display:block;margin:0 auto">
+<sc-for list="{{ syT }}" as="t"><line x1="50" x2="580" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#123544"></line></sc-for><text x="42" y="240.9" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">0</text><text x="42" y="179.5" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">0.5</text><text x="42" y="118.2" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">1.0</text><text x="42" y="56.8" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">1.5</text>
+<text x="50.0" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">0</text><text x="148.1" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">500</text><text x="246.3" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">1,000</text><text x="344.4" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">1,500</text><text x="442.6" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">2,000</text><text x="540.7" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">2,500</text>
+<path d="{{ fit }}" stroke="#E4F2F8" stroke-width="1.5" stroke-dasharray="5 4" fill="none"></path>
+<sc-for list="{{ scL }}" as="p"><circle cx="{{ p.cx }}" cy="{{ p.cy }}" r="3" fill="{{ p.fill }}" fill-opacity=".9"></circle></sc-for>
+<text x="575" y="326" fill="#94B4C0" font-size="11" text-anchor="end">Cumulative CO₂ since 1850 (GtCO₂)</text>
+</svg>
+</sc-if>
+</div>
+<div style="font-size:13px;line-height:1.55;color:#3C5460;background:#F3F8FA;border-radius:6px;padding:10px 12px">This chart shows long-term co-movement as context. Warming responds to the accumulated stock of greenhouse gases and to how the ocean and climate system respond. No single factor or single year explains it.</div>
+<button onClick="{{ toggleMeth }}" aria-expanded="{{ meth }}" style="align-self:flex-start;border:0;background:transparent;color:#0A6E8C;font-size:13px;font-weight:600;padding:2px 0;cursor:pointer">{{ methLabel }}</button>
+<sc-if value="{{ meth }}" hint-placeholder-val="{{ false }}"><div style="display:grid;grid-template-columns:110px 1fr;gap:5px 12px;font-size:12.5px;color:#3C5460;border-top:1px solid #E5EEF1;padding-top:10px"><span style="color:#5C7683">Emissions</span><span>OWID fossil + cement CO₂, World row, 1970–2024</span><span style="color:#5C7683">Temperature</span><span>Berkeley Earth global anomaly vs 1850–1900. File vintage Jan 2025; a possible ~0.1 °C discrepancy with the latest report is unreconciled.</span><span style="color:#5C7683">Concentration</span><span>Law Dome ice core to 1958, NOAA Mauna Loa from 1959</span><span style="color:#5C7683">Full method</span><span><a href="#M1">Temperature &amp; GHG Correlation → Methodology</a></span></div></sc-if>
+</div>
+<div style="background:#fff;border-radius:8px;border-top:3px solid #1D726B;padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+<div style="font-size:13px;color:#5C7683">Why emissions matter</div>
+<div style="font-size:17px;line-height:1.55;color:#071C24;text-wrap:pretty">Emissions raise the <b>concentration</b> of CO₂ in the atmosphere (now <span style="color:#0A6E8C">424.6 ppm</span>). What accumulates increases <b>radiative forcing</b>, the extra heat the atmosphere holds, and that warming is observed as the <b>temperature anomaly</b>: <span style="color:#B3261E">+1.62 °C</span> in 2024.</div>
+<div style="font-size:14px;line-height:1.55;color:#3C5460">Temperature reflects accumulated global forcing and the ocean–climate system’s response, not only this year’s emissions.</div>
+<div style="font-size:12.5px;line-height:1.5;color:#5C7683;border-top:1px solid #E5EEF1;padding-top:10px">These are global figures. The sections below explore emissions by country; they do not assign warming to countries.</div>
+<div style="font-size:14px;font-weight:600;color:#0A6E8C">Open the Temperature &amp; GHG Correlation module →</div>
+</div>
+</div>
+
+<div style="display:flex;align-items:baseline;gap:10px;padding-top:10px"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">Who contributes most</h2><span style="font-size:13px;font-weight:600;color:#0A6E8C;background:#E4F2F8;padding:3px 8px;border-radius:3px">{{ yr }}</span><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#top-emitters</span></div>
+<div style="display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;align-items:start">
+<div style="background:#fff;border-radius:8px;border-top:3px solid #0A6E8C;padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+<div style="font-size:17px;font-weight:600;color:#071C24">{{ mapTitle }}</div>
+<div role="radiogroup" aria-label="Map measure" style="display:flex;background:#ECF1F3;border:1px solid #C7D9E0;border-radius:6px;padding:3px;flex:none"><sc-for list="{{ mapSeg }}" as="m" hint-placeholder-count="2"><button role="radio" aria-checked="{{ m.sel }}" onClick="{{ m.go }}" style="border:0;background:{{ m.bg }};color:{{ m.fg }};font-size:13px;font-weight:600;padding:6px 12px;border-radius:4px;cursor:pointer">{{ m.t }}</button></sc-for></div>
+</div>
+<div style="display:flex;align-items:center;gap:10px"><button onClick="{{ pageToggle }}" style="border:0;background:transparent;color:#0A6E8C;font-size:14px;font-weight:600;cursor:pointer;padding:0">{{ mapPlayLabel }}</button><div style="display:flex;gap:5px"><sc-for list="{{ stops }}" as="s" hint-placeholder-count="7"><button onClick="{{ s.go }}" aria-pressed="{{ s.sel }}" style="border:1px solid {{ s.bd }};background:{{ s.bg }};color:{{ s.fg }};font:500 12px 'JetBrains Mono',monospace;padding:5px 7px;border-radius:4px;cursor:pointer">{{ s.y }}</button></sc-for></div><span style="margin-left:auto;font-size:13px;color:#0A6E8C;font-weight:600">Table view</span></div>
+<div style="height:340px;border-radius:6px;background:repeating-linear-gradient(135deg,#0b2a37 0 10px,#061E28 10px 20px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font:12px/1.6 'JetBrains Mono',monospace;color:#94B4C0;text-align:center"><span style="font:600 40px Inter;color:#fff">{{ yr }}</span>existing choropleth · {{ mapScale }}<br>values, labels and legend stay visible during playback</div>
+<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#5C7683"><span>{{ legLabel }}</span><span>{{ legLo }}</span><div style="height:8px;width:240px;border-radius:2px;background:linear-gradient(90deg,#FFF3B0,#FDB14F,#F0592B,#C9182B,#7A0019)"></div><span>{{ legHi }}</span><span style="margin-left:auto">Outlined = your selected countries</span></div>
+<div style="font-size:12px;color:#5C7683">Play and the decade stops set the page year (same control as the sticky bar), ~1.75 s per stop. The existing slider scrubs single years. Everything from here to % Change follows it.</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:14px">
+<div style="background:#fff;border-radius:8px;border-top:3px solid #B07A10">
+<sc-for list="{{ tiers }}" as="t" hint-placeholder-count="3"><div style="padding:11px 16px;border-bottom:1px solid #E5EEF1;display:flex;flex-direction:column;gap:3px"><div style="font-size:13.5px;font-weight:600;color:#071C24">{{ t.n }}</div><div style="display:grid;grid-template-columns:58px 1.3fr 1fr;gap:8px;font-size:11.5px;color:#5C7683"><span>Countries</span><span>{{ t.cb }}</span><span>{{ t.cc }}</span></div><div style="display:grid;grid-template-columns:58px 1.3fr 1fr;gap:8px;font-size:16px;color:#071C24;font-variant-numeric:tabular-nums"><span>{{ t.k }}</span><span>{{ t.v }}</span><span style="color:{{ t.pc }}">{{ t.p }}</span></div></div></sc-for>
+</div>
+<div style="background:#fff;border-radius:8px;padding:12px 16px;display:flex;flex-direction:column;gap:7px">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:13.5px;font-weight:600;color:#071C24">Leading emitters · {{ yr }}</div><span style="font-size:11.5px;color:#5C7683">{{ rankUnit }}</span></div>
+<sc-for list="{{ rank }}" as="r" hint-placeholder-count="5"><div style="display:grid;grid-template-columns:16px 100px minmax(0,1fr) 54px;gap:8px;align-items:center;font-size:13px"><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">{{ r.i }}</span><span style="color:#071C24">{{ r.c }}</span><div style="height:12px;background:#ECF1F3;border-radius:2px"><div style="height:100%;width:{{ r.w }};background:#0A6E8C;border-radius:2px;transition:width 300ms"></div></div><span style="text-align:right;font-variant-numeric:tabular-nums;color:#071C24">{{ r.v }}</span></div></sc-for>
+<div style="font-size:11.5px;color:#5C7683">All 218 countries, not only your selection. Full top 10 in Table view.</div>
+</div>
+<div style="background:#fff;border-radius:8px;padding:12px 16px;display:flex;flex-direction:column;gap:5px">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:13.5px;font-weight:600;color:#071C24">Atmospheric CO₂ · {{ yr }}</div><span style="font:500 10px 'JetBrains Mono',monospace;color:#5C7683">GLOBAL</span></div>
+<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><span style="font-size:24px;font-weight:600;color:#071C24;font-variant-numeric:tabular-nums">{{ ppmV }} <span style="font-size:13px;color:#5C7683">ppm</span></span><span style="font-size:12.5px;color:#8A5A00">+{{ ppmRise }} ppm (+{{ ppmPct }}%) since 1850</span></div>
+<svg viewBox="0 0 300 80" aria-hidden="true" style="width:100%;height:46px;display:block" preserveAspectRatio="none"><line x1="{{ spliceX }}" x2="{{ spliceX }}" y1="0" y2="80" stroke="#BDD3DB" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"></line><path d="{{ sparkC }}" stroke="#0A6E8C" stroke-width="2" fill="none" vector-effect="non-scaling-stroke"></path><line x1="{{ ppmMx }}" x2="{{ ppmMx }}" y1="{{ ppmMy }}" y2="80" stroke="#071C24" vector-effect="non-scaling-stroke"></line></svg>
+<div style="font-size:11px;color:#5C7683;line-height:1.45">One global value, not split by country. Ice core to 1958, Mauna Loa from 1959.</div>
+</div>
+</div>
+</div>
+<div style="border:1.5px dashed #BDD3DB;border-radius:8px;padding:12px 16px;font-size:13px;color:#5C7683">Existing <b style="color:#3C5460">Selected countries</b> picker (10 of 40) stays here, unchanged. It drives the Selected tier, Share, By Country and % Change.</div>
+
+<div style="display:flex;align-items:baseline;gap:10px;padding-top:10px"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">Share of cumulative emissions</h2><span style="font-size:13px;font-weight:600;color:#0A6E8C;background:#E4F2F8;padding:3px 8px;border-radius:3px">{{ yr }}</span><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#share</span></div>
+<div style="background:#fff;border-radius:8px;padding:18px 20px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px"><div style="display:flex;flex-direction:column;gap:4px"><div style="font-size:17px;font-weight:600;color:#071C24">Who emitted the stock, and who emits now</div><div style="font-size:13px;color:#5C7683"><b style="color:#3C5460">Purpose:</b> compare each selected country’s part of all CO₂ emitted since 1850 with its part of a single year.</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none"><div style="font-size:34px;font-weight:700;color:{{ shYrCol }};font-variant-numeric:tabular-nums;line-height:1">{{ shYear }}</div><span style="font-size:11.5px;color:{{ shTagCol }}">{{ shTag }}</span></div></div>
+<div style="display:grid;grid-template-columns:140px minmax(0,1fr);gap:14px;align-items:center"><div style="display:flex;flex-direction:column"><span style="font-size:14px;font-weight:600;color:#071C24">The stock</span><span style="font-size:12px;color:#5C7683">Cumulative 1850–{{ shYear }}</span></div><div style="display:flex;height:40px;border-radius:4px;overflow:hidden"><sc-for list="{{ shStockL }}" as="g" hint-placeholder-count="9"><div style="width:{{ g.w }};flex:{{ g.fl }};min-width:0;background:{{ g.col }};color:{{ g.fg }};font-size:12px;font-weight:600;padding:5px 0;text-indent:7px;box-sizing:border-box;border-right:{{ g.br }};white-space:nowrap;overflow:hidden;transition:width 240ms linear">{{ g.lab }}</div></sc-for></div></div>
+<div style="display:grid;grid-template-columns:140px minmax(0,1fr);gap:14px;align-items:center"><div style="display:flex;flex-direction:column"><span style="font-size:14px;font-weight:600;color:#071C24">The flow</span><span style="font-size:12px;color:#5C7683">Annual, {{ shYear }} only</span></div><div style="display:flex;height:40px;border-radius:4px;overflow:hidden"><sc-for list="{{ shFlowL }}" as="g" hint-placeholder-count="9"><div style="width:{{ g.w }};flex:{{ g.fl }};min-width:0;background:{{ g.col }};color:{{ g.fg }};font-size:12px;font-weight:600;padding:5px 0;text-indent:7px;box-sizing:border-box;border-right:{{ g.br }};white-space:nowrap;overflow:hidden;transition:width 240ms linear">{{ g.lab }}</div></sc-for></div></div>
+<div style="display:flex;align-items:center;gap:12px;padding-left:154px"><button onClick="{{ shToggle }}" style="height:36px;border-radius:4px;border:0;background:#0A6E8C;color:#fff;font-size:13px;font-weight:600;cursor:pointer;padding:0 14px;flex:none">{{ shPlayLabel }}</button><div style="flex:1;height:4px;background:#ECF1F3;border-radius:2px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:{{ shProg }};background:#0A6E8C;border-radius:2px"></div></div><span style="font-size:12px;color:#5C7683;flex:none">~0.25 s a year, then back to {{ yr }}</span></div>
+<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:#3C5460;padding-left:154px"><sc-for list="{{ shLegendL }}" as="l" hint-placeholder-count="8"><span style="display:flex;gap:5px;align-items:center"><span style="width:9px;height:9px;background:{{ l.col }}"></span>{{ l.n }}</span></sc-for><span style="display:flex;gap:5px;align-items:center"><span style="width:9px;height:9px;background:#BDD3DB"></span>Rest of world</span></div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;border-top:1px solid #E5EEF1;padding-top:12px">
+<div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:#5C7683">Selected 10, share of the stock</span><span style="font-size:22px;font-weight:600;color:#071C24">{{ selStock }}</span></div>
+<div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:#5C7683">Selected 10, share of {{ shYear }} emissions</span><span style="font-size:22px;font-weight:600;color:#071C24">{{ selFlow }}</span></div>
+<div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;color:#5C7683">Rest of world (208 countries), stock · flow</span><span style="font-size:22px;font-weight:600;color:#071C24">{{ rowBoth }}</span></div>
+</div>
+<div style="font-size:12px;color:#5C7683;line-height:1.5">CO₂ · OWID · denominator = sum of national emissions, international aviation and shipping excluded. Replay animates 1970 → page year and changes nothing else on the page. Shares describe contribution to emissions; no warming is attributed to a country.</div>
+</div>
+
+<div style="display:flex;align-items:baseline;gap:10px;padding-top:10px"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">By Country</h2><span style="font-size:13px;font-weight:600;color:#0A6E8C;background:#E4F2F8;padding:3px 8px;border-radius:3px">{{ yr }}</span><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#by-country</span><span style="margin-left:auto;font-size:12px;color:#5C7683">Existing charts, now following the page year</span></div>
+<div style="display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:14px;align-items:start">
+<div style="background:#fff;border-radius:8px;border-top:3px solid #0A6E8C;padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+<div style="font-size:17px;font-weight:600;color:#071C24">CO₂ Emissions by Country ({{ yr }})</div>
+<div style="background:#061E28;border-radius:6px;padding:16px 14px 10px">
+<div style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px">
+<div style="position:relative;height:220px"><sc-for list="{{ bcAxis }}" as="t" hint-placeholder-count="6"><span style="position:absolute;right:0;bottom:{{ t.b }};transform:translateY(50%);font-size:11px;color:#94B4C0">{{ t.l }}</span></sc-for></div>
+<div style="position:relative;height:220px;border-bottom:1px solid #1F4B5E">
+<sc-for list="{{ bcAxis }}" as="t" hint-placeholder-count="6"><div style="position:absolute;left:0;right:0;bottom:{{ t.b }};height:1px;background:#123544"></div></sc-for>
+<div style="position:absolute;inset:0;display:flex;align-items:flex-end;gap:10px"><sc-for list="{{ bc }}" as="b" hint-placeholder-count="10"><div title="{{ b.v }} MtCO₂" style="flex:1;height:{{ b.h }};background:#3D8BD1;border-radius:2px 2px 0 0;transition:height 300ms"></div></sc-for></div>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;margin-top:6px"><span></span><div style="display:flex;gap:10px"><sc-for list="{{ bc }}" as="b" hint-placeholder-count="10"><span style="flex:1;min-width:0;text-align:center;font-size:11px;color:#94B4C0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.c }}</span></sc-for></div></div>
+</div>
+<div style="font-size:12px;color:#5C7683">MtCO₂ · your 10 selected countries, re-sorted for the year</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;flex-direction:column;gap:3px"><div style="font-size:15px;font-weight:600;color:#071C24">Top movers since 1990 (10 selected)</div><div style="font-size:12.5px;color:#5C7683">Measured 1990 → {{ yr }}</div></div>
+<sc-if value="{{ pcOk }}" hint-placeholder-val="{{ true }}">
+<div style="background:#fff;border-radius:8px;border-top:3px solid #B07A10;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><span style="font-size:12.5px;color:#5C7683">Fastest growth · {{ mvUpC }}</span><span style="font-size:26px;font-weight:600;color:#071C24">{{ mvUpP }}</span><span style="font-size:13px;color:#8A5A00">{{ mvUpD }}</span></div>
+<div style="background:#fff;border-radius:8px;border-top:3px solid #1D726B;padding:14px 16px;display:flex;flex-direction:column;gap:4px"><span style="font-size:12.5px;color:#5C7683">Largest reduction · {{ mvDnC }}</span><span style="font-size:26px;font-weight:600;color:#071C24">{{ mvDnP }}</span><span style="font-size:13px;color:#1D726B">{{ mvDnD }}</span></div>
+</sc-if>
+<sc-if value="{{ pcNo }}" hint-placeholder-val="{{ false }}">
+<div style="background:#fff;border:1.5px dashed #BDD3DB;border-radius:8px;padding:16px;font-size:13.5px;color:#3C5460;line-height:1.5">Top movers are measured from the 1990 baseline. Choose 2000 or later in the page year.</div>
+</sc-if>
+</div>
+</div>
+
+<div style="display:flex;align-items:baseline;gap:10px;padding-top:10px"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">% Change since 1990</h2><span style="font-size:13px;font-weight:600;color:#0A6E8C;background:#E4F2F8;padding:3px 8px;border-radius:3px">{{ yr }}</span><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#percent-change</span></div>
+<div style="position:relative;background:#fff;border-radius:8px;border-top:3px solid #0A6E8C;padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><div style="font-size:17px;font-weight:600;color:#071C24">{{ pcTitle }}</div><div style="display:flex;gap:14px;font-size:12px;color:#5C7683;flex:none"><span style="display:flex;gap:6px;align-items:center"><span style="width:10px;height:10px;background:#FFB54D"></span>Increase</span><span style="display:flex;gap:6px;align-items:center"><span style="width:10px;height:10px;background:#5AB4AC"></span>Decrease</span></div></div>
+<div style="background:#061E28;border-radius:6px;padding:16px 14px 10px;opacity:{{ pcOp }}">
+<div style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px">
+<div style="position:relative;height:240px"><sc-for list="{{ pcAxis }}" as="t" hint-placeholder-count="5"><span style="position:absolute;right:0;top:{{ t.t }};transform:translateY(-50%);font-size:11px;color:#94B4C0">{{ t.l }}</span></sc-for></div>
+<div style="position:relative;height:240px">
+<sc-for list="{{ pcAxis }}" as="t" hint-placeholder-count="5"><div style="position:absolute;left:0;right:0;top:{{ t.t }};height:1px;background:#123544"></div></sc-for>
+<div style="position:absolute;left:0;right:0;top:{{ pcZero }};height:1px;background:#94B4C0"></div>
+<div style="position:absolute;inset:0;display:flex;gap:10px"><sc-for list="{{ pc }}" as="p" hint-placeholder-count="10"><div style="flex:1;position:relative"><div style="position:absolute;left:0;right:0;top:{{ p.top }};height:{{ p.h }};background:{{ p.col }};border-radius:2px;transition:top 300ms,height 300ms"></div></div></sc-for></div>
+</div>
+</div>
+<div style="display:grid;grid-template-columns:44px minmax(0,1fr);gap:8px;margin-top:6px"><span></span><div style="display:flex;gap:10px"><sc-for list="{{ pc }}" as="b" hint-placeholder-count="10"><span style="flex:1;min-width:0;text-align:center;font-size:11px;color:#94B4C0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.c }}</span></sc-for></div></div>
+</div>
+<div style="font-size:12px;color:#5C7683">Baseline 1990 = 0%. The end year follows the page year, and the axis rescales for each year.</div>
+<sc-if value="{{ pcNo }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:18px;right:18px;top:64px;bottom:44px;display:flex;align-items:center;justify-content:center"><div role="status" style="background:#fff;border:1px solid #C7D9E0;border-radius:8px;padding:14px 18px;font-size:14px;color:#071C24;max-width:380px;text-align:center;line-height:1.5;box-shadow:0 6px 18px rgba(0,0,0,.18)">The baseline is 1990, so {{ yr }} comes before it. Choose 2000 or later in the page year to see % change.</div></div></sc-if>
+</div>
+
+<div style="display:flex;align-items:baseline;gap:10px;padding-top:10px"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">Where today’s patterns lead</h2><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#pathways</span></div>
+<div style="background:#071C24;border-radius:8px;padding:22px 24px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.6fr);gap:28px;color:#E4F2F8">
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="font-size:16px;line-height:1.55">The 40 Expanded countries’ pathways to 2040 diverge 2.2× in annual emissions. Translated to temperature, they differ by 0.11 °C by 2040, because most of the warming is already in place.</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="background:#0A6E8C;color:#fff;font-size:14px;font-weight:600;padding:10px 14px;border-radius:4px;align-self:flex-start">Forecasts to 2043 →</div>
+<div style="display:flex;gap:16px;font-size:14px;font-weight:600"><span style="color:#fff">Scenario Comparison →</span><span style="color:#5FD8F7">Implied temperature →</span></div>
+</div>
+<div style="font:500 11px 'JetBrains Mono',monospace;color:#94B4C0;letter-spacing:.04em">ILLUSTRATIVE, PARTIAL-COVERAGE TRANSLATION · IMPLIED OUTCOMES, NOT PROJECTIONS</div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+<div style="border:1px solid #1C3E4C;border-top:3px solid #FFB54D;border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:600;color:#fff">Business as usual</span><span style="font-size:11.5px;color:#94B4C0">ETS trend</span><span style="font-size:24px;font-weight:600;color:#fff;margin-top:6px">1.79 °C</span><span style="font-size:11.5px;color:#94B4C0">implied, 2040</span><span style="font-size:13px;margin-top:4px">46,647 Mt/yr</span></div>
+<div style="border:1px solid #1C3E4C;border-top:3px solid #5FD8F7;border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:600;color:#fff">Moderate</span><span style="font-size:11.5px;color:#94B4C0">−2% a year</span><span style="font-size:24px;font-weight:600;color:#fff;margin-top:6px">1.73 °C</span><span style="font-size:11.5px;color:#94B4C0">implied, 2040</span><span style="font-size:13px;margin-top:4px">30,400 Mt/yr</span></div>
+<div style="border:1px solid #1C3E4C;border-top:3px solid #5AB4AC;border-radius:6px;padding:12px 14px;display:flex;flex-direction:column;gap:4px"><span style="font-size:13px;font-weight:600;color:#fff">Aggressive</span><span style="font-size:11.5px;color:#94B4C0">−5% a year</span><span style="font-size:24px;font-weight:600;color:#fff;margin-top:6px">1.68 °C</span><span style="font-size:11.5px;color:#94B4C0">implied, 2040</span><span style="font-size:13px;margin-top:4px">21,611 Mt/yr</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div style="width:300px;display:flex;flex-direction:column;gap:10px;font-size:12.5px;line-height:1.5;color:#3a3a3a;padding-top:4px">
+<div style="font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6b6b6b">SPEC NOTES</div>
+<div><b>Order (§2.2).</b> Context → contributors → future: signal, relationship, top emitters, share, the existing By Country and % Change, then pathways.</div>
+<div><b>Deep links.</b> #climate-signal, #relationship, #top-emitters, #share, #by-country, #percent-change, #pathways. The anchor row sticks to the top on scroll.</div>
+<div><b>Prominence.</b> KPI strip and main chart share the first screen. The map is the largest block. The ranking and summary sit at the same level, right of the map.</div>
+<div><b>KPIs.</b> Emissions, change since baseline, concentration and temperature, each with a sparkline and baseline chip. The ⓘ opens year, reference, formula, range and exclusions (§2.5). Try it on “Change since baseline”.</div>
+<div><b>Progressive disclosure.</b> One short interpretive note per chart stays visible. Sources and method sit behind a single link, and the full methodology lives in the module.</div>
+<div><b>“Why emissions matter.”</b> Same treatment as the existing “Since 1990” card (white, 3px top rule, 13px label, 17–19px body). It states the chain, the ocean note and the global/country split, and links to the module.</div>
+<div><b>Choropleth (§2.6).</b> Decade stops 1970…2024, ~1.75 s each. Data stays visible throughout. The tiers, ranking and ppm all follow the selected year and the Absolute/Cumulative mode.</div>
+<div><b>One page year.</b> Set in the sticky bar (select + ▶) or by the map's decade stops. Both change the same value, which is kept in the URL (?year=2010). It drives the map, tiers, ranking, ppm, Share, By Country, Top Movers and % Change, and each of those shows the year as a badge. Climate signal (always latest), the relationship chart (full series) and Pathways don't follow it.</div>
+<div><b>Share replay.</b> Animates 1970 → page year at ~0.25 s a year, then settles on the page year. While it runs the readout is marked “replaying” and nothing else on the page moves.</div>
+<div><b>By Country / % Change.</b> Existing charts, re-titled with the year. For 1970 and 1980, % Change and Top Movers grey out with a prompt because they come before the 1990 baseline. The % Change axis rescales each year.</div>
+<div><b>Pathways.</b> The closing block links to Forecasts, Scenario Comparison and the module’s implied-temperature view.</div>
+</div>
+</div>
+</div>
+
+<div class="dv-opt" id="O2">
+<div class="dv-olabel"><a class="dv-oid" href="#O2">O2</a>Mobile · Dark · responsive rules</div>
+<div style="display:flex;gap:28px;align-items:flex-start">
+<div style="width:390px;border:10px solid #15191d;border-radius:44px;overflow:hidden;background:#121e35;color:#d7e0f0;box-shadow:0 2px 10px rgba(0,0,0,.15)">
+<div style="height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:14px;font-weight:600;color:#fff;background:#1e2f52"><span>9:41</span><span style="font-size:12px">●●● ▮</span></div>
+<div style="display:flex;align-items:center;gap:10px;padding:0 12px;height:52px;background:#1e2f52;border-bottom:1px solid #2c3e63"><span style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff">☰</span><span style="font-size:16px;font-weight:600;color:#fff">Overview</span><span style="margin-left:auto;font-size:13px;border:1px solid #3d5580;border-radius:6px;padding:8px 10px;color:#fff">✦ Ask</span></div>
+<div style="display:flex;gap:8px;padding:10px 14px;overflow:hidden;border-bottom:1px solid #2c3e63;background:#121e35"><span style="flex:none;font-size:13px;font-weight:600;padding:8px 12px;border-radius:16px;background:#fff;color:#121e35">{{ yr }} ▾</span><span style="flex:none;font-size:13px;padding:8px 12px;border-radius:16px;background:#2d9cbd;color:#fff">Climate signal</span><span style="flex:none;font-size:13px;padding:8px 12px;border-radius:16px;border:1px solid #3d5580">Relationship</span><span style="flex:none;font-size:13px;padding:8px 12px;border-radius:16px;border:1px solid #3d5580">Top emitters</span><span style="flex:none;font-size:13px;padding:8px 12px;border-radius:16px;border:1px solid #3d5580">Share</span></div>
+<div style="padding:16px 14px 22px;display:flex;flex-direction:column;gap:12px">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+<div style="background:#1e2f52;border-top:3px solid #e5b955;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#8fa2c4">CO₂ emissions · 2024</span><span style="font-size:20px;font-weight:600;color:#fff">37,398 Mt</span><span style="font-size:11px;color:#8fa2c4">all countries</span></div>
+<div style="background:#1e2f52;border-top:3px solid #e5b955;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#8fa2c4">Since 1990</span><span style="font-size:20px;font-weight:600;color:#fff">168.6</span><span style="font-size:11px;color:#e5b955">+68.6% · 1990 = 100</span></div>
+<div style="background:#1e2f52;border-top:3px solid #5ecbf5;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#8fa2c4">Atmospheric CO₂</span><span style="font-size:20px;font-weight:600;color:#fff">424.6 ppm</span><span style="font-size:11px;color:#8fa2c4">+49% vs 1850</span></div>
+<div style="background:#1e2f52;border-top:3px solid #f2637e;border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#8fa2c4">Temperature anomaly</span><span style="font-size:20px;font-weight:600;color:#fff">+1.62 °C</span><span style="font-size:11px;color:#8fa2c4">vs 1850–1900</span></div>
+</div>
+<div style="background:#1e2f52;border:1px solid #2c3e63;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px">
+<div style="font-size:15px;font-weight:600;color:#fff">CO₂ emissions and temperature, 1970–2024</div>
+<div style="display:flex;background:#121e35;border-radius:6px;padding:3px"><span style="flex:1;text-align:center;font-size:13px;padding:8px 0;background:#2d9cbd;color:#fff;border-radius:4px">Over time</span><span style="flex:1;text-align:center;font-size:13px;padding:8px 0">vs cumulative CO₂</span></div>
+<svg viewBox="0 0 760 280" role="img" aria-label="Emissions and temperature, 1970 to 2024" style="width:100%;display:block;background:#182746;border-radius:6px">
+<sc-for list="{{ bars }}" as="b"><rect x="{{ b.x }}" y="{{ b.y }}" width="9" height="{{ b.h }}" fill="#e5b955" fill-opacity=".75"></rect></sc-for>
+<path d="{{ bLine }}" stroke="#f2637e" stroke-width="4" fill="none"></path>
+<text x="76.0" y="272" fill="#8fa2c4" font-size="22" text-anchor="middle">1970</text><text x="328.0" y="272" fill="#8fa2c4" font-size="22" text-anchor="middle">1990</text><text x="580.0" y="272" fill="#8fa2c4" font-size="22" text-anchor="middle">2010</text>
+</svg>
+<div style="font-size:12.5px;line-height:1.5;color:#b9c6dd">Long-term co-movement, shown as context. No single factor or year explains warming.</div>
+<div style="font-size:13px;font-weight:600;color:#50c7e0">Sources &amp; method ▾</div>
+</div>
+<div style="background:#1e2f52;border:1px solid #2c3e63;border-top:3px solid #5AB4AC;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px">
+<div style="font-size:12px;color:#8fa2c4">Why emissions matter</div>
+<div style="font-size:15px;line-height:1.55;color:#fff">Emissions raise CO₂ concentration; what accumulates increases radiative forcing; warming shows up as the temperature anomaly.</div>
+<div style="font-size:13px;font-weight:600;color:#50c7e0">Read more in the module →</div>
+</div>
+<div style="background:#1e2f52;border:1px solid #2c3e63;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:15px;font-weight:600;color:#fff">Top emitters</span><div style="display:flex;background:#121e35;border-radius:6px;padding:3px"><span style="font-size:12px;padding:6px 10px;background:#2d9cbd;color:#fff;border-radius:4px">Absolute</span><span style="font-size:12px;padding:6px 10px">Cumulative</span></div></div>
+<div style="height:180px;border-radius:6px;background:repeating-linear-gradient(135deg,#1e2f52 0 10px,#182746 10px 20px);border:1px solid #2c3e63;display:flex;align-items:center;justify-content:center;font:11px/1.6 'JetBrains Mono',monospace;color:#8fa2c4;text-align:center">choropleth · pinch to zoom<br>tap a country for its value</div>
+<div style="display:flex;gap:6px;overflow:hidden"><span style="flex:none;font:500 12px 'JetBrains Mono',monospace;padding:10px 8px;border:1px solid #3d5580;border-radius:4px">▶</span><span style="flex:none;font:500 12px 'JetBrains Mono',monospace;padding:10px 8px;border:1px solid #3d5580;border-radius:4px">1990</span><span style="flex:none;font:500 12px 'JetBrains Mono',monospace;padding:10px 8px;border:1px solid #3d5580;border-radius:4px">2000</span><span style="flex:none;font:500 12px 'JetBrains Mono',monospace;padding:10px 8px;border:1px solid #3d5580;border-radius:4px">2010</span><span style="flex:none;font:500 12px 'JetBrains Mono',monospace;padding:10px 8px;border:1px solid #3d5580;border-radius:4px">2020</span><span style="flex:none;font:500 12px 'JetBrains Mono',monospace;padding:10px 8px;background:#fff;color:#121e35;border-radius:4px">2024</span></div>
+<div style="display:flex;flex-direction:column;gap:6px;border-top:1px solid #2c3e63;padding-top:8px">
+<div style="display:flex;justify-content:space-between;font-size:13px"><span>1 China</span><span style="color:#fff">12,289</span></div>
+<div style="display:flex;justify-content:space-between;font-size:13px"><span>2 United States</span><span style="color:#fff">4,904</span></div>
+<div style="display:flex;justify-content:space-between;font-size:13px"><span>3 India</span><span style="color:#fff">3,193</span></div>
+<div style="font-size:12px;color:#50c7e0;font-weight:600">Summary tiers and CO₂ ppm ▾</div>
+</div>
+</div>
+<div style="background:#1e2f52;border:1px solid #2c3e63;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:15px;font-weight:600;color:#fff">Share of cumulative CO₂</span><span style="font-size:20px;font-weight:700;color:#fff">{{ shYear }}</span></div>
+<span style="font-size:12px;color:#8fa2c4">The stock · 1850–{{ shYear }}</span>
+<div style="display:flex;height:30px;border-radius:4px;overflow:hidden"><sc-for list="{{ shStockD }}" as="g" hint-placeholder-count="9"><div style="width:{{ g.w }};flex:{{ g.fl }};min-width:0;background:{{ g.col }};border-right:{{ g.br }};box-sizing:border-box;transition:width 240ms linear"></div></sc-for></div>
+<span style="font-size:12px;color:#8fa2c4">The flow · {{ shYear }}</span>
+<div style="display:flex;height:30px;border-radius:4px;overflow:hidden"><sc-for list="{{ shFlowD }}" as="g" hint-placeholder-count="9"><div style="width:{{ g.w }};flex:{{ g.fl }};min-width:0;background:{{ g.col }};border-right:{{ g.br }};box-sizing:border-box;transition:width 240ms linear"></div></sc-for></div>
+<div style="font-size:12px;color:#b9c6dd">US {{ usS }} · China {{ cnS }} of the stock. Tap a segment for its value.</div>
+<div style="display:flex;align-items:center;gap:10px"><span style="font-size:13px;font-weight:600;color:#fff;background:#2d9cbd;border-radius:4px;padding:12px 14px">▶ Replay 1970 → {{ yr }}</span><span style="font-size:12px;color:#8fa2c4">Year is set by the chip at the top</span></div>
+</div>
+</div>
+</div>
+<div style="width:250px;display:flex;flex-direction:column;gap:10px;font-size:12.5px;line-height:1.5;color:#3a3a3a;padding-top:4px">
+<div style="font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6b6b6b">RESPONSIVE RULES</div>
+<div><b>≥1200px:</b> layout as in O1.</div>
+<div><b>768–1199px:</b> KPIs 2×2. Chart and “Why” card stack. Map goes full width with the right column as a 3-up row below.</div>
+<div><b>&lt;768px:</b> single column. The anchor row becomes scrollable chips. KPIs 2×2 without sparklines; ⓘ opens a bottom sheet.</div>
+<div>The chart keeps both views and drops the second y-axis labels (legend instead). The ranking shows a top 3; tiers and ppm collapse behind one disclosure.</div>
+<div>Share bars drop inline labels and show values on tap. Play and the slider stay.</div>
+<div><b>Page year:</b> the first chip in the sticky row. Tapping it opens a bottom sheet with the decade stops and Play. By Country and % Change follow it like on desktop.</div>
+<div>All touch targets are 44px or larger.</div>
+</div>
+</div>
+</div>
+
+</div>
+</section>
+
+<section class="dv-turn" id="module">
+<div class="dv-thd"><a class="dv-tid" href="#module">3</a><span class="dv-tname">Temperature &amp; GHG Correlation module (§2.4, §2.5, §1.3)</span></div>
+<div class="dv-opts">
+<div class="dv-opt" id="M1">
+<div class="dv-olabel"><a class="dv-oid" href="#M1">M1</a>Desktop · Light · one scrolling page with anchor links · live: composition year, derivation accordion</div>
+<div style="display:flex;gap:24px;align-items:flex-start">
+<div class="dv-card" style="width:1280px;background:#DCE8ED;color:#3C5460;font-family:Inter,sans-serif">
+<div style="display:flex;align-items:center;gap:12px;padding:0 24px;height:60px;background:#06222D;border-bottom:2px solid #0A6E8C"><span style="width:20px;height:20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#9FD5E8,#0A6E8C)"></span><span style="font-size:21px;font-weight:600;color:#fff">Climate Analytics Platform</span><div style="margin-left:auto;display:flex;gap:12px;align-items:center"><div style="display:flex;background:#1C3E4C;border-radius:4px;padding:3px;font-size:13px"><span style="padding:4px 8px;background:#fff;color:#071C24;border-radius:3px">Light</span><span style="padding:4px 8px;color:#E4F2F8">Dark</span></div><div style="border:1px solid #1C3E4C;border-radius:6px;padding:8px 14px;font-size:14px;color:#fff">✦ Ask the Agent</div></div></div>
+<div style="padding:28px 40px 44px;display:flex;flex-direction:column;gap:22px">
+<div style="display:flex;flex-direction:column;gap:12px"><h1 style="margin:0;font-size:34px;font-weight:600;color:#3C5460">Temperature &amp; GHG Correlation</h1>
+<nav aria-label="On this page" style="display:flex;gap:20px;font-size:15px;color:#5C7683;border-bottom:1px solid #C7D9E0"><span style="color:#071C24;font-weight:600;padding-bottom:8px;border-bottom:2px solid #0A6E8C">Causal chain</span><span>Long-run relationship</span><span>Recent all-gas</span><span>Gas composition</span><span>Country responsibility</span><span>Scenarios</span><span>Methodology &amp; sources</span></nav>
+<div style="font-size:16px;color:#3C5460;max-width:900px;line-height:1.55">This module reads the link between emissions and warming from observed data. It is descriptive: relationships are shown as context, not as proof of cause, and nothing here is a climate model.</div></div>
+
+<div style="background:#fff;border-radius:8px;padding:22px 24px;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;gap:10px"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">The causal chain</h2><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#causal-chain</span></div>
+<ol aria-label="Emissions to temperature anomaly" style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:minmax(0,1fr) 30px minmax(0,1fr) 30px minmax(0,1fr) 30px minmax(0,1fr);align-items:stretch">
+<li style="border:1px solid #C7D9E0;border-top:4px solid #B07A10;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px"><span style="font:500 11px 'JetBrains Mono',monospace;color:#8A5A00;letter-spacing:.06em">1 · EMISSIONS</span><span style="font-size:14px;line-height:1.5;color:#071C24">Annual flows of greenhouse gases, in mass per year.</span><div style="margin-top:auto;border-top:1px solid #E5EEF1;padding-top:8px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#5C7683">On this platform</span><span style="font-size:13px;color:#3C5460">OWID CO₂ (country + World); PRIMAP-hist all GHGs, 1970+</span></div></li>
+<li aria-hidden="true" style="display:flex;align-items:center;justify-content:center;color:#94B4C0;font-size:20px">→</li>
+<li style="border:1px solid #C7D9E0;border-top:4px solid #0A6E8C;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px"><span style="font:500 11px 'JetBrains Mono',monospace;color:#0A6E8C;letter-spacing:.06em">2 · CONCENTRATION</span><span style="font-size:14px;line-height:1.5;color:#071C24">The amount that stays in the air: 285 ppm of CO₂ in 1850, 424.6 in 2024.</span><div style="margin-top:auto;border-top:1px solid #E5EEF1;padding-top:8px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#5C7683">On this platform</span><span style="font-size:13px;color:#3C5460">Observed only: Law Dome + NOAA Mauna Loa. Not modelled.</span></div></li>
+<li aria-hidden="true" style="display:flex;align-items:center;justify-content:center;color:#94B4C0;font-size:20px">→</li>
+<li style="border:1.5px dashed #94B4C0;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px;background:repeating-linear-gradient(135deg,#fff 0 9px,#F3F8FA 9px 18px)"><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683;letter-spacing:.06em">3 · RADIATIVE FORCING</span><span style="font-size:14px;line-height:1.5;color:#071C24">Extra heat trapped because more greenhouse gas is in the air.</span><div style="margin-top:auto;border-top:1px solid #E5EEF1;padding-top:8px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#5C7683">On this platform</span><span style="font-size:13px;color:#3C5460">Concept only. No forcing data, calculation or endpoint.</span></div></li>
+<li aria-hidden="true" style="display:flex;align-items:center;justify-content:center;color:#94B4C0;font-size:20px">→</li>
+<li style="border:1px solid #C7D9E0;border-top:4px solid #B3261E;border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px"><span style="font:500 11px 'JetBrains Mono',monospace;color:#B3261E;letter-spacing:.06em">4 · TEMPERATURE ANOMALY</span><span style="font-size:14px;line-height:1.5;color:#071C24">Observed warming against the 1850–1900 average: +1.62 °C in 2024.</span><div style="margin-top:auto;border-top:1px solid #E5EEF1;padding-top:8px;display:flex;flex-direction:column;gap:2px"><span style="font-size:11.5px;color:#5C7683">On this platform</span><span style="font-size:13px;color:#3C5460">Berkeley Earth global series</span></div></li>
+</ol>
+<div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:28px">
+<div style="font-size:15px;line-height:1.65;color:#3C5460;display:flex;flex-direction:column;gap:10px"><p style="margin:0">Each year’s emissions add to a stock of CO₂ in the atmosphere. Roughly half of what is emitted stays there, so concentration keeps rising even when annual emissions level off. A higher concentration traps more of the heat Earth would otherwise radiate to space, and over time the surface warms.</p><p style="margin:0">Because warming follows the accumulated stock and is delayed by the ocean, a country’s emissions in one year do not produce a matching temperature in that year. The charts below therefore compare temperature with <b>cumulative</b> emissions.</p></div>
+<div style="background:#F3F8FA;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px"><div style="font-size:13px;font-weight:600;color:#071C24">Not modelled in this release</div><div style="display:flex;flex-wrap:wrap;gap:6px"><span style="font-size:12px;background:#fff;border:1px solid #C7D9E0;padding:4px 8px;border-radius:12px">Atmospheric concentration</span><span style="font-size:12px;background:#fff;border:1px solid #C7D9E0;padding:4px 8px;border-radius:12px">Radiative forcing</span><span style="font-size:12px;background:#fff;border:1px solid #C7D9E0;padding:4px 8px;border-radius:12px">Carbon-cycle feedbacks</span><span style="font-size:12px;background:#fff;border:1px solid #C7D9E0;padding:4px 8px;border-radius:12px">Ocean heat uptake</span><span style="font-size:12px;background:#fff;border:1px solid #C7D9E0;padding:4px 8px;border-radius:12px">Ocean thermal lag</span></div><div style="font-size:12px;color:#5C7683;line-height:1.5">Concentration and temperature are shown as observed series only.</div></div>
+</div>
+</div>
+
+<div style="background:#fff;border-radius:8px;padding:22px 24px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">Long-run relationship</h2><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#long-run</span><span style="font:500 11px 'JetBrains Mono',monospace;background:#E4F2F8;color:#0A6E8C;padding:3px 7px;border-radius:3px">HEADLINE · TCRE-STYLE</span><span style="font:500 11px 'JetBrains Mono',monospace;background:#ECF1F3;padding:3px 7px;border-radius:3px">CO₂ only · 1850–2024 · vs 1850–1900</span></div>
+<div style="font-size:14px;color:#3C5460"><b>Purpose:</b> estimate how much global temperature has risen per unit of CO₂ emitted since industrialisation began.</div>
+<div style="display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:18px;align-items:start">
+<div style="background:#061E28;border-radius:6px;padding:8px">
+<svg viewBox="0 0 600 330" role="img" aria-label="Temperature anomaly against cumulative CO2, 1850 to 2024, with OLS fit" style="width:100%;display:block">
+<sc-for list="{{ syT }}" as="t"><line x1="50" x2="580" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#123544"></line></sc-for><text x="42" y="240.9" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">0</text><text x="42" y="179.5" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">0.5</text><text x="42" y="118.2" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">1.0</text><text x="42" y="56.8" fill="#94B4C0" font-size="11" text-anchor="end" dominant-baseline="middle">1.5</text>
+<text x="50.0" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">0</text><text x="148.1" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">500</text><text x="246.3" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">1,000</text><text x="344.4" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">1,500</text><text x="442.6" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">2,000</text><text x="540.7" y="308" fill="#94B4C0" font-size="11" text-anchor="middle">2,500</text>
+<path d="{{ fit }}" stroke="#E4F2F8" stroke-width="1.5" stroke-dasharray="5 4" fill="none"></path>
+<sc-for list="{{ scL }}" as="p"><circle cx="{{ p.cx }}" cy="{{ p.cy }}" r="3.2" fill="{{ p.fill }}" fill-opacity=".9"></circle></sc-for>
+<text x="575" y="326" fill="#94B4C0" font-size="11" text-anchor="end">Cumulative CO₂ since 1850: fossil, cement, land use (GtCO₂)</text>
+<text x="56" y="36" fill="#94B4C0" font-size="11">°C above 1850–1900 · dots: to 1899 · 1900–69 · 1970+</text>
+<text x="{{ lab24x }}" y="{{ lab24y }}" fill="#fff" font-size="12" font-weight="600" text-anchor="end">2024</text>
+</svg>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:13px;color:#5C7683">Warming per 1,000 GtCO₂</span><span style="font-size:44px;font-weight:700;color:#071C24;line-height:1.05">0.520 <span style="font-size:18px;font-weight:500;color:#5C7683">°C</span></span></div>
+<div style="display:grid;grid-template-columns:1fr auto;gap:5px 12px;font-size:13.5px"><span style="color:#5C7683">95% CI · Newey–West HAC</span><span style="color:#071C24;font-variant-numeric:tabular-nums">0.480–0.559</span><span style="color:#5C7683">R²</span><span style="color:#071C24">0.91</span><span style="color:#5C7683">Years</span><span style="color:#071C24">1850–2024 (175)</span><span style="color:#5C7683">Gases</span><span style="color:#071C24">CO₂ only</span><span style="color:#5C7683">Fossil + cement only</span><span style="color:#071C24">0.797</span></div>
+<div style="display:flex;flex-direction:column;gap:5px;border-top:1px solid #E5EEF1;padding-top:10px">
+<div style="font-size:12px;color:#5C7683">Compared with the IPCC (AR6 best estimate 0.45; likely range 0.27–0.63)</div>
+<div style="position:relative;height:30px"><div style="position:absolute;left:0;right:0;top:13px;height:4px;background:#ECF1F3;border-radius:2px"></div><div style="position:absolute;left:10%;width:51.4%;top:9px;height:12px;background:#0A6E8C;opacity:.3;border-radius:2px"></div><div style="position:absolute;left:35.7%;top:5px;width:2px;height:20px;background:#0A6E8C"></div><div style="position:absolute;left:46%;top:4px;width:3px;height:22px;background:#071C24;border-radius:1px"></div><div style="position:absolute;left:85.3%;top:4px;width:3px;height:22px;background:#B07A10;border-radius:1px"></div></div>
+<div style="position:relative;height:14px;font:500 11px 'JetBrains Mono',monospace;color:#5C7683"><span style="position:absolute;left:0">0.20</span><span style="position:absolute;left:35.7%;transform:translateX(-50%);color:#0A6E8C">0.45</span><span style="position:absolute;left:46.5%;transform:translateX(-10%);color:#071C24">0.520</span><span style="position:absolute;left:85.3%;transform:translateX(-50%);color:#8A5A00">0.797</span><span style="position:absolute;right:0">0.90</span></div>
+</div>
+<div style="font-size:12.5px;line-height:1.55;color:#3C5460">A simplified, data-driven analog to TCRE. It describes a long-run relationship and is not a complete climate model. It won't match the IPCC figure, which comes from CO₂-only forcing in Earth-system models; this slope also absorbs non-CO₂ forcing that moves with CO₂.</div>
+<div style="font-size:12px;line-height:1.5;color:#8A5A00;background:#FFF6E6;border-radius:6px;padding:8px 10px">Based on Berkeley Earth file vintage 2025-01-10; a possible ~0.1 °C discrepancy with Berkeley Earth’s most recent published report text has not yet been reconciled.</div>
+<a href="#derivation" style="font-size:13px;font-weight:600">How this number was derived ↓</a>
+</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px">
+<div style="background:#fff;border-radius:8px;padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><h2 style="margin:0;font-size:20px;font-weight:600;color:#071C24">Recent all-gas relationship</h2><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#all-gas</span></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><span style="font:500 11px 'JetBrains Mono',monospace;background:#ECF1F3;padding:3px 7px;border-radius:3px">All GHGs · PRIMAP-hist · AR5 GWP-100</span><span style="font:500 11px 'JetBrains Mono',monospace;background:#FFF6E6;color:#8A5A00;padding:3px 7px;border-radius:3px">NOT TCRE</span></div>
+<div style="font-size:13.5px;color:#3C5460"><b>Purpose:</b> check whether the same pattern holds when all greenhouse gases are counted, over the years with reliable all-gas data.</div>
+<div style="background:#061E28;border-radius:6px;padding:6px">
+<svg viewBox="0 0 600 330" role="img" aria-label="Temperature anomaly against cumulative all-gas emissions since 1970" style="width:100%;display:block">
+<sc-for list="{{ syT }}" as="t"><line x1="50" x2="580" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#123544"></line></sc-for><text x="42" y="240.9" fill="#94B4C0" font-size="12" text-anchor="end" dominant-baseline="middle">0</text><text x="42" y="179.5" fill="#94B4C0" font-size="12" text-anchor="end" dominant-baseline="middle">0.5</text><text x="42" y="118.2" fill="#94B4C0" font-size="12" text-anchor="end" dominant-baseline="middle">1.0</text><text x="42" y="56.8" fill="#94B4C0" font-size="12" text-anchor="end" dominant-baseline="middle">1.5</text>
+<text x="50.0" y="308" fill="#94B4C0" font-size="12" text-anchor="middle">0</text><text x="156.0" y="308" fill="#94B4C0" font-size="12" text-anchor="middle">500</text><text x="262.0" y="308" fill="#94B4C0" font-size="12" text-anchor="middle">1,000</text><text x="368.0" y="308" fill="#94B4C0" font-size="12" text-anchor="middle">1,500</text><text x="474.0" y="308" fill="#94B4C0" font-size="12" text-anchor="middle">2,000</text><text x="580.0" y="308" fill="#94B4C0" font-size="12" text-anchor="middle">2,500</text>
+<path d="{{ agFit }}" stroke="#E4F2F8" stroke-width="1.5" stroke-dasharray="5 4" fill="none"></path>
+<sc-for list="{{ agPts }}" as="p"><circle cx="{{ p.cx }}" cy="{{ p.cy }}" r="3.5" fill="#F263F2" fill-opacity=".85"></circle></sc-for>
+<text x="575" y="326" fill="#94B4C0" font-size="12" text-anchor="end">Cumulative GHG since 1970 (GtCO₂e)</text>
+</svg>
+</div>
+<div style="display:grid;grid-template-columns:1fr auto;gap:4px 12px;font-size:13px"><span style="color:#5C7683">Slope</span><span style="color:#071C24">{{ agSlope }} °C per 1,000 GtCO₂e</span><span style="color:#5C7683">Years</span><span style="color:#071C24">1970 to the last complete year</span><span style="color:#5C7683">Scope</span><span style="color:#071C24">National totals; excl. aviation, shipping, LULUCF</span></div>
+<div style="font-size:12px;color:#8A5A00;background:#FFF6E6;border-radius:6px;padding:8px 10px;line-height:1.5">Data-quality limit: starts in 1970 because PRIMAP-hist values before then are reconstructions. Incomplete trailing years are excluded.</div>
+</div>
+
+<div style="background:#fff;border-radius:8px;padding:20px 22px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><h2 style="margin:0;font-size:20px;font-weight:600;color:#071C24">Gas composition</h2><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#composition</span></div>
+<div style="display:flex;gap:6px;flex-wrap:wrap"><span style="font:500 11px 'JetBrains Mono',monospace;background:#ECF1F3;padding:3px 7px;border-radius:3px">PRIMAP-hist · GtCO₂e · AR5 GWP-100 · 1970+</span></div>
+<div style="font-size:13.5px;color:#3C5460"><b>Purpose:</b> show how much of the total comes from each gas, and how that mix has changed.</div>
+<div style="background:#061E28;border-radius:6px;padding:6px">
+<svg viewBox="0 0 600 260" role="img" aria-label="Stacked area of global greenhouse gas emissions by gas, 1970 to 2024" style="width:100%;display:block">
+<sc-for list="{{ compYT }}" as="t"><line x1="50" x2="580" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#123544"></line></sc-for><text x="42" y="230.0" fill="#94B4C0" font-size="12" text-anchor="end" dominant-baseline="middle">0</text><text x="42" y="160.0" fill="#94B4C0" font-size="12" text-anchor="end" dominant-baseline="middle">20</text><text x="42" y="90.0" fill="#94B4C0" font-size="12" text-anchor="end" dominant-baseline="middle">40</text><text x="42" y="20.0" fill="#94B4C0" font-size="12" text-anchor="end" dominant-baseline="middle">60</text>
+<sc-for list="{{ compLayers }}" as="l"><path d="{{ l.d }}" fill="{{ l.col }}" fill-opacity=".85"></path></sc-for>
+<line x1="{{ compSelX }}" x2="{{ compSelX }}" y1="16" y2="230" stroke="#fff" stroke-width="1.5"></line>
+<text x="50.0" y="250" fill="#94B4C0" font-size="12" text-anchor="middle">1970</text><text x="148.1" y="250" fill="#94B4C0" font-size="12" text-anchor="middle">1980</text><text x="246.3" y="250" fill="#94B4C0" font-size="12" text-anchor="middle">1990</text><text x="344.4" y="250" fill="#94B4C0" font-size="12" text-anchor="middle">2000</text><text x="442.6" y="250" fill="#94B4C0" font-size="12" text-anchor="middle">2010</text><text x="540.7" y="250" fill="#94B4C0" font-size="12" text-anchor="middle">2020</text>
+</svg>
+</div>
+<div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:#5C7683">Year</span><sc-for list="{{ compSeg }}" as="c" hint-placeholder-count="4"><button onClick="{{ c.go }}" aria-pressed="{{ c.sel }}" style="border:1px solid {{ c.bd }};background:{{ c.bg }};color:{{ c.fg }};font:500 12px 'JetBrains Mono',monospace;padding:5px 8px;border-radius:4px;cursor:pointer">{{ c.y }}</button></sc-for><span style="margin-left:auto;font-size:13px;color:#071C24;font-weight:600">{{ compTotal }} GtCO₂e</span></div>
+<div style="display:flex;height:26px;border-radius:4px;overflow:hidden"><sc-for list="{{ compBar }}" as="g" hint-placeholder-count="4"><div style="width:{{ g.w }};background:{{ g.col }};color:#061E28;font-size:11.5px;font-weight:600;padding:5px 0;text-indent:6px;white-space:nowrap;overflow:hidden;border-right:2px solid #fff;box-sizing:border-box">{{ g.lab }}</div></sc-for></div>
+<div style="display:flex;gap:14px;font-size:12px;color:#3C5460"><sc-for list="{{ compBar }}" as="g" hint-placeholder-count="4"><span style="display:flex;gap:5px;align-items:center"><span style="width:9px;height:9px;background:{{ g.col }}"></span>{{ g.n }} {{ g.p }}</span></sc-for></div>
+</div>
+</div>
+
+<div style="background:#fff;border-radius:8px;padding:22px 24px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">Country responsibility</h2><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#countries</span></div>
+<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap">
+<div style="font-size:14px;color:#3C5460;max-width:640px"><b>Purpose:</b> show each country’s share of everything emitted so far, next to the global temperature line, without estimating a separate temperature effect per country.</div>
+<div style="display:flex;gap:10px;align-items:flex-end"><div style="display:flex;flex-direction:column;gap:4px"><span style="font-size:12px;color:#5C7683">Source and gases</span><div style="display:flex;background:#ECF1F3;border:1px solid #C7D9E0;border-radius:6px;padding:3px"><span style="background:#0A6E8C;color:#fff;font-size:13px;padding:6px 10px;border-radius:4px">CO₂ · OWID</span><span style="font-size:13px;padding:6px 10px">CO₂ · PRIMAP</span><span style="font-size:13px;padding:6px 10px">All GHGs · PRIMAP</span></div></div><div style="border:1px solid #C7D9E0;border-radius:6px;padding:8px 12px;font-size:13px;color:#071C24">5 of 40 countries ▾</div></div>
+</div>
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
+<div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:14px;font-weight:600;color:#071C24">Share of cumulative emissions since 1850, %</div>
+<div style="background:#061E28;border-radius:6px;padding:6px">
+<svg viewBox="0 0 400 240" role="img" aria-label="Cumulative share lines for five countries" style="width:100%;display:block">
+<sc-for list="{{ csT }}" as="t"><line x1="40" x2="390" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#123544"></line></sc-for><text x="34" y="210.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">0</text><text x="34" y="172.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">10</text><text x="34" y="134.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">20</text><text x="34" y="96.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">30</text><text x="34" y="58.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">40</text><text x="34" y="20.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">50</text>
+<text x="44.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">1900</text><text x="112.5" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">1925</text><text x="181.1" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">1950</text><text x="249.6" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">1975</text><text x="318.2" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2000</text><text x="384.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2024</text>
+<sc-for list="{{ cLines }}" as="c"><path d="{{ c.d }}" stroke="{{ c.col }}" stroke-width="2" fill="none"></path></sc-for><text x="394" y="112.7" fill="#5FD8F7" font-size="10" text-anchor="end">US</text><text x="394" y="148.0" fill="#FFB54D" font-size="10" text-anchor="end">China</text><text x="394" y="196.3" fill="#F263F2" font-size="10" text-anchor="end">UK</text><text x="394" y="180.5" fill="#7791F8" font-size="10" text-anchor="end">Germany</text><text x="394" y="202.1" fill="#D7E740" font-size="10" text-anchor="end">India</text>
+</svg>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:14px;font-weight:600;color:#071C24">Global temperature anomaly, °C vs 1850–1900</div>
+<div style="background:#061E28;border-radius:6px;padding:6px">
+<svg viewBox="0 0 400 240" role="img" aria-label="Global temperature anomaly, annual and five-year mean" style="width:100%;display:block">
+<sc-for list="{{ caT }}" as="t"><line x1="40" x2="390" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#123544"></line></sc-for><text x="34" y="175.5" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">0</text><text x="34" y="132.3" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">0.5</text><text x="34" y="89.1" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">1.0</text><text x="34" y="45.9" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">1.5</text>
+<text x="44.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">1900</text><text x="112.5" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">1925</text><text x="181.1" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">1950</text><text x="249.6" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">1975</text><text x="318.2" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2000</text><text x="384.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2024</text>
+<path d="{{ aAnn }}" stroke="#EA5B62" stroke-opacity=".45" stroke-width="1" fill="none"></path>
+<path d="{{ aMean }}" stroke="#EA5B62" stroke-width="2.2" fill="none"></path>
+</svg>
+</div></div>
+</div>
+<div style="background:#E1F0F5;border-radius:6px;padding:12px 16px;font-size:14px;color:#0A6E8C;line-height:1.5">Shares describe each country’s part of cumulative emissions. No country series is regressed against temperature, and no warming is attributed to a country. Denominator: sum of national emissions, international aviation and shipping excluded. This is a different total from the World series used in the long-run relationship.</div>
+</div>
+
+<div style="background:#fff;border-radius:8px;padding:22px 24px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">Implied temperature by scenario</h2><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#scenarios</span><span style="font:500 11px 'JetBrains Mono',monospace;background:#FFF6E6;color:#8A5A00;padding:3px 7px;border-radius:3px">ILLUSTRATIVE, PARTIAL-COVERAGE TRANSLATION · NOT A CLIMATE-MODEL PROJECTION</span></div>
+<div style="font-size:14px;color:#3C5460"><b>Purpose:</b> translate the platform’s 2025–2040 emissions pathways into implied temperature, using the long-run slope. Results depend on the regression period, emissions source and assumptions.</div>
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 300px;gap:16px">
+<div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:14px;font-weight:600;color:#071C24">1 · Annual emissions, GtCO₂</div>
+<div style="background:#061E28;border-radius:6px;padding:6px"><svg viewBox="0 0 400 240" role="img" aria-label="Annual emissions by scenario" style="width:100%;display:block">
+<sc-for list="{{ qeT }}" as="t"><line x1="40" x2="390" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#123544"></line></sc-for><text x="34" y="210.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">0</text><text x="34" y="172.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">10</text><text x="34" y="134.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">20</text><text x="34" y="96.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">30</text><text x="34" y="58.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">40</text><text x="34" y="20.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">50</text>
+<text x="44.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2015</text><text x="112.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2020</text><text x="180.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2025</text><text x="248.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2030</text><text x="316.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2035</text><text x="384.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2040</text>
+<line x1="{{ q25x }}" x2="{{ q25x }}" y1="20" y2="210" stroke="#1F4B5E" stroke-dasharray="3 3"></line>
+<path d="{{ eHist }}" stroke="#ecf0f6" stroke-width="2" fill="none"></path><path d="{{ eBau }}" stroke="#FFB54D" stroke-width="2" fill="none"></path><path d="{{ eMod }}" stroke="#5FD8F7" stroke-width="2" fill="none"></path><path d="{{ eAgg }}" stroke="#5AB4AC" stroke-width="2" fill="none"></path>
+</svg></div>
+<div style="font-size:12px;color:#3C5460">BAU 46,647 · Moderate 30,400 · Aggressive 21,611 Mt in 2040</div></div>
+<div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:14px;font-weight:600;color:#071C24">2 · Implied temperature, °C</div>
+<div style="background:#061E28;border-radius:6px;padding:6px"><svg viewBox="0 0 400 240" role="img" aria-label="Implied temperature by scenario" style="width:100%;display:block">
+<sc-for list="{{ qtT }}" as="t"><line x1="40" x2="390" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#123544"></line></sc-for><text x="34" y="210.0" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">1.0</text><text x="34" y="167.8" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">1.2</text><text x="34" y="125.6" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">1.4</text><text x="34" y="83.3" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">1.6</text><text x="34" y="41.1" fill="#94B4C0" font-size="10" text-anchor="end" dominant-baseline="middle">1.8</text>
+<text x="44.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2015</text><text x="112.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2020</text><text x="180.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2025</text><text x="248.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2030</text><text x="316.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2035</text><text x="384.0" y="232" fill="#94B4C0" font-size="10" text-anchor="middle">2040</text>
+<sc-for list="{{ tObs }}" as="p"><circle cx="{{ p.cx }}" cy="{{ p.cy }}" r="2.5" fill="#94B4C0"></circle></sc-for>
+<path d="{{ tHist }}" stroke="#ecf0f6" stroke-width="2" fill="none"></path><path d="{{ tBau }}" stroke="#FFB54D" stroke-width="2" fill="none"></path><path d="{{ tMod }}" stroke="#5FD8F7" stroke-width="2" fill="none"></path><path d="{{ tAgg }}" stroke="#5AB4AC" stroke-width="2" fill="none"></path>
+<circle cx="{{ anchorX }}" cy="{{ anchorY }}" r="4" fill="#fff"></circle><text x="{{ anchorX }}" y="{{ anchorLy }}" fill="#fff" font-size="10" text-anchor="middle">1.39 °C anchor</text>
+<line x1="384" x2="384" y1="{{ gapTop }}" y2="{{ gapBot }}" stroke="#fff"></line><text x="380" y="{{ gapLy }}" fill="#fff" font-size="10" text-anchor="end">0.11 °C</text>
+</svg></div>
+<div style="font-size:12px;color:#3C5460">BAU 1.79 · Moderate 1.73 · Aggressive 1.68 °C in 2040</div></div>
+<div style="background:#F3F8FA;border-top:3px solid #B07A10;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:8px"><div style="font-size:12px;color:#5C7683">Reading note · generated from the output</div><div style="font-size:13.5px;line-height:1.6;color:#071C24">Annual emissions differ 2.2× by 2040, but implied temperatures differ by only 0.11 °C. 78% of the 2040 level (1.39 °C) was already observed by 2024. Scenarios change only the warming still to come: the Aggressive pathway adds 28% less of it than BAU. The gap widens each year the pathways stay apart (0.015 °C in 2030, 0.053 °C in 2035).</div></div>
+</div>
+<div style="font-size:12px;color:#5C7683">Starts from OWID World cumulative CO₂ to 2024. Pathways apply to the 40 covered countries; rest of world is held at its 2024 share (international bunkers sit inside it). Uses the CO₂ slope, not an all-gas slope.</div>
+</div>
+
+<div style="background:#fff;border-radius:8px;padding:22px 24px;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:baseline;gap:10px"><h2 style="margin:0;font-size:22px;font-weight:600;color:#071C24">Methodology &amp; sources</h2><span style="font:500 11px 'JetBrains Mono',monospace;color:#5C7683">#methodology</span></div>
+<div style="display:flex;flex-direction:column;gap:8px"><div style="font-size:15px;font-weight:600;color:#071C24">Sources</div>
+<div style="display:grid;grid-template-columns:1.1fr 1.6fr 1fr 1fr 1fr;font-size:13px;border:1px solid #E5EEF1;border-radius:6px;overflow:hidden">
+<span style="background:#F3F8FA;padding:8px 10px;color:#5C7683;font-weight:600">Source</span><span style="background:#F3F8FA;padding:8px 10px;color:#5C7683;font-weight:600">Used for</span><span style="background:#F3F8FA;padding:8px 10px;color:#5C7683;font-weight:600">Coverage</span><span style="background:#F3F8FA;padding:8px 10px;color:#5C7683;font-weight:600">Vintage</span><span style="background:#F3F8FA;padding:8px 10px;color:#5C7683;font-weight:600">Licence</span>
+<span style="padding:8px 10px;border-top:1px solid #E5EEF1;color:#071C24">OWID CO₂</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">Country CO₂, World row, long-run relationship</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">1750–2024</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">from /meta</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">CC BY 4.0</span>
+<span style="padding:8px 10px;border-top:1px solid #E5EEF1;color:#071C24">Global Carbon Project</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">Land-use CO₂ in the headline total</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">1850–2024</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">from /meta</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">Citation required</span>
+<span style="padding:8px 10px;border-top:1px solid #E5EEF1;color:#071C24">PRIMAP-hist v2.8</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">All-gas view, composition, country shares</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">1970 to last complete year</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">2026-09-29</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">from /meta</span>
+<span style="padding:8px 10px;border-top:1px solid #E5EEF1;color:#071C24">Berkeley Earth</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">Global temperature anomaly</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">1850–2024</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">2025-01-10</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">CC BY-NC 4.0</span>
+<span style="padding:8px 10px;border-top:1px solid #E5EEF1;color:#071C24">NOAA GML + Law Dome</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">Atmospheric CO₂ (spliced 1959)</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">1850–2024</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">from /meta</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">Public domain / cite</span>
+</div></div>
+<div style="display:flex;flex-direction:column;gap:8px"><div style="font-size:15px;font-weight:600;color:#071C24">Baselines by view</div>
+<div style="display:grid;grid-template-columns:1.5fr 1fr 2fr;font-size:13px;border:1px solid #E5EEF1;border-radius:6px;overflow:hidden">
+<span style="background:#F3F8FA;padding:8px 10px;color:#5C7683;font-weight:600">View</span><span style="background:#F3F8FA;padding:8px 10px;color:#5C7683;font-weight:600">Baseline</span><span style="background:#F3F8FA;padding:8px 10px;color:#5C7683;font-weight:600">Why</span>
+<span style="padding:8px 10px;border-top:1px solid #E5EEF1;color:#071C24">Overview, Historical Trends, Scenario Comparison</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">1990 = 100</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">Matches the ML training window</span>
+<span style="padding:8px 10px;border-top:1px solid #E5EEF1;color:#071C24">Country Profile trend</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">Full OWID history</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">1990 shown as a marker, not the start</span>
+<span style="padding:8px 10px;border-top:1px solid #E5EEF1;color:#071C24">All-gas relationship, composition</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">1970 onward</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">Earlier PRIMAP-hist values are reconstructions</span>
+<span style="padding:8px 10px;border-top:1px solid #E5EEF1;color:#071C24">Long-run CO₂ relationship</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">1850–1900 reference</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">Pre-industrial context; keeps early accumulation visible</span>
+<span style="padding:8px 10px;border-top:1px solid #E5EEF1;color:#071C24">Global, non-ML totals</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">Full range</span><span style="padding:8px 10px;border-top:1px solid #E5EEF1">No model-consistency constraint</span>
+</div></div>
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px">
+<div style="background:#F3F8FA;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px"><div style="font-size:14px;font-weight:600;color:#071C24">Why emissions series differ</div><div style="font-size:13px;line-height:1.55">OWID/GCP and PRIMAP-hist differ in scope, method, treatment of bunker fuels and process emissions, and data vintage. Differences between them are expected.</div></div>
+<div style="background:#F3F8FA;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px"><div style="font-size:14px;font-weight:600;color:#071C24">Two global totals</div><div style="font-size:13px;line-height:1.55">The long-run relationship uses the OWID World row, which includes international aviation and shipping because they reach the atmosphere. Country shares use the sum of national emissions, so shares add to 100%.</div></div>
+<div style="background:#F3F8FA;border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px"><div style="font-size:14px;font-weight:600;color:#071C24">The 1959 splice</div><div style="font-size:13px;line-height:1.55">Concentration uses Law Dome ice-core values to 1958 and Mauna Loa from 1959. The gap in the overlap years is documented in /meta and marked on every concentration chart.</div></div>
+</div>
+<div id="derivation" style="border:1px solid #E5EEF1;border-radius:8px;overflow:hidden">
+<div style="padding:14px 18px;display:flex;justify-content:space-between;align-items:baseline;background:#F3F8FA"><div style="font-size:15px;font-weight:600;color:#071C24">How this number was derived</div><div style="font-size:12px;color:#5C7683">Every figure is read from the pipeline output</div></div>
+<sc-for list="{{ steps }}" as="s" hint-placeholder-count="7"><div style="border-top:1px solid #E5EEF1"><button onClick="{{ s.go }}" aria-expanded="{{ s.open }}" style="width:100%;display:grid;grid-template-columns:34px 1fr 20px;gap:10px;align-items:center;padding:12px 18px;background:transparent;border:0;color:#071C24;text-align:left;cursor:pointer;font-size:14.5px"><span style="font:500 12px 'JetBrains Mono',monospace;color:#5C7683">{{ s.n }}</span><span style="font-weight:{{ s.fw }}">{{ s.t }}</span><span style="color:#5C7683">{{ s.ic }}</span></button><sc-if value="{{ s.open }}" hint-placeholder-val="{{ false }}"><div style="padding:0 18px 14px 62px;font-size:13.5px;line-height:1.6;color:#3C5460;max-width:900px">{{ s.b }}</div></sc-if></div></sc-for>
+</div>
+</div>
+</div>
+</div>
+<div style="width:300px;display:flex;flex-direction:column;gap:10px;font-size:12.5px;line-height:1.5;color:#3a3a3a;padding-top:4px">
+<div style="font:600 10.5px 'JetBrains Mono',monospace;letter-spacing:.06em;color:#6b6b6b">SPEC NOTES</div>
+<div><b>§2.4 coverage.</b> Causal-chain diagram with prose. A purpose line on every chart. Separate global and country views. Methodology and attribution inside the module.</div>
+<div><b>Acceptance criteria.</b> Both the 1970+ all-gas view and the long-run CO₂ view are present. The headline reports method, slope, R², HAC CI, range and the vintage caveat.</div>
+<div><b>Naming.</b> “TCRE-style” appears only on the headline. The all-gas view carries a NOT TCRE tag, and no copy calls it TCRE.</div>
+<div><b>Forcing.</b> Hatched, dashed and labelled concept-only. No number or chart.</div>
+<div><b>Composition (§1.3.3).</b> Stacked area over time, plus a stacked bar for the selected year.</div>
+<div><b>Scenarios (§1.3.5).</b> Labelled implied, illustrative and partial-coverage, with the dependence on period, source and assumptions stated.</div>
+<div><b>Headline definition:</b> total CO₂ including land use, per decision 40 (confirmed).</div>
+<div><b>Mobile.</b> Not required by the doc. If needed, sections stack and the chain becomes a vertical list, as on the Landing.</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { slide: 0, ovView: 'time', pop: true, meth: false, mapMode: 'abs', stop: 6, replay: false, repYear: 1970, pagePlay: false, compIdx: 3, openIdx: 0 };
+  componentWillUnmount() { clearInterval(this._t); clearInterval(this._p); }
+  shToggle() {
+    clearInterval(this._t);
+    if (this.state.replay) { this.setState({ replay: false }); return; }
+    const end = [1970, 1980, 1990, 2000, 2010, 2020, 2024][this.state.stop];
+    if (end <= 1970) return;
+    this.setState({ replay: true, repYear: 1970 });
+    this._t = setInterval(() => this.setState(s => {
+      if (s.repYear >= end) { clearInterval(this._t); return { replay: false }; }
+      return { repYear: s.repYear + 1 };
+    }), 250);
+  }
+  pageToggle() {
+    clearInterval(this._p);
+    if (this.state.pagePlay) { this.setState({ pagePlay: false }); return; }
+    clearInterval(this._t);
+    this.setState(s => ({ pagePlay: true, replay: false, stop: s.stop >= 6 ? 0 : s.stop }));
+    this._p = setInterval(() => this.setState(s => {
+      if (s.stop >= 6) { clearInterval(this._p); return { pagePlay: false }; }
+      return { stop: s.stop + 1 };
+    }), 1750);
+  }
+  byCountry(yr) {
+    const YRS = [1970, 1980, 1990, 2000, 2010, 2020, 2024];
+    const D = { China: [771, 1474, 2485, 3664, 8616, 10957, 12289], 'United States': [4329, 4769, 5121, 6016, 5677, 4715, 4904], India: [200, 300, 578, 1017, 1680, 2445, 3193], Russia: [1452, 2035, 2526, 1500, 1672, 1617, 1781], Japan: [769, 948, 1158, 1278, 1214, 1043, 962], Germany: [1027, 1094, 1055, 900, 832, 644, 572], Brazil: [95, 185, 218, 330, 420, 450, 480], 'South Africa': [160, 240, 310, 380, 470, 420, 400], Australia: [145, 220, 280, 350, 420, 390, 380], 'United Kingdom': [660, 590, 600, 560, 500, 330, 311] };
+    const k = YRS.indexOf(yr);
+    const rows = Object.keys(D).map(c => ({ c, v: D[c][k] })).sort((a, b) => b.v - a.v);
+    const mx = rows[0].v, step = mx > 8000 ? 2000 : mx > 4000 ? 1000 : 500, top = Math.ceil(mx / step) * step;
+    const bc = rows.map(r => ({ c: r.c, h: (r.v / top * 100).toFixed(1) + '%', v: r.v.toLocaleString('en-US') }));
+    const bcAxis = []; for (let t = 0; t <= top; t += step) bcAxis.push({ l: t >= 1000 ? (t / 1000) + 'k' : String(t), b: (t / top * 100).toFixed(1) + '%' });
+    const ok = yr > 1990;
+    const pcs = Object.keys(D).map(c => ({ c, p: ok ? (D[c][k] / D[c][2] - 1) * 100 : 0, d: D[c][k] - D[c][2] })).sort((a, b) => b.p - a.p);
+    const nice = v => v <= 50 ? Math.ceil(v / 10) * 10 : v <= 200 ? Math.ceil(v / 50) * 50 : Math.ceil(v / 100) * 100;
+    const pMax = nice(Math.max(10, ...pcs.map(x => x.p))), nMax = nice(Math.max(10, ...pcs.map(x => -x.p))), tot = pMax + nMax;
+    const pc = pcs.map(x => ({ c: x.c, top: (x.p >= 0 ? (pMax - x.p) / tot * 100 : pMax / tot * 100).toFixed(2) + '%', h: (Math.abs(x.p) / tot * 100).toFixed(2) + '%', col: x.p >= 0 ? '#FFB54D' : '#5AB4AC' }));
+    const pcAxis = [pMax, pMax / 2, 0, -nMax / 2, -nMax].map(t => ({ l: (t > 0 ? '+' : '') + Math.round(t) + '%', t: ((pMax - t) / tot * 100).toFixed(2) + '%' }));
+    const up = pcs[0], dn = pcs[pcs.length - 1];
+    const f = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+    const fd = v => (v >= 0 ? '+' : '−') + Math.abs(v).toLocaleString('en-US') + ' MtCO₂';
+    return { bc, bcAxis, pc, pcAxis, pcZero: (pMax / tot * 100).toFixed(2) + '%', pcOk: ok, pcNo: !ok, pcOp: ok ? '1' : '.3',
+      pcTitle: ok ? 'CO₂ % Change by Country, 1990–' + yr : 'CO₂ % Change by Country (end year must be after 1990)',
+      mvUpC: up.c, mvUpP: f(up.p), mvUpD: fd(up.d), mvDnC: dn.c, mvDnP: f(dn.p), mvDnD: fd(dn.d) };
+  }
+  lerpA(an, y) {
+    const ks = Object.keys(an).map(Number).sort((a, b) => a - b);
+    if (y <= ks[0]) return an[ks[0]];
+    for (let i = 1; i < ks.length; i++) if (y <= ks[i]) { const a = ks[i - 1], b = ks[i]; return an[a] + (an[b] - an[a]) * (y - a) / (b - a); }
+    return an[ks[ks.length - 1]];
+  }
+  data() {
+    if (this._d) return this._d;
+    const f1 = v => v.toFixed(1);
+    const P = a => a.map((p, i) => (i ? 'L' : 'M') + f1(p[0]) + ' ' + f1(p[1])).join('');
+    const L = (an, y) => this.lerpA(an, y);
+    const E = y => 1.1 * (y < 1950 ? 3 + 7 * Math.pow((y - 1850) / 100, 1.6) : 10 + 31 * Math.pow((y - 1950) / 74, 1.15));
+    const over = { 2015: 1.25, 2016: 1.37, 2017: 1.30, 2018: 1.24, 2019: 1.36, 2020: 1.27, 2021: 1.24, 2022: 1.28, 2023: 1.54, 2024: 1.62 };
+    let c = 0; const rows = [];
+    for (let y = 1850; y <= 2024; y++) {
+      c += E(y);
+      const a = over[y] != null ? over[y] : (-0.05 + 0.00052 * c + 0.08 * Math.sin(y * 1.7) + 0.05 * Math.sin(y * 0.41) + 0.03 * Math.sin(y * 3.1));
+      rows.push({ y, e: E(y), c, a });
+    }
+    const A = {}; rows.forEach(r => A[r.y] = r.a);
+    const mean5 = y => { let s = 0; for (let k = y - 4; k <= y; k++) s += A[k]; return s / 5; };
+    const ppmA = { 1850: 285.2, 1900: 296, 1950: 311.3, 1959: 315.98, 1970: 325.68, 1980: 338.91, 1990: 354.45, 2000: 369.71, 2010: 389.9, 2020: 414.21, 2024: 424.61 };
+    const fosA = { 1970: 14.9, 1980: 19.4, 1990: 22.2, 2000: 25.0, 2010: 33.1, 2015: 35.5, 2019: 37.0, 2020: 35.0, 2021: 36.8, 2024: 37.4 };
+    const sx = v => 50 + v / 2700 * 530, sy = a => 290 - (a + 0.4) / 2.2 * 270;
+    const era = (y, cs) => y >= 1970 ? cs[2] : y >= 1900 ? cs[1] : cs[0];
+    const scD = rows.map(r => ({ cx: f1(sx(r.c)), cy: f1(sy(r.a)), fill: era(r.y, ['#8fa2c4', '#e5b955', '#f2637e']) }));
+    const scL = rows.map(r => ({ cx: f1(sx(r.c)), cy: f1(sy(r.a)), fill: era(r.y, ['#94B4C0', '#FFB54D', '#EA5B62']) }));
+    const fit = P([[sx(0), sy(-0.05)], [sx(2700), sy(-0.05 + 0.52 * 2.7)]]);
+    const sxT = [0, 500, 1000, 1500, 2000, 2500].map(v => ({ x: f1(sx(v)), l: v.toLocaleString('en-US') }));
+    const syT = [0, 0.5, 1, 1.5].map(v => ({ y: f1(sy(v)), l: v === 0 ? '0' : v.toFixed(1) }));
+    const r70 = rows.filter(r => r.y >= 1970);
+    const bx = i => 46 + i * 12.6;
+    const bars = r70.map((r, i) => { const h = L(fosA, r.y) / 40 * 220; return { x: f1(bx(i)), y: f1(250 - h), h: f1(h) }; });
+    const bLine = P(r70.map((r, i) => [bx(i) + 4.5, 250 - r.a / 1.8 * 220]));
+    const bTicksL = [0, 10, 20, 30, 40].map(v => ({ y: f1(250 - v / 40 * 220), l: String(v) }));
+    const bTicksR = [0, 0.5, 1, 1.5].map(v => ({ y: f1(250 - v / 1.8 * 220), l: v.toFixed(1) }));
+    const bTicksX = [1970, 1980, 1990, 2000, 2010, 2020].map(y => ({ x: f1(bx(y - 1970) + 4.5), l: String(y) }));
+    const bTicksX2 = [1970, 1990, 2010].map(y => ({ x: f1(bx(y - 1970) + 30), l: String(y) }));
+    const kx = y => (y - 1850) / 174 * 300;
+    const sparkE = P(rows.map(r => [kx(r.y), 76 - r.e / 48 * 70]));
+    const sparkC = P(rows.map(r => [kx(r.y), 76 - (L(ppmA, r.y) - 280) / 150 * 70]));
+    const sparkT = P(rows.map(r => [kx(r.y), 76 - (r.a + 0.4) / 2.1 * 70]));
+    const iy = []; for (let y = 1990; y <= 2024; y++) iy.push(y);
+    const sparkI = P(iy.map(y => [(y - 1990) / 34 * 300, 76 - ((L(fosA, y) / 22.2 * 100) - 95) / 80 * 70]));
+    // recent all-gas
+    const g = y => 30 + 23 * (y - 1970) / 54;
+    let cg = 0; const ag = [];
+    for (let y = 1970; y <= 2024; y++) { cg += g(y); ag.push({ x: cg, y: A[y] }); }
+    const mx = ag.reduce((s, p) => s + p.x, 0) / ag.length, my = ag.reduce((s, p) => s + p.y, 0) / ag.length;
+    let num = 0, den = 0; ag.forEach(p => { num += (p.x - mx) * (p.y - my); den += (p.x - mx) * (p.x - mx); });
+    const slope = num / den, icpt = my - slope * mx;
+    const gx = v => 50 + v / 2500 * 530;
+    const agPts = ag.map(p => ({ cx: f1(gx(p.x)), cy: f1(sy(p.y)) }));
+    const agFit = P([[gx(0), sy(icpt)], [gx(2500), sy(icpt + slope * 2500)]]);
+    const agXT = [0, 500, 1000, 1500, 2000, 2500].map(v => ({ x: f1(gx(v)), l: v.toLocaleString('en-US') }));
+    // composition
+    const shA = [{ 1970: .68, 1990: .70, 2010: .73, 2024: .74 }, { 1970: .24, 1990: .21, 2010: .19, 2024: .18 }, { 1970: .07, 1990: .065, 2010: .055, 2024: .05 }];
+    const comp = y => { const s = shA.map(a => L(a, y)); s.push(1 - s[0] - s[1] - s[2]); const t = g(y); return s.map(v => v * t); };
+    const cpx = y => 50 + (y - 1970) / 54 * 530, cpy = v => 230 - v / 60 * 210;
+    const cyrs = []; for (let y = 1970; y <= 2024; y++) cyrs.push(y);
+    const gasCol = ['#5FD8F7', '#FFB54D', '#F263F2', '#D7E740'];
+    const compLayers = gasCol.map((col, k) => {
+      const top = cyrs.map(y => { const v = comp(y); let s = 0; for (let j = 0; j <= k; j++) s += v[j]; return [cpx(y), cpy(s)]; });
+      const bot = cyrs.map(y => { const v = comp(y); let s = 0; for (let j = 0; j < k; j++) s += v[j]; return [cpx(y), cpy(s)]; }).reverse();
+      return { col, d: P(top.concat(bot)) + 'Z' };
+    });
+    const compYT = [0, 20, 40, 60].map(v => ({ y: f1(cpy(v)), l: String(v) }));
+    const compXT = [1970, 1980, 1990, 2000, 2010, 2020].map(y => ({ x: f1(cpx(y)), l: String(y) }));
+    // country view
+    const cx2 = y => 44 + (y - 1900) / 124 * 340, cy2 = s => 210 - s / 50 * 190;
+    const shareA = [
+      { n: 'US', col: '#5FD8F7', a: { 1900: 30, 1920: 38, 1950: 40, 1980: 33, 2000: 28, 2024: 24.3 } },
+      { n: 'China', col: '#FFB54D', a: { 1900: 0.1, 1950: 0.8, 1980: 3, 2000: 6, 2010: 10, 2024: 15 } },
+      { n: 'UK', col: '#F263F2', a: { 1900: 45, 1920: 32, 1950: 20, 1980: 10, 2000: 6.5, 2024: 4.4 } },
+      { n: 'Germany', col: '#7791F8', a: { 1900: 15, 1950: 12, 1980: 9, 2000: 7, 2024: 5.4 } },
+      { n: 'India', col: '#D7E740', a: { 1900: 0.3, 1950: 0.7, 1980: 1.2, 2000: 2, 2024: 3.4 } }
+    ];
+    const yy = []; for (let y = 1900; y <= 2024; y += 2) yy.push(y); yy.push(2024);
+    const adj = { US: 0, China: 0, UK: 8, Germany: -4, India: 10 };
+    const cLines = shareA.map(s => ({ n: s.n, col: s.col, d: P(yy.map(y => [cx2(y), cy2(L(s.a, y))])), ly: f1(cy2(L(s.a, 2024)) - 5 + adj[s.n]) }));
+    const csT = [0, 10, 20, 30, 40, 50].map(v => ({ y: f1(cy2(v)), l: String(v) }));
+    const cxT = [1900, 1925, 1950, 1975, 2000, 2024].map(y => ({ x: f1(cx2(y)), l: String(y) }));
+    const ay = a => 210 - (a + 0.4) / 2.2 * 190;
+    const ayrs = []; for (let y = 1900; y <= 2024; y++) ayrs.push(y);
+    const aAnn = P(ayrs.map(y => [cx2(y), ay(A[y])])), aMean = P(ayrs.map(y => [cx2(y), ay(mean5(y))]));
+    const caT = [0, 0.5, 1, 1.5].map(v => ({ y: f1(ay(v)), l: v === 0 ? '0' : v.toFixed(1) }));
+    // scenarios
+    const qx = y => 44 + (y - 2015) / 25 * 340, qe = v => 210 - v / 50 * 190, qt = t => 210 - (t - 1) / 0.9 * 190;
+    const hist = []; for (let y = 2015; y <= 2024; y++) hist.push(y);
+    const g24 = L(fosA, 2024) + 1.2;
+    const sc = []; for (let y = 2024; y <= 2040; y++) { const k = (y - 2024) / 16; sc.push({ y, bau: g24 + (46.647 - g24) * k, mod: g24 * Math.pow(30.4 / g24, k), agg: g24 * Math.pow(21.611 / g24, k) }); }
+    let cb = 0, cm = 0, ca = 0; sc.forEach(s => { if (s.y > 2024) { cb += s.bau; cm += s.mod; ca += s.agg; } s.cb = cb; s.cm = cm; s.ca = ca; });
+    const K = 0.40 / cb, last = sc[sc.length - 1];
+    this._d = {
+      scD, scL, fit, sxT, syT, lab24x: f1(sx(c) - 8), lab24y: f1(sy(1.62) - 2),
+      bars, bLine, bTicksL, bTicksR, bTicksX, bTicksX2, sparkE, sparkC, sparkT, sparkI, spliceX: f1(kx(1959)),
+      agPts, agFit, agXT, agSlope: (slope * 1000).toFixed(2),
+      compLayers, compYT, compXT, comp, cpx, gasCol,
+      cLines, csT, cxT, aAnn, aMean, caT,
+      eHist: P(hist.map(y => [qx(y), qe(L(fosA, y) + 1.2)])), eBau: P(sc.map(s => [qx(s.y), qe(s.bau)])), eMod: P(sc.map(s => [qx(s.y), qe(s.mod)])), eAgg: P(sc.map(s => [qx(s.y), qe(s.agg)])),
+      tHist: P(hist.map(y => [qx(y), qt(mean5(y))])), tBau: P(sc.map(s => [qx(s.y), qt(1.39 + s.cb * K)])), tMod: P(sc.map(s => [qx(s.y), qt(1.39 + s.cm * K)])), tAgg: P(sc.map(s => [qx(s.y), qt(1.39 + s.ca * K)])),
+      tObs: hist.map(y => ({ cx: f1(qx(y)), cy: f1(qt(A[y])) })),
+      qxT: [2015, 2020, 2025, 2030, 2035, 2040].map(y => ({ x: f1(qx(y)), l: String(y) })), qeT: [0, 10, 20, 30, 40, 50].map(v => ({ y: f1(qe(v)), l: String(v) })), qtT: [1.0, 1.2, 1.4, 1.6, 1.8].map(v => ({ y: f1(qt(v)), l: v.toFixed(1) })),
+      q25x: f1(qx(2025)), anchorX: f1(qx(2024)), anchorY: f1(qt(1.39)), anchorLy: f1(qt(1.39) + 16),
+      gapTop: f1(qt(1.39 + last.cb * K)), gapBot: f1(qt(1.39 + last.ca * K)), gapLy: f1((qt(1.39 + last.cb * K) + qt(1.39 + last.ca * K)) / 2 + 3),
+      ppmA
+    };
+    return this._d;
+  }
+  renderVals() {
+    const d = this.data(), s = this.state, set = o => () => this.setState(o), L = (an, y) => this.lerpA(an, y);
+    const flip = () => this.setState(x => ({ slide: (x.slide + 1) % 2 }));
+    const tabs = ['Climate signal', 'Where CO₂ comes from'].map((t, i) => { const sel = s.slide === i; return { n: '0' + (i + 1), t, sel, go: set({ slide: i }), bg: sel ? '#fff' : 'transparent', fg: sel ? '#121e35' : '#d7e0f0', bd: sel ? '#fff' : '#3d5580' }; });
+    const ovTime = s.ovView === 'time';
+    const ovSeg = [['time', 'Over time'], ['cum', 'vs cumulative CO₂']].map(([k, t]) => { const sel = s.ovView === k; return { t, sel, go: set({ ovView: k }), bg: sel ? '#0A6E8C' : 'transparent', fg: sel ? '#fff' : '#3C5460' }; });
+    // map
+    const stopsData = [
+      [1970, 14900, [['United States', 4329], ['Russia', 1452], ['Germany', 1027], ['China', 771], ['Japan', 769]]],
+      [1980, 19400, [['United States', 4769], ['Russia', 2035], ['China', 1474], ['Germany', 1094], ['Japan', 948]]],
+      [1990, 22200, [['United States', 5121], ['Russia', 2526], ['China', 2485], ['Japan', 1158], ['Germany', 1055]]],
+      [2000, 25000, [['United States', 6016], ['China', 3664], ['Russia', 1500], ['Japan', 1278], ['India', 1017]]],
+      [2010, 33100, [['China', 8616], ['United States', 5677], ['India', 1680], ['Russia', 1672], ['Japan', 1214]]],
+      [2020, 35000, [['China', 10957], ['United States', 4715], ['India', 2445], ['Russia', 1617], ['Japan', 1043]]],
+      [2024, 37398, [['China', 12289], ['United States', 4904], ['India', 3193], ['Russia', 1781], ['Japan', 962]]]
+    ];
+    const cur = stopsData[s.stop], yr = cur[0], cum = s.mapMode === 'cum';
+    const stops = stopsData.map((x, i) => { const sel = i === s.stop; return { y: String(x[0]), sel, go: () => { clearInterval(this._p); clearInterval(this._t); this.setState({ stop: i, pagePlay: false, replay: false }); }, bg: sel ? '#0A6E8C' : '#fff', fg: sel ? '#fff' : '#3C5460', bd: sel ? '#0A6E8C' : '#C7D9E0' }; });
+    const mapSeg = [['abs', 'Absolute'], ['cum', 'Cumulative']].map(([k, t]) => { const sel = s.mapMode === k; return { t, sel, go: set({ mapMode: k }), bg: sel ? '#0A6E8C' : 'transparent', fg: sel ? '#fff' : '#3C5460' }; });
+    const fosCum = { 1970: 410, 1980: 580, 1990: 790, 2000: 1030, 2010: 1330, 2020: 1680, 2024: 1830 };
+    const t2024 = [['All Countries', '218', 37398, 68.6], ['Expanded (Coverage + ≥100 Mt)', '40', 34477, 75.1], ['Selected', '10', 25324, 76.5]];
+    const tierShare = [1, 0.885, 0.664];
+    const fmtP = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+    const tiers = t2024.map(([n, k, v24, p24], i) => {
+      if (cum) { const gg = fosCum[yr] * (i === 0 ? 1 : tierShare[i] * (1 - (2024 - yr) * 0.001)); return { n, k, cb: 'Cumulative 1850–' + yr, cc: 'Share of world', v: Math.round(gg).toLocaleString('en-US') + ' Gt', p: (gg / fosCum[yr] * 100).toFixed(1) + '%', pc: '#071C24' }; }
+      let v, p; if (yr === 2024) { v = v24; p = p24; } else { const base = v24 / (1 + p24 / 100); v = base * cur[1] / 22200; p = (v / base - 1) * 100; }
+      return { n, k, cb: 'CO₂ (' + yr + ')', cc: '% chg. since 1990', v: Math.round(v).toLocaleString('en-US') + ' Mt', p: fmtP(p), pc: p >= 0 ? '#8A5A00' : '#1D726B' };
+    });
+    const SH = [
+      ['United States', 'US', '#0A6E8C', '#5FD8F7', { 1970: 33.5, 1990: 29.5, 2010: 26.4, 2024: 24.3 }, { 1970: 29.1, 1990: 22.9, 2010: 17.2, 2024: 13.1 }],
+      ['China', 'China', '#B07A10', '#FFB54D', { 1970: 3.4, 1990: 6.1, 2010: 10.6, 2024: 15.0 }, { 1970: 5.2, 1990: 11.2, 2010: 26.0, 2024: 32.9 }],
+      ['Russia', 'RU', '#7A4FB8', '#c89cff', { 1970: 6.9, 1990: 7.9, 2010: 7.2, 2024: 6.8 }, { 1970: 9.7, 1990: 11.4, 2010: 5.1, 2024: 4.8 }],
+      ['Germany', 'DE', '#3E5BD6', '#7791F8', { 1970: 9.3, 1990: 7.9, 2010: 6.2, 2024: 5.4 }, { 1970: 6.9, 1990: 4.8, 2010: 2.5, 2024: 1.5 }],
+      ['United Kingdom', 'UK', '#B23BA6', '#F263F2', { 1970: 11.8, 1990: 8.3, 2010: 5.8, 2024: 4.4 }, { 1970: 4.4, 1990: 2.7, 2010: 1.6, 2024: 0.8 }],
+      ['Japan', 'JP', '#C8552F', '#ff8f6b', { 1970: 2.6, 1990: 3.8, 2010: 4.1, 2024: 3.9 }, { 1970: 5.2, 1990: 5.2, 2010: 3.6, 2024: 2.6 }],
+      ['India', 'India', '#6F7D0E', '#D7E740', { 1970: 0.9, 1990: 1.5, 2010: 2.4, 2024: 3.4 }, { 1970: 1.4, 1990: 2.6, 2010: 5.1, 2024: 8.5 }],
+      ['Brazil, S. Africa, Australia', 'BR·ZA·AU', '#1D726B', '#5AB4AC', { 1970: 2.0, 1990: 2.5, 2010: 3.0, 2024: 3.2 }, { 1970: 2.6, 1990: 3.0, 2010: 3.4, 2024: 3.4 }]
+    ];
+    let rank;
+    if (cum) {
+      const lst = SH.slice(0, 7).map(c => [c[0], L(c[4], yr) / 100 * fosCum[yr]]).sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const mxv = lst[0][1];
+      rank = lst.map(([cc, v], i) => ({ i: String(i + 1), c: cc, v: Math.round(v).toLocaleString('en-US'), w: (v / mxv * 100).toFixed(1) + '%' }));
+    } else {
+      rank = cur[2].map(([cc, v], i) => ({ i: String(i + 1), c: cc, v: v.toLocaleString('en-US'), w: (v / 12289 * 100).toFixed(1) + '%' }));
+    }
+    const ppm = d.ppmA[yr];
+    // share
+    const sy = s.replay ? s.repYear : yr;
+    const mk = (idx, dark) => {
+      let used = 0;
+      const segs = SH.map(cc => { const v = L(cc[idx], sy); used += v; return { v, col: dark ? cc[3] : cc[2], short: cc[1], fg: dark ? '#061E28' : '#fff' }; });
+      segs.push({ v: 100 - used, col: dark ? '#31476e' : '#BDD3DB', short: 'Rest of world', fg: dark ? '#d7e0f0' : '#071C24' });
+      const bc = dark ? '#1e2f52' : '#fff';
+      return segs.map((gg, i) => ({ w: gg.v.toFixed(2) + '%', fl: i === segs.length - 1 ? '1 1 0' : 'none', br: i === segs.length - 1 ? '0' : (gg.v >= 0.6 ? '2px solid ' + bc : '0'), col: gg.col, fg: gg.fg, lab: gg.v >= 7 ? gg.short + ' ' + gg.v.toFixed(1) + '%' : gg.v >= 3.5 ? gg.v.toFixed(1) : '' }));
+    };
+    const selS = SH.reduce((t, cc) => t + L(cc[4], sy), 0), selF = SH.reduce((t, cc) => t + L(cc[5], sy), 0);
+    // composition
+    const compYears = [1970, 1990, 2010, 2024], cy = compYears[s.compIdx], cv = d.comp(cy), ct = cv.reduce((a, b) => a + b, 0);
+    const gasN = ['CO₂', 'CH₄', 'N₂O', 'F-gases'];
+    const compBar = cv.map((v, i) => { const p = v / ct * 100; return { n: gasN[i], col: d.gasCol[i], w: p.toFixed(2) + '%', p: p.toFixed(0) + '%', lab: p >= 8 ? gasN[i] + ' ' + p.toFixed(0) + '%' : '' }; });
+    const compSeg = compYears.map((y, i) => { const sel = i === s.compIdx; return { y: String(y), sel, go: set({ compIdx: i }), bg: sel ? '#0A6E8C' : '#fff', fg: sel ? '#fff' : '#3C5460', bd: sel ? '#0A6E8C' : '#C7D9E0' }; });
+    const stepsRaw = [
+      ['What is regressed on what', 'Yearly global temperature anomaly (Berkeley Earth, vs 1850–1900) against cumulative total CO₂ since 1850: fossil, cement and land use, from the OWID World series, which includes international aviation and shipping. The fossil + cement fit (0.797) is shown alongside for comparison.'],
+      ['Uncertainty', 'Newey–West (HAC) standard errors, maxlags ⌊1.5·n^(1/3)⌋ = 8, because yearly residuals are autocorrelated and plain OLS errors would be too narrow. A small table shows sensitivity to the bandwidth.'],
+      ['How sensitive the slope is', 'Estimation windows starting 1850, 1900, 1950 and 1970, and scaling of the land-use component.'],
+      ['Stability', 'Seeded moving-block bootstrap of the residuals, block-length sensitivity, and four decade holdouts with in-sample and out-of-sample errors stated separately.'],
+      ['Comparison with the IPCC', 'The IPCC AR6 best estimate is about 0.45 °C per 1,000 GtCO₂ (likely range 0.27–0.63), derived from CO₂-only forcing in Earth-system models. This slope is a data-driven analog and also absorbs non-CO₂ forcing that moves with CO₂.'],
+      ['Data, licences and attribution', 'OWID, Global Carbon Project land use, Berkeley Earth (CC BY-NC 4.0), NOAA GML and Law Dome, including the Berkeley Earth file-vintage caveat.'],
+      ['What this is not', 'Not a climate model. A relationship in observed data, not proof of cause. No warming is attributed to any country.']
+    ];
+    const steps = stepsRaw.map(([t, b], i) => { const open = s.openIdx === i; return { n: '0' + (i + 1), t, b, open, ic: open ? '−' : '+', fw: open ? '600' : '400', go: () => this.setState({ openIdx: open ? -1 : i }) }; });
+    return {
+      ...d,
+      slide0: s.slide === 0, slide1: s.slide === 1, tabs, flip,
+      carKey: e => { if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); flip(); } },
+      ovTime, ovCum: !ovTime, ovSeg,
+      ovTitle: ovTime ? 'CO₂ emissions and temperature anomaly, 1970–2024' : 'Temperature anomaly vs cumulative CO₂, 1850–2024',
+      ovPurpose: ovTime ? 'show global emissions and observed warming on one timeline.' : 'show that warming tracks the running total of CO₂, not the annual figure.',
+      pop: s.pop, togglePop: () => this.setState(x => ({ pop: !x.pop })), popBg: s.pop ? '#071C24' : '#fff', popFg: s.pop ? '#fff' : '#3C5460', popBd: s.pop ? '#071C24' : '#C7D9E0',
+      meth: s.meth, toggleMeth: () => this.setState(x => ({ meth: !x.meth })), methLabel: s.meth ? 'Hide sources & method ▴' : 'Sources & method ▾',
+      stops, mapSeg, tiers, rank, yr: String(yr),
+      mapTitle: cum ? 'Cumulative CO₂ Emissions by Country, 1850–' + yr : 'CO₂ Emissions by Country (' + yr + ')',
+      mapScale: cum ? 'shaded by running total since 1850' : 'shaded by annual emissions',
+      legLabel: cum ? 'Cumulative CO₂ (GtCO₂)' : 'CO₂ (MtCO₂)', legLo: cum ? '0.01' : '0.01', legHi: cum ? '500' : '10k',
+      rankUnit: cum ? 'GtCO₂ since 1850' : 'MtCO₂',
+      ppmV: ppm.toFixed(1), ppmRise: (ppm - 285.2).toFixed(1), ppmPct: ((ppm / 285.2 - 1) * 100).toFixed(0),
+      ppmMx: ((yr - 1850) / 174 * 300).toFixed(1), ppmMy: (76 - (ppm - 280) / 150 * 70).toFixed(1),
+      shYear: String(sy), shStockL: mk(4, false), shFlowL: mk(5, false), shStockD: mk(4, true), shFlowD: mk(5, true),
+      shLegendL: SH.map(cc => ({ n: cc[0], col: cc[2] })),
+      selStock: selS.toFixed(1) + '%', selFlow: selF.toFixed(1) + '%', rowBoth: (100 - selS).toFixed(1) + '% · ' + (100 - selF).toFixed(1) + '%',
+      usS: L(SH[0][4], sy).toFixed(1) + '%', cnS: L(SH[1][4], sy).toFixed(1) + '%',
+      shPlayLabel: s.replay ? '■ Stop replay' : '▶ Replay 1970 → ' + yr,
+      shToggle: () => this.shToggle(),
+      shTag: s.replay ? 'replaying · temporary' : 'page year', shTagCol: s.replay ? '#8A5A00' : '#5C7683', shYrCol: s.replay ? '#8A5A00' : '#071C24',
+      shProg: s.replay ? (yr > 1970 ? ((s.repYear - 1970) / (yr - 1970) * 100).toFixed(1) : '100') + '%' : '100%',
+      pageToggle: () => this.pageToggle(), pagePlayLabel: s.pagePlay ? '❚❚' : '▶', mapPlayLabel: s.pagePlay ? '❚❚ Pause' : '▶ Play decades',
+      yearOpts: [1970, 1980, 1990, 2000, 2010, 2020, 2024].map(v => ({ v: String(v) })),
+      pickYear: e => { clearInterval(this._p); clearInterval(this._t); this.setState({ pagePlay: false, replay: false, stop: [1970, 1980, 1990, 2000, 2010, 2020, 2024].indexOf(Number(e.target.value)) }); },
+      ...this.byCountry(yr),
+      compBar, compSeg, compTotal: ct.toFixed(1), compSelX: d.cpx(cy).toFixed(1),
+      steps
+    };
+  }
+}
+</script>
+</body>
+</html>
