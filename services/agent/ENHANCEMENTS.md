@@ -591,3 +591,9 @@ and the duplicate single-country chart removed. Verified end to end on the real 
 passed the ranking is titled "Top 10 emitters (2024)", and a "Chinaa" profile beside a China historical chart
 yields the KPI card and the one chart with no chart-choice LLM call.
 
+## Link URL state (follow-up to dashboard step 3.5b)
+
+**Implemented 2026-10-08 (PR open on `feat/agent-link-params`; `SPEC.md` §15.13).** The follow-up links carry `countries` / `gas` /
+`country` / `year` where the target page reads them, built from the *resolved* names in the tool results. Tests include a scrape of the
+dashboard's source for the parameter names.
+
