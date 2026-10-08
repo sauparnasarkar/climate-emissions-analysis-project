@@ -448,3 +448,8 @@ Step 2 notes (as built):
   pre-industrial total fit only; others are now "selected-window relationship, NOT the headline fit"), and an
   empty country-share ranking reported `shown_share_pct_total: 0.0` as if zero emissions were observed (now
   `null` with an `unavailable` marker).
+- Copilot's third pass on #265 (summary only, details not posted; both items verified against the code): the
+  country-share ranking silently dropped `start_year`/`end_year` (now forwarded so the API's 422 explains
+  the mismatch) and a series silently dropped `limit` (now an explicit error); and the AR6-comparison
+  wording said "headline only" when the API publishes `vs_ar6` for both pre-industrial OWID fits (headline
+  and fossil-only) and never for the all-gas relationship or the 1970/1990 windows (docstring and SPEC corrected).

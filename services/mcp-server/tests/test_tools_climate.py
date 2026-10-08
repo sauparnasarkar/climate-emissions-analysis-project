@@ -317,3 +317,18 @@ async def test_empty_ranking_is_unavailable_not_zero(climate_client):
     s = body["summary"]
     assert body["rows"] == [] and s["shown_share_pct_total"] is None and "No ranking rows" in s["unavailable"]
     assert any("no data for 1500" in n for n in body["notes"])
+
+
+async def test_share_mode_mismatched_arguments_are_rejected_not_dropped(climate_client):
+    code = (await get_country_cumulative_share())["rows"][0]["country"]
+    with pytest.raises(ClimateApiError, match="start_year/end_year apply to a countries series"):
+        await get_country_cumulative_share(start_year=1900)  # ranking + series-only argument
+    with pytest.raises(ValueError, match="`limit` applies to a ranking only"):
+        await get_country_cumulative_share(countries=[code], limit=5)  # series + ranking-only argument
+
+
+async def test_ar6_comparison_only_on_the_preindustrial_owid_fits(climate_client):
+    assert "vs_ar6" in (await get_emissions_temperature_relationship())["summary"]
+    assert "vs_ar6" in (await get_emissions_temperature_relationship(variant="fossil"))["summary"]
+    assert "vs_ar6" not in (await get_emissions_temperature_relationship(source="primap_ghg"))["summary"]
+    assert "vs_ar6" not in (await get_emissions_temperature_relationship(baseline="1970"))["summary"]

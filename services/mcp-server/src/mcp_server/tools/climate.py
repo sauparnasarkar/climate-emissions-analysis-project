@@ -150,7 +150,9 @@ async def get_emissions_temperature_relationship(
     '1970' (primap_ghg default) or '1990' (a short pair with no fit); an unsupported
     source/baseline pair is rejected with the valid combinations -- relay that rather than
     substituting another baseline. The response carries `summary` (relationship label, window,
-    slope with its HAC 95% interval and unit, R², AR6 comparison for the headline only) -- quote
+    slope with its HAC 95% interval and unit, R², and, for the pre-industrial OWID fits only (the headline and its fossil-only
+    variant), the comparison with the AR6 very-likely range; the all-gas relationship and the
+    1970/1990 windows never carry one) -- quote
     that. Always say this is a long-run relationship, not a complete climate model and not proof
     of cause; mention the `caveats` (including that the temperature dataset is a preliminary
     release). It is global: never use it to attribute warming to a country."""
@@ -243,7 +245,7 @@ async def get_country_cumulative_share(
     time. Two modes: omit `countries` for a RANKING in `year` (default: latest year; `limit`
     default 15, max 50; each row has cumulative and annual share), or pass `countries` (common
     English names, e.g. 'China', 'United States'; ISO3 codes also accepted; at most 10) for a
-    SERIES over `start_year`..`end_year` (`year` and `limit` do not apply to a series).
+    SERIES over `start_year`..`end_year` (`year` and `limit` do not apply to a series and are rejected; likewise `start_year`/`end_year` do not apply to a ranking).
     `source` is 'owid_co2' (fossil + cement CO2, longest history, default; gas_scope 'co2') or
     'primap_hist' (PRIMAP-hist; gas_scope 'co2' or 'total_ghg' -- total GHG in CO2e, excluding
     land use; 'primap_ghg' is accepted as an alias). Omit `gas_scope` to get the source's
@@ -254,6 +256,8 @@ async def get_country_cumulative_share(
     `interpretation_note` and the source `caveats` stating this; keep that framing in your
     answer. The denominator is the national sum excluding international aviation and shipping
     (it differs by design from the World series in the headline regression)."""
+    if countries and limit is not None:
+        raise ValueError("`limit` applies to a ranking only; omit it when passing `countries` (a series).")
     params = {"source": SHARE_SOURCE_ALIASES.get(source, source), "gas_scope": gas_scope}
     if countries:
         # The endpoint takes ISO3 codes; resolve names against its own country set first, one
@@ -279,7 +283,11 @@ async def get_country_cumulative_share(
             ],
         }
     else:
-        body = await fetch_correlation("country-share", {**params, "year": year, "limit": limit})
+        # start_year/end_year are forwarded even though they belong to a series: the API rejects
+        # them with an explanatory 422, which is better than silently dropping what the caller asked.
+        body = await fetch_correlation(
+            "country-share", {**params, "year": year, "limit": limit, "start_year": start_year, "end_year": end_year}
+        )
         rows = body["rows"]
         summary = {
             "mode": "ranking",
