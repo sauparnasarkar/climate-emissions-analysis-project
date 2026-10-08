@@ -3873,6 +3873,20 @@ tracking in each sub-project's `ENHANCEMENTS.md`. The Section 3 stubs written 20
 
 **Revised Section 3 sequencing (supersedes decision 101's steps 3.4–3.6):** 3.4 backend contract (PR #268, amended per 105 and 107) → 3.4b the decision-108 fixes → 3.5a agent answer blocks and chips (schema doc first) → 3.5b dashboard URL-state on three pages → 3.5c design-system `PromptBar` → 3.5d the Ask page and the seven new renderers (visual preview before merge) → 3.6 deploy and live eval.
 
+**Step 3.5d — the Ask page (design, written 2026-10-08, before implementation).** Frontend only (`climate-dashboard-react`), built on the merged `PromptBar` redesign (design-system #109) and the agent answer blocks (#270). Split into two PRs, each with a visual preview before merge:
+
+- **3.5d-1 — widgets and answer blocks (no page restructure).** `agent/types.ts` gains the answer-block fields (`kpis`, `follow_up_links`, `follow_up_prompts`; widgets' `source_line`, `badge`, `summary`). `WidgetRenderer` gets entries for the seven Area 2 tools (it dispatches by tool *name*): the module components are fed the tool result through the module's own pure builders —
+  `get_emissions_temperature_relationship` → the all-gas result (`primap_ghg`) through `buildAllGas` → `AllGasRelationship`; the headline result (`owid_co2`, pre-industrial, total) through `buildClimateSignal` + `buildHeadline` → `HeadlineRelationship` (the temperature and concentration it also needs are fetched from the dashboard API, exactly as the module page does; the pair is the **tool's own result**, so the numbers cannot differ from the answer); any other window or the fossil variant → a plain pairs chart with the fit in its caption (never labelled headline);
+  `get_ghg_composition` → `buildComposition` → `GasComposition` (a single year stays a table);
+  `get_scenario_temperature` → `buildScenarioView` (the tool result plus the module's observed history) → `ScenarioSection`;
+  `get_country_cumulative_share` → a line chart (series) or bar chart (ranking), not the interactive `CountryView`;
+  `get_co2_concentration` / `get_temperature_anomaly` → a KPI card or a line chart (the widget's `intent`);
+  `get_correlation_metadata` → a table of sources.
+  Plus `KpiRow` (≤3 cards, each labelled with its year; a scenario card takes its series colour), a `SourceLine` under every chart, and the scenario `badge` chip. Nothing is hardcoded: every figure is from the tool result.
+- **3.5d-2 — the page.** The empty state (title, subtitle, `PromptBar` landing with the hint and, below it, the three category columns of prompt cards — prefill on click; the two Climate-outcomes prompts carry a NEW tag), the answer layout (category label + the question as H2, the lead, the KPI row, the widgets with source lines, the deep links), earlier answers kept visible, the docked `PromptBar` **pinned** with the follow-up chips above it and the "Ask a follow-up…" placeholder, "+ New question", a skeleton while loading, an inline "Try again" error that keeps the typed text. Both themes; mobile one column. Scope notes stay visible as alerts (not hidden in a card).
+- **Preview without an API key.** A small script (`services/agent/evals/preview_server.py`) serves `/agent/query` from the **real** graph, MCP server and API with a scripted LLM, so the full page can be reviewed (and screenshotted) with real data and no Anthropic key. It is a review aid, not a runtime component.
+- **Not in 3.5d:** the "How this is calculated" card is the module's own derivation component fed the result's `fit`/`fit_context`; if that needs data the tool result lacks it is a follow-up, not a reason to hardcode.
+
 Open items for this section: (a) ~~monthly concentration mode~~ — resolved 2026-10-08: annual only (no page shows monthly), (b) Overview anchors for the link row
 are only used once confirmed in the built page; (c) the OWID-vs-PRIMAP "5–8%" reconciliation figure
 was estimated against EDGAR and is still to be re-measured (requirements §1.1.2) — the agent must not
