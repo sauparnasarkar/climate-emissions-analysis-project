@@ -4,6 +4,15 @@ import { Card, CardHeader, ChartCard, DataTable, InlineAlert, KpiStat, SyChart }
 import { MAX_CHART_SERIES } from '../constants';
 import { humanize } from '../lib/humanize';
 import { MarkdownText } from './MarkdownText';
+import {
+  CorrelationMetadataWidget,
+  CountryShareWidget,
+  EmissionsTemperatureWidget,
+  GhgCompositionWidget,
+  IndicatorWidget,
+  ScenarioTemperatureWidget,
+} from './climateWidgets';
+import { SourceLine } from './SourceLine';
 import { toolNameFromSourceTaggedCall } from './types';
 import type { WidgetSpec } from './types';
 
@@ -401,11 +410,28 @@ const RENDERERS: Record<string, (props: WidgetProps) => ReactElement> = {
   get_scenario_cumulative_impact: ScenarioCumulativeWidget,
   get_emissions_change_summary: EmissionsChangeSummaryWidget,
   get_methodology_notes: MethodologyNotesWidget,
+  // Area 2 climate-context tools (ENHANCEMENTS.md decision 105): the Correlation module's components fed the tool result.
+  get_emissions_temperature_relationship: EmissionsTemperatureWidget,
+  get_ghg_composition: GhgCompositionWidget,
+  get_scenario_temperature: ScenarioTemperatureWidget,
+  get_country_cumulative_share: CountryShareWidget,
+  get_co2_concentration: IndicatorWidget,
+  get_temperature_anomaly: IndicatorWidget,
+  get_correlation_metadata: CorrelationMetadataWidget,
   general_climate: TextAnswerWidget,
   context_reuse: TextAnswerWidget,
 };
 
 export function WidgetRenderer({ widget }: WidgetProps) {
+  return (
+    <>
+      <WidgetBody widget={widget} />
+      <SourceLine text={widget.source_line} />
+    </>
+  );
+}
+
+function WidgetBody({ widget }: WidgetProps) {
   const toolName = toolNameFromSourceTaggedCall(widget.source_tool_call);
   // get_country_profile is the one tool that produces two different widgets from the same
   // source_tool_call (SPEC.md §8 ui_selection, "Corrections applied" advisory: distinguish by

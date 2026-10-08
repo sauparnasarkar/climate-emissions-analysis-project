@@ -1,4 +1,5 @@
 import { ChartCard, SyChart } from 'design-system';
+import { useSectionIds } from './useSectionIds';
 import { SCENARIO_LABEL } from '../../lib/climateCopy';
 import type { PathwayName } from '../../lib/pathways';
 import { SCENARIOS_ANCHOR, type ScenarioView } from '../../lib/scenarioView';
@@ -18,7 +19,9 @@ const panel = { background: 'var(--__s9cmpx-static-background-standard)', border
  * slope, not a climate model and not a projection -- and labelled with the wording the requirements prescribe, which the API supplies. The observed
  * emissions are OWID's World fossil + cement total, the pathways' own basis.
  */
-export function ScenarioSection({ view }: { view: ScenarioView }) {
+export function ScenarioSection({ view, embedded }: { view: ScenarioView; embedded?: boolean }) {
+  const ids = useSectionIds(embedded, SCENARIOS_ANCHOR, 'scenarios-heading');
+  const Heading = embedded ? 'h3' : 'h2'; // inside an answer the question is the h2
   const { startYear, horizon, pathways, observedEmissions, observedTemperature, observedMean5y, anchor, horizonGapC, readingNote, labels, assumptions } = view;
   const last = (xs: Array<{ year: number; value: number }>) => xs[xs.length - 1];
   // Described from what is actually drawn, so a missing or early-ending history is not announced as present.
@@ -37,10 +40,10 @@ export function ScenarioSection({ view }: { view: ScenarioView }) {
   ].filter((s): s is string => s !== null);
 
   return (
-    <section id={SCENARIOS_ANCHOR} aria-labelledby="scenarios-heading" style={{ marginBottom: 24 }}>
+    <section id={ids.sectionId} aria-labelledby={ids.headingId} style={{ marginBottom: 24 }}>
       <style>{'@media (max-width: 1200px) { .module-scenario-grid { grid-template-columns: minmax(0, 1fr) !important; } }'}</style>
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '4px 12px', margin: '0 0 12px' }}>
-        <h2 id="scenarios-heading" className="__s9cmpx-headline5" style={{ margin: 0 }}>Implied temperature by scenario, {startYear}–{horizon}</h2>
+        <Heading id={ids.headingId} className="__s9cmpx-headline5" style={{ margin: 0 }}>Implied temperature by scenario, {startYear}–{horizon}</Heading>
         <span className="__s9cmpx-label4" style={{ padding: '2px 8px', borderRadius: 3, textTransform: 'uppercase', letterSpacing: '.04em', background: 'var(--__s9cmpx-static-background-warning, rgba(176,122,16,0.16))', color: 'var(--area2-warning, #6E4800)' }}>
           {SCENARIO_LABEL}
         </span>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSectionIds } from './useSectionIds';
 import { ChartCard, Slider, SyChart, useReducedMotion } from 'design-system';
 import { fmtInt } from '../../lib/landingData';
 import { GAS_COMPOSITION_ANCHOR, type Composition } from '../../lib/gasComposition';
@@ -12,7 +13,8 @@ import { ShareBar } from '../overview/ShareSection';
  * fluorinated gases in CO₂-equivalent, and the same split for one chosen year. National totals on the stated GWP basis -- they exclude land use and
  * international aviation and shipping -- and everything about the basis comes from the API.
  */
-export function GasComposition({ composition }: { composition: Composition }) {
+export function GasComposition({ composition, embedded }: { composition: Composition; embedded?: boolean }) {
+  const ids = useSectionIds(embedded, GAS_COMPOSITION_ANCHOR, 'gas-composition-heading');
   const { years, gases, mt, shares, residualPct, reconciliation, basis, units, excludedIncompleteYears, caveats } = composition;
   const first = years[0];
   const last = years[years.length - 1];
@@ -32,8 +34,8 @@ export function GasComposition({ composition }: { composition: Composition }) {
   const order = gases.map((g) => ({ code: g.short, name: g.name, color: g.color }));
 
   return (
-    <section id={GAS_COMPOSITION_ANCHOR} aria-labelledby="gas-composition-heading" style={{ marginBottom: 24 }}>
-      <h3 id="gas-composition-heading" className="__s9cmpx-headline6" style={{ margin: '0 0 12px' }}>Gas composition, {first} onward</h3>
+    <section id={ids.sectionId} aria-labelledby={ids.headingId} style={{ marginBottom: 24 }}>
+      <h3 id={ids.headingId} className="__s9cmpx-headline6" style={{ margin: '0 0 12px' }}>Gas composition, {first} onward</h3>
       <ChartCard title={`Share of greenhouse-gas emissions by gas, ${first}–${last}`} headingLevel={4}>
         <PurposeLine>show how the mix of gases behind the all-gas total has shifted, and where CO₂ sits within it.</PurposeLine>
         <SyChart

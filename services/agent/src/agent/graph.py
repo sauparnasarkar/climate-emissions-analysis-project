@@ -431,6 +431,19 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
         )
         scope_notes = [*scope_notes, note]
 
+    # When the deterministic scenario lead already carries the pipeline's reading note, tell the frontend
+    # (SPEC.md §15.11): the embedded scenario section would otherwise print the same paragraph a second time
+    # as its own "Reading note" panel. Flagged on the widget's summary, only when the note really is in the lead.
+    lead = scenario_lead(state.tool_calls)
+    reading_note = next(
+        (r.result.get("reading_note") for r in state.tool_calls if r.tool_name == "get_scenario_temperature" and isinstance(r.result, dict)),
+        None,
+    )
+    if lead and isinstance(reading_note, str) and reading_note and reading_note in lead:
+        for widget in widgets:
+            if widget.source_tool_call.startswith("get_scenario_temperature") and widget.summary is not None:
+                widget.summary = {**widget.summary, "lead_includes_reading_note": True}
+
     # SPEC.md §15.3 rule 1: deterministic climate-context statements, appended after the failure
     # notes so the order reads "what went wrong" then "how to read what came back".
     scope_notes = [*scope_notes, *(n for n in mandatory_notes(state.tool_calls) if n not in scope_notes)]

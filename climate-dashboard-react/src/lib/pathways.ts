@@ -37,6 +37,9 @@ const META: Record<PathwayName, { label: string; method: (countries: number | nu
 };
 const ORDER: PathwayName[] = ['BAU', 'Moderate', 'Aggressive'];
 
+/** The scenario line colour the module uses, so a KPI card for a pathway matches its line (undefined for a name that is not a pathway). */
+export const pathwayColor = (name: string): string | undefined => (META as Record<string, { color: string }>)[name]?.color;
+
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const rec = (v: unknown): Record<string, unknown> | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 

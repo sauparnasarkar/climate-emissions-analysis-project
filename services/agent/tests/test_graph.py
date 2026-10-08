@@ -859,3 +859,22 @@ def test_a_historical_result_with_no_gas_field_is_treated_as_co2():
     methane = ToolCallRecord(tool_name="get_historical_emissions", args={}, result={"gas": "methane", "series": [{"name": "China"}]}, progress_label="x")
     assert historical_chart_covers(profile, [profile, bare]) is True
     assert historical_chart_covers(profile, [profile, methane]) is False
+
+
+async def test_the_scenario_widget_is_flagged_when_the_lead_already_carries_the_reading_note():
+    llm = ScriptedChatModel([{"classification": "data_query"}, AIMessage(content="", tool_calls=[_tool_call("get_scenario_temperature", {}, "s1")]), AIMessage(content="done")])
+    graph = await build_graph(llm=llm, mcp_tools=[_fake_tool("get_scenario_temperature", _SCENARIO_RESULT)])
+    result = await graph.ainvoke({"current_query": "pathways?"}, config=THREAD_CONFIG)
+    assert result["widgets"][0].summary["lead_includes_reading_note"] is True
+    assert _SCENARIO_RESULT["reading_note"] in result["response_text"]
+
+
+async def test_the_flag_is_absent_when_the_lead_is_composed_across_tools():
+    # Scenario + another data tool -> the lead is LLM-composed and need not carry the note, so the widget keeps its own panel.
+    tools = [_fake_tool("get_scenario_temperature", _SCENARIO_RESULT), _fake_tool("get_top_emitters", {"year": 2024, "emitters": [{"country": "China", "co2": 1.0}]})]
+    calls = [_tool_call("get_scenario_temperature", {}, "s1"), _tool_call("get_top_emitters", {}, "t1")]
+    llm = ScriptedChatModel([{"classification": "data_query"}, AIMessage(content="", tool_calls=calls), AIMessage(content="done"), {"response_text": "composed"}])
+    graph = await build_graph(llm=llm, mcp_tools=tools)
+    result = await graph.ainvoke({"current_query": "pathways and top emitters"}, config=THREAD_CONFIG)
+    scenario = next(w for w in result["widgets"] if w.source_tool_call.startswith("get_scenario_temperature"))
+    assert "lead_includes_reading_note" not in (scenario.summary or {})
