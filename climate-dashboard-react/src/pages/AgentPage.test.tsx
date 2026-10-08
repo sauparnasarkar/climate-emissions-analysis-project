@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
+import { AskThreadProvider } from '../agent/AskThreadProvider';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AgentPage } from './AgentPage';
 import { useAgentStream } from '../agent/useAgentStream';
@@ -60,12 +61,18 @@ afterEach(() => {
 });
 
 
-function renderPage() {
-  return render(
+function page() {
+  return (
     <MemoryRouter>
-      <AgentPage />
-    </MemoryRouter>,
+      <AskThreadProvider>
+        <AgentPage />
+      </AskThreadProvider>
+    </MemoryRouter>
   );
+}
+
+function renderPage() {
+  return render(page());
 }
 
 function resultOf(overrides: Partial<AgentQueryResult> = {}): AgentQueryResult {
@@ -110,7 +117,7 @@ describe('AgentPage', () => {
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'China trends{Enter}');
     stream.loading = true;
     stream.progress = { label: 'Fetching historical emissions for China', percent: 30 };
-    rerender(<MemoryRouter><AgentPage /></MemoryRouter>);
+    rerender(page());
     expect(screen.getByRole('heading', { level: 2, name: 'China trends' })).toBeInTheDocument();
     expect(screen.getByText('Fetching historical emissions for China')).toBeInTheDocument();
     expect(screen.getByRole('status', { name: 'Loading the answer' })).toBeInTheDocument();
@@ -126,14 +133,14 @@ describe('AgentPage', () => {
     await user.type(input, 'What are the top 10 forecasted emitters in 2040?{Enter}');
     expect(stream.submit).toHaveBeenCalledWith('What are the top 10 forecasted emitters in 2040?', null);
     stream.result = resultOf({ widgets: [METHOD_WIDGET], response_text: 'First answer.', follow_up_prompts: ['Why?'] });
-    rerender(<MemoryRouter><AgentPage /></MemoryRouter>);
+    rerender(page());
     expect(screen.getByRole('heading', { level: 2, name: 'What are the top 10 forecasted emitters in 2040?' })).toBeInTheDocument();
     expect(screen.getByText('Forecasts')).toBeInTheDocument();
 
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'Second question{Enter}');
     expect(stream.submit).toHaveBeenLastCalledWith('Second question', 't1');
     stream.result = resultOf({ thread_id: 't1', widgets: [METHOD_WIDGET], response_text: 'Second answer.' });
-    rerender(<MemoryRouter><AgentPage /></MemoryRouter>);
+    rerender(page());
     const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
     expect(headings).toEqual(['What are the top 10 forecasted emitters in 2040?', 'Second question']);
   });
@@ -145,7 +152,7 @@ describe('AgentPage', () => {
     const { rerender } = renderPage();
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
     stream.result = resultOf({ widgets: [METHOD_WIDGET], follow_up_prompts: ['How has the mix changed?'] });
-    rerender(<MemoryRouter><AgentPage /></MemoryRouter>);
+    rerender(page());
 
     const submitCalls = vi.mocked(stream.submit).mock.calls.length;
     await user.click(screen.getByRole('button', { name: 'How has the mix changed?' }));
@@ -157,7 +164,7 @@ describe('AgentPage', () => {
     });
     await user.click(screen.getByRole('button', { name: '+ New question' }));
     expect(stream.reset).toHaveBeenCalled();
-    rerender(<MemoryRouter><AgentPage /></MemoryRouter>);
+    rerender(page());
     expect(screen.getByRole('heading', { name: 'Ask about emissions and climate outcomes' })).toBeInTheDocument();
   });
 
@@ -168,7 +175,7 @@ describe('AgentPage', () => {
     const { rerender } = renderPage();
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
     stream.result = resultOf({ widgets: [METHOD_WIDGET], follow_up_links: [{ label: 'Open in Climate Correlation', route: '/climate-correlation#scenarios' }] });
-    rerender(<MemoryRouter><AgentPage /></MemoryRouter>);
+    rerender(page());
     expect(screen.getByRole('link', { name: /Open in Climate Correlation/ })).toHaveAttribute('href', '/climate-correlation#scenarios');
   });
 
@@ -179,7 +186,7 @@ describe('AgentPage', () => {
     const { rerender } = renderPage();
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'My question{Enter}');
     stream.error = 'Connection to the agent failed.';
-    rerender(<MemoryRouter><AgentPage /></MemoryRouter>);
+    rerender(page());
     expect(screen.getByText('Connection to the agent failed.')).toBeInTheDocument();
     expect(screen.getByDisplayValue('My question')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
@@ -194,7 +201,7 @@ describe('AgentPage', () => {
     const { rerender } = renderPage();
     await user.type(screen.getByLabelText('Ask about climate emissions'), 'Who is right?{Enter}');
     stream.result = resultOf({ response_text: "I can't offer opinions.", suggested_prompts: ['How has growth changed in China?'] });
-    rerender(<MemoryRouter><AgentPage /></MemoryRouter>);
+    rerender(page());
     expect(screen.getByText("I can't offer opinions.")).toBeInTheDocument();
     await user.click(screen.getByText('How has growth changed in China?'));
     expect(screen.getByDisplayValue('How has growth changed in China?')).toHaveFocus();
@@ -213,7 +220,7 @@ describe('AgentPage', () => {
       scope_notes: ['Capped to the 10 highest-value countries.'],
       kpis: [{ label: 'CO₂ emissions', value: 12289, unit: 'Mt', decimals: 0, year: 2024, sub: 'Largest of 215 countries', series: null }],
     });
-    rerender(<MemoryRouter><AgentPage /></MemoryRouter>);
+    rerender(page());
     expect(screen.getByText('Capped to the 10 highest-value countries.')).toBeInTheDocument();
     expect(screen.getByText('China emitted 12,289 Mt of CO₂ in 2024.')).toBeInTheDocument();
     const cards = within(screen.getByRole('list', { name: 'Key figures' })).getAllByRole('listitem');
@@ -232,8 +239,73 @@ describe('AgentPage', () => {
       widgets: [{ intent: 'text', chart_kind: null, title: 'Answer', as_of: null, source_tool_call: 'context_reuse', props: { text } }],
       response_text: text,
     });
-    rerender(<MemoryRouter><AgentPage /></MemoryRouter>);
+    rerender(page());
     expect(screen.getAllByText(/is growing fast/)).toHaveLength(1);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('keeps the thread when the page is left and opened again (in-memory, above the routes)', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const app = () => (
+      <MemoryRouter initialEntries={['/ask']}>
+        <AskThreadProvider>
+          <Link to="/ask">ask</Link>
+          <Link to="/elsewhere">elsewhere</Link>
+          <Routes>
+            <Route path="/ask" element={<AgentPage />} />
+            <Route path="/elsewhere" element={<p>another page</p>} />
+          </Routes>
+        </AskThreadProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(app());
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q1{Enter}');
+    stream.result = resultOf({ widgets: [METHOD_WIDGET], response_text: 'First answer.' });
+    rerender(app());
+    expect(screen.getByRole('heading', { level: 2, name: 'Q1' })).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'half typed');
+    await user.click(screen.getByRole('link', { name: 'elsewhere' }));
+    expect(screen.getByText('another page')).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'ask' }));
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Q1' })).toBeInTheDocument();
+    expect(screen.getByText('First answer.')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('half typed')).toBeInTheDocument();
+    // a question asked now continues the same thread
+    await user.clear(screen.getByLabelText('Ask about climate emissions'));
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Q2{Enter}');
+    expect(stream.submit).toHaveBeenLastCalledWith('Q2', 't1');
+  });
+
+  it('captures an answer that lands while the user is on another page', async () => {
+    const stream = mutableStream();
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const app = () => (
+      <MemoryRouter initialEntries={['/ask']}>
+        <AskThreadProvider>
+          <Link to="/ask">ask</Link>
+          <Link to="/elsewhere">elsewhere</Link>
+          <Routes>
+            <Route path="/ask" element={<AgentPage />} />
+            <Route path="/elsewhere" element={<p>another page</p>} />
+          </Routes>
+        </AskThreadProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(app());
+    await user.type(screen.getByLabelText('Ask about climate emissions'), 'Slow one{Enter}');
+    stream.loading = true;
+    rerender(app());
+    await user.click(screen.getByRole('link', { name: 'elsewhere' }));
+    stream.loading = false;
+    stream.result = resultOf({ widgets: [METHOD_WIDGET], response_text: 'Landed while away.' });
+    rerender(app());
+    await user.click(screen.getByRole('link', { name: 'ask' }));
+    expect(screen.getByRole('heading', { level: 2, name: 'Slow one' })).toBeInTheDocument();
+    expect(screen.getByText('Landed while away.')).toBeInTheDocument();
   });
 });
