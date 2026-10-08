@@ -139,17 +139,38 @@ def test_feature_importance_503_when_missing(data_dir):
     assert "feature_importance.csv" in resp.json()["detail"]
 
 
+def _write_selection(data_dir, expanded):
+    import json
+
+    with open(data_dir / "selected_countries.json", "w") as f:
+        json.dump({"expanded": expanded, "expanded_count": len(expanded)}, f)
+
+
 def test_forecast_summary_effective_scope_follows_what_was_actually_served(client, full_data):
     """`effective_scope` is on every response. With no selected_countries.json, scope=expanded is still accepted but serves the featured ten
-    (load_expanded_countries()'s fallback), so it must NOT claim 'expanded'; with the file it does."""
+    (load_expanded_countries()'s fallback), so it must NOT claim 'expanded'."""
+    from api.constants import FEATURED_COUNTRIES
+
+    from .conftest import _clear_caches
+
     assert client.get("/api/forecasts/summary").json()["effective_scope"] == "featured"
     assert client.get("/api/forecasts/summary", params={"scope": "featured"}).json()["effective_scope"] == "featured"
     assert client.get("/api/forecasts/summary", params={"scope": "expanded"}).json()["effective_scope"] == "featured"  # the fallback
 
-    from .conftest import write_selected_countries_json, _clear_caches
+    def expanded_scope():
+        _clear_caches()
+        return client.get("/api/forecasts/summary", params={"scope": "expanded"}).json()["effective_scope"]
 
-    write_selected_countries_json(full_data)  # expanded = FIXTURE_COUNTRIES + France: not the featured ten
+    # Only a strict superset of the featured ten is an expansion.
+    _write_selection(full_data, [*FEATURED_COUNTRIES, "France"])
+    assert expanded_scope() == "expanded"
+    _write_selection(full_data, FEATURED_COUNTRIES[:3])  # a subset
+    assert expanded_scope() == "featured"
+    _write_selection(full_data, [*FEATURED_COUNTRIES[:9], "France"])  # same size, one swapped
+    assert expanded_scope() == "featured"
+    _write_selection(full_data, list(FEATURED_COUNTRIES))  # exactly the featured ten
+    assert expanded_scope() == "featured"
+    # asking for the featured scope never reports expanded, even with a larger file
+    _write_selection(full_data, [*FEATURED_COUNTRIES, "France"])
     _clear_caches()
-    assert client.get("/api/forecasts/summary", params={"scope": "expanded"}).json()["effective_scope"] == "expanded"
-    # asking for the featured scope never reports expanded, even when the file exists
     assert client.get("/api/forecasts/summary", params={"scope": "featured"}).json()["effective_scope"] == "featured"
