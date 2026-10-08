@@ -239,6 +239,9 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
           // (owner decision, 2026-10-06, reverting the labels part of decision 12).
           showLabels
           maxSize={globeMax}
+          // On a phone the globe is narrower than the screen (its diameter follows the viewport height): let the year readout, legend and controls under it use the
+          // page's full content width (owner request, 2026-10-08); the globe itself is unchanged.
+          fullWidth={isPhone}
           transparent
           title={<div className="landing-globe-title--overlay">{globeHeading}</div>}
           // On a phone the year readout is the globe's caption, right under it and before its legend and controls (decision 79); a figcaption, and aria-live="off" so the carousel's own live region (polite while it is paused) cannot announce each year either.

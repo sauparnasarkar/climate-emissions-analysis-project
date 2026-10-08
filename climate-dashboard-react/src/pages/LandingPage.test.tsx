@@ -35,6 +35,7 @@ vi.mock('design-system', async (importOriginal) => {
         data-auto-rotate={String(props.autoRotate)}
         data-allow-spin-reduced={String(props.allowSpinWithReducedMotion)}
         data-transparent={String(props.transparent)}
+        data-full-width={String(props.fullWidth)}
         data-no-data-color={String(props.noDataColor)}
         aria-label={String(props.ariaLabel)}
       >
@@ -384,6 +385,20 @@ describe('LandingPage — climate-signal carousel', () => {
       mountWithClimate({ ...ANIMATION, isPlaying: false });
       await screen.findByRole('region', { name: 'Featured' });
       expect(document.querySelector('.landing-hero [role="status"]')).toHaveTextContent('2023: 272 MtCO₂, all countries');
+    } finally { restoreMedia(); }
+  });
+
+  it('on a phone the globe panel spans the full width (year readout, legend and controls use the whole screen); above phone width it does not', async () => {
+    stubPhone(true);
+    try {
+      mountWithClimate();
+      expect(await screen.findByTestId('globe')).toHaveAttribute('data-full-width', 'true');
+    } finally { restoreMedia(); }
+    cleanup();
+    stubPhone(false);
+    try {
+      mountWithClimate();
+      expect(await screen.findByTestId('globe')).toHaveAttribute('data-full-width', 'false');
     } finally { restoreMedia(); }
   });
 
