@@ -74,6 +74,12 @@ drop, which is worse for an LLM than for a chart:
    also to `get_country_profile` and `get_forecast`, which have no `scope` argument at all
    but still 404 on any country outside `load_expanded_countries()` — the same "known but
    out of the tool's fixed scope" situation, just without a `scope` param to retry with.
+5. An explicit **empty** `countries` list (`[]`) is rejected with an error telling the caller to
+   omit the argument or name a country. The wrapped API treats an empty list as "not given" and
+   substitutes its own default pool, so passing it through returned unrequested data (5 featured
+   countries from `/historical/timeseries`, the whole scope pool from `/decade-composition`)
+   with no `scope_note`. Enforced once, in `resolve_countries`, so every tool taking `countries`
+   inherits it.
 
 ### 3.2 Response trimming & `scope_note`
 When a tool's default (unscoped) query would return more than a handful of rows, cap and

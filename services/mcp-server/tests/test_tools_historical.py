@@ -77,3 +77,14 @@ async def test_get_gas_composition_by_decade_explicit_countries_resolved(api_cli
     typo_body = await get_gas_composition_by_decade(countries=["Chinaa"], scope="sovereign")
     exact_body = await get_gas_composition_by_decade(countries=["China"], scope="sovereign")
     assert typo_body == exact_body
+
+async def test_get_historical_emissions_rejects_an_explicit_empty_countries_list(api_client):
+    # Previously forwarded as countries=[] -> the API dropped it and silently returned its 5
+    # featured countries, with no scope_note, as if that were the answer.
+    with pytest.raises(CountryResolutionError, match="empty list"):
+        await get_historical_emissions(countries=[])
+
+
+async def test_get_gas_composition_by_decade_rejects_an_explicit_empty_countries_list(api_client):
+    with pytest.raises(CountryResolutionError, match="empty list"):
+        await get_gas_composition_by_decade(countries=[])

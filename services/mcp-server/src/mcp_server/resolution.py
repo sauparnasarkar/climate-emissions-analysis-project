@@ -47,7 +47,18 @@ def resolve_countries(names: list[str], lists: CountryLists, scope: str | None =
     silently drops any country outside its scoped pool (e.g. a real, out-of-scope country
     filtered out before it ever reaches the response) -- resolving with `scope` set catches
     that case as an explicit case-4 error instead of a silently empty result for that
-    country (SPEC.md §3.1, §3.2's "explicit list is never silently trimmed" rule)."""
+    country (SPEC.md §3.1, §3.2's "explicit list is never silently trimmed" rule).
+
+    An explicit EMPTY list is rejected too (SPEC.md §3.1 case 5): the wrapped API treats an empty
+    `countries` as "not given" and substitutes its own default pool (5 featured countries on
+    /historical/timeseries, the whole scope pool on /decade-composition), so passing it through
+    would return confident, unrequested data -- and with no scope_note on the explicit-list path.
+    Omitting the argument is how a caller asks for a scope pool."""
+    if not names:
+        raise CountryResolutionError(
+            "`countries` is an empty list. Omit the argument to use a scope's default pool, "
+            "or name at least one country."
+        )
     return [resolve_country(name, lists, scope=scope) for name in names]
 
 
