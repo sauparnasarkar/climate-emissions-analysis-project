@@ -85,7 +85,7 @@ def test_composition_is_a_chart_over_a_range_and_a_grid_for_one_year():
 
 def test_country_share_series_is_a_line_and_a_ranking_is_a_bar():
     series = build_widget(_rec("get_country_cumulative_share", {"summary": {"mode": "series", "countries": [{"name": "China"}, {"name": "India"}]}}), "q")
-    assert (series.chart_kind, series.title) == ("line", "Cumulative share of emissions -- China, India")
+    assert (series.chart_kind, series.title) == ("line", "Cumulative share of emissions – China, India")
     ranking = build_widget(_rec("get_country_cumulative_share", {"summary": {"mode": "ranking", "year": 2024, "n_rows": 15}}), "q")
     assert (ranking.chart_kind, ranking.title) == ("bar", "Top 15 countries by cumulative share of emissions (2024)")
 
@@ -182,3 +182,50 @@ def test_every_link_points_at_a_real_dashboard_page_and_a_real_anchor():
             path, _, anchor = link.route.partition("#")
             assert path in pages, link.route
             assert not anchor or anchor in anchors, link.route
+
+
+# --- Ask-page polish (design review, decision 108) ---------------------------------------------
+
+
+def test_top_emitters_title_reads_the_year_from_the_result_not_the_args():
+    # The model now omits `year`; the tool defaults to the latest year and reports the one it used.
+    w = build_widget(_rec("get_top_emitters", {"year": 2024, "emitters": [{"country": "A", "co2": 1.0}] * 10}, {"n": 10}), "q")
+    assert w.title == "Top 10 emitters (2024)"
+    explicit = build_widget(_rec("get_top_emitters", {"year": 2000, "emitters": [{"country": "A", "co2": 1.0}] * 3}, {"year": 2000, "n": 5}), "q")
+    assert explicit.title == "Top 3 emitters (2000)"  # the count actually returned, not the requested 5
+    assert "selected year" not in w.title
+
+
+def test_no_user_facing_title_uses_a_double_hyphen_or_plain_co2():
+    from agent.ui_selection import _RESULT_TITLE_BUILDERS, _TITLE_BUILDERS
+
+    args = {"countries": ["China", "India"], "country": "China", "scope": "expanded", "sort_by": "BAU", "n": 10, "year": 2024}
+    rec = lambda name: _rec(name, {"summary": {"mode": "series", "countries": [{"name": "China"}], "n_years": 3, "first_year": 1970, "last_year": 2024}}, args)
+    titles = [b(args) for b in _TITLE_BUILDERS.values()] + [b(rec(n)) for n, b in _RESULT_TITLE_BUILDERS.items()]
+    assert titles and all(" -- " not in t and "--" not in t and "CO2" not in t for t in titles), titles
+    assert "Historical emissions – China, India" in titles
+
+
+def test_other_user_facing_text_is_free_of_double_hyphens_and_plain_co2():
+    from agent.caveats import COMPOSITION_NOTE, LONG_RUN_NOTE, PRELIMINARY_TEMPERATURE_NOTE, SCENARIO_NOTE
+    from agent.prompts import OFF_TOPIC_RESPONSE
+    from agent.progress_labels import progress_label
+
+    texts = [COMPOSITION_NOTE, LONG_RUN_NOTE, PRELIMINARY_TEMPERATURE_NOTE, SCENARIO_NOTE, OFF_TOPIC_RESPONSE, progress_label("get_co2_concentration", {})]
+    assert all("--" not in t and "CO2" not in t for t in texts), texts
+
+
+def test_profile_card_title_uses_the_resolved_country_not_the_typo():
+    from agent.ui_selection import build_country_profile_widgets
+
+    w = build_country_profile_widgets(_rec("get_country_profile", {"country": "China", "years": [1990], "co2": [1.0]}, {"country": "Chinaa"}), include_chart=False)
+    assert w[0].title == "China emissions profile"
+    # ...and falls back to the arg when the result carries no name
+    assert build_country_profile_widgets(_rec("get_country_profile", {"years": [1990]}, {"country": "Chinaa"}), include_chart=False)[0].title == "Chinaa emissions profile"
+
+
+def test_top_emitters_progress_label_says_latest_year_when_none_is_given():
+    from agent.progress_labels import progress_label
+
+    assert progress_label("get_top_emitters", {}) == "Ranking top 10 emitters for the latest year"
+    assert progress_label("get_top_emitters", {"year": 2000, "n": 5}) == "Ranking top 5 emitters for 2000"

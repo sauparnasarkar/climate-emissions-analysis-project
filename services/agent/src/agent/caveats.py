@@ -33,7 +33,7 @@ SCENARIO_NOTE = (
     "assumptions."
 )
 COMPOSITION_NOTE = (
-    "PRIMAP-hist national totals in CO2-equivalent (AR5 GWP-100), excluding land-use change and "
+    "PRIMAP-hist national totals in CO₂-equivalent (AR5 GWP-100), excluding land-use change and "
     "international aviation and shipping."
 )
 

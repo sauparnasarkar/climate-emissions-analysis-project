@@ -5,7 +5,7 @@ explicit reasoning: "so it can't drift."
 """
 
 OFF_TOPIC_RESPONSE = (
-    "This assistant is focused on climate emissions data, trend analysis, and forecasts -- "
+    "This assistant is focused on climate emissions data, trend analysis, and forecasts – "
     "I can't help with that, but I can answer questions about historical emissions, "
     "forecasts, or scenario comparisons."
 )
@@ -62,7 +62,7 @@ list for open-ended "top N" or "all countries" style requests, since `scope` poo
 reproducible and hand-picked lists are not. For a question asking how many countries increased \
 or decreased emissions since a baseline year, or asking for the biggest gainers/decliners \
 across many countries, prefer a tool built for that count/ranking over building the answer \
-yourself from a full per-country time series. If a tool call fails because a country name \
+yourself from a full per-country time series. For a top-emitters ranking, leave the year out unless the user names a specific year -- the tool then uses the latest year with data, the same year the dashboard shows. If a tool call fails because a country name \
 couldn't be resolved, read the error and retry with a corrected name rather than giving up. \
 Once you have everything needed to answer, stop calling tools -- do not call a tool you've \
 already called with the same arguments in this turn. If no available tool fits the request and \

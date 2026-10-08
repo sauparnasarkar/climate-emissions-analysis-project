@@ -583,3 +583,11 @@ the deterministic blocks the redesigned Ask page renders: `kpis`, `follow_up_pro
 prompt that now states key figures instead of avoiding them. Pairs with a small additive `get_top_emitters`
 change in `services/mcp-server` (`n_ranked`, `total_mt`, `top_n_share_pct`). Frontend is step 3.5d.
 
+## Step 3.4b — Ask-page polish (design review; root decision 108)
+
+**Implemented 2026-10-08 (PR open on `fix/agent-ask-page-polish`; `SPEC.md` §15.12).** Year-from-result titles and
+labels plus a prompt rule to omit the year, resolved-name card headers, "–"/"CO₂" typography in user-facing text,
+and the duplicate single-country chart removed. Verified end to end on the real API + MCP server: with no year
+passed the ranking is titled "Top 10 emitters (2024)", and a "Chinaa" profile beside a China historical chart
+yields the KPI card and the one chart with no chart-choice LLM call.
+
