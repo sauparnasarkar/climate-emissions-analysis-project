@@ -47,7 +47,8 @@ async def get_historical_emissions(
     and pick from its `sovereign` list rather than guessing -- a failed resolution here costs
     a full extra round trip the user waits through; list_countries doesn't.
 
-    Each series also carries `per_capita` (for whichever `gas` was requested), plus, for
+    Each series also carries `in_expanded_scope` (true when the country is in the ~40-country
+    expanded scope, which is what the dashboard's pickers can show), `per_capita` (for whichever `gas` was requested), plus, for
     `gas="co2"` only, `yoy_pct_change` and `per_gdp` (carbon intensity) -- OWID doesn't
     compute year-over-year growth or per-GDP figures for methane/nitrous_oxide, so both are
     `None` for those gases rather than a fabricated value. `per_gdp` (and, in the most
@@ -70,6 +71,13 @@ async def get_historical_emissions(
         "/historical/timeseries",
         params={"countries": resolved, "gas": gas, "scope": scope},
     )
+    # Each series says whether its country is in the EXPANDED scope. The dashboard's country pickers only know the
+    # expanded list (they drop unknown names and fall back to their defaults), so a consumer building a link into
+    # the dashboard from a sovereign-scope result needs to know which names that link can carry. Additive: the
+    # series fields the API returned are untouched.
+    expanded = set(lists.expanded)
+    for series in body["series"]:
+        series["in_expanded_scope"] = series.get("name") in expanded
     if omitted:
         trimmed, note = trim(
             body["series"],
