@@ -138,8 +138,9 @@ def test_emissions_only_tools_link_to_their_pages_with_handoff_labels():
 
 def test_country_profile_link_names_the_country():
     links = follow_up_links([_rec("get_country_profile", {}, {"country": "China"})])
-    assert [(l.route, l.label) for l in links] == [("/country-profile", "Open China in Country Profile")]
-    assert follow_up_links([_rec("get_country_profile", {})])[0].label == "Open in Country Profile"
+    assert [(l.route, l.label) for l in links] == [("/country-profile?country=China", "Open China in Country Profile")]
+    bare = follow_up_links([_rec("get_country_profile", {})])[0]
+    assert (bare.label, bare.route) == ("Open in Country Profile", "/country-profile")  # no country known: no param
 
 
 def test_no_links_for_methodology_metadata_or_failed_calls():
@@ -179,7 +180,8 @@ def test_every_link_points_at_a_real_dashboard_page_and_a_real_anchor():
     probe_headline = ToolCallRecord(tool_name="x", args={}, result={"summary": {"source": "owid_co2"}}, progress_label="x")
     for builder in _LINKS_BY_TOOL.values():
         for link in builder(probe) + builder(probe_headline):
-            path, _, anchor = link.route.partition("#")
+            path_and_query, _, anchor = link.route.partition("#")
+            path = path_and_query.partition("?")[0]
             assert path in pages, link.route
             assert not anchor or anchor in anchors, link.route
 

@@ -505,3 +505,10 @@ correlation response, once, in `fetch_correlation` — keys, strings starting wi
 alone. A scan of all nine climate tools' real-data output finds no plain "CO2"/"degC" left. The `api/`'s own source strings are
 unchanged (a response-time rewrite here keeps this PR to one sub-project).
 
+## Addition — `get_historical_emissions` marks each series `in_expanded_scope` (found by Copilot's review of the agent's link parameters, 2026-10-08)
+
+The dashboard's country pickers only know the ~40-country expanded list and silently fall back to their defaults for any name they don't
+know, so a link built from a `scope="sovereign"` result could open a different view than the answer. The agent needs to know which names such a
+link can carry, and only this tool knows (it already fetches the expanded list to resolve scope). Each series now carries
+`in_expanded_scope` (additive; the API's own fields are untouched). The agent (`services/agent/SPEC.md` §15.13) carries only the flagged names.
+
