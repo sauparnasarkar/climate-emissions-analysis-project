@@ -552,3 +552,98 @@ async def test_ui_selection_llm_call_logs_timing(caplog):
     assert len(result["widgets"]) == 2  # card + chart, since include_chart=True was scripted
     llm_call_lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("llm_call ")]
     assert any("node=ui_selection" in line and "elapsed=" in line for line in llm_call_lines)
+
+
+# === Release 21 Section 3, step 3.3: model-facing cap and mandatory climate notes ============
+
+
+def _fake_tool(name: str, payload: dict) -> StructuredTool:
+    async def _run(**kwargs) -> dict:
+        return payload
+
+    return StructuredTool.from_function(coroutine=_run, name=name, description=f"fake {name}")
+
+
+def _temperature_payload(n: int = 176) -> dict:
+    return {
+        "points": [{"year": 1850 + i, "value": i / 100} for i in range(n)],
+        "summary": {"first_year": 1850, "last_year": 1850 + n - 1},
+        "caveats": ["raw upstream caveat"],
+        "details": {},
+    }
+
+
+async def test_model_sees_a_capped_tool_result_while_the_record_keeps_the_full_one():
+    tool = _fake_tool("get_temperature_anomaly", _temperature_payload())
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_temperature_anomaly", {}, "t1")]),
+            AIMessage(content="done"),
+            {"response_text": "Warming shown."},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool])
+    result = await graph.ainvoke({"current_query": "how much has temperature risen?"}, config=THREAD_CONFIG)
+
+    record = result["tool_calls"][0]
+    assert len(record.result["points"]) == 176  # the widget's source is the full series
+    tool_msgs = [m for m in result["messages"] if isinstance(m, ToolMessage)]
+    import json as _json
+
+    seen = _json.loads(tool_msgs[0].content)
+    assert seen["points_total"] == 176 and len(seen["points"]) <= 25
+    assert seen["summary"]["last_year"] == 2025 and seen["caveats"] == ["raw upstream caveat"]
+    assert llm.exhausted
+
+
+async def test_cache_hit_also_serves_the_model_the_capped_view():
+    tool = _fake_tool("get_temperature_anomaly", _temperature_payload())
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_temperature_anomaly", {}, "t1")]),
+            AIMessage(content="", tool_calls=[_tool_call("get_temperature_anomaly", {}, "t2")]),  # same args -> cache hit
+            AIMessage(content="done"),
+            {"response_text": "ok"},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool])
+    result = await graph.ainvoke({"current_query": "temperature?"}, config=THREAD_CONFIG)
+    import json as _json
+
+    contents = [_json.loads(m.content) for m in result["messages"] if isinstance(m, ToolMessage)]
+    assert len(contents) == 2 and all(c["points_total"] == 176 for c in contents)
+
+
+async def test_climate_tool_results_add_the_mandatory_notes_to_scope_notes():
+    from agent.caveats import LONG_RUN_NOTE, PRELIMINARY_TEMPERATURE_NOTE
+
+    tool = _fake_tool("get_emissions_temperature_relationship", {"points": [], "summary": {"source": "owid_co2"}})
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_emissions_temperature_relationship", {}, "r1")]),
+            AIMessage(content="done"),
+            {"response_text": "Related."},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool])
+    result = await graph.ainvoke({"current_query": "how do emissions relate to warming?"}, config=THREAD_CONFIG)
+    assert PRELIMINARY_TEMPERATURE_NOTE in result["scope_notes"] and LONG_RUN_NOTE in result["scope_notes"]
+
+
+async def test_emissions_only_turns_get_no_climate_notes():
+    graph = await build_graph(
+        llm=ScriptedChatModel(
+            [
+                {"classification": "data_query"},
+                AIMessage(content="", tool_calls=[_tool_call("get_methodology_notes", {}, "m1")]),
+                AIMessage(content="done"),
+                {"response_text": "Method."},
+            ]
+        ),
+        mcp_tools=[await _make_methodology_tool()],
+    )
+    result = await graph.ainvoke({"current_query": "how does the forecast work?"}, config=THREAD_CONFIG)
+    assert result["scope_notes"] == []

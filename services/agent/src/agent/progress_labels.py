@@ -4,9 +4,9 @@ Builder functions rather than plain `.format(**args)` templates (a deliberate de
 SPEC.md §5's illustrative pseudocode): every tool here has at least one optional argument
 (`countries`, `scope`, `country`), and a bare `.format(**args)` either raises `KeyError` on an
 omitted key or renders a literal "None" when a key is present but `null` -- neither is
-acceptable for user-visible progress text. One entry per tool in the real 14-tool catalog
-(13 confirmed in Step 1, `get_emissions_change_summary` added later -- `services/mcp-server`'s
-`tools/*.py` + `server.py`), not the 3-entry excerpt SPEC.md's own pseudocode showed.
+acceptable for user-visible progress text. One entry per tool in the real 21-tool catalog
+(13 confirmed in Step 1, `get_emissions_change_summary` added later, seven Area 2 tools in Release 21
+Section 3 -- `services/mcp-server`'s `tools/*.py` + `server.py`), not the 3-entry excerpt SPEC.md's own pseudocode showed.
 """
 
 from collections.abc import Callable
@@ -39,6 +39,22 @@ _BUILDERS: dict[str, Callable[[dict], str]] = {
     "compare_scenarios_across_countries": lambda args: f"Comparing scenarios across {join_countries(args.get('countries'))}",
     "get_methodology_notes": lambda args: "Fetching methodology notes",
     "get_emissions_change_summary": lambda args: f"Counting emissions changes since 1990 ({args.get('scope', 'sovereign')})",
+    # Area 2 climate-context tools (root Release 21, Section 3). Plain-language, never the tool name.
+    "get_co2_concentration": lambda args: "Fetching atmospheric CO2 concentration",
+    "get_temperature_anomaly": lambda args: "Fetching the global temperature anomaly",
+    "get_correlation_metadata": lambda args: "Loading climate data sources and methodology",
+    "get_emissions_temperature_relationship": lambda args: (
+        "Fitting the recent all-gas emissions-temperature relationship"
+        if args.get("source") == "primap_ghg"
+        else "Fitting the long-run emissions-temperature relationship"
+    ),
+    "get_ghg_composition": lambda args: "Fetching the greenhouse-gas mix over time",
+    "get_country_cumulative_share": lambda args: (
+        f"Fetching cumulative emissions share for {join_countries(args.get('countries'))}"
+        if args.get("countries")
+        else "Ranking countries by cumulative share of emissions"
+    ),
+    "get_scenario_temperature": lambda args: "Translating scenario pathways into implied temperature",
 }
 
 
