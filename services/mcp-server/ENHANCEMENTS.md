@@ -395,7 +395,7 @@ Scope (one branch + PR per step, per the repo convention):
   shared envelope pass-through (`note`/`caveats`/`attribution`/`source_vintage` survive every tool),
   deterministic `summary` builders, Area 2 text in `methodology.py`; tools `get_co2_concentration`,
   `get_temperature_anomaly`, `get_correlation_metadata`.
-- **Step 2 — relationship tools.** `get_emissions_temperature_relationship`, `get_ghg_composition`,
+- **Step 2 — relationship tools. Implemented 2026-10-08 (PR open on `feat/mcp-area2-relationship-tools`).** `get_emissions_temperature_relationship`, `get_ghg_composition`,
   `get_country_cumulative_share`, `get_scenario_temperature`; `get_methodology_notes` extended with
   the Area 2 topics (including the decision-42 "how this number was derived" trail, read from the
   API's `fit`/`fit_context`, never retyped).
@@ -419,3 +419,38 @@ Step 1 notes (as built):
 - Verified against the real `data/climate` output through the in-process API: 2025 anomaly 1.451 °C,
   offset −0.265 °C, splice year 1959 with its overlap gap, and the Berkeley preliminary-release note
   arrives in `caveats`.
+
+Step 2 notes (as built):
+
+- The draft tool arguments in `SPEC.md` §5.1 were corrected to the API's real parameters (see that
+  section): `emissions-temperature` has no year range or `include_regression`; the source id is
+  `primap_ghg`; `ghg-composition` has no `countries`; `country-share` takes ISO3 codes.
+- `country-share` name resolution is a second §3.1-style guard (`resolve_share_countries`) against the
+  endpoint's own country set, not `/countries`. Limitation recorded: a country whose record ended
+  before the latest year cannot be requested by name.
+- `get_ghg_composition` defaults to 1970 onward (PRIMAP-hist pre-1970 is reconstruction); found when a
+  real-data run summarised 1750 as 95% methane.
+- `get_methodology_notes(topic='climate'|'all')` is backward compatible: no `topic` is byte-for-byte the
+  old behaviour. The derivation figures are fetched live (two concurrent calls: total and fossil-only).
+- Verified on real `data/climate`: headline slope 0.486 (HAC CI 0.442–0.530, R² 0.888), all-gas slope
+  0.572, Aggressive 2040 level 0.10 °C below BAU — all matching the requirements doc's revision notes.
+- Payload sizes on real data, all pre-cap: headline pair 29 KB, all-gas 15 KB, composition from 1970
+  (smaller than the 147 KB full-coverage run), scenario 36 KB, methodology(climate) 14 KB. The agent-side
+  cap (agent `SPEC.md` §15.4, Step 3.3) covers them.
+- Copilot review of PR #265 (4 findings, all valid, all fixed): the all-gas label hard-coded "1970+"
+  (now read from the returned window); country-share publishes PRIMAP-hist as `primap_hist`, not
+  `primap_ghg` (my smoke test only exercised `owid_co2`) — the tool and docs now use `primap_hist` and
+  accept `primap_ghg` as an alias; the scenario gap was computed for the headline line only (now per
+  returned line, `level_gap_vs_bau_c`); the pre-1970 reconstruction note fired only on the default
+  range (now on any returned year before 1970).
+- Copilot's second pass on #265 also surfaced two items it had missed the first time, both valid and fixed:
+  OWID windows with a 1970 or 1990 baseline were still labelled "headline" (the headline is the
+  pre-industrial total fit only; others are now "selected-window relationship, NOT the headline fit"), and an
+  empty country-share ranking reported `shown_share_pct_total: 0.0` as if zero emissions were observed (now
+  `null` with an `unavailable` marker).
+- Copilot's third pass on #265 (summary only, details not posted; both items verified against the code): the
+  country-share ranking silently dropped `start_year`/`end_year` (now forwarded so the API's 422 explains
+  the mismatch) and a series silently dropped `limit` (now an explicit error); and the AR6-comparison
+  wording said "headline only" when the API publishes `vs_ar6` for both pre-industrial OWID fits (headline
+  and fossil-only) and never for the all-gas relationship or the 1970/1990 windows (docstring and SPEC corrected).
+- Copilot's fourth pass on #265 (summary only; verified in code): `countries=[]` was treated as an omitted list and silently returned a ranking (now an explicit error); the `composed.py` header still said `get_methodology_notes` isn't endpoint-backed (it is, for `topic='climate'|'all'`) and `methodology.py`'s header was updated to match.

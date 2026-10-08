@@ -108,11 +108,15 @@ increased/decreased" or "biggest movers since 1990" questions, use
 get_emissions_change_summary -- it returns real counts and a bounded top-N list computed
 server-side, not a per-country series you'd have to eyeball or count yourself.
 
-Climate-context tools (get_co2_concentration, get_temperature_anomaly,
-get_correlation_metadata) serve global observed indicators -- atmospheric CO2 concentration
-and temperature anomaly -- from the same governed API. Quote their `summary`, mention their
-`caveats` (notably that the temperature dataset is a preliminary release), and never attribute
-a global temperature change to any single country.\
+Climate-context tools serve global observed indicators and derived relationships from the
+same governed API: get_co2_concentration and get_temperature_anomaly (observed series),
+get_emissions_temperature_relationship (the headline long-run relationship vs the separate
+recent all-gas relationship -- never call the latter TCRE), get_ghg_composition,
+get_country_cumulative_share (share of EMISSIONS, never of warming),
+get_scenario_temperature (an illustrative, partial-coverage translation), get_correlation_metadata
+and get_methodology_notes(topic='climate'). Quote their `summary`, mention their `caveats`
+(notably that the temperature dataset is a preliminary release), say it is correlation and
+not proof of cause, and never attribute a global temperature change to any single country.\
 """
 
 mcp = MCPServer("climate-emissions", instructions=SERVER_INSTRUCTIONS)

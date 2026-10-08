@@ -1,5 +1,7 @@
-"""SPEC.md §5.1 Area 2 indicator tools: get_co2_concentration, get_temperature_anomaly,
-get_correlation_metadata.
+"""SPEC.md §5.1 Area 2 tools: the indicator tools (get_co2_concentration,
+get_temperature_anomaly, get_correlation_metadata) and the relationship tools
+(get_emissions_temperature_relationship, get_ghg_composition, get_country_cumulative_share,
+get_scenario_temperature).
 
 Each returns the API body unchanged (full series + envelope) with a deterministic `summary`
 added. Capping what the *model* sees is the agent's job (agent SPEC.md §15.4), not this server's.
@@ -7,7 +9,7 @@ added. Capping what the *model* sees is the agent's job (agent SPEC.md §15.4), 
 
 from __future__ import annotations
 
-from ..climate import fetch_correlation, summarize_points
+from ..climate import fetch_correlation, resolve_share_countries, summarize_points
 from ..server import mcp
 
 # Tool-facing reference label -> the API's `baseline` value.
@@ -89,4 +91,265 @@ async def get_correlation_metadata() -> dict:
         "temperature_offset": body.get("temperature_offset"),
         "pipeline_failures": (body.get("pipeline_last_run") or {}).get("failures", {}),
     }
+    return body
+
+
+# --- relationship tools ---------------------------------------------------------------------
+
+INTERPRETATION_NOTE_SHARE = (
+    "Cumulative share of emissions describes where emissions occurred. It is not an estimate of "
+    "any country's contribution to global warming, and no country's emissions are regressed "
+    "against the global temperature series."
+)
+COMPOSITION_DEFAULT_START = 1970  # requirements §2.5: the recent all-gas view starts in 1970
+# country-share publishes PRIMAP-hist as `primap_hist`; emissions-temperature calls the same source
+# `primap_ghg`. Accept both so a caller following either endpoint's vocabulary succeeds.
+SHARE_SOURCE_ALIASES = {"primap_ghg": "primap_hist"}
+SCENARIO_NAMES = {"bau": "BAU", "moderate": "Moderate", "aggressive": "Aggressive"}
+
+
+def reconstruction_note(years: list[dict]) -> str | None:
+    """A note whenever any returned year predates 1970, however the range was asked for."""
+    early = [y["year"] for y in years if y["year"] < COMPOSITION_DEFAULT_START]
+    if not early:
+        return None
+    return (
+        f"{len(early)} returned year(s) ({min(early)}-{max(early)}) predate {COMPOSITION_DEFAULT_START}: PRIMAP-hist values "
+        "before then are reconstructions from historical datasets, not country-reported data -- say so when quoting them."
+    )
+
+
+def _relationship_label(source: str, variant: str | None, baseline: str, window: list[int]) -> str:
+    span = f"{window[0]}-{window[1]}"
+    if source == "primap_ghg":
+        # The start comes from the returned window: a 1990 baseline is a shorter pair, not 1970+.
+        return f"recent all-gas relationship (PRIMAP-hist total GHG, {span}; never called TCRE)"
+    # The headline is the pre-industrial (1850-start) total fit only; a 1970 or 1990 window of the
+    # same series is a selected-window view (the 1990 one has no published fit) and must not be
+    # presented as the headline.
+    if baseline != "preindustrial":
+        what = "fossil-fuel-and-cement-only" if variant == "fossil" else "total anthropogenic CO2"
+        return f"selected-window relationship, NOT the headline fit (OWID cumulative {what} vs temperature, {span})"
+    if variant == "fossil":
+        return "secondary fossil-fuel-and-cement-only variant of the headline relationship"
+    return "headline long-run relationship (OWID cumulative total anthropogenic CO2 vs temperature)"
+
+
+@mcp.tool()
+async def get_emissions_temperature_relationship(
+    source: str = "owid_co2", baseline: str | None = None, variant: str | None = None
+) -> dict:
+    """The paired relationship between cumulative emissions and global temperature anomaly,
+    with the fitted regression. Two distinct relationships -- never conflate them:
+    (1) `source='owid_co2'` (default): the HEADLINE long-run relationship, OWID cumulative CO2
+    since 1850 (fossil fuel, cement and land-use change) vs the Berkeley Earth anomaly, a
+    simplified TCRE-style regression. `variant='fossil'` gives the labelled secondary
+    fossil-and-cement-only fit. (2) `source='primap_ghg'`: the RECENT ALL-GAS relationship,
+    PRIMAP-hist cumulative total GHG in CO2e from 1970 -- this one is NEVER called TCRE and is
+    never compared with the AR6 range. `baseline` is 'preindustrial' (1850; owid_co2 default),
+    '1970' (primap_ghg default) or '1990' (a short pair with no fit); an unsupported
+    source/baseline pair is rejected with the valid combinations -- relay that rather than
+    substituting another baseline. The response carries `summary` (relationship label, window,
+    slope with its HAC 95% interval and unit, R², and, for the pre-industrial OWID fits only (the headline and its fossil-only
+    variant), the comparison with the AR6 very-likely range; the all-gas relationship and the
+    1970/1990 windows never carry one) -- quote
+    that. Always say this is a long-run relationship, not a complete climate model and not proof
+    of cause; mention the `caveats` (including that the temperature dataset is a preliminary
+    release). It is global: never use it to attribute warming to a country."""
+    params = {"source": source, "baseline": baseline, "variant": variant}
+    body = await fetch_correlation("emissions-temperature", params)
+    points = body["points"]
+    summary: dict = {
+        "relationship": _relationship_label(body["source"], body.get("variant"), body["baseline"], body["window"]),
+        "source": body["source"],
+        "variant": body.get("variant"),
+        "baseline": body["baseline"],
+        "window": body["window"],
+        "n_years": body["n_years"],
+        "n_omitted_years": len(body.get("omitted_years", [])),
+        "fit": body["fit"],
+    }
+    if points:
+        first, last = points[0], points[-1]
+        summary["first_pair"] = first
+        summary["last_pair"] = last
+        summary["temperature_change_c"] = round(last["temperature"] - first["temperature"], 3)
+    ctx = body.get("fit_context") or {}
+    if body["source"] == "owid_co2" and ctx.get("vs_ar6") is not None:
+        summary["vs_ar6"] = ctx["vs_ar6"]
+    if body["fit"] is None:
+        summary["fit_note"] = "No fit is published for this window; the pair is context only."
+    body["summary"] = summary
+    return body
+
+
+@mcp.tool()
+async def get_ghg_composition(
+    start_year: int | None = None, end_year: int | None = None, year: int | None = None
+) -> dict:
+    """How the global greenhouse-gas mix has changed: CO2, CH4 (methane), N2O (nitrous oxide)
+    and fluorinated gases, in CO2-equivalent (IPCC AR5 GWP-100) from PRIMAP-hist, national
+    totals excluding land-use change and international aviation/shipping. Give `year` for one
+    year, or `start_year`/`end_year` for a range (not both kinds); omit all for 1970 to the latest
+    complete year -- PRIMAP-hist values before 1970 are reconstructions from historical
+    datasets, so the default start is 1970 (requirements §2.5); pass an earlier `start_year`
+    explicitly to include them and say they are reconstructions. Years where a gas is not reported return it as null and omit it from
+    `gases_included`; incomplete trailing years are excluded and listed in
+    `excluded_incomplete_years`. `summary` gives the first and last year's shares and the
+    change in percentage points per gas -- quote it. Global aggregate only; this tool has no
+    country breakdown."""
+    defaulted = year is None and start_year is None
+    if defaulted:
+        start_year = COMPOSITION_DEFAULT_START
+    body = await fetch_correlation("ghg-composition", {"start_year": start_year, "end_year": end_year, "year": year})
+    if defaulted:
+        body["notes"].append(f"Showing {COMPOSITION_DEFAULT_START} onward by default (pass start_year to include earlier years).")
+    note = reconstruction_note(body["years"])
+    if note:
+        body["notes"].append(note)
+    years = body["years"]
+    summary: dict = {"n_years": len(years), "excluded_incomplete_years": body.get("excluded_incomplete_years", [])}
+    if years:
+        def shares(row: dict) -> dict:
+            return {v["gas"]: v["share_pct"] for v in row["values"]}
+
+        first, last = years[0], years[-1]
+        first_s, last_s = shares(first), shares(last)
+        summary.update(
+            first_year=first["year"],
+            last_year=last["year"],
+            first_shares_pct=first_s,
+            last_shares_pct=last_s,
+            last_total_mtco2e=last.get("components_total_mtco2e"),
+            share_change_pp={
+                g: round(last_s[g] - first_s[g], 2)
+                for g in last_s
+                if last_s.get(g) is not None and first_s.get(g) is not None
+            },
+        )
+    body["summary"] = summary
+    return body
+
+
+@mcp.tool()
+async def get_country_cumulative_share(
+    countries: list[str] | None = None,
+    year: int | None = None,
+    limit: int | None = None,
+    start_year: int | None = None,
+    end_year: int | None = None,
+    source: str = "owid_co2",
+    gas_scope: str | None = None,
+) -> dict:
+    """Each country's cumulative share of global emissions -- where emissions have occurred over
+    time. Two modes: omit `countries` for a RANKING in `year` (default: latest year; `limit`
+    default 15, max 50; each row has cumulative and annual share), or pass `countries` (common
+    English names, e.g. 'China', 'United States'; ISO3 codes also accepted; at most 10) for a
+    SERIES over `start_year`..`end_year` (`year` and `limit` do not apply to a series and are rejected; likewise `start_year`/`end_year` do not apply to a ranking).
+    `source` is 'owid_co2' (fossil + cement CO2, longest history, default; gas_scope 'co2') or
+    'primap_hist' (PRIMAP-hist; gas_scope 'co2' or 'total_ghg' -- total GHG in CO2e, excluding
+    land use; 'primap_ghg' is accepted as an alias). Omit `gas_scope` to get the source's
+    default; an unpublished source/gas_scope pair is rejected with the published ones. An unmatched country name is an explicit error with a suggestion.
+    IMPORTANT: this is cumulative share of EMISSIONS, not a country's contribution to
+    temperature -- never say or imply a country caused a given amount of warming, and never
+    regress a country against the global temperature series. The response carries
+    `interpretation_note` and the source `caveats` stating this; keep that framing in your
+    answer. The denominator is the national sum excluding international aviation and shipping
+    (it differs by design from the World series in the headline regression)."""
+    if countries is not None and not countries:
+        raise ValueError("`countries` is an empty list; omit it for a ranking, or name at least one country.")
+    if countries and limit is not None:
+        raise ValueError("`limit` applies to a ranking only; omit it when passing `countries` (a series).")
+    params = {"source": SHARE_SOURCE_ALIASES.get(source, source), "gas_scope": gas_scope}
+    if countries:
+        # The endpoint takes ISO3 codes; resolve names against its own country set first, one
+        # extra call (a full ranking carries every country's code and name).
+        roster = await fetch_correlation("country-share", {**params, "all_countries": True})
+        codes = resolve_share_countries(countries, roster["rows"])
+        body = await fetch_correlation(
+            "country-share", {**params, "countries": codes, "start_year": start_year, "end_year": end_year, "year": year}
+        )
+        summary = {
+            "mode": "series",
+            "countries": [
+                {
+                    "country": sr["country"],
+                    "name": sr["name"],
+                    "first_year": sr["points"][0]["year"] if sr["points"] else None,
+                    "first_share_pct": round(sr["points"][0]["share_pct"], 2) if sr["points"] else None,
+                    "last_year": sr["points"][-1]["year"] if sr["points"] else None,
+                    "last_share_pct": round(sr["points"][-1]["share_pct"], 2) if sr["points"] else None,
+                    "last_cumulative_mt": round(sr["points"][-1]["cumulative_mt"], 1) if sr["points"] else None,
+                }
+                for sr in body["series"]
+            ],
+        }
+    else:
+        # start_year/end_year are forwarded even though they belong to a series: the API rejects
+        # them with an explanatory 422, which is better than silently dropping what the caller asked.
+        body = await fetch_correlation(
+            "country-share", {**params, "year": year, "limit": limit, "start_year": start_year, "end_year": end_year}
+        )
+        rows = body["rows"]
+        summary = {
+            "mode": "ranking",
+            "year": body["year"],
+            "n_rows": len(rows),
+            "top": [{"rank": r["rank"], "name": r["name"], "share_pct": round(r["share_pct"], 2)} for r in rows[:5]],
+            # An empty ranking is "no data for that year", not zero emissions: keep it unavailable.
+            "shown_share_pct_total": round(sum(r["share_pct"] for r in rows), 2) if rows else None,
+        }
+        if not rows:
+            summary["unavailable"] = "No ranking rows for the requested year; see `notes` for the available coverage."
+    summary["unit"] = body["unit"]
+    summary["label"] = body["label"]
+    body["summary"] = summary
+    body["interpretation_note"] = INTERPRETATION_NOTE_SHARE
+    return body
+
+
+@mcp.tool()
+async def get_scenario_temperature(scenarios: list[str] | None = None, line: str = "both") -> dict:
+    """Indicative temperature outcomes implied by the BAU / Moderate / Aggressive emissions
+    pathways to 2040: the existing scenario pathways are applied to the covered countries, the
+    rest of the world is held at its last-observed share, and the headline regression slope
+    converts the added cumulative emissions to implied warming. `scenarios` picks a subset
+    (default all three); `line` is 'both', 'headline' (total anthropogenic CO2 slope) or
+    'fossil_only'. `summary` gives each scenario's 2040 implied temperature level and added
+    warming and the gap versus BAU -- quote it. The response also carries the pre-written
+    `reading_note` and `spread`. ALWAYS label the result an 'illustrative, partial-coverage
+    translation', not a climate-model projection; say it depends on the regression period, the
+    emissions source and the stated assumptions (`assumptions`: rest-of-world share held, land
+    use held flat). Warming is global and is not attributable to any one country."""
+    names = None
+    if scenarios:
+        try:
+            names = [SCENARIO_NAMES[s.strip().lower()] for s in scenarios]
+        except KeyError as exc:
+            raise ValueError(f"Unknown scenario {exc.args[0]!r} -- use any of: BAU, Moderate, Aggressive.") from None
+    body = await fetch_correlation("scenario-temperature", {"scenario": names, "line": line})
+    # step_check is the pipeline's internal per-country QA record (~16 KB), not answer material.
+    body.get("base", {}).pop("step_check", None)
+    final: dict = {}
+    for name, rows in body["scenarios"].items():
+        if not rows:
+            continue
+        last = rows[-1]
+        final[name] = {
+            "year": last["year"],
+            "headline_level_c": (last.get("headline") or {}).get("level_c"),
+            "headline_added_warming_c": (last.get("headline") or {}).get("delta_t_c"),
+            "fossil_only_level_c": (last.get("fossil_only") or {}).get("level_c"),
+            "annual_global_fossil_mt": last.get("global_fossil_mt"),
+        }
+    summary: dict = {"final_year_by_scenario": final, "line": body["line"]}
+    # Gap versus BAU for every line the response carries (the API drops the other line's fields).
+    gaps: dict = {}
+    for key, label in (("headline_level_c", "headline"), ("fossil_only_level_c", "fossil_only")):
+        bau = final.get("BAU", {}).get(key)
+        if bau is not None:
+            gaps[label] = {n: round(f[key] - bau, 3) for n, f in final.items() if n != "BAU" and f[key] is not None}
+    if gaps:
+        summary["level_gap_vs_bau_c"] = gaps
+    body["summary"] = summary
     return body

@@ -2,8 +2,9 @@
 get_forecast_comparison, get_emissions_change_summary.
 
 None is a near-1:1 endpoint wrap -- get_top_emitters ranks a raw time-series payload in
-memory (no ranked-by-year endpoint exists), get_methodology_notes isn't endpoint-backed at
-all, get_forecast_comparison fans out to /forecasts/{country} once per country concurrently
+memory (no ranked-by-year endpoint exists), get_methodology_notes is static text by default
+(and, for topic='climate'/'all', static text plus the live fit figures read from
+/correlation/emissions-temperature -- composed, not a pass-through), get_forecast_comparison fans out to /forecasts/{country} once per country concurrently
 (no multi-country forecast-with-full-series endpoint exists either), and
 get_emissions_change_summary is the one direct 1:1 wrap in this file (bounded output is a
 property of the endpoint it wraps, not something composed here) -- it lives here rather than
@@ -17,7 +18,13 @@ from __future__ import annotations
 import asyncio
 
 from ..client import get_client
-from ..methodology import SCOPE_LABELS, methodology_notes
+from ..climate import fetch_correlation
+from ..methodology import (
+    CLIMATE_METHODOLOGY,
+    HEADLINE_DERIVATION_OUTLINE,
+    SCOPE_LABELS,
+    methodology_notes,
+)
 from ..resolution import fetch_country_lists, resolve_countries
 from ..server import mcp
 from ..trimming import trim
@@ -132,8 +139,36 @@ async def get_emissions_change_summary(scope: str = "sovereign", top_n: int = 10
 
 
 @mcp.tool()
-async def get_methodology_notes() -> dict:
-    """Static methodology reference: the ETS(A,Ad,N) forecasting explanation, the five-model
-    comparison set, OWID dataset provenance/caveats, and expanded-scope selection criteria.
-    Not endpoint-backed -- quote this instead of improvising a methodology explanation."""
-    return methodology_notes()
+async def get_methodology_notes(topic: str | None = None) -> dict:
+    """Static methodology reference. With no `topic`: the ETS(A,Ad,N) forecasting explanation,
+    the five-model comparison set, OWID dataset provenance/caveats, and expanded-scope
+    selection criteria. With `topic='climate'`: the climate-context methodology -- the
+    emissions -> concentration -> forcing -> temperature chain, the headline long-run
+    relationship vs the recent all-gas relationship, country cumulative share, the scenario
+    temperature translation, OWID-vs-PRIMAP source reconciliation, licences, and the limits of
+    the analysis -- plus `headline_derivation`: the live fitted figures (slope, HAC interval, R²,
+    stability, land-use sensitivity, AR6 comparison, and the fossil-only fit beside it) read
+    from the API, never typed here. `topic='all'` returns both. Quote this instead of
+    improvising a methodology explanation."""
+    if topic not in (None, "climate", "all"):
+        raise ValueError(f"Unknown topic {topic!r} -- use 'climate', 'all', or omit it.")
+    out: dict = {} if topic == "climate" else methodology_notes()
+    if topic in ("climate", "all"):
+        total, fossil = await asyncio.gather(
+            fetch_correlation("emissions-temperature", {"source": "owid_co2"}),
+            fetch_correlation("emissions-temperature", {"source": "owid_co2", "variant": "fossil"}),
+        )
+        ctx = total.get("fit_context") or {}
+        out.update(CLIMATE_METHODOLOGY)
+        out["headline_derivation"] = {
+            "outline": HEADLINE_DERIVATION_OUTLINE,
+            "window": total["window"],
+            "fit": total["fit"],
+            "fit_context": {k: ctx.get(k) for k in (
+                "method", "hac_sensitivity", "stability", "vs_ar6", "ar6_reference",
+                "fit_quality_note", "land_use_sensitivity", "land_use_weight_scan",
+            )},
+            "secondary_fossil_only_fit": fossil["fit"],
+            "caveats": total["caveats"],
+        }
+    return out
