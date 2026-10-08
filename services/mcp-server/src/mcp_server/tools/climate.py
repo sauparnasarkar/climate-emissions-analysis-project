@@ -75,7 +75,7 @@ async def get_correlation_metadata() -> dict:
     limits'. It is documentation of the data layer, not a climate model, and says nothing about
     individual countries' contribution to warming."""
     body = await fetch_correlation("meta")
-    # The 67-entry indicator catalog is a data-dictionary, not something to answer questions from.
+    # The indicator catalog is a data dictionary, not something to answer questions from.
     body["indicator_count"] = len(body.pop("indicators", []))
     outputs = body.get("outputs", {})
     body["summary"] = {
