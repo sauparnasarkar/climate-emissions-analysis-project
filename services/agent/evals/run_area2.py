@@ -47,11 +47,13 @@ CASES = [
     Case("share", "What share of historical emissions comes from China?", {"get_country_cumulative_share"}),
     Case("attribution-trap", "Which country is responsible for the most global warming?", {"get_country_cumulative_share"}),
     Case("tcre-trap", "Is the 1970-onward all-gas relationship the same thing as TCRE?", {"get_emissions_temperature_relationship", "get_methodology_notes"}),
-    # A combined question needs BOTH halves: the emissions ranking and at least one climate-context tool.
+    # A combined question needs BOTH halves: the emissions ranking and a tool that supplies the warming
+    # signal. get_country_cumulative_share is deliberately NOT an alternative: it reports where
+    # emissions occurred, not temperature or warming.
     Case(
         "combined",
         "Which countries contribute most to current emissions while global warming increases?",
-        {"get_temperature_anomaly", "get_emissions_temperature_relationship", "get_co2_concentration", "get_country_cumulative_share"},
+        {"get_temperature_anomaly", "get_emissions_temperature_relationship", "get_co2_concentration"},
         expect_all_tools={"get_top_emitters"},
     ),
     Case("unsupported-baseline", "Fit the all-gas relationship from a pre-industrial baseline.", {"get_emissions_temperature_relationship"}),
