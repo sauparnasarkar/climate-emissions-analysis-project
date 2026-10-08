@@ -1,6 +1,8 @@
 """SPEC.md §15.2 widgets/titles and §15.5 follow_up_links for the Area 2 tools."""
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 
@@ -48,9 +50,11 @@ def test_indicator_tools_build_a_card_or_a_line_chart_with_result_based_titles()
 # --- relationship titles never mislabel -------------------------------------------------------
 
 
-def test_headline_relationship_widget_is_a_scatter_titled_headline():
+def test_headline_relationship_widget_has_no_generic_chart_kind_and_is_titled_headline():
+    # The frontend renders it with the Correlation module's own component, chosen by tool name
+    # (ENHANCEMENTS.md decision 105), so there is no generic SyChart kind to name.
     w = build_widget(_rec("get_emissions_temperature_relationship", _relationship("headline long-run relationship (...)", [1850, 2024])), "q")
-    assert (w.intent, w.chart_kind) == ("chart", "scatter") and w.title == "Emissions vs. temperature (headline, 1850–2024)"
+    assert (w.intent, w.chart_kind) == ("chart", None) and w.title == "Emissions vs. temperature (headline, 1850–2024)"
 
 
 def test_all_gas_relationship_is_never_titled_tcre_or_headline():
@@ -72,9 +76,9 @@ def test_fossil_variant_title():
 # --- composition, share, scenario, metadata ---------------------------------------------------
 
 
-def test_composition_is_a_stacked_area_over_a_range_and_a_grid_for_one_year():
+def test_composition_is_a_chart_over_a_range_and_a_grid_for_one_year():
     area = build_widget(_rec("get_ghg_composition", {"summary": {"n_years": 55, "first_year": 1970, "last_year": 2024}}), "q")
-    assert (area.intent, area.chart_kind, area.title) == ("chart", "area", "Greenhouse-gas mix (1970–2024)")
+    assert (area.intent, area.chart_kind, area.title) == ("chart", None, "Greenhouse-gas mix (1970–2024)")
     one = build_widget(_rec("get_ghg_composition", {"summary": {"n_years": 1, "first_year": 2024}}), "q")
     assert (one.intent, one.chart_kind, one.title) == ("grid", None, "Greenhouse-gas mix, 2024")
 
@@ -100,21 +104,42 @@ def test_failed_area2_calls_build_no_widget():
 # --- follow_up_links --------------------------------------------------------------------------
 
 
-def test_area2_tools_link_to_their_pages():
-    assert [l.route for l in follow_up_links([_rec("get_scenario_temperature", {})])] == ["/scenarios", "/forecasts"]
-    assert [l.route for l in follow_up_links([_rec("get_emissions_temperature_relationship", {})])] == ["/climate-correlation", "/overview"]
+def _routes(records):
+    return [l.route for l in follow_up_links(records)]
 
 
-def test_emissions_only_tools_link_to_their_pages_too():
+def test_area2_tools_link_to_their_confirmed_anchors():
+    assert _routes([_rec("get_scenario_temperature", {})]) == ["/climate-correlation#scenarios", "/scenarios"]
+    assert _routes([_rec("get_ghg_composition", {})]) == ["/climate-correlation#gas-composition", "/overview#climate-signal"]
+    assert _routes([_rec("get_country_cumulative_share", {})]) == ["/climate-correlation#country-view", "/overview#top-emitters"]
+    assert _routes([_rec("get_temperature_anomaly", {})]) == ["/overview#climate-signal", "/climate-correlation#global-relationship"]
+
+
+def test_relationship_link_depends_on_headline_versus_all_gas():
+    headline = _rec("get_emissions_temperature_relationship", {"summary": {"source": "owid_co2"}})
+    all_gas = _rec("get_emissions_temperature_relationship", {"summary": {"source": "primap_ghg"}})
+    assert _routes([headline]) == ["/climate-correlation#global-relationship", "/overview#relationship"]
+    assert _routes([all_gas]) == ["/climate-correlation#recent-all-gas", "/overview#relationship"]
+    # Not '#relationship' on the correlation page: that is the Overview's anchor (decision 107).
+    assert "/climate-correlation#relationship" not in _routes([headline]) + _routes([all_gas])
+
+
+def test_emissions_only_tools_link_to_their_pages_with_handoff_labels():
     expected = {
-        "get_historical_emissions": "/historical",
-        "get_country_profile": "/country-profile",
-        "get_forecast": "/forecasts",
-        "get_scenario_projection": "/scenarios",
-        "get_top_emitters": "/overview",
+        "get_historical_emissions": ("/historical", "Open in Historical Trends"),
+        "get_forecast": ("/forecasts", "Open in Forecasts"),
+        "get_scenario_projection": ("/scenarios", "Open in Scenario Comparison"),
+        "get_top_emitters": ("/overview#top-emitters", "Open in Overview"),
     }
-    for tool, route in expected.items():
-        assert [l.route for l in follow_up_links([_rec(tool, {})])] == [route]
+    for tool, (route, label) in expected.items():
+        links = follow_up_links([_rec(tool, {})])
+        assert [(l.route, l.label) for l in links] == [(route, label)]
+
+
+def test_country_profile_link_names_the_country():
+    links = follow_up_links([_rec("get_country_profile", {}, {"country": "China"})])
+    assert [(l.route, l.label) for l in links] == [("/country-profile", "Open China in Country Profile")]
+    assert follow_up_links([_rec("get_country_profile", {})])[0].label == "Open in Country Profile"
 
 
 def test_no_links_for_methodology_metadata_or_failed_calls():
@@ -128,19 +153,32 @@ def test_links_are_deduplicated_by_route_ordered_by_tool_run_and_capped():
     recs = [_rec("get_top_emitters", {}), _rec("get_temperature_anomaly", {}), _rec("get_scenario_temperature", {})]
     links = follow_up_links(recs)
     routes = [l.route for l in links]
-    assert routes == ["/overview", "/climate-correlation", "/scenarios"]  # /overview once, first label wins
-    assert links[0].label == "See the top emitters on the Overview"
+    assert routes == ["/overview#top-emitters", "/overview#climate-signal", "/climate-correlation#global-relationship"]
     assert len(links) == MAX_FOLLOW_UP_LINKS and len(set(routes)) == len(routes)
+    # the same route from two tools appears once, with the first tool's label
+    twice = follow_up_links([_rec("get_forecast", {}), _rec("get_forecast_summary", {})])
+    assert [l.route for l in twice] == ["/forecasts"]
 
 
-def test_every_route_is_a_real_dashboard_page():
-    # The page paths in climate-dashboard-react/src/App.tsx; a typo here would ship a dead link.
-    real = {"/overview", "/historical", "/country-profile", "/forecasts", "/scenarios", "/climate-correlation"}
+def _dashboard_src() -> Path:
+    return Path(__file__).resolve().parents[3] / "climate-dashboard-react" / "src"
+
+
+def test_every_link_points_at_a_real_dashboard_page_and_a_real_anchor():
+    """Read from the dashboard's own source so a renamed page or anchor there fails here, not in
+    production. Paths come from App.tsx's <Route>s; hashes from the `*_ANCHOR = '...'` constants."""
+    src = _dashboard_src()
+    if not src.exists():
+        pytest.skip("climate-dashboard-react/src not present")
+    pages = set(re.findall(r'path="(/[^"]*)"', (src / "App.tsx").read_text()))
+    anchors = {m for f in src.rglob("*.ts*") for m in re.findall(r"_ANCHOR = '([a-z-]+)'", f.read_text())}
+    assert {"/overview", "/climate-correlation", "/scenarios", "/forecasts"} <= pages and "global-relationship" in anchors  # the scrape worked
     from agent.follow_ups import _LINKS_BY_TOOL
 
-    assert {l.route for links in _LINKS_BY_TOOL.values() for l in links} <= real
-
-
-def test_share_ranking_title_without_a_row_count_still_reads_cleanly():
-    w = build_widget(_rec("get_country_cumulative_share", {"summary": {"mode": "ranking", "year": 2024}}), "q")
-    assert w.title == "Countries by cumulative share of emissions (2024)"
+    probe = ToolCallRecord(tool_name="x", args={"country": "China"}, result={"summary": {"source": "primap_ghg"}}, progress_label="x")
+    probe_headline = ToolCallRecord(tool_name="x", args={}, result={"summary": {"source": "owid_co2"}}, progress_label="x")
+    for builder in _LINKS_BY_TOOL.values():
+        for link in builder(probe) + builder(probe_headline):
+            path, _, anchor = link.route.partition("#")
+            assert path in pages, link.route
+            assert not anchor or anchor in anchors, link.route

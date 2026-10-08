@@ -670,7 +670,7 @@ async def test_follow_up_links_are_set_per_turn_and_reset_on_the_next():
     )
     graph = await build_graph(llm=llm, mcp_tools=[tool, meth])
     first = await graph.ainvoke({"current_query": "temperature by scenario"}, config=THREAD_CONFIG)
-    assert [l.route for l in first["follow_up_links"]] == ["/scenarios", "/forecasts"]
+    assert [l.route for l in first["follow_up_links"]] == ["/climate-correlation#scenarios", "/scenarios"]
     second = await graph.ainvoke({"current_query": "how does the forecast work?"}, config=THREAD_CONFIG)
     assert second["follow_up_links"] == []  # reset at the turn boundary, not carried over
 

@@ -1044,13 +1044,12 @@ model's tool choice, steered by `AGENT_SYSTEM_PROMPT`:
 
 ### 15.2 Tool → widget mapping (extends §3's table; as built in step 3.4)
 
-`WidgetSpec.chart_kind` gains `scatter` and `area` (the frontend maps them in step 3.5; `props` is the
-tool's full result, unshaped, as for every other widget).
+`WidgetSpec.chart_kind` is unchanged (`line`/`bar`/`band`/`choropleth`). **Revised 2026-10-08 (decision 105):** the frontend chooses a renderer by tool *name* and wraps the Correlation module's own components with the tool result as props, so the new widgets carry no generic chart kind (`None`) — an earlier draft of this table added `scatter` and `area`, now removed. `props` is the tool's full result, unshaped.
 
 | Tool | Intent | Chart kind / component |
 |---|---|---|
-| `get_emissions_temperature_relationship` | `chart` | `scatter` — the result is a set of cumulative-emissions/temperature *pairs*, not a time series, so a scatter (with the fit line from `summary.fit`) is its native form. This replaces the draft's "line with a second axis" option. |
-| `get_ghg_composition` | `chart` over a range, `grid` for a single year | stacked `area` (the design system's `stackedAreaMode`); single year → `grid` |
+| `get_emissions_temperature_relationship` | `chart` | none — rendered by the module's headline-relationship component (cumulative-emissions/temperature *pairs* with the fit from `summary.fit`) |
+| `get_ghg_composition` | `chart` over a range, `grid` for a single year | none — the module's gas-composition component; single year → `grid` |
 | `get_country_cumulative_share` | `chart` | `line` for a country series, `bar` for a ranking (decided from `summary.mode`) |
 | `get_scenario_temperature` | `chart` | `line`, BAU/Moderate/Aggressive, with the fossil-only second line |
 | `get_co2_concentration`, `get_temperature_anomaly` | `card` (`KpiStat`) for a "what is it now" ask, else `chart` (`line`) | `select_indicator_intent`: a deterministic keyword heuristic on `current_query` (trend/comparison markers win over "latest"), the same seam as `select_top_emitters_chart_kind` — no LLM call |
@@ -1165,7 +1164,7 @@ new field carries real navigation links:
   "latest, not-yet-superseded turn" gating as `showSuggestedPrompts`, correction #27), using
   router navigation (`useNavigate`) — in-app, no full reload, and respecting the deploy base path.
 
-**As built (step 3.4):** `follow_ups.py` holds the lookup (all 18 data tools; `get_methodology_notes`,
+**As built (step 3.4, revised per decisions 105/107):** links carry confirmed hash anchors (e.g. `/climate-correlation#global-relationship`; the all-gas relationship goes to `#recent-all-gas`) and labels follow the handoff ("Open in …"); a test reads the dashboard's source to verify every path and anchor. `follow_ups.py` holds the lookup (all 18 data tools; `get_methodology_notes`,
 `get_correlation_metadata` and `list_countries` have none), `AgentState.follow_up_links` is reset per turn
 in `_reset_turn_fields`, computed in `ui_selection_node` from the *successful* calls (a failed call yields no
 link), and sent as `follow_up_links: [{label, route}]` in the SSE `result` event (always present, `[]` when

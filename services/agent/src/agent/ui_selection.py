@@ -37,9 +37,10 @@ _TOOL_INTENT: dict[str, tuple[str, str | None]] = {
     "get_forecast_summary": ("grid", None),
     "get_scenario_cumulative_impact": ("grid", None),
     "get_methodology_notes": ("text", None),
-    # Area 2 (SPEC.md §15.2). Cumulative emissions vs temperature is a pairing, not a time series,
-    # hence scatter (the headline pair's native form); the gas mix over time is a stacked area.
-    "get_emissions_temperature_relationship": ("chart", "scatter"),
+    # Area 2 (SPEC.md §15.2, §15.10). The frontend picks a renderer by tool NAME and wraps the
+    # Correlation module's own components (decision 105), so `chart_kind` is only informational
+    # here: None where there is no generic SyChart kind to name.
+    "get_emissions_temperature_relationship": ("chart", None),
     "get_scenario_temperature": ("chart", "line"),
     "get_correlation_metadata": ("grid", None),
 }
@@ -232,7 +233,7 @@ def build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | Non
         single_year = ((record.result or {}).get("summary") or {}).get("n_years") == 1
         return WidgetSpec(
             intent="grid" if single_year else "chart",
-            chart_kind=None if single_year else "area",
+            chart_kind=None,
             title=_title_for(record),
             source_tool_call=source,
             props=record.result or {},
