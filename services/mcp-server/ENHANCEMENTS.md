@@ -497,3 +497,11 @@ and Area 2 methodology text, the derivation outline) and the relationship labels
 agent's alerts. File names and identifiers (`owid-co2-data.csv`, `owid_co2`) are not text and are unchanged, and
 tool *docstrings* (descriptions written for the model) are left alone. A test scans every returned methodology
 string so plain "CO2"/"degC"/"--" cannot return.
+
+**Extended after Copilot's review (#273).** The first version fixed only the strings *this* server writes. The API-derived text
+(fit labels like "Total anthropogenic CO2", units like "°C per 1,000 GtCO2", notes, caveats, methodology prose, written in
+`pipeline/` and `api/`) reached users unchanged. `climate.normalize_typography` now rewrites every string **value** of every
+correlation response, once, in `fetch_correlation` — keys, strings starting with `http`, and (lower-case) identifiers are left
+alone. A scan of all nine climate tools' real-data output finds no plain "CO2"/"degC" left. The `api/`'s own source strings are
+unchanged (a response-time rewrite here keeps this PR to one sub-project).
+
