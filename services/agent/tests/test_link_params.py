@@ -125,3 +125,32 @@ def test_every_param_the_links_use_is_read_by_the_page_they_point_at():
                 seen += 1
                 assert key in pages_reading[parts.path], (link.route, key)
     assert seen >= 5  # the probes really exercised params
+
+
+# --- a scope the page cannot represent (Copilot review of #275) ----------------------------------------------------
+
+
+def test_a_sovereign_scope_historical_link_omits_the_countries_the_page_cannot_show():
+    # The page's picker validates against the expanded list and falls back to its defaults for unknown names, so a link
+    # carrying sovereign-only countries would open a different view than the answer.
+    r = {"gas": "co2", "series": [{"name": "Bhutan"}, {"name": "Nepal"}]}
+    assert _link(_rec("get_historical_emissions", r, {"countries": ["Bhutan", "Nepal"], "scope": "sovereign"})).route == "/historical"
+
+
+def test_a_sovereign_scope_link_still_carries_the_gas():
+    r = {"gas": "methane", "series": [{"name": "Bhutan"}]}
+    link = _link(_rec("get_historical_emissions", r, {"scope": "sovereign", "gas": "methane"}))
+    assert _query(link.route) == {"gas": ["methane"]}  # countries omitted, gas kept
+
+
+def test_expanded_featured_and_default_scopes_still_carry_the_countries():
+    r = {"gas": "co2", "series": [{"name": "China"}, {"name": "India"}]}
+    for args in ({}, {"scope": "expanded"}, {"scope": "featured"}):
+        assert _query(_link(_rec("get_historical_emissions", r, args)).route)["countries"] == ["China", "India"], args
+
+
+def test_scenario_and_profile_links_are_unaffected_because_their_tools_enforce_the_expanded_scope():
+    # compare_scenarios_across_countries and get_country_profile resolve every name against the EXPANDED scope in the MCP
+    # server, so their results cannot hold a name the page does not know; their links keep their params.
+    assert _link(_rec("compare_scenarios_across_countries", {"countries": ["China"], "scenarios": {}})).route == "/scenarios?countries=China"
+    assert _link(_rec("get_country_profile", {"country": "China"})).route == "/country-profile?country=China"

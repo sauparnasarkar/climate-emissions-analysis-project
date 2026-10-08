@@ -56,7 +56,12 @@ def _result(record: ToolCallRecord) -> dict:
 
 def _historical(record: ToolCallRecord) -> list[FollowUpLink]:
     r = _result(record)
-    names = [s["name"] for s in r.get("series") or [] if isinstance(s, dict) and s.get("name")][:MAX_LINK_COUNTRIES]
+    # A sovereign-scope result can hold countries the page cannot show: its picker validates against the EXPANDED list and
+    # silently falls back to the default selection for names it does not know, so the link would open a different view than
+    # the answer's. Carry the countries only for the scopes the page can represent (expanded, featured; the tool's default is
+    # expanded and it resolves explicit names against the chosen scope). The gas is still carried: every page knows it.
+    representable = record.args.get("scope", "expanded") != "sovereign"
+    names = [s["name"] for s in r.get("series") or [] if isinstance(s, dict) and s.get("name")][:MAX_LINK_COUNTRIES] if representable else []
     params = [("countries", n) for n in names]
     if r.get("gas") and r["gas"] != "co2":  # co2 is the page's default
         params.append(("gas", r["gas"]))
