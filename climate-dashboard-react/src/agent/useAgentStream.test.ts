@@ -19,6 +19,22 @@ afterEach(() => {
 });
 
 describe('useAgentStream', () => {
+  it('reset() while loading aborts the request and ignores its late result', () => {
+    fetchEventSourceMock.mockReturnValue(new Promise(() => {}));
+    const { result } = renderHook(() => useAgentStream());
+    act(() => result.current.submit('q', null));
+    const options = lastCallOptions();
+
+    act(() => result.current.reset());
+    expect(options.signal.aborted).toBe(true);
+    expect(result.current.loading).toBe(false);
+
+    const payload = { thread_id: 't1', widgets: [], response_text: 'late', scope_notes: [], suggested_prompts: [], percent: 100 };
+    act(() => options.onmessage({ event: 'result', data: JSON.stringify(payload) }));
+    expect(result.current.result).toBeNull();
+    expect(result.current.loading).toBe(false);
+  });
+
   it('posts to agent/query with the query and thread_id, and sets loading', () => {
     fetchEventSourceMock.mockReturnValue(new Promise(() => {}));
     const { result } = renderHook(() => useAgentStream());
