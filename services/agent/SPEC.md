@@ -1112,9 +1112,14 @@ new field carries real navigation links:
   | `get_emissions_temperature_relationship`, `get_ghg_composition` | Climate Correlation → `/climate-correlation`; Overview → `/overview` |
   | `get_country_cumulative_share` | Climate Correlation (country view) → `/climate-correlation`; Overview (top emitters) → `/overview` |
   | `get_scenario_temperature` | Scenario Comparison → `/scenarios`; Forecasts → `/forecasts` |
-  | any emissions-only tool (existing) | none — behavior unchanged |
+  | `get_historical_emissions`, `get_gas_composition_by_decade` | Historical Trends → `/historical` |
+  | `get_country_profile` | Country Profile → `/country-profile` |
+  | `get_forecast`, `get_forecast_comparison`, `get_forecast_summary`, `get_model_comparison` | Forecasts → `/forecasts` |
+  | `get_scenario_projection`, `get_scenario_cumulative_impact`, `compare_scenarios_across_countries` | Scenario Comparison → `/scenarios` |
+  | `get_top_emitters`, `get_emissions_change_summary` | Overview → `/overview` |
+  | `get_methodology_notes`, `list_countries`, `get_correlation_metadata` | none |
 
-  At most three links per turn, de-duplicated by route, order stable. Anchors (e.g. an Overview
+  Emissions-only tools get links too (owner, 2026-10-08), so every data answer ends with a way into the matching dashboard page. At most three links per turn, de-duplicated by route, in the order the tools ran in the turn. Anchors (e.g. an Overview
   section id) are only used once confirmed to exist in the built page.
 - **Transport.** Added to the final SSE payload next to `suggested_prompts`; `finalize` writes it,
   `stream_query` forwards it. Absent/empty for existing turns, so the frontend change is additive.

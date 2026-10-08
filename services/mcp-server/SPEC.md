@@ -178,7 +178,7 @@ no UI directives) plus the Area 2 conventions below.
 
 | Tool | Wraps | Args | Notes |
 |---|---|---|---|
-| `get_co2_concentration` | `GET /correlation/concentration` | `start_year?`, `end_year?`, `resolution` (annual\|monthly, default annual) | NOAA GML Mauna Loa spliced to Law Dome before 1959. Always surfaces the splice year, the measured overlap gap and the latest monthly reading. The monthly series (~800 rows) is only returned on explicit request and is range-capped. |
+| `get_co2_concentration` | `GET /correlation/concentration` | `start_year?`, `end_year?` | NOAA GML Mauna Loa spliced to Law Dome before 1959. **Annual only** (owner, 2026-10-08: the monthly series is not shown on any dashboard page). Always surfaces the splice year and the measured overlap gap. |
 | `get_temperature_anomaly` | `GET /correlation/temperature` | `start_year?`, `end_year?`, `reference` (1850-1900\|1951-1980, default 1850-1900) | Berkeley Earth high-resolution annual file. Carries the **preliminary-release note** and the offset derivation. |
 | `get_emissions_temperature_relationship` | `GET /correlation/emissions-temperature` | `source` (owid_co2\|primap_total_ghg), `baseline`, `start_year?`, `end_year?`, `include_regression` (default true) | The headline long-run relationship (`owid_co2`, pre-industrial) and the "recent all-gas relationship" (`primap_total_ghg`, 1970+). The API's 422 for an unsupported source/baseline pair is returned as a tool error naming the valid combinations — never a silent substitution. `include_lag_analysis` is not exposed (lag analysis is out of scope, requirements §1.3.2). |
 | `get_ghg_composition` | `GET /correlation/ghg-composition` | `start_year?`, `end_year?`, `year?`, `countries?` | PRIMAP-hist CO₂/CH₄/N₂O/F-gases in CO₂e (AR5 GWP-100), excluding LULUCF and international transport. Excluded incomplete trailing years are reported, not hidden. |
@@ -199,8 +199,7 @@ no UI directives) plus the Area 2 conventions below.
    #33).
 3. **Full data stays in the result.** Tools return the full `points`/`years`/`rows` — the widget needs
    the full series. Capping what the *model* sees is the agent's job (agent `SPEC.md` §15.4), so this
-   server stays stateless and consumer-agnostic. The one exception is the monthly concentration
-   series, which is range-capped here because it has no chart consumer in the agent.
+   server stays stateless and consumer-agnostic. 
 4. **Interpretive-context wording lives in tool descriptions.** Each tool's MCP description states
    what it is *not* (not a climate model; correlation, not proof of cause; no country attribution),
    so any MCP client — Claude Desktop included, not just the agent — gets the framing.
