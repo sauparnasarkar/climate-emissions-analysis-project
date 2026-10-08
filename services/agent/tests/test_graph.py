@@ -647,3 +647,72 @@ async def test_emissions_only_turns_get_no_climate_notes():
     )
     result = await graph.ainvoke({"current_query": "how does the forecast work?"}, config=THREAD_CONFIG)
     assert result["scope_notes"] == []
+
+
+# === step 3.4: follow_up_links and the compose payload =======================================
+
+
+async def test_follow_up_links_are_set_per_turn_and_reset_on_the_next():
+    tool = _fake_tool("get_scenario_temperature", {"scenarios": {}, "summary": {"line": "both"}})
+    meth = await _make_methodology_tool()
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_scenario_temperature", {}, "s1")]),
+            AIMessage(content="done"),
+            {"response_text": "Scenarios."},
+            # second turn on the same thread: a methodology-only question
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_methodology_notes", {}, "m1")]),
+            AIMessage(content="done"),
+            {"response_text": "Method."},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool, meth])
+    first = await graph.ainvoke({"current_query": "temperature by scenario"}, config=THREAD_CONFIG)
+    assert [l.route for l in first["follow_up_links"]] == ["/scenarios", "/forecasts"]
+    second = await graph.ainvoke({"current_query": "how does the forecast work?"}, config=THREAD_CONFIG)
+    assert second["follow_up_links"] == []  # reset at the turn boundary, not carried over
+
+
+async def test_non_data_turns_have_no_follow_up_links():
+    llm = ScriptedChatModel([{"classification": "off_topic"}])
+    graph = await build_graph(llm=llm, mcp_tools=[])
+    result = await graph.ainvoke({"current_query": "write a poem"}, config=THREAD_CONFIG)
+    assert result["follow_up_links"] == []
+
+
+async def test_compose_payload_carries_area2_summaries_but_not_other_props():
+    import json as _json
+
+    tool = _fake_tool("get_scenario_temperature", {"scenarios": {"BAU": [1] * 50}, "summary": {"final_year_by_scenario": {"BAU": {"headline_level_c": 1.68}}}})
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_scenario_temperature", {}, "s1")]),
+            AIMessage(content="done"),
+            {"response_text": "ok"},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool])
+    await graph.ainvoke({"current_query": "implied temperature by scenario"}, config=THREAD_CONFIG)
+    payload = _json.loads(llm.structured_calls[-1][1][-1].content)
+    widget = payload["widgets"][0]
+    assert widget["summary"]["final_year_by_scenario"]["BAU"]["headline_level_c"] == 1.68
+    assert "props" not in widget and "scenarios" not in _json.dumps(widget)  # bulk props stay out
+
+
+async def test_compose_payload_has_no_summary_for_widgets_without_one():
+    import json as _json
+
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_methodology_notes", {}, "m1")]),
+            AIMessage(content="done"),
+            {"response_text": "ok"},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[await _make_methodology_tool()])
+    await graph.ainvoke({"current_query": "how does the forecast work?"}, config=THREAD_CONFIG)
+    assert "summary" not in _json.loads(llm.structured_calls[-1][1][-1].content)["widgets"][0]

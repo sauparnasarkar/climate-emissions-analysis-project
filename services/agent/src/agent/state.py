@@ -23,11 +23,18 @@ class ToolCallRecord(BaseModel):
 
 class WidgetSpec(BaseModel):
     intent: Literal["chart", "grid", "card", "text"]
-    chart_kind: Literal["line", "bar", "band", "choropleth"] | None = None
+    chart_kind: Literal["line", "bar", "band", "choropleth", "scatter", "area"] | None = None
     title: str
     as_of: str | None = None
     source_tool_call: str
     props: dict
+
+
+class FollowUpLink(BaseModel):
+    """A real in-app navigation link (SPEC.md §15.5), not a prompt: `route` is a dashboard path."""
+
+    label: str
+    route: str
 
 
 class AgentState(BaseModel):
@@ -40,4 +47,5 @@ class AgentState(BaseModel):
     scope_notes: list[str] = Field(default_factory=list)
     widgets: list[WidgetSpec] = Field(default_factory=list)
     suggested_prompts: list[str] = Field(default_factory=list)
+    follow_up_links: list[FollowUpLink] = Field(default_factory=list)
     response_text: str = ""

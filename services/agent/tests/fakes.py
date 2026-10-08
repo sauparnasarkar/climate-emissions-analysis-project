@@ -23,6 +23,9 @@ class ScriptedChatModel:
     def __init__(self, responses: Sequence[Any]):
         self._responses = list(responses)
         self._schema: type[BaseModel] | None = None
+        # (schema, messages) for every structured-output call, shared across clones -- `last_messages`
+        # below is set on whichever clone made the call, so it can't be read back from the parent.
+        self.structured_calls: list[tuple[type[BaseModel], list]] = []
 
     def bind_tools(self, tools):  # noqa: ARG002 -- interface parity with ChatAnthropic
         return self
@@ -31,12 +34,15 @@ class ScriptedChatModel:
         clone = ScriptedChatModel.__new__(ScriptedChatModel)
         clone._responses = self._responses  # shared queue -- same script, whichever path drains it
         clone._schema = schema
+        clone.structured_calls = self.structured_calls
         return clone
 
     async def ainvoke(self, messages):
         # Captured (not just consumed) so a test can assert on what a node actually sent --
         # e.g. that agent_node's system message carries a cache_control breakpoint.
         self.last_messages = messages
+        if self._schema is not None:
+            self.structured_calls.append((self._schema, messages))
         if not self._responses:
             raise AssertionError("ScriptedChatModel ran out of scripted responses")
         value = self._responses.pop(0)

@@ -319,3 +319,35 @@ async def test_query_against_real_mcp_server(running_mcp_server):
     assert [e["event"] for e in events] == ["progress", "result"]
     result_payload = json.loads(events[1]["data"])
     assert result_payload["response_text"] == "Here's the real methodology."
+
+
+async def test_query_result_event_carries_follow_up_links():
+    import json
+
+    tool = await _make_methodology_tool()
+    scen = StructuredTool.from_function(
+        coroutine=(lambda: None) if False else _scenario_run, name="get_scenario_temperature", description="fake"
+    )
+    llm = ScriptedChatModel(
+        [
+            {"classification": "data_query"},
+            AIMessage(content="", tool_calls=[_tool_call("get_scenario_temperature", {}, "c1")]),
+            AIMessage(content="done"),
+            {"response_text": "Scenarios."},
+        ]
+    )
+    graph = await build_graph(llm=llm, mcp_tools=[tool, scen])
+    app.dependency_overrides[get_graph] = lambda: graph
+    try:
+        response = TestClient(app).post("/query", json={"query": "temperature by scenario"})
+    finally:
+        app.dependency_overrides.pop(get_graph, None)
+    result = json.loads(_parse_sse(response.text)[-1]["data"])
+    assert result["follow_up_links"] == [
+        {"label": "Compare scenarios", "route": "/scenarios"},
+        {"label": "Open Forecasts", "route": "/forecasts"},
+    ]
+
+
+async def _scenario_run() -> dict:
+    return {"scenarios": {}, "summary": {"line": "both"}}

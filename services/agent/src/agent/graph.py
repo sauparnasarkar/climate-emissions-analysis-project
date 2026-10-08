@@ -46,6 +46,7 @@ from pydantic import BaseModel, field_validator
 
 from .cache import cache_key
 from .caveats import mandatory_notes
+from .follow_ups import follow_up_links
 from .llm import get_llm
 from .mcp_client import get_mcp_tools
 from .payload_cap import cap_for_model
@@ -128,6 +129,7 @@ def _reset_turn_fields() -> dict[str, Any]:
         "widgets": [],
         "scope_notes": [],
         "suggested_prompts": [],
+        "follow_up_links": [],
         "response_text": "",
     }
 
@@ -424,7 +426,11 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
     # notes so the order reads "what went wrong" then "how to read what came back".
     scope_notes = [*scope_notes, *(n for n in mandatory_notes(state.tool_calls) if n not in scope_notes)]
 
-    result: dict[str, Any] = {"widgets": widgets, "scope_notes": scope_notes}
+    result: dict[str, Any] = {
+        "widgets": widgets,
+        "scope_notes": scope_notes,
+        "follow_up_links": follow_up_links(state.tool_calls),
+    }
 
     if not state.tool_calls:
         # A data_query turn that made zero tool calls at all -- confirmed reachable (SPEC.md
@@ -464,7 +470,15 @@ def route_after_ui_selection(state: AgentState) -> Literal["compose_response", "
 
 async def compose_response_node(state: AgentState, *, llm: BaseChatModel) -> dict[str, Any]:
     structured = llm.with_structured_output(_ComposedResponse)
-    widgets_summary = [w.model_dump(exclude={"props"}) for w in state.widgets]
+    widgets_summary = []
+    for w in state.widgets:
+        entry = w.model_dump(exclude={"props"})
+        # Area 2 widgets carry a small deterministic `summary` (slope, shares, levels...) the
+        # narration should quote; everything else in props stays excluded to bound context size.
+        summary = w.props.get("summary") if isinstance(w.props, dict) else None
+        if isinstance(summary, dict):
+            entry["summary"] = summary
+        widgets_summary.append(entry)
     payload = json.dumps({"query": state.current_query, "widgets": widgets_summary, "scope_notes": state.scope_notes})
     result = await structured.ainvoke([SystemMessage(content=COMPOSE_RESPONSE_SYSTEM_PROMPT), HumanMessage(content=payload)])
     return {"response_text": result.response_text}
@@ -497,7 +511,11 @@ def _default_checkpointer() -> MemorySaver:
     # langgraph version turns that into a hard failure. Confirmed empirically that both
     # ToolCallRecord and WidgetSpec need registering -- both flow through persisted state.
     serde = JsonPlusSerializer(
-        allowed_msgpack_modules=[("agent.state", "ToolCallRecord"), ("agent.state", "WidgetSpec")]
+        allowed_msgpack_modules=[
+            ("agent.state", "ToolCallRecord"),
+            ("agent.state", "WidgetSpec"),
+            ("agent.state", "FollowUpLink"),
+        ]
     )
     return MemorySaver(serde=serde)
 
