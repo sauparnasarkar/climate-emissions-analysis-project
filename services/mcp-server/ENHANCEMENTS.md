@@ -485,3 +485,23 @@ title/progress label that reads the year from the result) follow in the agent's 
 Additive fields `n_ranked`, `total_mt`, `top_n_share_pct`, so the agent can state "the top 10 are 71% of the
 total" and "largest of N countries" from the tool result instead of the model estimating them. Existing fields
 are unchanged. Stacked on the latest-year fix above.
+
+
+## Fix — "CO₂", "°C" and en dashes in the strings the tools return (Ask-page design review, 2026-10-08)
+
+The design review asked for "CO₂" and proper dashes on the Ask page. The agent's own text was fixed in the
+agent's step 3.4b; this is the MCP server's half. In `methodology.py` (the forecasting, provenance, scope-label
+and Area 2 methodology text, the derivation outline) and the relationship labels in `tools/climate.py`: plain
+"CO2" → "CO₂" (including "CO₂e", "GtCO₂", "non-CO₂"), "degC" → "°C", " -- " → " – ", and the "0.27-0.63" range
+→ "0.27–0.63". The `scope_note` wording ("≥100 Mt latest-year CO₂") changes with it, since it surfaces in the
+agent's alerts. File names and identifiers (`owid-co2-data.csv`, `owid_co2`) are not text and are unchanged, and
+tool *docstrings* (descriptions written for the model) are left alone. A test scans every returned methodology
+string so plain "CO2"/"degC"/"--" cannot return.
+
+**Extended after Copilot's review (#273).** The first version fixed only the strings *this* server writes. The API-derived text
+(fit labels like "Total anthropogenic CO2", units like "°C per 1,000 GtCO2", notes, caveats, methodology prose, written in
+`pipeline/` and `api/`) reached users unchanged. `climate.normalize_typography` now rewrites every string **value** of every
+correlation response, once, in `fetch_correlation` — keys, strings starting with `http`, and (lower-case) identifiers are left
+alone. A scan of all nine climate tools' real-data output finds no plain "CO2"/"degC" left. The `api/`'s own source strings are
+unchanged (a response-time rewrite here keeps this PR to one sub-project).
+

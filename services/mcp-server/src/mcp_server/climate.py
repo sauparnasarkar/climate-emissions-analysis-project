@@ -24,6 +24,27 @@ from .client import get_client
 from .resolution import AUTO_RESOLVE_THRESHOLD, CountryResolutionError
 
 
+def normalize_typography(value):
+    """Proper typography in the text the API hands back: "CO2" -> "CO₂" (also in "GtCO2", "MtCO2e",
+    "non-CO2") and "degC" -> "°C", in every string VALUE, recursively.
+
+    Applied once, in `fetch_correlation`, because the API's own labels, units, notes, caveats and
+    methodology text carry plain "CO2" (they are written in `pipeline/` and `api/`, not here) and every
+    one of them can reach a user through the agent. Dict keys are not text and keep their spelling, and a
+    string starting with "http" is left alone, so neither an identifier nor a URL is rewritten.
+    Identifiers are lower-case (`owid_co2`, `co2_mt`), so the upper-case "CO2" this replaces never
+    appears in one."""
+    if isinstance(value, str):
+        if value.startswith("http"):
+            return value
+        return value.replace("CO2", "CO₂").replace("degC", "°C")
+    if isinstance(value, dict):
+        return {k: normalize_typography(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [normalize_typography(v) for v in value]
+    return value
+
+
 class ClimateApiError(Exception):
     """The correlation API refused or could not serve a request; the message is the API's own."""
 
@@ -52,7 +73,7 @@ async def fetch_correlation(resource: str, params: dict | None = None) -> dict:
             raise ClimateApiError(f"The climate API rejected this request ({status}): {_detail(exc.response)}") from exc
         raise
     assert isinstance(body, dict)
-    return body
+    return normalize_typography(body)
 
 
 def _round(value: float, places: int = 3) -> float:

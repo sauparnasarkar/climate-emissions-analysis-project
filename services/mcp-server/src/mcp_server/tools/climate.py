@@ -128,11 +128,11 @@ def _relationship_label(source: str, variant: str | None, baseline: str, window:
     # same series is a selected-window view (the 1990 one has no published fit) and must not be
     # presented as the headline.
     if baseline != "preindustrial":
-        what = "fossil-fuel-and-cement-only" if variant == "fossil" else "total anthropogenic CO2"
+        what = "fossil-fuel-and-cement-only" if variant == "fossil" else "total anthropogenic CO₂"
         return f"selected-window relationship, NOT the headline fit (OWID cumulative {what} vs temperature, {span})"
     if variant == "fossil":
         return "secondary fossil-fuel-and-cement-only variant of the headline relationship"
-    return "headline long-run relationship (OWID cumulative total anthropogenic CO2 vs temperature)"
+    return "headline long-run relationship (OWID cumulative total anthropogenic CO₂ vs temperature)"
 
 
 @mcp.tool()
