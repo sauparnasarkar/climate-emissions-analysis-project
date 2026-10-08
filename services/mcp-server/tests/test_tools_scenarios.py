@@ -42,3 +42,7 @@ async def test_compare_scenarios_across_countries_resolves_each_name(api_client)
 async def test_compare_scenarios_across_countries_out_of_scope_raises(api_client):
     with pytest.raises(CountryResolutionError, match="outside 'expanded' scope"):
         await compare_scenarios_across_countries(["Canada"])
+
+async def test_compare_scenarios_across_countries_rejects_an_empty_countries_list(api_client):
+    with pytest.raises(CountryResolutionError, match="empty list"):
+        await compare_scenarios_across_countries(countries=[])

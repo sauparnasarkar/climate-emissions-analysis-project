@@ -106,3 +106,7 @@ async def test_get_methodology_notes_returns_canonical_sections():
         "scope_criteria",
     }
     assert "ETS(A,Ad,N)" in body["forecasting_methodology"]
+
+async def test_get_forecast_comparison_rejects_an_explicit_empty_countries_list(api_client):
+    with pytest.raises(CountryResolutionError, match="empty list"):
+        await get_forecast_comparison(countries=[])
