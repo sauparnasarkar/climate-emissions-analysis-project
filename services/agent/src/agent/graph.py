@@ -63,7 +63,7 @@ from .prompts import (
     UI_SELECTION_COUNTRY_PROFILE_PROMPT,
 )
 from .state import AgentState, ToolCallRecord, WidgetSpec
-from .ui_selection import build_country_profile_widgets, build_widget, is_error_result
+from .ui_selection import build_country_profile_widgets, build_widget, historical_chart_covers, is_error_result
 
 logger = logging.getLogger(__name__)
 
@@ -252,7 +252,7 @@ async def call_cap_notice_node(state: AgentState) -> dict[str, Any]:
     # supply a route, they don't produce channel updates; a state write there is silently
     # discarded. Only reachable when the agent still wanted to call a tool but was blocked, so
     # this never misfires on a turn that finished naturally exactly at the cap.
-    note = f"Stopped after {MAX_TOOL_CALLS_PER_TURN} tool calls -- this response may be based on partial data."
+    note = f"Stopped after {MAX_TOOL_CALLS_PER_TURN} tool calls – this response may be based on partial data."
     return {"scope_notes": [*state.scope_notes, note]}
 
 
@@ -381,6 +381,11 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
         if is_error_result(record.result):
             continue  # no widget from a failed call, and no point spending an LLM call on it
         if record.tool_name == "get_country_profile":
+            if historical_chart_covers(record, state.tool_calls):
+                # A historical chart for this country is already in the turn: the profile contributes
+                # its KPI card only, and the "chart or card?" LLM judgment call is not needed.
+                widgets.extend(build_country_profile_widgets(record, include_chart=False))
+                continue
             structured = llm.with_structured_output(_CountryProfileSelection)
             start = time.monotonic()
             selection = await structured.ainvoke(
@@ -400,7 +405,7 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
     # an empty widgets list either way and invents a generic "try rephrasing" apology even when
     # the actual cause was a transient failure, not an ambiguous query.
     if state.tool_calls and len(failed_records) == len(state.tool_calls):
-        note = "The underlying data service didn't return results for this query -- this looks like a transient failure, not a problem with the question itself."
+        note = "The underlying data service didn't return results for this query – this looks like a transient failure, not a problem with the question itself."
         logger.warning("ui_selection_node: all %d tool call(s) this turn failed", len(state.tool_calls))
         scope_notes = [*scope_notes, note]
     elif failed_records:
@@ -417,7 +422,7 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
         # tools_node computed, e.g. "Fetching China's emissions profile") instead of tool_name;
         # the raw tool name stays confined to the log line below.
         failed_descriptions = sorted({record.progress_label for record in failed_records})
-        note = f"Some of the data needed to fully answer this couldn't be retrieved ({', '.join(failed_descriptions)}) -- this response may be based on partial data."
+        note = f"Some of the data needed to fully answer this couldn't be retrieved ({', '.join(failed_descriptions)}) – this response may be based on partial data."
         logger.warning(
             "ui_selection_node: %d of %d tool call(s) this turn failed (%s)",
             len(failed_records),

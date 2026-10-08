@@ -34,3 +34,7 @@ def test_compose_prompt_repeats_the_climate_framing():
     from agent.prompts import COMPOSE_RESPONSE_SYSTEM_PROMPT
 
     assert "never proof of cause" in COMPOSE_RESPONSE_SYSTEM_PROMPT and "TCRE" in COMPOSE_RESPONSE_SYSTEM_PROMPT
+
+
+def test_agent_prompt_tells_the_model_to_leave_the_year_out_of_top_emitters_unless_named():
+    assert "leave the year out unless the user names a specific year" in AGENT_SYSTEM_PROMPT

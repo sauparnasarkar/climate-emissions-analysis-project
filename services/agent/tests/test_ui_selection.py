@@ -107,7 +107,7 @@ def test_build_widget_historical_emissions_title_uses_truncated_country_join():
     widget = build_widget(record, "how many countries increased or decreased?")
     assert widget is not None
     assert widget.title == (
-        "Historical emissions -- Country1, Country2, Country3, Country4, Country5, and 204 more"
+        "Historical emissions – Country1, Country2, Country3, Country4, Country5, and 204 more"
     )
 
 
@@ -123,7 +123,7 @@ def test_build_widget_historical_emissions_title_falls_back_to_scope_when_countr
     )
     widget = build_widget(record, "how many countries increased or decreased?")
     assert widget is not None
-    assert widget.title == "Historical emissions -- sovereign scope"
+    assert widget.title == "Historical emissions – sovereign scope"
     assert "selected countries" not in widget.title
 
 

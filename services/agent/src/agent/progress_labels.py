@@ -29,7 +29,7 @@ _BUILDERS: dict[str, Callable[[dict], str]] = {
     "get_forecast_summary": lambda args: f"Fetching forecast summary ({args.get('scope', 'featured')})",
     "get_forecast_comparison": lambda args: f"Comparing forecasts for {join_countries(args.get('countries'))}",
     "get_model_comparison": lambda args: "Fetching model comparison",
-    "get_top_emitters": lambda args: f"Ranking top {args.get('n', 10)} emitters for {args.get('year', 'the selected year')}",
+    "get_top_emitters": lambda args: f"Ranking top {args.get('n', 10)} emitters for {args.get('year') or 'the latest year'}",
     "get_scenario_projection": lambda args: (
         f"Fetching scenario projection for {args['country']}"
         if args.get("country")
@@ -40,7 +40,7 @@ _BUILDERS: dict[str, Callable[[dict], str]] = {
     "get_methodology_notes": lambda args: "Fetching methodology notes",
     "get_emissions_change_summary": lambda args: f"Counting emissions changes since 1990 ({args.get('scope', 'sovereign')})",
     # Area 2 climate-context tools (root Release 21, Section 3). Plain-language, never the tool name.
-    "get_co2_concentration": lambda args: "Fetching atmospheric CO2 concentration",
+    "get_co2_concentration": lambda args: "Fetching atmospheric CO₂ concentration",
     "get_temperature_anomaly": lambda args: "Fetching the global temperature anomaly",
     "get_correlation_metadata": lambda args: "Loading climate data sources and methodology",
     "get_emissions_temperature_relationship": lambda args: (

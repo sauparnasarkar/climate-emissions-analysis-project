@@ -107,20 +107,20 @@ def _countries_or_scope(args: dict) -> str:
 
 _TITLE_BUILDERS: dict[str, Callable[[dict], str]] = {
     "get_country_profile": lambda args: f"{args.get('country', 'Country')} emissions profile",
-    "get_historical_emissions": lambda args: f"Historical emissions -- {_countries_or_scope(args)}",
-    "get_gas_composition_by_decade": lambda args: f"Gas composition by decade -- {_countries_or_scope(args)}",
+    "get_historical_emissions": lambda args: f"Historical emissions – {_countries_or_scope(args)}",
+    "get_gas_composition_by_decade": lambda args: f"Gas composition by decade – {_countries_or_scope(args)}",
     "get_forecast": lambda args: f"{args.get('country', 'Country')} emissions forecast",
     "get_forecast_summary": lambda args: f"Forecast summary ({args.get('scope', 'featured')})",
-    "get_forecast_comparison": lambda args: f"Forecast comparison -- {_countries_or_scope(args)}",
+    "get_forecast_comparison": lambda args: f"Forecast comparison – {_countries_or_scope(args)}",
     "get_model_comparison": lambda args: "Model comparison",
-    "get_top_emitters": lambda args: f"Top {args.get('n', 10)} emitters ({args.get('year', 'selected year')})",
+    "get_top_emitters": lambda args: f"Top {args.get('n', 10)} emitters ({args.get('year', 'latest year')})",
     "get_scenario_projection": lambda args: (
         f"{args['country']} scenario projection"
         if args.get("country")
         else f"Global scenario projection ({args.get('scope', 'featured')})"
     ),
     "get_scenario_cumulative_impact": lambda args: f"Cumulative scenario impact (sorted by {args.get('sort_by', 'BAU')})",
-    "compare_scenarios_across_countries": lambda args: f"Scenario comparison -- {join_countries(args.get('countries'))}",
+    "compare_scenarios_across_countries": lambda args: f"Scenario comparison – {join_countries(args.get('countries'))}",
     "get_methodology_notes": lambda args: "Methodology notes",
 }
 
@@ -161,7 +161,7 @@ def _share_title(record: ToolCallRecord) -> str:
     s = (record.result or {}).get("summary") or {}
     if s.get("mode") == "series":
         names = [c.get("name") for c in s.get("countries", []) if c.get("name")]
-        return f"Cumulative share of emissions -- {join_countries(names)}"
+        return f"Cumulative share of emissions – {join_countries(names)}"
     n = s.get("n_rows")
     lead = f"Top {n} countries" if n else "Countries"
     return f"{lead} by cumulative share of emissions ({s.get('year')})"
@@ -177,7 +177,24 @@ def _indicator_title(label: str):
 
 # Area 2 titles are built from the tool RESULT (defaults such as the baseline are applied
 # server-side, so the args alone do not say what came back); `_title_for` tries these first.
+def _top_emitters_title(record: ToolCallRecord) -> str:
+    # The tool defaults to the latest year when the model omits it, so the args alone do not say which
+    # year was ranked; the result does (and the count actually returned beats the requested n).
+    r = record.result if isinstance(record.result, dict) else {}
+    n = len(r.get("emitters") or []) or record.args.get("n", 10)
+    return f"Top {n} emitters ({r.get('year') or record.args.get('year') or 'latest year'})"
+
+
+def _profile_title(record: ToolCallRecord) -> str:
+    # The resolved name from the result: the MCP guard corrects typos, so the raw arg ("Chinaa")
+    # must not become a permanent card header.
+    r = record.result if isinstance(record.result, dict) else {}
+    return f"{r.get('country') or record.args.get('country', 'Country')} emissions profile"
+
+
 _RESULT_TITLE_BUILDERS: dict[str, Callable[[ToolCallRecord], str]] = {
+    "get_top_emitters": _top_emitters_title,
+    "get_country_profile": _profile_title,
     "get_emissions_temperature_relationship": _relationship_title,
     "get_ghg_composition": _composition_title,
     "get_country_cumulative_share": _share_title,
@@ -302,6 +319,22 @@ def _build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | No
         source_tool_call=source,
         props=record.result or {},
     )
+
+
+def historical_chart_covers(profile: ToolCallRecord, records: list[ToolCallRecord]) -> bool:
+    """True when a successful `get_historical_emissions` in the same turn already charts this
+    profile's country, so the profile's own trend chart would repeat it (the Ask-page design review
+    removed that duplicate). Matched on the RESOLVED country name in the results, not the raw args:
+    the MCP guard fixes typos ("Chinaa"), so the args may not equal the name the series carries."""
+    country = (profile.result or {}).get("country") if isinstance(profile.result, dict) else None
+    if not country:
+        return False
+    for rec in records:
+        if rec.tool_name != "get_historical_emissions" or is_error_result(rec.result) or not isinstance(rec.result, dict):
+            continue
+        if any(series.get("name") == country for series in rec.result.get("series") or []):
+            return True
+    return False
 
 
 def build_country_profile_widgets(record: ToolCallRecord, *, include_chart: bool) -> list[WidgetSpec]:
