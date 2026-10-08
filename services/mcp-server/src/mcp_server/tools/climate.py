@@ -256,6 +256,8 @@ async def get_country_cumulative_share(
     `interpretation_note` and the source `caveats` stating this; keep that framing in your
     answer. The denominator is the national sum excluding international aviation and shipping
     (it differs by design from the World series in the headline regression)."""
+    if countries is not None and not countries:
+        raise ValueError("`countries` is an empty list; omit it for a ranking, or name at least one country.")
     if countries and limit is not None:
         raise ValueError("`limit` applies to a ranking only; omit it when passing `countries` (a series).")
     params = {"source": SHARE_SOURCE_ALIASES.get(source, source), "gas_scope": gas_scope}

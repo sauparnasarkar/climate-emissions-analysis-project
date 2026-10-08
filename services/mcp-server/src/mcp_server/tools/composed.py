@@ -2,8 +2,9 @@
 get_forecast_comparison, get_emissions_change_summary.
 
 None is a near-1:1 endpoint wrap -- get_top_emitters ranks a raw time-series payload in
-memory (no ranked-by-year endpoint exists), get_methodology_notes isn't endpoint-backed at
-all, get_forecast_comparison fans out to /forecasts/{country} once per country concurrently
+memory (no ranked-by-year endpoint exists), get_methodology_notes is static text by default
+(and, for topic='climate'/'all', static text plus the live fit figures read from
+/correlation/emissions-temperature -- composed, not a pass-through), get_forecast_comparison fans out to /forecasts/{country} once per country concurrently
 (no multi-country forecast-with-full-series endpoint exists either), and
 get_emissions_change_summary is the one direct 1:1 wrap in this file (bounded output is a
 property of the endpoint it wraps, not something composed here) -- it lives here rather than

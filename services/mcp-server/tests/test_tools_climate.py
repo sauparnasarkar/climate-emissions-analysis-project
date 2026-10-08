@@ -332,3 +332,8 @@ async def test_ar6_comparison_only_on_the_preindustrial_owid_fits(climate_client
     assert "vs_ar6" in (await get_emissions_temperature_relationship(variant="fossil"))["summary"]
     assert "vs_ar6" not in (await get_emissions_temperature_relationship(source="primap_ghg"))["summary"]
     assert "vs_ar6" not in (await get_emissions_temperature_relationship(baseline="1970"))["summary"]
+
+
+async def test_share_empty_countries_list_is_rejected_not_treated_as_a_ranking(climate_client):
+    with pytest.raises(ValueError, match="empty list"):
+        await get_country_cumulative_share(countries=[])

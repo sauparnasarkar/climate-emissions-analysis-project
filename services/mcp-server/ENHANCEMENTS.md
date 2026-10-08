@@ -453,3 +453,4 @@ Step 2 notes (as built):
   the mismatch) and a series silently dropped `limit` (now an explicit error); and the AR6-comparison
   wording said "headline only" when the API publishes `vs_ar6` for both pre-industrial OWID fits (headline
   and fossil-only) and never for the all-gas relationship or the 1970/1990 windows (docstring and SPEC corrected).
+- Copilot's fourth pass on #265 (summary only; verified in code): `countries=[]` was treated as an omitted list and silently returned a ranking (now an explicit error); the `composed.py` header still said `get_methodology_notes` isn't endpoint-backed (it is, for `topic='climate'|'all'`) and `methodology.py`'s header was updated to match.

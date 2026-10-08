@@ -1,9 +1,10 @@
 """Canonical methodology text (SPEC.md §3.3).
 
-Single source for get_methodology_notes (SPEC.md §5, added in Step 3) and every tool's
+Single source for get_methodology_notes (SPEC.md §5, §5.1) and every tool's
 scope_note wording (SPEC.md §3.2, added in Step 3 via trimming.py) -- neither should
-duplicate its own description of the expanded-scope criteria, ETS(A,Ad,N), or the model
-comparison set. A future documentation change should only need to happen here.
+duplicate its own description of the expanded-scope criteria, ETS(A,Ad,N), the model
+comparison set, or (Area 2, `CLIMATE_METHODOLOGY` below) the climate-context methodology. A future documentation change should only
+need to happen here.
 """
 
 from __future__ import annotations
