@@ -58,6 +58,16 @@ def _share(r: dict) -> str:
     return f"Source: OWID · cumulative territorial CO₂ from fossil fuels and cement; {NATIONAL_SUM}"
 
 
+def _scenario(r: dict) -> str:
+    # Which slope converted the pathways to temperature depends on the requested line.
+    line = r.get("line") or (r.get("summary") or {}).get("line")
+    slope = {
+        "headline": "the headline regression slope",
+        "fossil_only": "the fossil-only regression slope",
+    }.get(line, "the headline regression slope (with a fossil-only second line)")
+    return f"Source: platform pathways on OWID CO₂ with {slope} · illustrative, partial-coverage translation"
+
+
 def source_line(record: ToolCallRecord) -> str | None:
     r = _ok(record)
     if r is None:
@@ -94,5 +104,5 @@ def source_line(record: ToolCallRecord) -> str | None:
     if name == "get_country_cumulative_share":
         return _share(r)
     if name == "get_scenario_temperature":
-        return "Source: platform pathways on OWID CO₂ with the headline regression slope · illustrative, partial-coverage translation"
+        return _scenario(r)
     return None  # methodology and metadata widgets have no chart to source

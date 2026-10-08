@@ -62,19 +62,20 @@ def _scenario_kpis(rec: ToolCallRecord) -> list[Kpi]:
     out = []
     for name in SCENARIO_ORDER:
         f = final.get(name)
-        if not f or f.get("headline_level_c") is None:
+        if not f:
+            continue
+        # The API drops the other line's fields (line='headline' / 'fossil_only'), so read whichever
+        # level is present; a fossil-only card says so, since its level differs from the headline's.
+        headline = f.get("headline_level_c")
+        level = headline if headline is not None else f.get("fossil_only_level_c")
+        if level is None:
             continue
         mt = f.get("annual_global_fossil_mt")
+        parts = [f"{mt:,.0f} MtCO\u2082 a year"] if mt is not None else []
+        if headline is None:
+            parts.append("fossil-only line")
         out.append(
-            Kpi(
-                label=name,
-                value=f["headline_level_c"],
-                unit="°C",
-                decimals=2,
-                year=f.get("year"),
-                sub=f"{mt:,.0f} MtCO₂ a year" if mt is not None else None,
-                series=name,
-            )
+            Kpi(label=name, value=level, unit="\u00b0C", decimals=2, year=f.get("year"), sub=" \u00b7 ".join(parts) or None, series=name)
         )
     return out
 

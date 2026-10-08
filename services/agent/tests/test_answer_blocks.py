@@ -180,3 +180,29 @@ def test_chips_are_deduplicated_capped_and_empty_for_methodology_or_failures():
     assert len(chips) == len(set(chips)) <= MAX_FOLLOW_UP_PROMPTS
     assert follow_up_prompts([_rec("get_methodology_notes", {})], "q") == []
     assert follow_up_prompts([_rec("get_forecast", {"error": "x"})], "q") == []
+
+
+# --- fossil-only / headline-only scenario lines (Copilot review of #270) -----------------------
+
+
+def _scenario_result(line, headline, fossil):
+    f = {"year": 2040, "headline_level_c": headline, "fossil_only_level_c": fossil, "annual_global_fossil_mt": 44877.4}
+    return {"line": line, "summary": {"line": line, "final_year_by_scenario": {"BAU": f}}}
+
+
+def test_fossil_only_scenario_still_gets_kpi_cards_and_says_which_line():
+    kpis = build_kpis([_rec("get_scenario_temperature", _scenario_result("fossil_only", None, 1.823))])
+    assert [(k.label, k.value, k.series) for k in kpis] == [("BAU", 1.823, "BAU")]
+    assert kpis[0].sub == "44,877 MtCO\u2082 a year \u00b7 fossil-only line"
+
+
+def test_headline_scenario_kpis_use_the_headline_level_and_do_not_mention_fossil():
+    k = build_kpis([_rec("get_scenario_temperature", _scenario_result("both", 1.68, 1.82))])[0]
+    assert k.value == 1.68 and "fossil" not in (k.sub or "")
+
+
+def test_scenario_source_line_names_the_slope_that_was_actually_used():
+    line = lambda name: source_line(_rec("get_scenario_temperature", _scenario_result(name, 1.7, 1.8)))
+    assert "fossil-only regression slope" in line("fossil_only") and "headline" not in line("fossil_only")
+    assert "the headline regression slope \u00b7" in line("headline")
+    assert "headline regression slope (with a fossil-only second line)" in line("both")
