@@ -1,4 +1,4 @@
-# GHG Project Training Series
+# Climate Analytics Platform Training Series
 
 A deep-dive training series on the technical stack behind this project's analysis, API,
 dashboards and conversational agent. Each area explains the **concepts**, the **technical
