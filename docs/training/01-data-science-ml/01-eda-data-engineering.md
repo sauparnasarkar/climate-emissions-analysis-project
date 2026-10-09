@@ -1,6 +1,6 @@
 # EDA & Data Engineering
 
-> Part of the [Data Science / ML curriculum](00-index.md). This document covers profiling,
+> Part of the [Data Science / ML curriculum](../README.md#data-science-and-ml). This document covers profiling,
 > cleaning, filtering, and exploring a raw tabular dataset before any modeling begins.
 
 ## 1. What data engineering means here
@@ -422,6 +422,6 @@ output be built from the *same* validated, filtered starting point.
 
 ## See also
 
-- [Data Science / ML index](00-index.md)
+- [Data Science / ML index](../README.md#data-science-and-ml)
 - [Feature Engineering](02-feature-engineering.md) — the next step once data is cleaned and
   understood, and this document's "gold" layer

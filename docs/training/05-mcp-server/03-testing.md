@@ -1,6 +1,6 @@
 # Testing an MCP Server
 
-> Part of the [MCP Server curriculum](00-index.md). This document covers unit-testing tool
+> Part of the [MCP Server curriculum](../README.md#mcp-servers). This document covers unit-testing tool
 > functions directly, integration-testing through a real client, fixture data patterns, a
 > class of entry-point bug only a real subprocess launch can catch, and registry-wide tests for
 > rejection rules.
@@ -156,7 +156,7 @@ agent's suite red even when this one is green. Run both ([Agent Testing,
 
 ## See also
 
-- [MCP Server curriculum index](00-index.md)
+- [MCP Server curriculum index](../README.md#mcp-servers)
 - [Tool Design](02-tool-design.md) — the guards and shaping rules this document's tests verify
 - [API Backend Testing](../02-python-api-backend/03-testing.md) — the fixture and mocking
   patterns this document builds on

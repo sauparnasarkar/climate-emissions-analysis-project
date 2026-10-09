@@ -1,6 +1,6 @@
 # Deployment
 
-> Part of the [MCP Server curriculum](00-index.md). This document covers transports in
+> Part of the [MCP Server curriculum](../README.md#mcp-servers). This document covers transports in
 > production, per-boundary auth decisions (with a worked four-boundary example using edge
 > service tokens), connecting local, desktop-app and programmatic clients, and independent
 > versioning.
@@ -146,7 +146,7 @@ server from somewhere that boundary no longer covers.
 
 ## See also
 
-- [MCP Server curriculum index](00-index.md)
+- [MCP Server curriculum index](../README.md#mcp-servers)
 - [Core Concepts, §5](01-core-concepts.md#5-transports) for the transport tradeoffs this
   document builds on
 - [API Backend Deployment](../02-python-api-backend/04-deployment.md) for the process

@@ -1,6 +1,6 @@
 # Core Concepts: MCP Servers
 
-> Part of the [MCP Server curriculum](00-index.md). This document covers what MCP is and the
+> Part of the [MCP Server curriculum](../README.md#mcp-servers). This document covers what MCP is and the
 > problem it solves, the host/client/server roles, the three primitives, transports, and a
 > minimal working server.
 
@@ -159,7 +159,7 @@ calls itself — but a purpose-built MCP server buys several things that approac
 
 ## See also
 
-- [MCP Server curriculum index](00-index.md)
+- [MCP Server curriculum index](../README.md#mcp-servers)
 - [Tool Design](02-tool-design.md) — designing the tools this document showed how to build
 - [Python API Backend, §1](../02-python-api-backend/01-http-rest-fastapi-fundamentals.md#1-what-a-backend-api-is-for)
   for the parallel reasoning behind a dedicated API layer

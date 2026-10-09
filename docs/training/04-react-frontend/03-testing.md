@@ -1,6 +1,6 @@
 # Testing a React App
 
-> Part of the [React curriculum](00-index.md). This document covers Vitest/Jest, React
+> Part of the [React curriculum](../README.md#react-front-end). This document covers Vitest/Jest, React
 > Testing Library, mocking, testing custom hooks, testing the view-model/URL-state/section
 > patterns of a data-heavy dashboard, and where end-to-end testing fits.
 
@@ -194,6 +194,6 @@ of components, which makes most of it cheap to test:
 
 ## See also
 
-- [React curriculum index](00-index.md)
+- [React curriculum index](../README.md#react-front-end)
 - [Core Concepts](01-core-concepts.md) — the components and hooks under test
 - [Deployment](04-deployment.md) — running the tested application in production

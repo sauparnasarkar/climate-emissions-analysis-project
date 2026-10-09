@@ -1,13 +1,13 @@
 # Deployment
 
-> Part of the [Conversational Agent curriculum](00-index.md). This document covers trust
+> Part of the [Conversational Agent curriculum](../README.md#conversational-agents). This document covers trust
 > boundaries between an agent and its tool source, session-id validation as a public input
 > boundary, secrets, streaming responses, rate limiting, runtime model switching behind an
 > edge-gated admin endpoint, and observability.
 
 ## 1. Trust boundaries between the agent and its tool source
 
-The agent's connection to its [MCP server](../05-mcp-server/00-index.md) is its **own**
+The agent's connection to its [MCP server](../README.md#mcp-servers) is its **own**
 boundary, separate from that server's own connection to whatever *it* wraps (see [MCP Server,
 Deployment, §2](../05-mcp-server/04-deployment.md#2-auth-is-a-per-boundary-decision-not-one-setting))
 — decide it independently rather than assuming one decision covers both legs.
@@ -161,7 +161,7 @@ call failed, so a silently empty answer is distinguishable from a legitimately e
 
 ## See also
 
-- [Conversational Agent curriculum index](00-index.md)
+- [Conversational Agent curriculum index](../README.md#conversational-agents)
 - [MCP Server, Deployment](../05-mcp-server/04-deployment.md) for the matching decisions on
   the tool-source side of §1's boundary
 - [Testing, §7](03-testing.md#7-testing-guardrail-and-limit-behavior-directly-not-just-end-to-end)

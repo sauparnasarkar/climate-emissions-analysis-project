@@ -1,6 +1,6 @@
 # Charting & Visualization
 
-> Part of the [Streamlit curriculum](00-index.md). This document covers Plotly Express and
+> Part of the [Streamlit curriculum](../README.md#streamlit-dashboards). This document covers Plotly Express and
 > Graph Objects in depth, plus other charting options worth knowing about.
 
 ## 1. Streamlit's own built-in chart functions
@@ -135,6 +135,6 @@ particular declarative style matters most for your use case.
 
 ## See also
 
-- [Streamlit index](00-index.md)
+- [Streamlit index](../README.md#streamlit-dashboards)
 - [Core Concepts](01-core-concepts.md) — the widgets and layout these charts are typically
   embedded within

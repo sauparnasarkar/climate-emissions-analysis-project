@@ -1,6 +1,6 @@
 # Deployment
 
-> Part of the [Streamlit curriculum](00-index.md). This document covers Streamlit Community
+> Part of the [Streamlit curriculum](../README.md#streamlit-dashboards). This document covers Streamlit Community
 > Cloud, containerized deployment, and secrets management.
 
 ## 1. Streamlit Community Cloud
@@ -72,6 +72,6 @@ principle discussed throughout this series — see
 
 ## See also
 
-- [Streamlit index](00-index.md)
+- [Streamlit index](../README.md#streamlit-dashboards)
 - [Testing](03-testing.md) — verifying the app before it's deployed
 - [Architecture Overview, §11](../00-architecture-overview.md#11-deployment-topology--how-these-layers-typically-get-deployed-together)

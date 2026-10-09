@@ -5,12 +5,12 @@
 >
 > | Area | Folder | Documents |
 > |---|---|---|
-> | Data Science / ML | [`01-data-science-ml/`](01-data-science-ml/00-index.md) | EDA & data engineering → feature engineering → regression models → time-series forecasting → multi-source pipelines |
-> | Python API Backend | [`02-python-api-backend/`](02-python-api-backend/00-index.md) | HTTP/REST & FastAPI fundamentals → API design & best practices → testing → deployment |
-> | Streamlit Dashboards | [`03-streamlit-frontend/`](03-streamlit-frontend/00-index.md) | Core concepts → charting & visualization → testing → deployment |
-> | React Front Ends | [`04-react-frontend/`](04-react-frontend/00-index.md) | Core concepts → routing & API integration → testing → deployment → patterns for data-heavy dashboards |
-> | MCP Servers | [`05-mcp-server/`](05-mcp-server/00-index.md) | Core concepts → tool design → testing → deployment |
-> | Conversational Agents | [`06-conversational-agent/`](06-conversational-agent/00-index.md) | Core concepts → tool calling, guardrails & generative UI → testing → deployment |
+> | Data Science / ML | [`01-data-science-ml/`](README.md#data-science-and-ml) | EDA & data engineering → feature engineering → regression models → time-series forecasting → multi-source pipelines |
+> | Python API Backend | [`02-python-api-backend/`](README.md#python-api-backend) | HTTP/REST & FastAPI fundamentals → API design & best practices → testing → deployment |
+> | Streamlit Dashboards | [`03-streamlit-frontend/`](README.md#streamlit-dashboards) | Core concepts → charting & visualization → testing → deployment |
+> | React Front Ends | [`04-react-frontend/`](README.md#react-front-end) | Core concepts → routing & API integration → testing → deployment → patterns for data-heavy dashboards |
+> | MCP Servers | [`05-mcp-server/`](README.md#mcp-servers) | Core concepts → tool design → testing → deployment |
+> | Conversational Agents | [`06-conversational-agent/`](README.md#conversational-agents) | Core concepts → tool calling, guardrails & generative UI → testing → deployment |
 
 This document explains the general pattern that ties all six areas together, the
 architectural principles behind it, and the design options available at each layer — read it
@@ -38,9 +38,9 @@ looks like this:
    a simpler setup, reads the persisted results directly) and renders it as charts, tables,
    and interactive controls for a human to explore.
 6. **Optionally, expose the results to an LLM agent.** Wrap step 4's API as a set of tools an
-   LLM can call (see [`05-mcp-server/`](05-mcp-server/00-index.md)), and build a
+   LLM can call (see [`05-mcp-server/`](README.md#mcp-servers)), and build a
    conversational agent on top of that tool layer (see
-   [`06-conversational-agent/`](06-conversational-agent/00-index.md)) so the same underlying
+   [`06-conversational-agent/`](README.md#conversational-agents)) so the same underlying
    results can also be explored through open-ended natural-language questions, not only
    through the fixed charts/controls a dashboard offers. This is a genuinely optional sixth
    step, layered on top of step 4 rather than replacing step 5 — most projects of this shape
@@ -168,8 +168,8 @@ configure per environment," part of the widely-referenced
 ### 2.8 Bounded autonomy
 
 Once a layer's behavior is driven by an LLM deciding what to do next (an [MCP
-server](05-mcp-server/00-index.md)'s caller, a [conversational
-agent](06-conversational-agent/00-index.md)'s tool-calling loop), the earlier principles above
+server](README.md#mcp-servers)'s caller, a [conversational
+agent](README.md#conversational-agents)'s tool-calling loop), the earlier principles above
 still apply, but a new one joins them: **give autonomous, LLM-driven decision-making explicit
 limits, not just correct logic.** A loop bounded only by "the model decides when to stop" has
 no upper bound at all if the model's judgment is ever wrong — a hard cap on iterations, a
@@ -230,7 +230,7 @@ Dashboards](04-react-frontend/05-data-heavy-dashboard-patterns.md) for theming i
 | **Batch vs. streaming** | Batch: data is processed in discrete chunks on a schedule or on demand. Streaming: data is processed continuously, record by record, as it arrives | This series is entirely batch (a pipeline runs, produces a snapshot of results, the API serves that snapshot) — appropriate whenever near-real-time freshness isn't a hard requirement |
 | **Edge-enforced access policy** | Access control, rate limiting and security headers are applied by a gateway/edge layer in front of the services (service tokens for machines, identity-provider login for humans) rather than coded into each service | When several services share one public hostname and the policies differ per path — keeps services simple and policy centrally revocable; see §16 |
 | **Scheduled refresh with alerting** | A job that periodically re-downloads sources, validates, re-runs the pipeline stages as separate failure domains, restarts caches and sends one prioritised notification | Any product whose data goes stale on a known cadence; see §15 |
-| **Tool-use / agentic loop** | An LLM is given a set of callable tools and decides, per turn, whether/which to call and when it has enough to answer, rather than following a fixed call sequence | The shape of the optional sixth layer in this series — see [`05-mcp-server/`](05-mcp-server/00-index.md) for exposing tools to a model and [`06-conversational-agent/`](06-conversational-agent/00-index.md) for the loop that calls them |
+| **Tool-use / agentic loop** | An LLM is given a set of callable tools and decides, per turn, whether/which to call and when it has enough to answer, rather than following a fixed call sequence | The shape of the optional sixth layer in this series — see [`05-mcp-server/`](README.md#mcp-servers) for exposing tools to a model and [`06-conversational-agent/`](README.md#conversational-agents) for the loop that calls them |
 
 The overall shape used across this training series — a batch ETL pipeline (Data Science
 folder), producing files consumed by a layered client-server split (API + frontend folders)
@@ -318,7 +318,7 @@ scale, back up, and reason about later.
 | **Document / NoSQL store** (MongoDB and similar) | Schema-flexible collections of JSON-like documents | No rigid upfront schema — easy to evolve; natural fit for nested/irregular data | Weaker consistency guarantees by default in some systems; query capability is often less expressive than SQL for relational questions (joins across collections) | Data whose shape varies a lot between records, or that's naturally document-shaped (e.g., a user profile with a variable set of fields) |
 | **Object storage** (S3, GCS, Azure Blob) | Storage for arbitrary files (often the same flat files above), addressed by key, at scale | Effectively unlimited capacity; cheap; the standard place to put large files (raw datasets, model artifacts) in a cloud deployment; often paired with flat files as the actual format | Not a query engine on its own — you still need to download/read a file to look inside it (though some formats/tools support partial reads) | Large files, especially in a cloud-deployed system, or when files need to be shared between services that don't share a filesystem |
 | **Data warehouse** (BigQuery, Snowflake, Redshift) | A managed, large-scale analytical SQL database, optimized for scanning huge volumes of data for analytics rather than fast single-row lookups | Extremely good at aggregating over large historical datasets; typically fully managed (no server to run yourself) | Cost and complexity that's usually unjustified until data volume is genuinely large; not designed for low-latency single-record lookups | Large-scale analytics with data volumes well beyond what a single machine's memory/disk comfortably handles |
-| **In-memory cache** (Redis, Memcached) | A fast key-value store, usually used *alongside* one of the above, not instead of it | Very low latency; ideal for caching expensive computed results across multiple server processes | Not durable by default (data can be lost on restart, depending on configuration); not a source of truth on its own | Caching computed API responses across multiple worker processes — see [`02-python-api-backend/`](02-python-api-backend/00-index.md) for the caching options this project's API layer would use |
+| **In-memory cache** (Redis, Memcached) | A fast key-value store, usually used *alongside* one of the above, not instead of it | Very low latency; ideal for caching expensive computed results across multiple server processes | Not durable by default (data can be lost on restart, depending on configuration); not a source of truth on its own | Caching computed API responses across multiple worker processes — see [`02-python-api-backend/`](README.md#python-api-backend) for the caching options this project's API layer would use |
 
 For the kind of project this series describes — a batch analytical pipeline with read-only
 downstream consumers and no concurrent writers — **flat files (optionally in a columnar
@@ -338,7 +338,7 @@ what fits in memory, or need transactional guarantees.
 A common, sensible progression: **explore in notebooks, extract stable logic into plain
 functions/scripts once it's no longer changing daily, and only add an orchestrator once the
 pipeline needs to run reliably and repeatedly without a person watching it.** See
-[`01-data-science-ml/00-index.md`](01-data-science-ml/00-index.md) for the full data-science
+[the Data Science and ML section](README.md#data-science-and-ml) for the full data-science
 curriculum, which is written primarily from the notebook-based, exploratory perspective.
 
 ## 7. Options for the API layer
@@ -358,7 +358,7 @@ complex, deeply-nested data at the cost of more complex server-side setup. gRPC 
 compact binary protocol and strongly-typed contracts, favored for high-performance
 service-to-service communication rather than public/browser-facing APIs. For a read-mostly
 analytics API serving a small, well-known set of dashboard pages — REST's simplicity usually
-wins; see [`02-python-api-backend/00-index.md`](02-python-api-backend/00-index.md) for the
+wins; see [the Python API Backend section](README.md#python-api-backend) for the
 full curriculum built on FastAPI + REST.
 
 ## 8. Options for the presentation layer
@@ -371,8 +371,8 @@ full curriculum built on FastAPI + REST.
 | **Notebook-as-dashboard tools** (Voilà and similar) | Turns an existing notebook directly into a shareable app with almost no extra work | Inherits notebook execution-model quirks; least flexible of all the options for genuinely custom UI |
 
 This series covers the two most common choices for a project of this shape in detail: a
-single-process framework ([`03-streamlit-frontend/00-index.md`](03-streamlit-frontend/00-index.md))
-and a decoupled SPA ([`04-react-frontend/00-index.md`](04-react-frontend/00-index.md)).
+single-process framework ([the Streamlit Dashboards section](README.md#streamlit-dashboards))
+and a decoupled SPA ([the React Front End section](README.md#react-front-end)).
 **Neither is strictly better** — pick based on whether the goal is the fastest path to an
 internal tool, or a production-shaped, independently-evolvable system.
 
@@ -380,7 +380,7 @@ A **conversational agent** (§13) is a third, optional presentation surface, lay
 whichever of the two above already exists rather than replacing it — typically surfaced as one
 more view inside the same client application (§8's decoupled SPA option is the natural host
 for it), answering open-ended natural-language questions through an
-[MCP server](05-mcp-server/00-index.md) and [agent](06-conversational-agent/00-index.md) rather
+[MCP server](README.md#mcp-servers) and [agent](README.md#conversational-agents) rather
 than through fixed charts and controls. See §12–13.
 
 ## 9. Why the persistence layer and the presentation layer(s) stay separate
@@ -444,21 +444,21 @@ its results callable by an LLM, not just fetchable by a frontend.
 
 | Option | What it is | Trade-off |
 |---|---|---|
-| **A dedicated MCP server** (this series' choice — see [`05-mcp-server/`](05-mcp-server/00-index.md)) | A standard-protocol server wrapping the API as tools, reusable by any MCP-compliant host (a desktop LLM app, a custom agent) | The most setup, but solves the M×N integration problem once, for every future consumer — see [`05-mcp-server/01-core-concepts.md`](05-mcp-server/01-core-concepts.md#1-the-problem-mcp-solves) |
+| **A dedicated MCP server** (this series' choice — see [`05-mcp-server/`](README.md#mcp-servers)) | A standard-protocol server wrapping the API as tools, reusable by any MCP-compliant host (a desktop LLM app, a custom agent) | The most setup, but solves the M×N integration problem once, for every future consumer — see [`05-mcp-server/01-core-concepts.md`](05-mcp-server/01-core-concepts.md#1-the-problem-mcp-solves) |
 | **Auto-generated tools from an OpenAPI spec** | Some tooling can convert an existing OpenAPI/REST spec directly into tool definitions with no hand-authoring | Fast to stand up, but a 1:1 conversion rarely produces tools shaped the way a model actually asks questions — see [`05-mcp-server/02-tool-design.md`](05-mcp-server/02-tool-design.md#2-direct-wraps-vs-composed-tools) on why hand-curated, sometimes composed tools usually answer real questions better |
 | **Bespoke, app-specific tool-calling code** | Skip a standard protocol entirely and wire tool-calling directly into one specific agent's own code | Fastest for a single, one-off agent; loses MCP's whole reusability benefit the moment a second consumer (a different host, a second agent) shows up |
 
 For any project expecting more than one LLM consumer of the same underlying data — even just
 "manual verification via a desktop app, then later a custom agent," which is a common
 progression — a dedicated MCP server is worth the extra setup specifically because it only has
-to be built once. See [`05-mcp-server/00-index.md`](05-mcp-server/00-index.md) for the full
+to be built once. See [the MCP Servers section](README.md#mcp-servers) for the full
 curriculum.
 
 ## 13. Options for the conversational-agent layer
 
 | Option | What it is | Trade-off |
 |---|---|---|
-| **A graph-based orchestration framework** (LangGraph and similar — this series' choice, see [`06-conversational-agent/`](06-conversational-agent/00-index.md)) | Explicit nodes/edges/conditional routing, a typed shared state, checkpointer-backed memory | The most structure for a genuinely multi-step agent (classification, a bounded tool-calling loop, a separate response-composition step) — see [`06-conversational-agent/01-core-concepts.md`](06-conversational-agent/01-core-concepts.md#2-why-a-graph-not-just-a-while-loop) for why a graph earns its keep over a plain loop |
+| **A graph-based orchestration framework** (LangGraph and similar — this series' choice, see [`06-conversational-agent/`](README.md#conversational-agents)) | Explicit nodes/edges/conditional routing, a typed shared state, checkpointer-backed memory | The most structure for a genuinely multi-step agent (classification, a bounded tool-calling loop, a separate response-composition step) — see [`06-conversational-agent/01-core-concepts.md`](06-conversational-agent/01-core-concepts.md#2-why-a-graph-not-just-a-while-loop) for why a graph earns its keep over a plain loop |
 | **A single-agent SDK loop** (a provider's own agent-loop helper, with no explicit graph) | The model + bound tools + an implicit "keep calling until done" loop, with less orchestration code to write | Simpler for a genuinely single-path agent; branching logic (guardrail classification routing to entirely different handling) tends to end up as nested conditionals instead of explicit graph structure once the agent grows past the simplest case |
 | **A hand-rolled loop** | A plain `while` loop around "call the model, execute any requested tool, repeat" | The least dependency overhead; reasonable for a genuinely minimal prototype, but reimplements (often incompletely) state management, memory, and streaming that a framework already provides |
 
@@ -537,14 +537,14 @@ admin paths) on a public, unauthenticated API through the public route until it 
 
 ## 17. What to read next
 
-- Building the data engineering / modeling / forecasting pipeline → [`01-data-science-ml/`](01-data-science-ml/00-index.md)
+- Building the data engineering / modeling / forecasting pipeline → [`01-data-science-ml/`](README.md#data-science-and-ml)
   (and, for several external sources kept current on a schedule, [`05-multi-source-pipelines.md`](01-data-science-ml/05-multi-source-pipelines.md))
-- Building a backend API to serve results → [`02-python-api-backend/`](02-python-api-backend/00-index.md)
-- Building a quick, single-process dashboard → [`03-streamlit-frontend/`](03-streamlit-frontend/00-index.md)
-- Building a decoupled, component-based frontend → [`04-react-frontend/`](04-react-frontend/00-index.md)
+- Building a backend API to serve results → [`02-python-api-backend/`](README.md#python-api-backend)
+- Building a quick, single-process dashboard → [`03-streamlit-frontend/`](README.md#streamlit-dashboards)
+- Building a decoupled, component-based frontend → [`04-react-frontend/`](README.md#react-front-end)
   (and [`05-data-heavy-dashboard-patterns.md`](04-react-frontend/05-data-heavy-dashboard-patterns.md) once it has many pages and a phone audience)
-- Exposing results to an LLM as tools → [`05-mcp-server/`](05-mcp-server/00-index.md)
-- Building a conversational agent on top of those tools → [`06-conversational-agent/`](06-conversational-agent/00-index.md)
+- Exposing results to an LLM as tools → [`05-mcp-server/`](README.md#mcp-servers)
+- Building a conversational agent on top of those tools → [`06-conversational-agent/`](README.md#conversational-agents)
 
-Each folder's `00-index.md` lays out its own reading order and assumes you've read this
-document first.
+The [training series README](README.md) lists every area's documents in reading order; each
+area assumes you've read this document first.

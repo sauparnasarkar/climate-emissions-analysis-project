@@ -1,6 +1,6 @@
 # Routing & API Integration
 
-> Part of the [React curriculum](00-index.md). This document covers client-side routing, a
+> Part of the [React curriculum](../README.md#react-front-end). This document covers client-side routing, a
 > typed API client, mirroring backend response shapes, state management beyond local
 > component state, shared component libraries, charting, and build tooling.
 
@@ -337,6 +337,6 @@ every small app.
 
 ## See also
 
-- [React curriculum index](00-index.md)
+- [React curriculum index](../README.md#react-front-end)
 - [Core Concepts](01-core-concepts.md) — the component/state/hook fundamentals this builds on
 - [Testing](03-testing.md) — verifying all of the above

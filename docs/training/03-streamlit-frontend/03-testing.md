@@ -1,6 +1,6 @@
 # Testing a Streamlit App
 
-> Part of the [Streamlit curriculum](00-index.md). This document covers Streamlit's
+> Part of the [Streamlit curriculum](../README.md#streamlit-dashboards). This document covers Streamlit's
 > `AppTest` framework, and a candid discussion of when manual verification is a reasonable
 > alternative.
 
@@ -82,6 +82,6 @@ still catches most real regressions:
 
 ## See also
 
-- [Streamlit index](00-index.md)
+- [Streamlit index](../README.md#streamlit-dashboards)
 - [Core Concepts](01-core-concepts.md) — the widgets and data-loading patterns being tested
 - [Deployment](04-deployment.md) — running the tested app in a real environment

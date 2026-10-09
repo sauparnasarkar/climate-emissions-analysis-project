@@ -1,6 +1,6 @@
 # Deployment
 
-> Part of the [React curriculum](00-index.md). This document covers static hosting,
+> Part of the [React curriculum](../README.md#react-front-end). This document covers static hosting,
 > containerized deployment, CI/CD for a frontend build, service-worker caching and edge-gated
 > routes, and the special case where the build itself is the release.
 
@@ -175,7 +175,7 @@ files are live the moment they are written, before any restart or confirmation. 
 
 ## See also
 
-- [React curriculum index](00-index.md)
+- [React curriculum index](../README.md#react-front-end)
 - [Testing](03-testing.md) — verifying the app before it's deployed
 - [Architecture Overview, §11](../00-architecture-overview.md#11-deployment-topology--how-these-layers-typically-get-deployed-together)
   for how this fits alongside the API's own deployment

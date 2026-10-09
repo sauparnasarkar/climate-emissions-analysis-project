@@ -1,6 +1,6 @@
 # HTTP, REST & FastAPI Fundamentals
 
-> Part of the [Python API Backend curriculum](00-index.md). This document covers the
+> Part of the [Python API Backend curriculum](../README.md#python-api-backend). This document covers the
 > underlying HTTP/REST concepts, then FastAPI's routing, validation, and dependency model.
 
 ## 1. What a backend API is for
@@ -308,6 +308,6 @@ for the production equivalent).
 
 ## See also
 
-- [Python API Backend index](00-index.md)
+- [Python API Backend index](../README.md#python-api-backend)
 - [API Design & Best Practices](02-api-design-best-practices.md) — data loading, caching,
   error handling, and API design conventions built on top of these fundamentals

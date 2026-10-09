@@ -1,6 +1,6 @@
 # Time-Series Forecasting
 
-> Part of the [Data Science / ML curriculum](00-index.md). This document covers Exponential
+> Part of the [Data Science / ML curriculum](../README.md#data-science-and-ml). This document covers Exponential
 > Smoothing (ETS, specifically Holt's Damped Trend), multi-step recursive forecasting,
 > what-if scenario modeling, and how this family of models relates to the regression models
 > covered previously and to other common forecasting approaches.
@@ -232,8 +232,8 @@ which can force an extreme smoothing parameter for that one entity.
 
 ## See also
 
-- [Data Science / ML index](00-index.md)
+- [Data Science / ML index](../README.md#data-science-and-ml)
 - [Regression Models](03-regression-models.md) — the alternative, feature-based approach to
   predicting the same kind of data
-- [Python API Backend](../02-python-api-backend/00-index.md) for how to serve these forecasts
+- [Python API Backend](../README.md#python-api-backend) for how to serve these forecasts
   (and their confidence intervals) over HTTP

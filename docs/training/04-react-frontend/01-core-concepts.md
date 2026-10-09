@@ -1,6 +1,6 @@
 # Core Concepts
 
-> Part of the [React curriculum](00-index.md). This document covers components, props,
+> Part of the [React curriculum](../README.md#react-front-end). This document covers components, props,
 > state, hooks, and the custom-hook pattern for data fetching.
 
 ## 1. What a single-page application (SPA) is, and why use one
@@ -12,7 +12,7 @@ every action. **React** is a library for building the UI of an SPA out of reusab
 piece of the page from data passed into it.
 
 Choosing this approach over a single-process dashboard framework
-([Streamlit curriculum](../03-streamlit-frontend/00-index.md)) trades faster initial
+([Streamlit curriculum](../README.md#streamlit-dashboards)) trades faster initial
 development for a richer, more customizable UI, real component reuse, and a UI layer that's
 fully decoupled from — and testable independently of — the backend serving its data.
 
@@ -345,6 +345,6 @@ These cost real debugging time and generalise beyond this library:
 
 ## See also
 
-- [React curriculum index](00-index.md)
+- [React curriculum index](../README.md#react-front-end)
 - [Routing & API Integration](02-routing-api-integration.md) — building on these concepts to
   navigate between pages and talk to a backend

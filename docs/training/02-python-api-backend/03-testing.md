@@ -1,6 +1,6 @@
 # Testing a Python API
 
-> Part of the [Python API Backend curriculum](00-index.md). This document covers `pytest`
+> Part of the [Python API Backend curriculum](../README.md#python-api-backend). This document covers `pytest`
 > fundamentals, FastAPI's `TestClient`, fixture-based test data (including fixtures produced
 > by running the real upstream pipeline), mocking, and the discipline of proving a test
 > actually catches the bug it claims to.
@@ -234,7 +234,7 @@ anything with real traffic expectations.
 
 ## See also
 
-- [Python API Backend index](00-index.md)
+- [Python API Backend index](../README.md#python-api-backend)
 - [API Design & Best Practices](02-api-design-best-practices.md) — the error-handling and
   data-loading patterns these tests exercise
 - [Deployment](04-deployment.md) — running the tested application in production

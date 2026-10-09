@@ -1,6 +1,6 @@
 # Core Concepts
 
-> Part of the [Streamlit curriculum](00-index.md). This document covers Streamlit's core
+> Part of the [Streamlit curriculum](../README.md#streamlit-dashboards). This document covers Streamlit's core
 > execution model, caching, widgets, layout, session state, and forms.
 
 ## 1. What Streamlit is, and its core mental model
@@ -231,6 +231,6 @@ separate client to interpret a status code; the message *is* the entire response
 
 ## See also
 
-- [Streamlit index](00-index.md)
+- [Streamlit index](../README.md#streamlit-dashboards)
 - [Charting & Visualization](02-charting-visualization.md) — rendering the data these
   concepts load and filter

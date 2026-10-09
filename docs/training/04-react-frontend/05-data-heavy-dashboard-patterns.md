@@ -1,6 +1,6 @@
 # Patterns for Data-Heavy Dashboards
 
-> Part of the [React Front-End curriculum](00-index.md). The earlier documents cover
+> Part of the [React Front-End curriculum](../README.md#react-front-end). The earlier documents cover
 > components, hooks, routing and a typed API client. This document covers the patterns that
 > appear once a dashboard has many pages, many independent data requests per page, state worth
 > sharing as a link, a phone-sized audience, and an embedded conversational view: view-model
@@ -175,7 +175,7 @@ two hexes look alike — compare the resolved values, not the pixels.
 ## 8. Embedding an agent's answers
 
 When a conversational view is added to the dashboard
-([Conversational Agents](../06-conversational-agent/00-index.md)), the frontend's job is the
+([Conversational Agents](../README.md#conversational-agents)), the frontend's job is the
 other half of the [generative-UI
 contract](../06-conversational-agent/02-tool-calling-and-guardrails.md#6-generative-ui-map-results-to-real-components-not-generated-markup):
 
@@ -217,7 +217,7 @@ contract](../06-conversational-agent/02-tool-calling-and-guardrails.md#6-generat
 
 ## See also
 
-- [React Front-End curriculum index](00-index.md)
+- [React Front-End curriculum index](../README.md#react-front-end)
 - [Core Concepts, §7](01-core-concepts.md#7-design-systems-tokens-themes-and-components) — how the
   design system behind §7's theming is structured and consumed
 - [Routing & API Integration](02-routing-api-integration.md) — the typed client these sections call

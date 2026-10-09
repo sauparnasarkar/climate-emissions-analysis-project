@@ -1,6 +1,6 @@
 # Regression Models
 
-> Part of the [Data Science / ML curriculum](00-index.md). This document covers Naive
+> Part of the [Data Science / ML curriculum](../README.md#data-science-and-ml). This document covers Naive
 > baseline, Linear Regression, and Random Forest — the three classical regression models
 > most commonly used for tabular/panel prediction problems — the concepts behind each, the
 > scikit-learn API, the parameters worth understanding, and how to evaluate and compare them
@@ -386,7 +386,7 @@ worth knowing exist, since you'll encounter them in most real-world tabular ML w
 
 ## See also
 
-- [Data Science / ML index](00-index.md)
+- [Data Science / ML index](../README.md#data-science-and-ml)
 - [Feature Engineering](02-feature-engineering.md) — the previous step, building the inputs
   these models consume
 - [Time-Series Forecasting](04-time-series-forecasting.md) — a different family of models

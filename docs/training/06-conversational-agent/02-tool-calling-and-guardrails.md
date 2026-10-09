@@ -1,6 +1,6 @@
 # Tool Calling, Guardrails and Generative UI
 
-> Part of the [Conversational Agent curriculum](00-index.md). This document covers using an
+> Part of the [Conversational Agent curriculum](../README.md#conversational-agents). This document covers using an
 > MCP server as a tool source, classifying requests before acting on them, bounding the
 > tool-calling loop, two different kinds of caching, streaming progress, mapping results
 > to real UI components instead of freeform generated markup, and the "structural" guardrails
@@ -9,7 +9,7 @@
 ## 1. Using an MCP server as an agent's tool source
 
 Rather than hand-writing each tool an agent can call, connect to an [MCP
-server](../05-mcp-server/00-index.md) as an MCP client and let it hand the agent its live tool
+server](../README.md#mcp-servers) as an MCP client and let it hand the agent its live tool
 list. This is exactly the M×N integration problem [MCP was built to
 solve](../05-mcp-server/01-core-concepts.md#1-the-problem-mcp-solves), from the client side: an
 agent built this way gets a maintained, independently versioned tool surface without
@@ -305,7 +305,7 @@ order flexible.
 
 ## See also
 
-- [Conversational Agent curriculum index](00-index.md)
+- [Conversational Agent curriculum index](../README.md#conversational-agents)
 - [Core Concepts, §5](01-core-concepts.md#5-the-tool-calling-loop-concretely) for the loop this
   document bounds and instruments
 - [MCP Server, Tool Design](../05-mcp-server/02-tool-design.md) for the guarantees this

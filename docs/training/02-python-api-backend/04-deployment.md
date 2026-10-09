@@ -1,6 +1,6 @@
 # Deployment
 
-> Part of the [Python API Backend curriculum](00-index.md). This document covers running a
+> Part of the [Python API Backend curriculum](../README.md#python-api-backend). This document covers running a
 > FastAPI application in production: process management, containers, cloud platforms,
 > reverse proxies (including ordered path rules and edge policies), data refreshes and
 > process-level caches, CI/CD, and health checks.
@@ -177,7 +177,7 @@ optional upstream data file hasn't been generated yet.
 
 ## See also
 
-- [Python API Backend index](00-index.md)
+- [Python API Backend index](../README.md#python-api-backend)
 - [Testing](03-testing.md) — the test suite a CI pipeline should run before any deployment
 - [Architecture Overview, §11](../00-architecture-overview.md#11-deployment-topology--how-these-layers-typically-get-deployed-together)
   for how this fits alongside a frontend's own deployment

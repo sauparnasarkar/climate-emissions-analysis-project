@@ -1,6 +1,6 @@
 # Feature Engineering
 
-> Part of the [Data Science / ML curriculum](00-index.md). This document covers turning
+> Part of the [Data Science / ML curriculum](../README.md#data-science-and-ml). This document covers turning
 > cleaned panel/time-series data into model-ready features: time-based, lag, rolling,
 > growth, and ratio features, plus scaling and categorical encoding.
 
@@ -234,7 +234,7 @@ last row "leak" into another entity's first row).
 
 ## See also
 
-- [Data Science / ML index](00-index.md)
+- [Data Science / ML index](../README.md#data-science-and-ml)
 - [EDA & Data Engineering](01-eda-data-engineering.md) — the previous step, cleaning the raw
   data these features are built from
 - [Regression Models](03-regression-models.md) — the next step, using these features to

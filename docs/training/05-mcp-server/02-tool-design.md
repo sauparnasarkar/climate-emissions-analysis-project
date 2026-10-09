@@ -1,6 +1,6 @@
 # Tool Design
 
-> Part of the [MCP Server curriculum](00-index.md). This document covers designing tool
+> Part of the [MCP Server curriculum](../README.md#mcp-servers). This document covers designing tool
 > schemas for an LLM audience: direct wraps vs. composed tools, argument-resolution guards,
 > shaping responses for a model rather than a human, error handling, statelessness,
 > interpretive framing, envelope pass-through with computed summaries, and rejecting what a
@@ -201,7 +201,7 @@ honored as given, say so.
 
 ## See also
 
-- [MCP Server curriculum index](00-index.md)
+- [MCP Server curriculum index](../README.md#mcp-servers)
 - [Core Concepts, §7](01-core-concepts.md#7-what-a-tool-call-looks-like-on-the-wire) for the
   `isError` shape referenced in §5
 - [Testing](03-testing.md) — verifying the guards and shaping rules in this document actually

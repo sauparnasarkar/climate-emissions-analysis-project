@@ -1,6 +1,6 @@
 # API Design & Best Practices
 
-> Part of the [Python API Backend curriculum](00-index.md). This document covers data
+> Part of the [Python API Backend curriculum](../README.md#python-api-backend). This document covers data
 > loading and caching, error-handling patterns (including failing closed when serving
 > pipeline output), API design conventions (response envelopes, reporting the scope actually
 > served), and security fundamentals for a Python web API.
@@ -319,7 +319,7 @@ settings = Settings()   # reads DATABASE_URL and API_KEY from the environment au
 
 ## See also
 
-- [Python API Backend index](00-index.md)
+- [Python API Backend index](../README.md#python-api-backend)
 - [HTTP, REST & FastAPI Fundamentals](01-http-rest-fastapi-fundamentals.md) — the underlying
   routing/validation mechanisms these patterns are built on
 - [Testing](03-testing.md) — how to verify all of the above actually behaves as intended

@@ -1,6 +1,6 @@
 # Multi-Source Data Pipelines: Ingestion, Provenance, and Honest Relationships
 
-> Part of the [Data Science / ML curriculum](00-index.md). The earlier documents take one
+> Part of the [Data Science / ML curriculum](../README.md#data-science-and-ml). The earlier documents take one
 > dataset from raw file to a compared set of models. This document covers what changes when a
 > product needs **several independent external sources** — measurements, reconstructions,
 > another institution's inventory — combined into context around that one dataset: one
@@ -296,7 +296,7 @@ A pipeline that runs monthly without a person watching needs operational habits 
 
 ## See also
 
-- [Data Science / ML index](00-index.md)
+- [Data Science / ML index](../README.md#data-science-and-ml)
 - [EDA & Data Engineering, §9](01-eda-data-engineering.md#9-this-flow-as-a-medallion-architecture) —
   the bronze/silver/gold vocabulary; the harmonised layer here is silver-to-gold for several
   sources

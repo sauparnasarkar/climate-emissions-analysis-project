@@ -1,6 +1,6 @@
 # Core Concepts: Graph-Based Conversational Agents
 
-> Part of the [Conversational Agent curriculum](00-index.md). This document covers what
+> Part of the [Conversational Agent curriculum](../README.md#conversational-agents). This document covers what
 > "agent" means here, why a graph rather than a plain loop, nodes/edges/conditional routing,
 > state schema and reducers, the tool-calling loop, and checkpointer-backed memory.
 
@@ -176,7 +176,7 @@ later framework release — register new state types at the same time as you add
 
 ## See also
 
-- [Conversational Agent curriculum index](00-index.md)
+- [Conversational Agent curriculum index](../README.md#conversational-agents)
 - [Tool Calling, Guardrails and Generative UI](02-tool-calling-and-guardrails.md) — what runs
   inside the tools node, and how the loop this document introduced gets bounded and rendered
 - [Testing](03-testing.md) — verifying reducer and routing behavior against a real graph

@@ -1,6 +1,6 @@
 # Testing a Conversational Agent
 
-> Part of the [Conversational Agent curriculum](00-index.md). This document covers an
+> Part of the [Conversational Agent curriculum](../README.md#conversational-agents). This document covers an
 > injectable LLM seam for hermetic tests, stub-based graph-routing tests, testing reducers
 > against a real graph invocation, real-subprocess integration testing of the tool connection,
 > exactly one gated live-LLM smoke test, table-driven tests for the deterministic parts, and
@@ -199,7 +199,7 @@ time it is right).
 
 ## See also
 
-- [Conversational Agent curriculum index](00-index.md)
+- [Conversational Agent curriculum index](../README.md#conversational-agents)
 - [Core Concepts](01-core-concepts.md) and [Tool Calling and Guardrails](02-tool-calling-and-guardrails.md)
   for the mechanisms under test in this document
 - [MCP Server Testing](../05-mcp-server/03-testing.md) for the matching testing discipline on
