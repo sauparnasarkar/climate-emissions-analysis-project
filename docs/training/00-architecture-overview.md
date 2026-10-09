@@ -295,15 +295,102 @@ technology requirements per service) that a modular monolith can't satisfy.
                                             └────────────────────────────────────┘
 ```
 
-Not drawn: an **operational layer** around the whole stack — the scheduled refresh that keeps
-the data layer current and restarts the API afterwards (§15), and an **edge** in front of the
-public services that applies rate limits and access policies per path (§16).
+Not drawn above: an **operational layer** around the whole stack — the scheduled refresh that
+keeps the data layer current and restarts the API afterwards (§15), and an **edge** in front of
+the public services that applies rate limits and access policies per path (§16). §4.1 draws
+the complete system with both included.
 
 Option A and Option B are **alternative ways to build the last mile**, not sequential stages
 — a real project might build only one, or both side by side (see §6). Option C is a further
 optional addition **on top of** Option B — an MCP server has no persisted-data access of its
 own; it calls the same API Option B already exposes, so Option C only makes sense once Option
 B already exists (see §12–13).
+
+### 4.1 The complete system, with operations and the edge
+
+The diagram below shows every component this series covers and how they connect, including the
+parts the sketch above leaves out: the scheduled refresh, the alert path, the edge gateway with
+its different access policies, the admin page, and the LLM provider. Solid arrows are runtime
+requests or data flow; dotted arrows are operational signals (alerts, restarts, configuration).
+
+```mermaid
+flowchart TB
+    USER(("Users"))
+    EXT(("External LLM clients<br/>desktop app, testers"))
+    OPSR(("Operator"))
+
+    subgraph EDGE["Edge gateway: HTTPS, rate limits, path routing"]
+        direction LR
+        E1["Public paths<br/>anonymous"]
+        E2["MCP path<br/>service-token policy"]
+        E3["Admin paths<br/>identity-provider login"]
+    end
+
+    subgraph APP["Application layer"]
+        direction LR
+        SPA["React dashboard<br/>Option B: themed by a design system,<br/>URL state, PWA"]
+        ST["Streamlit app<br/>Option A"]
+        AGENT["Conversational agent<br/>LangGraph, guardrails, answer blocks"]
+        MCP["MCP server<br/>curated, guarded tools"]
+        API["Python API (FastAPI)<br/>stateless reads, fail-closed 503,<br/>response envelope"]
+        ADMIN["Admin page<br/>model switch"]
+    end
+
+    LLM["LLM provider<br/>hosted or local, allow-listed models"]
+    STORE[("Persisted files<br/>CSV and JSON with provenance")]
+
+    subgraph BUILD["Data layer: built offline on a schedule"]
+        direction LR
+        S1["Primary dataset"]
+        S2["Context sources<br/>measurements, inventories"]
+        REFRESH["Scheduled refresh job<br/>backup, validate,<br/>restore on failure"]
+        NB["Notebooks<br/>EDA, features, models,<br/>forecasts, scenarios"]
+        PIPE["Pipeline modules<br/>ingest, validate, harmonise,<br/>derive, provenance"]
+        NOTIFY["One notification per run<br/>priority = highest deviation"]
+    end
+
+    USER --> E1
+    EXT --> E2
+    OPSR --> E3
+
+    E1 --> SPA
+    E1 --> ST
+    E1 -->|"/api"| API
+    E1 -->|"/agent (SSE)"| AGENT
+    E2 --> MCP
+    E3 --> ADMIN
+
+    SPA -->|"HTTP JSON"| API
+    SPA -->|"questions, streamed answers"| AGENT
+    AGENT -->|"MCP, loopback"| MCP
+    MCP -->|"HTTP, loopback"| API
+    AGENT --> LLM
+    ADMIN -->|"choose model"| AGENT
+
+    API -->|"reads"| STORE
+    ST -->|"reads"| STORE
+
+    STORE ---|"written by"| NB
+    STORE ---|"written by"| PIPE
+    S1 --> REFRESH
+    REFRESH --> NB
+    REFRESH --> PIPE
+    S2 --> PIPE
+    API -.-|"restarted by the job after a validated refresh"| REFRESH
+    REFRESH -.-> NOTIFY
+    PIPE -.->|"deviations"| NOTIFY
+    OPSR -.-|"receives alerts"| NOTIFY
+```
+
+How to read it:
+
+| Part | What to notice |
+|---|---|
+| **Data flows one way** | Sources → refresh job → notebooks and pipeline → persisted files → API or Streamlit. Nothing downstream writes back to the data layer ([§9](#9-why-the-persistence-layer-and-the-presentation-layers-stay-separate)). |
+| **The API is the hub** | The React dashboard and the MCP server are both ordinary HTTP clients of the same API; the agent reaches it only through the MCP server, inheriting its guards ([§12–13](#12-options-for-exposing-an-api-to-an-llm-agent-mcp)). |
+| **Three access policies at one edge** | Public paths stay anonymous, the MCP path needs a per-client service token, and admin paths need a human login. Co-located hops (agent → MCP server → API) stay on loopback with no extra auth ([§16](#16-access-control-and-admin-at-the-edge)). |
+| **Operations are part of the design** | The refresh job validates before publishing, restarts the API's caches, and sends exactly one prioritised notification ([§15](#15-operating-the-whole-system)). |
+| **Option A and B are alternatives** | A project may build either or both of the Streamlit and React front ends; the agent layer is optional and sits on top of the API ([§8](#8-options-for-the-presentation-layer)). |
 
 ## 5. Persistence options
 
