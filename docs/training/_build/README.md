@@ -1,6 +1,6 @@
 # Building the training PDFs
 
-Regenerates every `docs/training/**/*.pdf` from its `.md` source.
+Regenerates every `docs/training/**/*.pdf` (technical and functional series, plus the landing page) from its `.md` source.
 
 ```bash
 docs/training/_build/build.sh              # all docs (or pass specific paths, relative to docs/training)

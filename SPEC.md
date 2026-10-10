@@ -525,7 +525,7 @@ components each carry their own automated suite:
 | `api/` | pytest — every endpoint's happy path, 4xx/503 error paths, pandas edge cases, against fixture CSVs (never the real gitignored data) | `pytest api/tests` |
 | `climate-dashboard-react/` | Vitest + React Testing Library — API client contract tests, one loading/data/error smoke test per page (`api.client` always mocked, never a live backend) | `npm test` (from `climate-dashboard-react/`) |
 
-See `docs/training/02-python-api-backend/` and `docs/training/04-react-frontend/` for the
+See `docs/training/technical/02-python-api-backend/` and `docs/training/technical/04-react-frontend/` for the
 full training curricula covering both.
 
 ### 5.5 Data Explorer Page
