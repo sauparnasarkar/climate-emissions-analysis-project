@@ -1,6 +1,6 @@
-# Climate Analytics Platform Training Series
+# Climate Analytics Platform Technical Series
 
-A deep-dive training series on the technical stack behind this project's analysis, API,
+A deep-dive technical series on the technical stack behind this project's analysis, API,
 dashboards and conversational agent. Each area explains the **concepts**, the **technical
 approach and implementation**, **testing**, and **deployment** best practices. The examples are
 project-agnostic, but chosen to explain the techniques this project actually uses.
