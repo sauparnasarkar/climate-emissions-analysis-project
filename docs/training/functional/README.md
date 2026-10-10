@@ -5,7 +5,7 @@ with authoritative climate references, and what its trends imply for the Paris A
 targets. It complements the [Technical Series](../technical/README.md), which covers how the
 platform is built. No programming is needed to follow it.
 
-> **Status: in development.** Section 1 (Data Sources) is written; Methodology, Benchmarks,
+> **Status: in development.** Sections 1 (Data Sources) and 2 (Methodology) are written; Benchmarks,
 > Paris Agreement and Findings follow, one section at a time.
 
 ## 1. The domain in one page
@@ -30,7 +30,7 @@ emissions  ──▶  atmospheric concentration  ──▶  global temperature
 | Temperature | How much has the surface warmed? | Berkeley Earth, relative to 1850–1900 |
 
 The platform's forecasts and scenarios apply to the first link; its relationship analysis
-(Methodology, in development) connects the three.
+([Methodology](02-methodology/03-emissions-temperature-relationship.md)) connects the three.
 
 **The gases.** Carbon dioxide (CO₂) dominates by volume. Methane (CH₄), nitrous oxide (N₂O) and
 the fluorinated gases ("F-gases") are much less abundant but trap far more heat per tonne. To
@@ -81,7 +81,7 @@ and does not reconcile it.
 | # | Section | What it covers |
 |---|---|---|
 | 1 | Data Sources: [emissions inventories](01-data-sources/01-emissions-inventories.md), [concentrations and temperature](01-data-sources/02-concentrations-and-temperature.md), [quality and harmonization](01-data-sources/03-data-quality-and-harmonization.md) | The five sources, their coverage, quality and harmonization |
-| 2 | Methodology | Trend analysis, forecasting, scenarios and temperature mapping, limitations and uncertainty |
+| 2 | Methodology: [trend analysis](02-methodology/01-trend-analysis.md), [forecasting](02-methodology/02-forecasting.md), [emissions–temperature relationship](02-methodology/03-emissions-temperature-relationship.md), [scenarios and temperature mapping](02-methodology/04-scenarios-and-temperature-mapping.md), [limitations and uncertainty](02-methodology/05-limitations-and-uncertainty.md) | How the numbers are produced, and how far they can be trusted |
 | 3 | Benchmarks | The platform's outputs against IPCC, UNEP, Global Carbon Budget and other references |
 | 4 | Paris Agreement | The agreement, its targets expressed as numbers, and country NDCs |
 | 5 | Findings | Where emissions stand, how the scenarios compare with Paris-aligned pathways, and caveats |
