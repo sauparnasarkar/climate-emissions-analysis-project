@@ -94,7 +94,7 @@ a factor of about 2.2. The reasons are what makes the figure instructive:
 |---|---|
 | Treat them as *comparative*: how much does a bounded change in the pathway matter? | Quote 1.68 °C as a forecast of the 2040 temperature |
 | Note that the band covers only the slope's statistical uncertainty | Read the band as the range of possible outcomes; it excludes scenario, policy and climate-system uncertainty |
-| Compare the three pathways with each other | Compare a 2040 level here directly with an IPCC "warming level", which is a 20-year average under defined conditions (see the Benchmarks section, in development) |
+| Compare the three pathways with each other | Compare a 2040 level here directly with an IPCC "warming level", which is a 20-year average under defined conditions (see [Benchmarks](../03-benchmarks/04-pathway-comparison.md)) |
 
 The dashboard labels these results "Illustrative · implied outcomes, not projections", and the
 output file names them "illustrative, partial-coverage translation", dependent on "the selected

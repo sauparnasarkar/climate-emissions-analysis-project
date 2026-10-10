@@ -5,7 +5,7 @@ with authoritative climate references, and what its trends imply for the Paris A
 targets. It complements the [Technical Series](../technical/README.md), which covers how the
 platform is built. No programming is needed to follow it.
 
-> **Status: in development.** Sections 1 (Data Sources) and 2 (Methodology) are written; Benchmarks,
+> **Status: in development.** Sections 1 (Data Sources), 2 (Methodology) and 3 (Benchmarks) are written;
 > Paris Agreement and Findings follow, one section at a time.
 
 ## 1. The domain in one page
@@ -52,7 +52,7 @@ convention a number follows.
 | A transparent, reproducible analysis of published historical data | A climate model; it does not simulate physics |
 | Short-horizon statistical forecasts of CO₂ with held-out testing | A prediction of what governments or technology will do |
 | Illustrative what-if scenarios (constant percentage reductions) | Calibrated policy pathways |
-| A way to see trends and compare them with reference benchmarks | An authority; the IPCC and the sources in Benchmarks section are |
+| A way to see trends and compare them with reference benchmarks | An authority; the IPCC and the sources in [Benchmarks](03-benchmarks/01-reference-landscape.md) are |
 
 Keep this table in mind when reading the Findings section.
 
@@ -82,7 +82,7 @@ and does not reconcile it.
 |---|---|---|
 | 1 | Data Sources: [emissions inventories](01-data-sources/01-emissions-inventories.md), [concentrations and temperature](01-data-sources/02-concentrations-and-temperature.md), [quality and harmonization](01-data-sources/03-data-quality-and-harmonization.md) | The five sources, their coverage, quality and harmonization |
 | 2 | Methodology: [trend analysis](02-methodology/01-trend-analysis.md), [forecasting](02-methodology/02-forecasting.md), [emissions–temperature relationship](02-methodology/03-emissions-temperature-relationship.md), [scenarios and temperature mapping](02-methodology/04-scenarios-and-temperature-mapping.md), [limitations and uncertainty](02-methodology/05-limitations-and-uncertainty.md) | How the numbers are produced, and how far they can be trusted |
-| 3 | Benchmarks | The platform's outputs against IPCC, UNEP, Global Carbon Budget and other references |
+| 3 | Benchmarks: [reference landscape](03-benchmarks/01-reference-landscape.md), [emissions](03-benchmarks/02-emissions-vs-benchmarks.md), [temperature and concentration](03-benchmarks/03-temperature-and-concentration-vs-benchmarks.md), [pathways, carbon budgets and warming outlooks](03-benchmarks/04-pathway-comparison.md) | The platform's outputs against IPCC, UNEP, the Global Carbon Budget and other references |
 | 4 | Paris Agreement | The agreement, its targets expressed as numbers, and country NDCs |
 | 5 | Findings | Where emissions stand, how the scenarios compare with Paris-aligned pathways, and caveats |
 

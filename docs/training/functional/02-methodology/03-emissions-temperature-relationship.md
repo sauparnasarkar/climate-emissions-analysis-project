@@ -41,9 +41,11 @@ other evidence, and the platform states plainly that this is "context, not proof
 
 ## 3. Comparison with the IPCC range
 
-The IPCC's Sixth Assessment Report gives a TCRE best estimate of about 0.45 °C per 1,000 GtCO₂,
-with a very likely range of 0.27–0.63 (as quoted in the platform; the Benchmarks section, in
-development, re-checks it against the IPCC publication).
+The IPCC's Sixth Assessment Report gives a TCRE best estimate of 0.45 °C per 1,000 GtCO₂, with a
+**likely** range of 0.27–0.63 (Working Group I Summary for Policymakers, D.1.1; "likely" means at
+least a 66% probability). A *95% statistical interval* around a fitted slope and a *66% assessed
+range* from many lines of evidence are different kinds of interval, so "overlaps" below means the
+two are consistent, not that one validates the other.
 
 | Measure | Platform | Versus IPCC AR6 |
 |---|---|---|

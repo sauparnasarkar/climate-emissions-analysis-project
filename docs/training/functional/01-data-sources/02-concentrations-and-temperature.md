@@ -73,7 +73,7 @@ value agrees with Berkeley Earth's own published 1.44 ± 0.09 °C.
   alone shifts the headline "°C above pre-industrial" by a few hundredths of a degree.
 - **One year is not a trend.** Annual values are influenced by El Niño and La Niña; the
   Paris Agreement's temperature goals are about long-term averages, not single years. The
-  Benchmarks section (in development) returns to this.
+  [Benchmarks](../03-benchmarks/03-temperature-and-concentration-vs-benchmarks.md) return to this.
 - **Licence.** CC BY-NC: non-commercial use and attribution to Berkeley Earth. The platform's
   use is non-commercial; any commercial use would need a licence from them.
 
@@ -87,8 +87,8 @@ value agrees with Berkeley Earth's own published 1.44 ± 0.09 °C.
 
 The platform pairs them by calendar year and relates *cumulative* emissions to temperature,
 because warming tracks the total CO₂ added to the atmosphere over time, not a single year's
-emissions. The Methodology section (in development) covers how, and how much weight that relationship
-can bear.
+emissions. [Methodology](../02-methodology/03-emissions-temperature-relationship.md) covers how, and how much
+weight that relationship can bear.
 
 ## See also
 
