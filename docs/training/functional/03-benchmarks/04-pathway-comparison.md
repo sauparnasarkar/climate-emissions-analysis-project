@@ -4,7 +4,7 @@
 > *observations* with benchmarks. This one compares its *scenarios* with the IPCC's emission
 > pathways, sets out the reference carbon budgets (where the sources disagree), and compares the
 > platform's implied warming with published outlooks. What these comparisons imply for the Paris
-> targets is the subject of the Paris Agreement section (in development).
+> targets is the subject of [Paris Agreement section](../04-paris-agreement/02-targets-as-numbers.md).
 
 ## 1. Reference pathways
 
