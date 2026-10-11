@@ -6,6 +6,9 @@
 > lays the platform's pathways next to it. Where the platform's own numbers are used, they come
 > from the scenarios described in
 > [Scenarios and Temperature Mapping](../02-methodology/04-scenarios-and-temperature-mapping.md).
+>
+> **As of:** IPCC AR6 (2021–2023); Forster et al. (June 2026) and the Global Carbon Budget 2025
+> for budgets; UNEP *Emissions Gap Report 2025* for 2035 benchmarks; the platform's data to 2024.
 
 ## 1. The goals in numbers
 
@@ -92,6 +95,11 @@ How to read this:
 - **The 1.7 °C budget is passed in the late 2030s except under the Aggressive scenario**, which
   reaches it only at the end of 2040.
 - **The 2 °C budget lasts beyond 2040 in all three.**
+- **Accounting basis.** The platform's annual CO₂ is gross of the roughly 0.7 GtCO₂ cement
+  carbonation sink that the Global Carbon Budget nets out, and its land-use assumption (4.66 GtCO₂
+  a year, flat) is above the Global Carbon Budget's 4.1 GtCO₂ for 2025. Together that puts the
+  platform's cumulative emissions about 1.3 GtCO₂ a year above the basis the budgets use, so each
+  crossing year comes out slightly early.
 - **Using up the budget is not the same as reaching 1.5 °C.** The published budgets include
   uncertainty in how warming responds to CO₂ only, assume a further 0.10 °C of future non-CO₂
   warming, and are for a 50% chance. The overshoot the COP30 decision acknowledged is related:
@@ -100,7 +108,14 @@ How to read this:
 ## 5. What the targets imply for the platform's own temperature path
 
 The platform's BAU temperature path reaches a level of 1.5 °C in 2033 and Aggressive in 2034
-(see [Pathways §5](../03-benchmarks/04-pathway-comparison.md)). That is consistent with the
+(see [Pathways §5](../03-benchmarks/04-pathway-comparison.md)). That is later than the budgets
+run out in §4 (2028–2030), and the reason is specific. The two start from almost the same level:
+the platform's implied level at the start of 2026 is 1.34 °C, and Forster et al.'s 130 GtCO₂
+budget implies about 1.34 °C too (1.5 − 0.10 − 130 × 0.45 per 1,000 GtCO₂). The difference is
+Forster et al.'s allowance of 0.10 °C for future warming from non-CO₂ gases, worth about
+220 GtCO₂ at that slope, which the platform's CO₂-only slope does not include. Without it the
+platform's room to 1.5 °C from the start of 2026 is about 330 GtCO₂ (0.16 °C ÷ 0.486), against
+Forster et al.'s 130. That is consistent with the
 IPCC's finding that the first 20-year average to reach 1.5 °C is centred in the first half of the
 2030s in all but its highest-emissions scenario, and with Forster et al.'s estimate of around
 2030 for human-induced warming. The Paris goal concerns the long-term level, so a single warm

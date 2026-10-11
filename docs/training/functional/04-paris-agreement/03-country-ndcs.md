@@ -5,6 +5,9 @@
 > whether current policies reach the 2030 targets, and where the platform's own data sit against
 > them. **The comparisons are indicative**: NDC targets and the platform's series differ in scope,
 > and the differences are large for several countries (§3).
+>
+> **As of:** UNEP *Emissions Gap Report 2025* (NDCs and announcements to 30 September 2025;
+> published November 2025); platform data to 2024. Later submissions are not reflected.
 
 ## 1. What each country has pledged
 
@@ -14,7 +17,7 @@ From UNEP's *Emissions Gap Report 2025*, Table 3.1 (NDCs and announced 2035 pled
 | Country | 2030 NDC | 2035 NDC or announced pledge |
 |---|---|---|
 | **China** | Peak CO₂ before 2030; cut CO₂ per unit of GDP 65% from 2005; non-fossil fuels about 25% of primary energy; 1,200 GW wind and solar | Cut net GHG emissions **7–10% from peak levels** by 2035, "striving to do better"; non-fossil share over 30%; wind and solar to 3,600 GW |
-| **United States** | −50–52% from 2005 | −61–66% from 2005 (the NDC is no longer in effect after 27 January 2026, as the US is withdrawing) |
+| **United States** | −50–52% from 2005 | −61–66% from 2005 (UNEP states that the US NDC would no longer be in effect from 27 January 2026, as the US is withdrawing) |
 | **India** | Cut GHG per unit of GDP 45% from 2005; about 40% non-fossil power capacity (conditional on finance); additional 2.5–3 GtCO₂e carbon sink | No new NDC submitted or announced by 30 September 2025 |
 | **Russia** | GHG up to 70% of the 1990 level | 65–67% of the 1990 level |
 | **Japan** | −46% from 2013 | −60% from 2013 (and −73% by 2040) |
@@ -72,23 +75,24 @@ Two changes since last year are material for the featured countries:
 ## 3. Where the platform's data sit
 
 The platform's series are **gross national emissions excluding land use**
-(PRIMAP-hist total GHG; OWID CO₂), and its BAU path is a statistical continuation of each
+(PRIMAP-hist total GHG, whose country values are rounded to three significant figures; OWID CO₂),
+and its BAU path is a statistical continuation of each
 country's own CO₂ history. NDCs are mostly **net** and **include land use**, and are measured
 against different base years. Treat every number below as an indication of direction and
 distance, not as a target assessment.
 
 | Country | NDC base | Observed 2024 vs base (platform GHG) | Platform BAU CO₂ vs base, 2030 / 2035 | Reading |
 |---|---|---|---|---|
-| China | peak | At a record high (CO₂ 12.3 Gt; GHG 15.5 Gt) | CO₂ 13.5 Gt (+9.6% on 2024) / 14.4 Gt | **BAU keeps rising; UNEP's policy studies show a peak around 2025.** The platform's trend model cannot see policy-driven change |
-| United States | 2005 | −17.4% | CO₂ −22.6% / −24.1% | Far from −50–52%; the pledge is withdrawn in any case |
-| India | 2005 (intensity) | +109% in absolute terms; at a record high | CO₂ +220% / +262% | Target is intensity, not absolute; not comparable |
-| Russia | 1990 | −32.5% | CO₂ −27.0% / −25.6% | Already past −30% on a gross basis |
-| Japan | 2013 | −24.5% | CO₂ −31.2% / −33.2% | Short of −46% (2030) on gross figures; UNEP says "very close" on net |
-| Germany (EU) | 1990 | −48.0% | CO₂ −51.7% / −56.9% | −51.7% by 2030 on BAU, short of the EU-wide −55% (net); Germany has no separate NDC |
-| Brazil | 2005 (net) | +26.9% gross | CO₂ +38.1% / +41.8% | **Not comparable:** Brazil's net target counts land-use emissions and removals that the platform excludes |
-| United Kingdom | 1990 | −52.0% | CO₂ −55.5% / −59.0% | Short of −68% (2030) |
+| China | peak | At a record high (CO₂ 12.3 Gt; GHG 15.5 Gt) | CO₂ 13.5 Gt (+10% on 2024) / 14.4 Gt | **BAU keeps rising; UNEP's policy studies show a peak around 2025.** The platform's trend model cannot see policy-driven change |
+| United States | 2005 | about −17% | CO₂ −23% / −24% | Far from −50–52%; the pledge is withdrawn in any case |
+| India | 2005 (intensity) | about +109% in absolute terms; at a record high | CO₂ +220% / +262% | Target is intensity, not absolute; not comparable |
+| Russia | 1990 | about −33% | CO₂ −27% / −26% | Already past −30% on a gross basis |
+| Japan | 2013 | about −25% | CO₂ −31% / −33% | Short of −46% (2030) on gross figures; UNEP says "very close" on net |
+| Germany (EU) | 1990 | about −48% | CO₂ −52% / −57% | −52% by 2030 on BAU, short of the EU-wide −55% (net); Germany has no separate NDC |
+| Brazil | 2005 (net) | about +27% gross | CO₂ +38% / +42% | **Not comparable:** Brazil's net target counts land-use emissions and removals that the platform excludes |
+| United Kingdom | 1990 | about −52% | CO₂ −56% / −59% | Short of −68% (2030) |
 | South Africa | absolute range | 522 MtCO₂e (2024) | CO₂ flat at about 444 Mt | Above the 350–420 range on a gross basis; scope differs |
-| Australia | 2005 | −2.2% | CO₂ +2.2% / +2.6% | Far from −43% gross; Australia's net figure, with its land sink, is much lower |
+| Australia | 2005 | about −2% | CO₂ +2% / +3% | Far from −43% gross; Australia's net figure, with its land sink, is much lower |
 
 Observations:
 

@@ -5,6 +5,10 @@
 > commits countries to, how its five-year cycle works, and what the COP meetings since 2015
 > have added. The targets are turned into numbers in the
 > [next document](02-targets-as-numbers.md).
+>
+> **As of:** the Agreement's authentic text; UNEP *Emissions Gap Report 2025* (data to
+> 30 September 2025); reporting on the COP30 decision of 22 November 2025. Later submissions and
+> decisions are not reflected.
 
 ## 1. What the Agreement says
 
@@ -13,7 +17,7 @@ text deposited with the UN Secretary-General.
 
 | Article | What it provides |
 |---|---|
-| **2.1(a)** | Hold the global average temperature increase "to well below 2°C above pre-industrial levels and pursue efforts to limit the temperature increase to 1.5°C" |
+| **2.1(a)** | Hold the global average temperature increase to "well below 2°C above pre-industrial levels and pursuing efforts to limit the temperature increase to 1.5°C" |
 | **2.1(b), (c)** | Increase the ability to adapt; make finance flows consistent with a low-emission, climate-resilient pathway |
 | **4.1** | Reach "global peaking of greenhouse gas emissions as soon as possible" and then rapid reductions, to "achieve a balance between anthropogenic emissions by sources and removals by sinks of greenhouse gases in the second half of this century" |
 | **4.2** | Each Party "shall prepare, communicate and maintain successive nationally determined contributions" (NDCs) and pursue domestic measures to achieve them |
@@ -39,11 +43,11 @@ Three features shape everything that follows:
 
 ```
 2015  Agreement adopted
-2020  First NDCs (updated or new) due: targets mainly for 2030
-2023  First global stocktake concludes (COP28)
-2025  Second NDCs due: new targets, typically for 2035
-2028  Second global stocktake
-2030  Third NDCs due: targets, typically for 2040
+2020  NDC round (targets mainly for 2030)
+2023  Global stocktake (concluded at COP28)
+2025  NDC round (targets typically for 2035)
+2028  Global stocktake
+2030  NDC round (targets typically for 2040)
 ```
 
 The cycle matters for reading the platform's results: the **2030 NDCs** are the targets the
@@ -68,14 +72,15 @@ Report (for the 43% and 60% figures) and press and analyst reporting on the deci
 retrieved automatically for this series, so the wording of the COP decisions should be checked
 against the official text before it is quoted.
 
-## 4. Where the process stands
+## 4. Where the process stands (as of late 2025)
 
 - **New NDCs were due in February 2025.** By 30 September 2025 only 64 Parties, covering 63% of
   global emissions, had submitted or announced new ones, and 60 of those contained 2035 targets
   (UNEP *Emissions Gap Report 2025*).
 - **Net-zero pledges** now cover about 70% of global emissions, up from none in 2015 (UNEP).
-- **The United States** is withdrawing; UNEP notes its NDC will no longer be in effect after
-  27 January 2026. The Agreement's own rule is one year from notification (Article 28).
+- **The United States:** UNEP's November 2025 report states that the US NDC would no longer be
+  in effect from 27 January 2026, as the US is withdrawing. The Agreement's own rule is that a
+  withdrawal takes effect one year after notification (Article 28).
 - **First transparency reports** under the Agreement's reporting framework have appeared, a first
   step towards comparable national reporting (UNEP).
 - **The next formal checkpoint** is the second global stocktake in 2028, with dialogue sessions

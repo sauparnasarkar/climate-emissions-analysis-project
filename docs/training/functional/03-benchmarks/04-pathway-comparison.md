@@ -34,11 +34,12 @@ points apply:
 - The platform's global figure is its 40 covered countries scaled up by holding the rest of the
   world at its 2024 share (10.7%).
 
-Change in CO₂ from 2019 (2019 fossil CO₂ is 37.1 GtCO₂ and total including land use 42.0):
+Change in CO₂ from 2019 (2019 fossil CO₂ is 37.1 GtCO₂ and total including land use 42.0).
+For reference, **observed 2024 emissions were already +4.1% above 2019 (fossil) and +2.9% above
+(including land use)**, before any of the scenario years below.
 
 | | 2030 | 2035 | 2040 |
 |---|---|---|---|
-| **Observed 2024 against 2019** | +4.1% fossil, +2.9% incl. land use | | |
 | **Platform BAU**, fossil | +10.6% | +15.9% | +21.0% |
 | BAU, incl. flat land use | +8.8% | +13.5% | +18.0% |
 | **Platform Moderate (−2%/yr)**, fossil | −0.1% | −5.3% | −10.6% |
@@ -59,7 +60,7 @@ How to read this:
   business-as-usual path that is still rising (+10.6% by 2030). A constant percentage cut
   compounds from the starting point of a growing pathway.
 - **The IPCC range is wide.** For the 2 °C pathway in 2040 it runs from −36% to −70%; the
-  platform's Aggressive scenario (−39% to −44%) is inside the 2 °C range but near its lower end.
+  platform's Aggressive scenario (−39% to −44%) is inside the 2 °C range but near its weak end (the smaller reductions).
 
 ## 3. Carbon budgets: where the references disagree
 
