@@ -14,10 +14,10 @@ const EXTRA_PAGE_LABELS: Record<string, string> = { '/ask': 'Ask the Agent', '/a
 
 const ANNOUNCER_ID = 'route-announcer';
 
-/** Says the destination's name through one polite live region appended to <body>. The title change and
- * the focus move are not announced consistently across screen readers, and the only thing the pages'
- * own live regions ever said after a navigation was "Loading…". */
-function announce(label: string) {
+/** The one polite live region route changes are announced through, appended to <body>. Created EMPTY on the
+ * app's first paint and only updated afterwards: screen readers announce changes to a live region that already
+ * exists, so creating it and filling it in the same tick would leave the first navigation of a session silent. */
+function ensureAnnouncer(): HTMLElement {
   let el = document.getElementById(ANNOUNCER_ID);
   if (!el) {
     el = document.createElement('div');
@@ -28,7 +28,13 @@ function announce(label: string) {
     el.style.cssText = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
     document.body.appendChild(el);
   }
-  el.textContent = `${label} page`;
+  return el;
+}
+
+/** Says the destination's name. The title change and the focus move are not announced consistently across
+ * screen readers, and the only thing the pages' own live regions ever said after a navigation was "Loading…". */
+function announce(label: string) {
+  ensureAnnouncer().textContent = `${label} page`;
 }
 
 /** Route changes were previously silent and untitled: document.title never changed, no focus
@@ -43,6 +49,7 @@ export function useRouteAnnouncements(mainRef: RefObject<HTMLElement | null>) {
   const hashRef = useRef(hash);
   hashRef.current = hash;
   useEffect(() => {
+    ensureAnnouncer(); // exists (empty) before the first navigation, so that navigation is announced
     if (pathname === lastHandledPathname) return;
     lastHandledPathname = pathname;
 

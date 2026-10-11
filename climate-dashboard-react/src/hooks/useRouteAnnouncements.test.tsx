@@ -53,9 +53,13 @@ describe('useRouteAnnouncements', () => {
 
   it('titles the page and announces its name on an in-app navigation', () => {
     renderAt('/');
+    // The live region must already exist, empty, before the navigation: one created and filled in the same
+    // tick is not announced by screen readers.
+    const announcer = document.getElementById('route-announcer');
+    expect(announcer).toBeInTheDocument();
     fireEvent.click(screen.getByText('about'));
     expect(document.title).toBe('About — Climate Analytics Platform');
-    const announcer = document.getElementById('route-announcer');
+    expect(document.getElementById('route-announcer')).toBe(announcer);
     expect(announcer).toHaveAttribute('aria-live', 'polite');
     expect(announcer).toHaveTextContent('About page');
   });

@@ -184,7 +184,13 @@ export default defineConfig({
             options: {
               cacheName: 'api-cache',
               networkTimeoutSeconds: 5,
-              cacheableResponse: { statuses: [0, 200] },
+              // Only real 200s: `0` would also store opaque cross-origin responses, and the pattern's host part
+              // is a wildcard (the origin is not known at build time).
+              cacheableResponse: { statuses: [200] },
+              // Bounded now that the route actually matches (Release 22): every distinct query string (country
+              // sets, years, scenarios) is its own entry. A week is long enough for the offline/slow-network
+              // fallback and short next to the monthly data refresh.
+              expiration: { maxEntries: 80, maxAgeSeconds: 7 * 24 * 60 * 60 },
             },
           },
         ],
