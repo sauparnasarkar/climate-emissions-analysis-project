@@ -961,7 +961,8 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     // each section's header carries the year
     for (const h of [screen.getByRole('heading', { level: 2, name: /^By Country/ }), screen.getByRole('heading', { level: 2, name: /^% Change Since 1990/ })]) {
       // "Year" is visually hidden text inside the badge (not an aria-label), so the heading reads "… Year 2000"
-      expect(h).toHaveTextContent(/Year 2000$/);
+      // ...with a space before "Year", not "By CountryYear 2000"
+      expect(h.textContent).toMatch(/\S Year 2000$/);
     }
     expect(screen.queryByText(/The baseline is 1990/)).not.toBeInTheDocument();
   });

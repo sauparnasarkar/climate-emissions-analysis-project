@@ -9,7 +9,9 @@ export function YearBadge({ year }: { year: number }) {
       className="__s9cmpx-label4"
       style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 3, fontVariantNumeric: 'tabular-nums', background: 'var(--__s9cmpx-static-background-strong, rgba(127,127,127,0.18))', color: 'var(--__s9cmpx-static-text-standard)' }}
     >
-      <span style={VISUALLY_HIDDEN}>Year </span>
+      {/* Leading space: every call site puts the badge straight after heading text ("By Country<YearBadge/>"),
+          so without it the accessible name ran together as "By CountryYear 2024". */}
+      <span style={VISUALLY_HIDDEN}>{' Year '}</span>
       {year}
     </span>
   );
