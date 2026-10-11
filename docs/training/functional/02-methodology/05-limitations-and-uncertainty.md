@@ -3,7 +3,7 @@
 > Part of the [Functional Series](../README.md). Every claim the platform makes has a limit. This
 > document gathers them in one place, ranks where the uncertainty is largest, and maps which
 > dashboard element carries which caveat. Read it before quoting any figure from the
-> Findings section (in development).
+> [Findings](../05-findings/04-caveats-and-reading-guide.md) section.
 
 ## 1. Four kinds of uncertainty
 

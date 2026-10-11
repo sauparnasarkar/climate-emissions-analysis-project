@@ -123,7 +123,7 @@ Observations:
   against up to 2.8 °C under current policies (UNEP), with the Climate Action Tracker at 2.6 °C
   for both.
 
-Conclusions for the platform follow in the Findings section (in development).
+Conclusions for the platform follow in the [Findings](../05-findings/02-trajectory-vs-paris.md) section.
 
 ## See also
 
