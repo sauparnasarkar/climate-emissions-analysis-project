@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ColDef } from 'ag-grid-community';
-import { ChartCard, SyChart, MultiSelect, Radio, DataTable, InlineAlert, Spinner, Icon, useReducedMotion } from 'design-system';
+import { ChartCard, SyChart, MultiSelect, Radio, DataTable, InlineAlert, Spinner, Icon, useIsMobile, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
@@ -59,6 +59,7 @@ const JUMP_ITEMS: JumpLinkItem[] = [
 function ScenarioComparisonContent({ featured, expanded }: { featured: string[]; expanded: string[] }) {
   // URL-backed (?countries=…, like Historical Trends and Overview) so a link opens with a chosen selection.
   const [selectedCountries, setSelectedCountries] = useSelectedCountries(featured, expanded);
+  const isMobile = useIsMobile();
   const [treemapScenario, setTreemapScenario] = useState<string>('BAU');
   // Touch-friendly surface for the treemap's hover info (SPEC.md §5.10): a tap never produces
   // a hover on touch devices, so tapping a tile shows the same size + color values here
@@ -165,7 +166,7 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
       <h2 id="reduction-map" className="__s9cmpx-headline6">Reduction Scenarios by Country</h2>
       <p className="__s9cmpx-body2" style={{ marginBottom: 8, color: 'var(--__s9cmpx-static-text-weak)' }}>
         Tile size is each country&apos;s cumulative BAU emissions, 2025–2040 (the smallest
-        emitters grouped into a single &quot;Other&quot; tile); color (see the colorbar) shows
+        emitters grouped into a single &quot;Other&quot; tile); color{isMobile ? '' : ' (see the colorbar)'} shows
         whether the selected scenario&apos;s 2040 level is above or below the country&apos;s
         current level.
       </p>
@@ -209,6 +210,10 @@ function ScenarioComparisonContent({ featured, expanded }: { featured: string[];
                   colorScale: treemapColorScale,
                   colorRange: [-treemapColorMaxAbs, treemapColorMaxAbs],
                   colorbarTitle: `${treemapScenario} 2040 vs. Current`,
+                  // On a phone the side colourbar and its title took about half the chart's width and left the tiles
+                  // a narrow strip (ENHANCEMENTS.md Release 22). The scale is described in the text above the chart and
+                  // each tile's value is in its tap panel, so the bar is dropped there.
+                  showColorbar: !isMobile,
                   hoverUnit: 'MtCO₂',
                   onTileClick: (pointNumber) => setTappedTileIndex(pointNumber),
                 }]}

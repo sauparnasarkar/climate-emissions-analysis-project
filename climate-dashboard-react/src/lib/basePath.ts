@@ -11,6 +11,16 @@ export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Workbox `runtimeCaching` pattern for the API under a given base (with trailing slash).
+ * Workbox tests a RegExp route against the request's full `url.href`
+ * (`https://host/api/...`), not its pathname, so the earlier `^${base}api/` could never match and
+ * the NetworkFirst `api-cache` was never created (2026-10-11 audit, ENHANCEMENTS.md Release 22).
+ * Anchored after the origin rather than left unanchored, so `/x/api/` or `/apiary` don't match.
+ * Still a RegExp, not a function: the generated sw.js cannot close over build-time variables. */
+export function apiRuntimeCachePattern(base: string): RegExp {
+  return new RegExp(`^https?://[^/]+${escapeRegExp(base)}api/`);
+}
+
 // Paths the tunnel routes to *backends* (api/, services/mcp-server, services/agent) rather than to
 // this SPA. At a prefixed base (labs.syena.io/ghg-emissions-analysis/) the service worker's scope
 // was already narrow; at the root base of climate-analytics.syena.io (Release 20, SPEC.md §5.25) it

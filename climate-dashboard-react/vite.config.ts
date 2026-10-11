@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import { escapeRegExp, navigateFallbackDenylist, stripTrailingSlash } from './src/lib/basePath.js'
+import { apiRuntimeCachePattern, navigateFallbackDenylist, stripTrailingSlash } from './src/lib/basePath.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -177,12 +177,20 @@ export default defineConfig({
             // page from its *second* load onward, which fresh single-load test
             // contexts never reach). A regex's value is `base` baked in as a plain
             // string at build time, with nothing left to resolve at runtime.
-            urlPattern: new RegExp(`^${escapeRegExp(base)}api/`),
+            // Built in lib/basePath.ts (and unit-tested there against full URLs): Workbox matches a
+            // RegExp route against the whole href, so the pattern is anchored after the origin.
+            urlPattern: apiRuntimeCachePattern(base),
             handler: 'NetworkFirst',
             options: {
               cacheName: 'api-cache',
               networkTimeoutSeconds: 5,
-              cacheableResponse: { statuses: [0, 200] },
+              // Only real 200s: `0` would also store opaque cross-origin responses, and the pattern's host part
+              // is a wildcard (the origin is not known at build time).
+              cacheableResponse: { statuses: [200] },
+              // Bounded now that the route actually matches (Release 22): every distinct query string (country
+              // sets, years, scenarios) is its own entry. A week is long enough for the offline/slow-network
+              // fallback and short next to the monthly data refresh.
+              expiration: { maxEntries: 80, maxAgeSeconds: 7 * 24 * 60 * 60 },
             },
           },
         ],

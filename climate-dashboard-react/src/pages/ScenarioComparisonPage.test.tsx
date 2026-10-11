@@ -7,11 +7,13 @@ import ScenarioComparisonPage from './ScenarioComparisonPage';
 
 // JumpLinks (SPEC.md §5.19) calls design-system's useReducedMotion during render -- jsdom has
 // no window.matchMedia at all, so every test needs this stub. Same pattern as useCountUp.test.ts.
-function mockReducedMotion(matches: boolean) {
+// `mobile` answers design-system's useIsMobile query (max-width: 768px), which the page uses to drop the
+// treemap's colourbar on phones (ENHANCEMENTS.md Release 22).
+function mockReducedMotion(matches: boolean, mobile = false) {
   vi.stubGlobal(
     'matchMedia',
     vi.fn().mockImplementation((query: string) => ({
-      matches: query === '(prefers-reduced-motion: reduce)' ? matches : false,
+      matches: query === '(prefers-reduced-motion: reduce)' ? matches : query === '(max-width: 768px)' ? mobile : false,
       media: query,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
@@ -48,6 +50,7 @@ vi.mock('design-system', async (importOriginal) => {
         colorValues?: Array<number | null>;
         colorScale?: Array<[number, string]>;
         colorRange?: [number, number];
+        showColorbar?: boolean;
         onTileClick?: (i: number, label: string) => void;
       }>;
     }) => {
@@ -59,6 +62,7 @@ vi.mock('design-system', async (importOriginal) => {
           data-height={props.height}
           data-color-scale={treemapSeries?.colorScale ? JSON.stringify(treemapSeries.colorScale) : undefined}
           data-color-range={treemapSeries?.colorRange ? JSON.stringify(treemapSeries.colorRange) : undefined}
+          data-show-colorbar={treemapSeries ? String(treemapSeries.showColorbar ?? true) : undefined}
         >
           {treemapSeries?.onTileClick && (
             <>
@@ -171,6 +175,31 @@ describe('ScenarioComparisonPage', () => {
     expect(screen.getByRole('heading', { name: 'Moderate' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Aggressive' })).toBeInTheDocument();
     expect(vi.mocked(api.scenarioCompare)).toHaveBeenCalledWith(['China']);
+  });
+
+  it('keeps the treemap colourbar, and the caption that points at it, on a desktop viewport', async () => {
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
+
+    const treemapChart = (await screen.findAllByTestId('sychart')).find((el) => el.hasAttribute('data-show-colorbar'))!;
+    expect(treemapChart).toHaveAttribute('data-show-colorbar', 'true');
+    expect(screen.getByText(/color \(see the colorbar\) shows/)).toBeInTheDocument();
+  });
+
+  it('drops the treemap colourbar on a phone, and the caption no longer points at it (Release 22)', async () => {
+    // On a phone the side colourbar took about half the chart width and left the tiles a narrow strip.
+    mockReducedMotion(false, true);
+    vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+    vi.mocked(api.scenarioCumulative).mockResolvedValue(CUMULATIVE);
+    vi.mocked(api.scenarioCompare).mockResolvedValue(COMPARE);
+    render(<MemoryRouter><ScenarioComparisonPage /></MemoryRouter>);
+
+    const treemapChart = (await screen.findAllByTestId('sychart')).find((el) => el.hasAttribute('data-show-colorbar'))!;
+    expect(treemapChart).toHaveAttribute('data-show-colorbar', 'false');
+    expect(screen.queryByText(/see the colorbar/)).not.toBeInTheDocument();
+    expect(screen.getByText(/color shows\s+whether the selected scenario/)).toBeInTheDocument();
   });
 
   it('opens on the countries in ?countries= (validated against the expanded list) and falls back for unknown ones', async () => {

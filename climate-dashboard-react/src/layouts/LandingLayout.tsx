@@ -92,11 +92,17 @@ export function LandingLayout({ theme, setTheme }: { theme: AppTheme; setTheme: 
           background: 'var(--__s9cmpx-static-background-standard)',
         }}
       >
-        <Link to="/" style={{ ...linkStyle, display: 'flex', alignItems: 'center', gap: 10, fontWeight: 600, fontSize: 'clamp(0.875rem, 3.9vw, 1.0625rem)', whiteSpace: 'nowrap' }}>
-          <span aria-hidden="true">🌍</span> {PRODUCT_NAME}
+        {/* minWidth: 0 + an ellipsis on the name: at 320px (and at 400% zoom) the nowrap wordmark used to push
+            the Menu button 28px off-screen and give the page a horizontal scrollbar (WCAG 1.4.10; ENHANCEMENTS.md
+            Release 22). The name now shrinks and truncates instead, as the dashboard header's already does. Compact
+            header only: on the desktop bar the name must keep its full width (it would otherwise be the first
+            thing to give way at 1280px, where the six nav links only just fit). */}
+        <Link to="/" style={{ ...linkStyle, display: 'flex', alignItems: 'center', gap: 10, minWidth: isMobile ? 0 : undefined, flexShrink: isMobile ? 1 : 0, fontWeight: 600, fontSize: 'clamp(0.875rem, 3.9vw, 1.0625rem)', whiteSpace: 'nowrap' }}>
+          <span aria-hidden="true">🌍</span>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{PRODUCT_NAME}</span>
         </Link>
         {isMobile ? (
-          <div style={{ marginLeft: 'auto' }}>
+          <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
             <MobileMenuButton open={menuOpen} onClick={() => setMenuOpen((o) => !o)} controls="landing-menu" />
             {menuOpen && (
               <nav

@@ -47,7 +47,8 @@ describe('ShareSection', () => {
   it('shows the page year (badge, readout and bars) and has no slider of its own', async () => {
     mount(['CHN', 'USA'], 2023);
     expect(await screen.findByText('Share by country, 2023')).toBeInTheDocument();
-    expect(screen.getByLabelText('Year 2023')).toBeInTheDocument(); // the header badge
+    // the header badge: "Year" is visually hidden text, so the accessible text reads "Year 2023"
+    expect(screen.getByText((_, el) => !!el?.classList.contains('__s9cmpx-label4') && el.textContent === ' Year 2023')).toBeInTheDocument();
     expect(screen.getByText('page year')).toBeInTheDocument();
     expect(tableCell('China', 0)).toBe('15.0%');
     expect(screen.queryByRole('slider')).not.toBeInTheDocument();

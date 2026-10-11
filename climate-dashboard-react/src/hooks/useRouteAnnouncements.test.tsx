@@ -51,6 +51,24 @@ describe('useRouteAnnouncements', () => {
     expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   });
 
+  it('titles the page and announces its name on an in-app navigation', () => {
+    renderAt('/');
+    // The live region must already exist, empty, before the navigation: one created and filled in the same
+    // tick is not announced by screen readers.
+    const announcer = document.getElementById('route-announcer');
+    expect(announcer).toBeInTheDocument();
+    fireEvent.click(screen.getByText('about'));
+    expect(document.title).toBe('About — Climate Analytics Platform');
+    expect(document.getElementById('route-announcer')).toBe(announcer);
+    expect(announcer).toHaveAttribute('aria-live', 'polite');
+    expect(announcer).toHaveTextContent('About page');
+  });
+
+  it('gives pages that are not navigation items their own title', () => {
+    renderAt('/ask');
+    expect(document.title).toBe('Ask the Agent — Climate Analytics Platform');
+  });
+
   it('leaves scrolling to the jump-to-hash hook when the destination has a #hash', () => {
     renderAt('/');
     scrollTo.mockClear();
