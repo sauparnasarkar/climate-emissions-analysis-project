@@ -3979,8 +3979,8 @@ profile, then offline.
 
 ### 22.2 Verification (local production build + API, before review)
 
-- App: `vitest` 660 passing (new: full-URL tests for the service-worker pattern, page title and
-  route announcement), `tsc -b` clean, lint unchanged.
+- App: `vitest` 662 passing (new: full-URL tests for the service-worker pattern, page title and
+  route announcement, and the desktop/phone treemap colourbar pair added in review), `tsc -b` clean, lint unchanged.
 - Service worker: built `dist/sw.js` registers `/^https?:\/\/[^/]+\/api\//`; in one persistent
   profile `api-cache` exists from the second load, and the Overview renders its data offline.
 - axe-core: 0 violations on 10 routes x 2 themes; `aria-prohibited-attr` no longer reported.
