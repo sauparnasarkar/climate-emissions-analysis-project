@@ -1982,6 +1982,24 @@ cutover checklist); not a curriculum change, same category as the rest of §5.
 
 ---
 
+### 5.27 Fixes from the 2026-10-11 Accessibility / PWA / Mobile Audit (Release 22, Docs-first)
+
+> Mentor's post-internship expansion — **not internship scope**, not graded. Findings, the
+> decisions behind each fix, what was deliberately left alone, and the verification:
+> `ENHANCEMENTS.md` Release 22. Earlier accessibility/PWA/mobile work is §5.10.
+
+| Area | Specification |
+|---|---|
+| Service worker | API responses are cached `NetworkFirst` (5 s timeout) in `api-cache`. The route pattern is built by `apiRuntimeCachePattern(base)` (`lib/basePath.ts`) and matches the request's **full URL**, anchored after the origin. Only HTTP 200 responses are stored; at most 80 entries, 7 days |
+| Contrast | Text on a primary button meets 4.5:1 in every theme and state. In the dark themes that is a dark-ink label on the brand fill (`design-system`) |
+| Reflow | No page scrolls horizontally at 320 CSS px. In the compact header the wordmark shrinks and truncates; the Menu button never does |
+| Phone charts | The Scenario treemap drops its side colourbar below the phone breakpoint |
+| Titles and announcements | Every routed page has its own `document.title`, including pages that are not navigation items. A polite live region, present from first paint, announces "<Page> page" on each in-app navigation |
+| Naming | No `aria-label` on role-less elements; use visually hidden text |
+| Target size | Interactive controls are at least 24 x 24 CSS px |
+
+---
+
 ## 6. Post-Ship Corrections to Internship Curriculum Notebooks
 
 > **This section is different from §5.** §5 documents the mentor's *separate, post-internship*
