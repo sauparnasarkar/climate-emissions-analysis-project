@@ -51,7 +51,8 @@ export function BaselineInfo({ spec, label }: { spec: BaselineSpec; label: strin
         aria-controls={panelId}
         onClick={() => setOpen((o) => !o)}
         style={{
-          width: 20, height: 20, padding: 0, borderRadius: '50%', cursor: 'pointer', fontSize: 12, lineHeight: 1,
+          // 24px: the minimum target size (WCAG 2.5.8); it was 20px.
+          width: 24, height: 24, padding: 0, borderRadius: '50%', cursor: 'pointer', fontSize: 12, lineHeight: 1,
           border: '1px solid var(--__s9cmpx-static-divider-standard, currentColor)', background: 'transparent', color: 'inherit',
         }}
       >
@@ -63,7 +64,7 @@ export function BaselineInfo({ spec, label }: { spec: BaselineSpec; label: strin
           role="region"
           aria-label={`Baseline for ${label}`}
           style={{
-            position: 'absolute', zIndex: 20, top: 26, right: 0, width: 280, padding: 12, borderRadius: 6, fontSize: 13,
+            position: 'absolute', zIndex: 20, top: 30, right: 0, width: 280, padding: 12, borderRadius: 6, fontSize: 13,
             background: 'var(--__s9cmpx-static-background-standard)', color: 'var(--__s9cmpx-static-text-standard)',
             border: '1px solid var(--__s9cmpx-static-divider-standard, currentColor)', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
           }}

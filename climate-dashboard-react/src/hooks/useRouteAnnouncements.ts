@@ -8,6 +8,29 @@ import { APP_TITLE, HOME_ITEM, LANDING_TITLE, NAV_ITEMS } from '../navigation';
 let initialLoadDone = false;
 let lastHandledPathname: string | null = null;
 
+// Routes that are real pages but not navigation items; without an entry they fell back to the bare
+// product name, so the Ask page's tab title was the same as the landing page's (ENHANCEMENTS.md Release 22).
+const EXTRA_PAGE_LABELS: Record<string, string> = { '/ask': 'Ask the Agent', '/admin': 'Admin' };
+
+const ANNOUNCER_ID = 'route-announcer';
+
+/** Says the destination's name through one polite live region appended to <body>. The title change and
+ * the focus move are not announced consistently across screen readers, and the only thing the pages'
+ * own live regions ever said after a navigation was "Loading…". */
+function announce(label: string) {
+  let el = document.getElementById(ANNOUNCER_ID);
+  if (!el) {
+    el = document.createElement('div');
+    el.id = ANNOUNCER_ID;
+    el.setAttribute('aria-live', 'polite');
+    el.setAttribute('aria-atomic', 'true');
+    // Clip-based visually-hidden (lib/visuallyHidden.ts, as a cssText since this node is outside React).
+    el.style.cssText = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0';
+    document.body.appendChild(el);
+  }
+  el.textContent = `${label} page`;
+}
+
 /** Route changes were previously silent and untitled: document.title never changed, no focus
  * moved, and nothing was announced -- a screen-reader user got no signal the page changed
  * (SPEC.md §5.10). Every layout shares this one title/focus-management effect rather than
@@ -23,16 +46,14 @@ export function useRouteAnnouncements(mainRef: RefObject<HTMLElement | null>) {
     if (pathname === lastHandledPathname) return;
     lastHandledPathname = pathname;
 
-    if (pathname === HOME_ITEM.path) {
-      document.title = LANDING_TITLE;
-    } else {
-      const current = NAV_ITEMS.find((item) => item.path === pathname);
-      document.title = current ? `${current.label} — ${APP_TITLE}` : APP_TITLE;
-    }
+    const isHome = pathname === HOME_ITEM.path;
+    const pageLabel = isHome ? HOME_ITEM.label : NAV_ITEMS.find((item) => item.path === pathname)?.label ?? EXTRA_PAGE_LABELS[pathname];
+    document.title = isHome ? LANDING_TITLE : pageLabel ? `${pageLabel} — ${APP_TITLE}` : APP_TITLE;
     if (!initialLoadDone) {
       initialLoadDone = true;
       return;
     }
+    if (pageLabel) announce(pageLabel);
     // preventScroll: scrolling is handled explicitly below, and focus() alone would scroll the page
     // to wherever it likes, racing the jump-to-hash hook.
     mainRef.current?.focus({ preventScroll: true });

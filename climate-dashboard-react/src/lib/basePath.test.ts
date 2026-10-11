@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { navigateFallbackDenylist, stripTrailingSlash } from './basePath';
+import { apiRuntimeCachePattern, navigateFallbackDenylist, stripTrailingSlash } from './basePath';
 
 const denied = (base: string, url: string) => navigateFallbackDenylist(base).some((re) => re.test(url));
 
@@ -7,6 +7,28 @@ describe('stripTrailingSlash', () => {
   it('keeps the bare root and strips one trailing slash otherwise', () => {
     expect(stripTrailingSlash('/')).toBe('/');
     expect(stripTrailingSlash('/x/')).toBe('/x');
+  });
+});
+
+describe('apiRuntimeCachePattern', () => {
+  // Workbox's RegExpRoute runs the pattern against the request's full href, so these are full URLs.
+  it('matches API requests by their full URL, at the root base and under a prefix', () => {
+    const root = apiRuntimeCachePattern('/');
+    for (const url of ['https://climate-analytics.syena.io/api/overview', 'https://climate-analytics.syena.io/api/overview?countries=China', 'http://localhost:4173/api/health']) {
+      expect(root.test(url)).toBe(true);
+    }
+    expect(apiRuntimeCachePattern('/ghg-emissions-analysis/').test('https://labs.syena.io/ghg-emissions-analysis/api/overview')).toBe(true);
+  });
+
+  it('does not match look-alikes, other backends, or an api segment deeper in the path', () => {
+    const root = apiRuntimeCachePattern('/');
+    for (const url of ['https://climate-analytics.syena.io/apiary', 'https://climate-analytics.syena.io/agent/query', 'https://climate-analytics.syena.io/x/api/overview', 'https://climate-analytics.syena.io/overview', 'https://labs.syena.io/ghg-emissions-analysis/api/overview']) {
+      expect(root.test(url)).toBe(false);
+    }
+  });
+
+  it('regression: the old pathname-anchored pattern can never match a full URL', () => {
+    expect(/^\/api\//.test('https://climate-analytics.syena.io/api/overview')).toBe(false);
   });
 });
 

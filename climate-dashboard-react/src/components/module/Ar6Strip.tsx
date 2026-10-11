@@ -26,10 +26,12 @@ export function Ar6Strip({ slope, fossilSlope }: { slope: number; fossilSlope: n
         <line x1={x(AR6_TCRE.best)} x2={x(AR6_TCRE.best)} y1="26" y2="42" stroke="currentColor" strokeWidth="1.5" opacity="0.8" />
         {fossilSlope !== null && inRange(fossilSlope) && <circle cx={x(fossilSlope)} cy="34" r="6" fill={ERA_COLORS.y1900_1969} stroke="#fff" strokeWidth="1.5" />}
         {inRange(slope) && <circle cx={x(slope)} cy="34" r="6" fill="#fff" stroke="currentColor" strokeWidth="1.5" />}
+        {/* Tick and marker labels at full strength and 11px: at 10px / 0.7 opacity they measured about 3.7:1 in the
+            light theme, under the 4.5:1 minimum (ENHANCEMENTS.md Release 22). */}
         {[0.2, 0.4, 0.6, 0.8].map((t) => (
-          <text key={t} x={x(t)} y="62" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.7" fontFamily="var(--__s9cmpx-font-families-mono, ui-monospace, monospace)">{t.toFixed(1)}</text>
+          <text key={t} x={x(t)} y="62" textAnchor="middle" fontSize="11" fill="currentColor" fontFamily="var(--__s9cmpx-font-families-mono, ui-monospace, monospace)">{t.toFixed(1)}</text>
         ))}
-        <text x={x(AR6_TCRE.best)} y="18" textAnchor="middle" fontSize="10" fill="currentColor" opacity="0.8" fontFamily="var(--__s9cmpx-font-families-mono, ui-monospace, monospace)">AR6 {AR6_TCRE.best.toFixed(2)}</text>
+        <text x={x(AR6_TCRE.best)} y="18" textAnchor="middle" fontSize="11" fill="currentColor" fontFamily="var(--__s9cmpx-font-families-mono, ui-monospace, monospace)">AR6 {AR6_TCRE.best.toFixed(2)}</text>
       </svg>
       <figcaption className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>
         <span aria-hidden="true" style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#fff', border: '1.5px solid currentColor', marginRight: 6, verticalAlign: 'middle' }} />

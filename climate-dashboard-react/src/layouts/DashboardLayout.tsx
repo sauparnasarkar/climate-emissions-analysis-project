@@ -127,7 +127,9 @@ export function DashboardLayout({ theme, setTheme }: { theme: AppTheme; setTheme
           >
             <span
               style={{
-                fontSize: 'clamp(1rem, 4vw, 1.375rem)',
+                // 3.7vw with a 14px floor: at 16px the name measured ~226px against the 221px cap on a 393px
+                // iPhone and truncated to "…Platf…"; it now fits there and still truncates gracefully at 320px.
+                fontSize: 'clamp(0.875rem, 3.7vw, 1.375rem)',
                 fontWeight: 600,
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
