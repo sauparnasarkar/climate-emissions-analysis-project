@@ -3949,6 +3949,46 @@ quote it as a measured PRIMAP-hist figure until it is.
 Revised again once each phase ships.
 
 
+## Release 22 — Fixes from the 2026-10-11 Accessibility / PWA / Mobile Audit (Docs-first)
+
+**Status: In progress.** `climate-dashboard-react` + `design-system`; no `api/`, notebook or
+Streamlit change. One feature branch and PR per repo (`fix/a11y-pwa-mobile-audit-2026-10-11`).
+
+Source: an audit-only run of `/accessibility-pwa-mobile-audit` against the live site
+(climate-analytics.syena.io), both themes, published as an Artifact. Method: axe-core 4.x on 10
+routes x 2 themes (0 violations), measured contrast for what axe marked undetermined, keyboard and
+reduced-motion checks, Playwright device presets (iPhone 14 Pro, iPad Mini, Pixel 7, Galaxy Tab S4,
+desktop) plus a 320 px reflow pass, and service-worker checks over repeated loads in one persistent
+profile, then offline.
+
+### 22.1 Findings and the planned fix
+
+| # | Sev | Finding | Fix | Repo |
+|---|---|---|---|---|
+| 1 | High | Dark-theme primary button: white on `#2d9cbd` measures 3.0-3.2:1 (needs 4.5:1). axe could not decide because of the gradient | Dark ink label on the same fill (5.5:1); hover/pressed get lighter, not darker, so the label keeps passing. Darkening the fill for white text was rejected: it drops the button below 3:1 against the dark card | design-system (`analytics`, `analytics-admiralty`) |
+| 2 | Medium | `sw.js` API route `/^\/api\//` never matches: Workbox tests a RegExp route against the full `url.href`. No `api-cache` after 4 loads; offline shows an empty shell | Anchor the pattern after the origin; unit-test with full URLs; verify `api-cache` on the second load | app (`vite.config.ts`, `lib/basePath.ts`) |
+| 3 | Medium | Landing header overflows at 320 px (Menu button 28 px off-screen); WCAG 1.4.10 | Let the wordmark shrink and truncate, as `DashboardLayout` already does | app (`LandingLayout.tsx`) |
+| 4 | Medium | Scenario treemap is a narrow strip on phones; the colourbar takes about half the width | Drop the side colourbar below the phone breakpoint (the tap panel and the text above carry the scale) | app, design-system if `SyChart` needs a prop |
+| 5 | Low | AR6 strip tick labels: 10 px at 0.7 opacity (about 3.7:1 in the light theme) | 11 px, full-opacity weak-text token | app (`Ar6Strip.tsx`) |
+| 6 | Low | `YearBadge`: `aria-label` on a role-less `span` is ignored | Visually-hidden "Year " prefix instead | app |
+| 7 | Low | `/ask` has no page-specific title | Title map for routes that are not nav items | app (`useRouteAnnouncements.ts`) |
+| 8 | Low | Route change announces only "Loading..." | Polite live region announces the page name | app |
+| 9 | Low | Baseline info button is 20 x 20 px; table scroll hint is 19 px tall | 24 px minimum hit area (WCAG 2.5.8) | app, design-system (`DataTable`) |
+| 10 | Low | Wordmark truncates on 393 px dashboards | Lower the `clamp()` floor so it fits | app (`DashboardLayout.tsx`) |
+| 11 | Low | WebKit logs "ResizeObserver loop" on Overview | Defer the choropleth relayout to a frame | design-system (`SyChart`) if reproducible |
+
+### 22.2 Deliberately not changed here
+
+- **Floating carousel controls overlapping the hero CTA on first view (Low).** The floating bar is
+  an owner decision (decisions 72-73); left as is pending a decision.
+- **Missing static files answered with the SPA shell and HTTP 200 (Low)** and **`cache-control`
+  on the hashed bundle (Low).** Both are `vite preview`/edge behaviour, not app code; candidates
+  for an edge rule. Code-splitting the 6.4 MB bundle remains the separate, known project.
+- **Hero chart axis labels small on phones (Low).** The headline figures beside the chart carry
+  the message; revisit with the chart's own sizing.
+- The "very likely" wording on the AR6 strip is a separate, already-logged follow-up and is not
+  folded into this release.
+
 ## Backlog (not scheduled)
 
 Things deliberately left as they are for now, with enough detail to pick them up later. Numbered `B<n>`; items stay here until done or dropped.
