@@ -3949,11 +3949,18 @@ quote it as a measured PRIMAP-hist figure until it is.
 Revised again once each phase ships.
 
 
-## Release 22 — Fixes from the 2026-10-11 Accessibility / PWA / Mobile Audit (Docs-first)
+## Release 22 — Fixes from the 2026-10-11 Accessibility / PWA / Mobile Audit
 
-**Status: Implemented, in review (not merged or deployed).** `climate-dashboard-react` +
-`design-system`; no `api/`, notebook or Streamlit change. One feature branch and PR per repo
-(`fix/a11y-pwa-mobile-audit-2026-10-11`); merge the `design-system` PR first.
+**Status: Shipped and deployed 2026-10-11.** `climate-dashboard-react` + `design-system`; no
+`api/`, notebook or Streamlit change. `design-system` PR #111, then this repo's PR #281 (four
+Copilot review passes; it added the treemap test pair and caught the year badge running into its
+heading text). Deployed to the Mac Mini the same day: `design-system` pulled first (this also
+brought its earlier #110, the Green/Blue theme removal, to the host; scripts-only `package.json`
+change, no install needed), then the repo, then `DEPLOY_BASE_PATH=/ npm run build`. Frontend
+only; uvicorn, the MCP server and the agent were not restarted. Live bundle `index-DImHhoGB.js`
+(was `index-CM-vghB0.js`). **Rollback:** `~/dist-prev-release22` on the Mini. Verified live from a
+fresh browser profile: `api-cache` from the second load and data offline, button colours, 320 px
+landing header, phone treemap, page title and announcement, `/mcp` 403, `/admin` 302.
 
 Source: an audit-only run of `/accessibility-pwa-mobile-audit` against the live site
 (climate-analytics.syena.io), both themes, published as an Artifact. Method: axe-core 4.x on 10
@@ -3977,7 +3984,7 @@ profile, then offline.
 | 9 | Low | Baseline info button is 20 x 20 px; table scroll hint is 19 px tall | 24 px minimum hit area (WCAG 2.5.8) | app, design-system (`DataTable`) |
 | 10 | Low | Wordmark truncates on 393 px dashboards | Lower the `clamp()` floor so it fits | app (`DashboardLayout.tsx`) |
 
-### 22.2 Verification (local production build + API, before review)
+### 22.2 Verification (local production build + API, before review; repeated live after deploy)
 
 - App: `vitest` 662 passing (new: full-URL tests for the service-worker pattern, page title and
   route announcement, and the desktop/phone treemap colourbar pair added in review), `tsc -b` clean, lint unchanged.

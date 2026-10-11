@@ -1982,7 +1982,7 @@ cutover checklist); not a curriculum change, same category as the rest of §5.
 
 ---
 
-### 5.27 Fixes from the 2026-10-11 Accessibility / PWA / Mobile Audit (Release 22, Docs-first)
+### 5.27 Fixes from the 2026-10-11 Accessibility / PWA / Mobile Audit (Shipped, Release 22, PR #281)
 
 > Mentor's post-internship expansion — **not internship scope**, not graded. Findings, the
 > decisions behind each fix, what was deliberately left alone, and the verification:
