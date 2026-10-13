@@ -203,7 +203,8 @@ def _share_title(record: ToolCallRecord, view: str | None = None) -> str:
             start = (s.get("trend_window") or [None])[0]
             return f"Cumulative CO₂ since records began{f', shown from {start}' if start else ''} – {join_countries(names)}"
         if view == "share_vs_annual":
-            return f"Share of cumulative CO₂ against share of each year's emissions – {join_countries(names)}"
+            gas = "greenhouse gases (CO₂e)" if (record.result or {}).get("gas_scope") == "total_ghg" else "CO₂"  # total greenhouse gases are CO2-equivalent
+            return f"Share of cumulative {gas} against share of each year's emissions – {join_countries(names)}"
         return f"Cumulative share of emissions – {join_countries(names)}"
     n = s.get("n_rows")
     if since.get("period"):

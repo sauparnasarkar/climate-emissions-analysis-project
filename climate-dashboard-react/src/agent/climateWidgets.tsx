@@ -190,7 +190,7 @@ function ShareFigures({ widget, result }: WidgetProps & { result: CorrelationCou
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16, margin: '0 0 12px' }}>
       <KpiStat card label={`Cumulative ${L.gas} since records began · ${c.last_year ?? ''}`} value={`${fmtGt(c.last_cumulative_gt)} ${L.unit}`} delta={L.short} deltaDirection="neutral" />
       <KpiStat card label={`Share of ${L.totalOf}`} value={pct(c.last_share_pct)} delta={c.first_share_pct == null || c.first_share_pct < 0.05 ? undefined : `${pct(c.first_share_pct)} in ${c.first_year}`} deltaDirection="neutral" />
-      {c.rank != null && c.rank_of != null && <KpiStat card label={`Rank by cumulative CO₂ · ${c.last_year ?? ''}`} value={`#${c.rank}`} delta={`of ${c.rank_of} countries`} deltaDirection="neutral" />}
+      {c.rank != null && c.rank_of != null && <KpiStat card label={`Rank by cumulative ${L.gas} · ${c.last_year ?? ''}`} value={`#${c.rank}`} delta={`of ${c.rank_of} countries`} deltaDirection="neutral" />}
     </div>
   );
 }

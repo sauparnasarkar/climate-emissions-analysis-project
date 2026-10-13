@@ -284,3 +284,10 @@ def test_titles_say_gtco2e_for_total_greenhouse_gases():
     rk["gas_scope"] = "total_ghg"
     assert build_widget(rec(rk), "since 1970").title == "Top 15 emitters, 1970–2024, GtCO₂e"
     assert build_widget(rec(since_ranking()), "since 1970").title == "Top 15 emitters, 1970–2024, GtCO₂"
+
+
+def test_the_share_against_annual_title_names_the_gas_for_total_greenhouse_gases():
+    r = series_result(("India",), source="primap_hist", rest=False)
+    r["gas_scope"] = "total_ghg"
+    assert build_widget(rec(r), "Is India's share rising?").title == "Share of cumulative greenhouse gases (CO₂e) against share of each year's emissions – India"
+    assert build_widget(rec(series_result(("India",))), "Is India's share rising?").title == "Share of cumulative CO₂ against share of each year's emissions – India"
