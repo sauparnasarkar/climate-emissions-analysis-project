@@ -357,6 +357,9 @@ async def get_country_cumulative_share(
 async def _share_since(params: dict, countries: list[str] | None, since_year: int, year: int | None, end_year: int | None, limit: int | None) -> dict:
     """`get_country_cumulative_share` with `since_year`: emissions in a period (Release 24.7). The end-year and base-year all-countries rankings give every
     country's amount in the period; a series is the usual series from `since_year` plus the `since` block, a ranking is the period ranking in `since_rows`."""
+    if limit is not None and not 1 <= limit <= 50:
+        # the ranking is sliced here, not by the API (which validates `limit` to 1-50 for every other ranking): a zero, negative or oversized limit must not slip through
+        raise ValueError(f"`limit` must be between 1 and 50; got {limit}.")
     latest = await fetch_correlation("country-share", {**params, "all_countries": True})
     end = year if (not countries and year is not None) else (end_year if countries and end_year is not None else None)
     check_since_year(since_year, latest["year"])

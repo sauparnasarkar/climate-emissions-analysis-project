@@ -335,3 +335,12 @@ def test_the_tool_description_qualifies_the_period_share_by_source():
 
     doc = " ".join((get_country_cumulative_share.__doc__ or "").split())
     assert "of the World's emissions for OWID, of the source's own total for PRIMAP-hist" in doc and "`summary.since.basis` says which" in doc
+
+
+async def test_a_since_ranking_validates_limit_like_every_other_ranking(climate_client):
+    for bad in (0, -3, 51, 500):
+        with pytest.raises(ValueError, match="between 1 and 50"):
+            await get_country_cumulative_share(since_year=1950, limit=bad)
+    assert len((await get_country_cumulative_share(since_year=1950, limit=1))["since_rows"]) == 1
+    assert len((await get_country_cumulative_share(since_year=1950, limit=50))["since_rows"]) == 4  # the stub has four countries: the cap is a ceiling
+    assert len((await get_country_cumulative_share(since_year=1950))["since_rows"]) == 4  # the default (15) is within range
