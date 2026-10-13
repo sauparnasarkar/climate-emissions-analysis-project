@@ -219,7 +219,7 @@ describe('country shares', () => {
       mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'cumulative_area', title: 'Emitted 1990–2024, GtCO₂ – China', summary: { ...SUMMARY, since } }));
       expect(screen.getByText('22.9%')).toBeInTheDocument();
       expect(screen.getByText('#2')).toBeInTheDocument();
-      expect(screen.getByText(/emissions in 1990–2024: each country's cumulative total in each year minus its total the year before 1990, so every area starts at zero/)).toBeInTheDocument();
+      expect(screen.getByText(/emissions in 1990–2024: each country's cumulative total in each year minus its total the year before 1990, so the chart is rebased to zero just before 1990 and the first point is 1990.s own emissions/)).toBeInTheDocument();
       expect(screen.getByTestId('sychart')).toHaveAttribute('aria-label', expect.stringContaining('CO₂ emitted 1990–2024 in gigatonnes'));
       expect(screen.queryByText(/since records began/)).toBeNull();
       expect(screen.getByTestId('sychart')).toHaveAttribute('data-ytitle', 'CO₂ emitted 1990–2024 (GtCO₂)'); // the axis names the period, not "Cumulative CO₂"
@@ -235,7 +235,7 @@ describe('country shares', () => {
       expect(screen.getByText('Emitted 1990–2024')).toBeInTheDocument();
       expect(screen.getByText('300 GtCO₂e')).toBeInTheDocument();
       expect(screen.getByText("Share of PRIMAP-hist's own total 1990–2024")).toBeInTheDocument();
-      expect(screen.getByText(/PRIMAP-hist total greenhouse gases \(CO₂e\) · emissions in 1990–2024: each country.s cumulative total in each year minus its total the year before 1990, so every line starts at zero/)).toBeInTheDocument();
+      expect(screen.getByText(/PRIMAP-hist total greenhouse gases \(CO₂e\) · emissions in 1990–2024: each country.s cumulative total in each year minus its total the year before 1990, so the chart is rebased to zero just before 1990 and the first point is 1990.s own emissions/)).toBeInTheDocument();
       expect(screen.getByText(/no World total here to show a Rest of world against/)).toBeInTheDocument();
       expect(screen.queryByText(/Cumulative .* since records began/)).toBeNull();
     });

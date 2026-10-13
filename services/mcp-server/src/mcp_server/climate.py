@@ -330,7 +330,8 @@ def period_rows(end: dict, base: dict) -> tuple[list[dict], float]:
 def since_series_block(rows: list[dict], world_emitted_mt: float, shown_codes: list[str], since_year: int, end_year: int, owid: bool, world_base_mt: float, unit: str = "GtCO₂", latest_year: int | None = None) -> dict:
     """`summary.since` of a SERIES: each shown country's emissions in the period, its share of the World's emissions in it and its rank among all countries by
     emissions in it. For OWID the World's emissions and what the countries shown leave of them (`rest_of_world`, which includes international aviation and shipping);
-    `base_cumulative_mt` per country and `world_base_cumulative_mt` are what the widget subtracts to draw the stacked area from zero in the first year."""
+    `base_cumulative_mt` per country (and, for OWID, `world_base_cumulative_mt`) are what the widget subtracts to draw the stacked area from zero in the first year."""
+    den = "world" if owid else "source_total"
     by_code = {r["country"]: r for r in rows}
     shown = [by_code[c] for c in shown_codes if c in by_code]
     block: dict = {
@@ -341,9 +342,11 @@ def since_series_block(rows: list[dict], world_emitted_mt: float, shown_codes: l
         "period": f"{since_year}–{end_year}",
         "basis": "share of the World's emissions in the period (international aviation and shipping included)" if owid else "share of the source's own total emissions in the period",
         "rank_of": len(rows),
-        "world_emitted_gt": _gt(world_emitted_mt),
-        "world_emitted_text": gt_text(world_emitted_mt, unit),
-        "world_base_cumulative_mt": round(world_base_mt, 3),
+        # the denominator's emissions in the period, named for what it is: the WORLD's for OWID, the SOURCE's own total for PRIMAP-hist (which has no World total, and a
+        # `world_*` name on it could prompt a World claim); `world_base_cumulative_mt` (what the stacked area subtracts) exists only where there is a World total
+        f"{den}_emitted_gt": _gt(world_emitted_mt),
+        f"{den}_emitted_text": gt_text(world_emitted_mt, unit),
+        **({"world_base_cumulative_mt": round(world_base_mt, 3)} if owid else {}),
         "countries": [
             {
                 "country": r["country"],
@@ -377,8 +380,8 @@ def since_ranking_summary(rows: list[dict], shown: list[dict], world_emitted_mt:
             "period": f"{since_year}–{end_year}",
             "basis": "share of the World's emissions in the period (international aviation and shipping included)" if owid else "share of the source's own total emissions in the period",
             "rank_of": len(rows),
-            "world_emitted_gt": _gt(world_emitted_mt),
-            "world_emitted_text": gt_text(world_emitted_mt, unit),
+            ("world" if owid else "source_total") + "_emitted_gt": _gt(world_emitted_mt),
+            ("world" if owid else "source_total") + "_emitted_text": gt_text(world_emitted_mt, unit),
         },
         "top": [
             {"rank": r["rank"], "name": r["name"], "emitted_gt": r["emitted_gt"], "emitted_text": r["emitted_text"], "share_of_period_pct": r["share_of_period_pct"], "in_expanded_scope": r["in_expanded_scope"]}

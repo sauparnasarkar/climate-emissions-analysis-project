@@ -19,18 +19,19 @@ export const SINGLE_LINE_COLOR = '#ecf0f6';
 /** What a "since YYYY" answer subtracts to draw emissions in the period from zero: each country's cumulative total the year before (by name; absent = it had emitted nothing) and the World's. */
 export interface SinceRebase {
   base: Record<string, number>;
-  world: number;
+  /** The World's cumulative total the year before the period; null where there is no World total (PRIMAP-hist), when only the per-country lines can be drawn. */
+  world: number | null;
   /** The period's first year: the chart's year axis starts here even when every selected country's own record starts later (they add nothing until it does). */
   fromYear?: number;
 }
 
-/** The rebase from the tool's `summary.since`, or null when the answer is not a since-answer or lacks the World base. */
+/** The rebase from the tool's `summary.since`, or null when the answer is not a since-answer or carries no per-country bases. */
 export function sinceRebase(summary: Record<string, unknown> | null | undefined): SinceRebase | null {
   const since = (summary as { since?: { year?: number; world_base_cumulative_mt?: number; countries?: Array<{ name: string; base_cumulative_mt?: number }> } } | null | undefined)?.since;
-  if (!since || typeof since.world_base_cumulative_mt !== 'number') return null;
+  if (!since || !Array.isArray(since.countries) || since.countries.length === 0) return null;
   return {
-    base: Object.fromEntries((since.countries ?? []).map((c) => [c.name, c.base_cumulative_mt ?? 0])),
-    world: since.world_base_cumulative_mt,
+    base: Object.fromEntries(since.countries.map((c) => [c.name, c.base_cumulative_mt ?? 0])),
+    world: typeof since.world_base_cumulative_mt === 'number' ? since.world_base_cumulative_mt : null,
     fromYear: typeof since.year === 'number' ? since.year : undefined,
   };
 }
@@ -39,6 +40,7 @@ export function shareToCumulative(result: CorrelationCountryShareResponse, rebas
   const series = result.series ?? [];
   const remainder = result.remainder_series ?? [];
   if (result.source !== 'owid_co2' || series.length === 0 || remainder.length === 0) return null;
+  if (rebase && rebase.world == null) return null; // a since area needs the World's base to leave a Rest of world
   const pointYears = series.flatMap((s) => s.points.map((p) => p.year));
   if (pointYears.length === 0) return null;
   // A since-answer's axis starts at the period's first year, not at the earliest selected country's first point: if every selected country starts later, the early years of
