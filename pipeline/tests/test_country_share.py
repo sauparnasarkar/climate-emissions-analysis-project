@@ -406,3 +406,25 @@ def test_owid_shares_equal_oweds_published_world_shares_on_the_real_data(tmp_pat
         m = mine[mine.year == year].merge(theirs[theirs.year == year], left_on="country", right_on="iso_code")
         assert len(m) > 30
         assert (m.share_pct - m.share_global_cumulative_co2).abs().max() < 0.002 and (m.annual_share_pct - m.share_global_co2).abs().max() < 0.002
+
+
+# ---------------------------------------------------------------- the expanded flag when the set is unknown (Release 24.2)
+
+
+def test_an_unknown_expanded_set_is_published_as_null_not_false(tmp_path):
+    """A crosswalk written without the selected-countries file has a blank `expanded`; the dashboard's pickers fall back to the featured ten then, so "false"
+    would claim countries are outside a set nobody could read. Null says unknown."""
+    write(tmp_path)
+    cw = pd.read_csv(tmp_path / "country_crosswalk.csv")
+    cw["expanded"] = pd.array([pd.NA] * len(cw), dtype="boolean")
+    cw.to_csv(tmp_path / "country_crosswalk.csv", index=False)
+    S.run(str(tmp_path), owid_path=str(tmp_path / "owid-co2-data.csv"))
+    meta = json.loads((tmp_path / "correlation_country_share.json").read_text())
+    assert [c["expanded"] for c in meta["countries"]] == [None, None, None, None]
+
+
+def test_a_missing_crosswalk_gives_null_expanded_flags(tmp_path):
+    write(tmp_path, crosswalk=False)
+    S.run(str(tmp_path), owid_path=str(tmp_path / "owid-co2-data.csv"))
+    meta = json.loads((tmp_path / "correlation_country_share.json").read_text())
+    assert [c["expanded"] for c in meta["countries"]] == [None, None, None, None]

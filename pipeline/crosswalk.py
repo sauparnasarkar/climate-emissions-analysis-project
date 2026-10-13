@@ -62,7 +62,10 @@ def build_crosswalk(edgar_names: dict[str, str | None], owid: pd.DataFrame, expa
         parts = [n for n in owid_only.values() if n.lower() in name.lower()]
         if len(parts) >= 2:
             df.at[i, "note"] = f"{source_label.upper()} reports one entity covering {', '.join(sorted(parts))}, which OWID reports separately; not directly comparable."
-    df = df.assign(expanded=df["owid_name"].isin(expanded or []))
+    # `expanded=None` means the selected-countries file was not there: the set is UNKNOWN, not empty (an explicit [] is empty), so the flag is blank rather than False for
+    # every country -- the share endpoint then reports in_expanded_scope as null, never "outside the set" for countries the dashboard's pickers (which fall back to the
+    # featured ten) may offer.
+    df = df.assign(expanded=df["owid_name"].isin(expanded) if expanded is not None else pd.array([pd.NA] * len(df), dtype="boolean"))
     df = df.sort_values(["match", "iso3"]).reset_index(drop=True)
     df.attrs["excluded_owid_codes"] = excluded
     return df

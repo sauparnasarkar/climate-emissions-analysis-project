@@ -1109,3 +1109,12 @@ def test_a_file_without_the_expanded_flag_gives_null_not_false(api, climate):
     cl.clear_caches()
     rows = strict(api.get(CS + "?all_countries=true"))["rows"]
     assert all(r["in_expanded_scope"] is None for r in rows)  # unknown is not "outside the set"
+
+
+def test_a_null_expanded_flag_in_the_file_is_unknown_not_false(api, climate):
+    doc = json.loads((climate / "correlation_country_share.json").read_text())
+    for c in doc["countries"]:
+        c["expanded"] = None  # what the pipeline writes when the selected-countries file was missing
+    (climate / "correlation_country_share.json").write_text(json.dumps(doc))
+    cl.clear_caches()
+    assert all(r["in_expanded_scope"] is None for r in strict(api.get(CS + "?all_countries=true"))["rows"])

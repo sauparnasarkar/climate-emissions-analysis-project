@@ -340,3 +340,15 @@ def test_the_real_tracked_notices_file_records_the_2026_10_02_notification():
     assert n[0]["dataset_version_at_notification"] == "v2.8" and n[0]["dataset_doi"] == "10.5281/zenodo.22876287"
     assert len(n[0]["questions"]) == 2 and len(n[0]["replies"]) == 1 and "share alike" in n[0]["replies"][0]["answers"][0]["text"]
     assert load_source_notices("noaa_gml", NOTICES_PATH) == []  # a source with no entry has none
+
+
+# --- the expanded flag when the selected-countries set is unknown (Release 24.2, Copilot review of the API's in_expanded_scope) ---------------------------------
+
+
+def test_the_crosswalks_expanded_flag_is_blank_when_the_set_is_unknown_and_false_when_it_is_empty():
+    names = {"AAA": None, "BBB": None}
+    unknown = build_crosswalk(names, owid_df(), expanded=None, source_label="primap")
+    empty = build_crosswalk(names, owid_df(), expanded=[], source_label="primap")
+    some = build_crosswalk(names, owid_df(), expanded=["Alpha"], source_label="primap").set_index("iso3")
+    assert unknown["expanded"].isna().all() and (empty["expanded"] == False).all()  # noqa: E712 -- unknown is not empty: a missing file must not read as "outside the set"
+    assert bool(some.loc["AAA", "expanded"]) is True and bool(some.loc["BBB", "expanded"]) is False
