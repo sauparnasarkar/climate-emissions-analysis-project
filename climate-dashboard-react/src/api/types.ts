@@ -20,9 +20,6 @@ export interface OverviewTierMetrics {
   latest_co2_total: number;
   co2_1990_total: number;
   pct_change_since_1990: number;
-  // Per-year CO2 total, parallel to WorldMapTimeSeries.years — populated for All Countries/
-  // Expanded only; empty for Selected, which is summed client-side instead (SPEC.md §5.17.5).
-  co2_by_year: number[];
 }
 
 export interface WorldMapPoint {

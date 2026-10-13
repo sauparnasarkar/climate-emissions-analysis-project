@@ -224,23 +224,14 @@ def test_overview_503_when_raw_owid_data_missing(data_dir):
     assert "owid-co2-data.csv" in resp.json()["detail"]
 
 
-def test_overview_co2_by_year_present_for_all_and_expanded_empty_for_selected(client):
-    """SPEC.md §5.17.5 -- co2_by_year backs the animated choropleth's synced KPI numbers for
-    All Countries/Expanded; Selected is summed client-side instead, so the API never computes
-    it (empty list, not omitted/null, per the schema's `= []` default)."""
-    resp = client.get("/api/overview")
-    body = resp.json()
-
-    assert len(body["all_countries"]["co2_by_year"]) == 35  # WORLD_MAP_YEAR_START..END inclusive
-    assert len(body["expanded_countries"]["co2_by_year"]) == 35
-    assert body["selected"]["co2_by_year"] == []
-
-    # owid_raw_df's fixture has China/US/Germany at co2=100.0 each for year 1990 (load_raw_sovereign
-    # includes every sovereign country, not just FEATURED_COUNTRIES, but Canada's only fixture row
-    # is 1995) -- All Countries' 1990 total is exactly their sum.
-    assert body["all_countries"]["co2_by_year"][0] == 300.0
-    # A year with no fixture rows at all reindexes to 0.0, not null/omitted.
-    assert body["all_countries"]["co2_by_year"][1] == 0.0  # 1991
+def test_overview_tiers_carry_no_per_year_totals_the_client_sums_them_from_the_map_series(client):
+    """Release 24.0 removed `co2_by_year` from the tiers: it duplicated what the Overview already sums from `/overview/world-map-series` (identical on the real data
+    to 1e-16), and the Landing page now divides by the World total instead of by it. No tier carries it, and the latest-year total still comes from the tier."""
+    body = client.get("/api/overview").json()
+    for tier in ("all_countries", "expanded_countries", "selected"):
+        assert "co2_by_year" not in body[tier]
+    # the tier's single-year totals are unchanged: owid_raw_df's China/US/Germany at 1990 are 100.0 each
+    assert body["all_countries"]["co2_1990_total"] == 300.0
 
 
 def test_world_map_series_shape_ordering_and_value_range(data_dir):

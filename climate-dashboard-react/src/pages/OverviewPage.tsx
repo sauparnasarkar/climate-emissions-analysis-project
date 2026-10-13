@@ -329,10 +329,9 @@ function AnimatedWorldMap({
     [worldMapSeries, noDataColorHex, isCumulative, cumMatrixMt, cumRange],
   );
 
-  // Selected's per-year total isn't server-provided (co2_by_year is only populated for All
-  // Countries/Expanded) -- summed here from the same columnar series the map already holds,
-  // restricted to whichever countries are currently selected. Recomputed only when the series
-  // or the selection changes, not per animation tick.
+  // Every tier's per-year total is summed here from the same columnar series the map already holds (the API no longer sends per-year tier totals: they
+  // duplicated this sum exactly, Release 24.0), restricted to the tier's countries. Recomputed only when the series or the selection changes, not per
+  // animation tick.
   const selectedIndices = useMemo(() => {
     const selectedNames = new Set(selected);
     const indices: number[] = [];
@@ -346,19 +345,16 @@ function AnimatedWorldMap({
     [worldMapSeries, selectedIndices],
   );
 
-  // All Countries / Expanded per year across the whole 1970 series. The API's totals (`co2_by_year`) are authoritative and start at the
-  // baseline year; before that they are summed here from the same columnar series (the two agree where they overlap). `apiOffset` is where
-  // the API's first value sits in the series.
-  const apiOffset = Math.max(0, worldMapSeries.years.findIndex((y) => y >= BASELINE_YEAR));
+  // All Countries / Expanded per year across the whole 1970 series. `baselineIdx` is where the "% change since 1990" baseline year sits in it.
+  const baselineIdx = Math.max(0, worldMapSeries.years.findIndex((y) => y >= BASELINE_YEAR));
   const expandedIndices = useMemo(() => {
     const names = new Set(expanded);
     return worldMapSeries.countries.flatMap((c, i) => (names.has(c) ? [i] : []));
   }, [worldMapSeries, expanded]);
-  const tierCo2 = (api: number[], clientSums: number[]) => clientSums.map((c, i) => (i >= apiOffset && api.length ? (api[i - apiOffset] ?? c) : c));
-  const allCo2ByYear = useMemo(() => tierCo2(allCountriesTier.co2_by_year, worldTotals(worldMapSeries)), [allCountriesTier, worldMapSeries]); // eslint-disable-line react-hooks/exhaustive-deps
+  const allCo2ByYear = useMemo(() => worldTotals(worldMapSeries), [worldMapSeries]);
   const expandedCo2ByYear = useMemo(
-    () => tierCo2(expandedTier.co2_by_year, worldMapSeries.values.map((row) => expandedIndices.reduce((sum, idx) => sum + (row[idx] ?? 0), 0))),
-    [expandedTier, worldMapSeries, expandedIndices], // eslint-disable-line react-hooks/exhaustive-deps
+    () => worldMapSeries.values.map((row) => expandedIndices.reduce((sum, idx) => sum + (row[idx] ?? 0), 0)),
+    [worldMapSeries, expandedIndices],
   );
 
   // Cumulative totals per tier and year (Gt), and each tier's share of the world total, for Cumulative mode.
@@ -525,10 +521,10 @@ function AnimatedWorldMap({
                   ...(selected.length > 0 ? [cumulativeRow('Selected', selected.length, selectedCum)] : []),
                 ]
               : [
-                  animatedTierRow('All Countries', allCountriesTier.countries_count, allCo2ByYear, yearIdx, apiOffset),
-                  animatedTierRow('Expanded (Coverage + ≥100 Mt)', expandedTier.countries_count, expandedCo2ByYear, yearIdx, apiOffset),
+                  animatedTierRow('All Countries', allCountriesTier.countries_count, allCo2ByYear, yearIdx, baselineIdx),
+                  animatedTierRow('Expanded (Coverage + ≥100 Mt)', expandedTier.countries_count, expandedCo2ByYear, yearIdx, baselineIdx),
                   ...(selected.length > 0
-                    ? [animatedTierRow('Selected', selected.length, selectedCo2ByYear, yearIdx, apiOffset)]
+                    ? [animatedTierRow('Selected', selected.length, selectedCo2ByYear, yearIdx, baselineIdx)]
                     : []),
                 ]
           }
