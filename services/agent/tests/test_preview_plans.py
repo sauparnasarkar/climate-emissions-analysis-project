@@ -59,3 +59,24 @@ def test_every_prompt_the_current_page_serves_has_a_non_default_plan():
     assert len(prompts) >= 4  # the scrape worked
     for p in prompts:
         assert preview.plan_for(p) != preview.DEFAULT_PLAN, p
+
+
+CUMULATIVE_QUESTIONS = {
+    "How much CO₂ has China emitted in total?": {"countries": ["China"], "start_year": 1970},  # start_year=1970 as the prompt asks, so the chart starts where the dashboard's do
+    "Is India's share of the world's cumulative CO₂ rising or falling?": {"countries": ["India"], "start_year": 1970},
+    "Show cumulative emissions for the top emitters since 1970.": {"countries": preview.TOP5, "start_year": 1970},
+    "Which countries have emitted the most since records began?": {"limit": 10},
+    "How do China and the US compare on cumulative share?": {"countries": ["China", "United States"], "start_year": 1970},
+}
+
+
+@pytest.mark.parametrize("prompt,args", CUMULATIVE_QUESTIONS.items())
+def test_the_release_24_cumulative_questions_have_share_tool_plans(prompt, args):
+    assert preview.plan_for(prompt) == [("get_country_cumulative_share", args)]
+
+
+def test_the_new_plans_do_not_capture_the_existing_starter_prompts():
+    # the generic "india" plan and the "share of historical emissions" plan must still win for their own prompts
+    assert [n for n, _ in preview.plan_for("How have India's emissions grown compared with other countries?")] == ["get_country_profile", "get_historical_emissions"]
+    assert [n for n, _ in preview.plan_for("What share of historical emissions comes from China?")] == ["get_country_cumulative_share"]
+

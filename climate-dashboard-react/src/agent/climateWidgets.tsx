@@ -1,5 +1,5 @@
 import type { ComponentProps, ReactElement } from 'react';
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { Card, CardHeader, ChartCard, DataTable, InlineAlert, KpiStat, Spinner, SyChart } from 'design-system';
 import { api } from '../api/client';
 import type {
@@ -14,12 +14,16 @@ import { GasComposition } from '../components/module/GasComposition';
 import { HeadlineRelationship } from '../components/module/HeadlineRelationship';
 import { ScenarioSection } from '../components/module/ScenarioSection';
 import { useAsync } from '../hooks/useAsync';
+import { useCategoricalPalette } from '../hooks/useCategoricalPalette';
 import { useClimateSignal } from '../hooks/useClimateSignal';
 import { buildAllGas } from '../lib/allGas';
 import { buildClimateSignal } from '../lib/climateSignal';
 import { buildComposition } from '../lib/gasComposition';
 import { buildHeadline } from '../lib/headline';
+import { fmtGt } from '../lib/cumulative';
+import { cumulativeAreaSeries } from '../lib/historicalCumulative';
 import { buildScenarioView } from '../lib/scenarioView';
+import { shareToCumulative, shareVsAnnualLines, SINGLE_LINE_COLOR } from '../lib/shareViews';
 import { singleYearRows, sourceRows } from './climateRows';
 import type { WidgetSpec } from './types';
 
@@ -130,10 +134,92 @@ function NoShares({ result }: { result: CorrelationCountryShareResponse }) {
   return <Unavailable>{`No country shares are available${result.year != null ? ` for ${result.year}` : ''}.${lo != null && hi != null ? ` Coverage is ${lo}–${hi}.` : ''}${result.notes.length ? ` ${result.notes.join(' ')}` : ''}`}</Unavailable>;
 }
 
+interface ShareSummaryCountry {
+  last_year?: number | null;
+  last_share_pct?: number | null;
+  first_year?: number | null;
+  first_share_pct?: number | null;
+  last_cumulative_gt?: number | null;
+  rank?: number | null;
+  rank_of?: number | null;
+}
+
+/** A single country's three figures (cumulative total, share of the World total, rank), from the tool's own summary: the same trio Country Profile shows. */
+function ShareFigures({ widget }: WidgetProps): ReactElement | null {
+  const summary = (widget.summary ?? {}) as { mode?: string; countries?: ShareSummaryCountry[] };
+  const c = summary.mode === 'series' && summary.countries?.length === 1 ? summary.countries[0] : null;
+  if (!c || c.last_cumulative_gt == null || c.last_share_pct == null) return null;
+  const pct = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)}%`);
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16, margin: '0 0 12px' }}>
+      <KpiStat card label={`Cumulative CO₂ since records began · ${c.last_year ?? ''}`} value={`${fmtGt(c.last_cumulative_gt)} GtCO₂`} delta="Fossil and cement" deltaDirection="neutral" />
+      <KpiStat card label="Share of world total" value={pct(c.last_share_pct)} delta={c.first_share_pct == null || c.first_share_pct < 0.05 ? undefined : `${pct(c.first_share_pct)} in ${c.first_year}`} deltaDirection="neutral" />
+      {c.rank != null && c.rank_of != null && <KpiStat card label={`Rank by cumulative CO₂ · ${c.last_year ?? ''}`} value={`#${c.rank}`} delta={`of ${c.rank_of} countries`} deltaDirection="neutral" />}
+    </div>
+  );
+}
+
+const caption = { margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' } as const;
+
+/** Stacked area of cumulative CO₂ in Gt with a Rest of world band: the Historical Trends Cumulative view, on the tool's own result (OWID only). */
+function ShareAreaView({ widget, result }: { widget: WidgetSpec; result: CorrelationCountryShareResponse }): ReactElement | null {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const palette = useCategoricalPalette(rootRef);
+  const data = useMemo(() => shareToCumulative(result), [result]);
+  if (!data) return null;
+  const names = data.series.map((s) => s.name).join(', ');
+  return (
+    <div ref={rootRef}>
+      <ShareFigures widget={widget} />
+      <ChartCard title={widget.title}>
+        <SyChart
+          height={320}
+          xTitle="Year"
+          yTitle="Cumulative CO₂ (GtCO₂)"
+          ariaLabel={`Stacked area chart of cumulative CO₂ in gigatonnes for ${names} and Rest of world, ${data.years[0]} to ${data.years[data.years.length - 1]}`}
+          series={cumulativeAreaSeries(data, palette)}
+        />
+        <p className="__s9cmpx-body4" style={caption}>
+          Fossil and cement CO₂ · OWID · counted from each country&rsquo;s first record, shown from {data.years[0]}. Rest of world = World total minus the countries shown, so it includes international aviation and shipping.
+        </p>
+      </ChartCard>
+    </div>
+  );
+}
+
+/** One country's share of everything emitted so far (solid) against its share of each year's emissions (dotted): Country Profile's comparison, on the tool's own result. */
+function ShareVsAnnualView({ widget, result }: { widget: WidgetSpec; result: CorrelationCountryShareResponse }): ReactElement | null {
+  const lines = useMemo(() => shareVsAnnualLines(result), [result]);
+  if (!lines) return null;
+  return (
+    <>
+      <ShareFigures widget={widget} />
+      <ChartCard title={widget.title}>
+        <p className="__s9cmpx-body4" style={{ ...caption, margin: '0 0 8px' }}>
+          Solid line: share of all CO₂ emitted so far. Dotted line: share of each year&rsquo;s emissions. When the dotted line is above the solid one, the share of the total is still rising.
+        </p>
+        <SyChart
+          height={280}
+          xTitle="Year"
+          yTitle="% of world"
+          ariaLabel={`Line chart of ${lines.name}'s share of the world's cumulative CO₂ and of each year's CO₂ emissions, ${lines.years[0]} to ${lines.years[lines.years.length - 1]}`}
+          series={[
+            { name: 'Share of cumulative total', x: lines.years, y: lines.cumulative, kind: 'line', color: SINGLE_LINE_COLOR },
+            { name: "Share of that year's emissions", x: lines.years, y: lines.annual, kind: 'line', color: SINGLE_LINE_COLOR, dashed: true },
+          ]}
+        />
+      </ChartCard>
+    </>
+  );
+}
+
 export function CountryShareWidget({ widget }: WidgetProps): ReactElement {
   const result = asResult<CorrelationCountryShareResponse>(widget);
   const nothing = result.mode === 'series' ? !(result.series ?? []).some((s) => s.points.length > 0) : (result.rows ?? []).length === 0;
   if (nothing) return <NoShares result={result} />;
+  // A view that cannot be drawn honestly (no World total for a PRIMAP-hist share, no annual share, no points) falls through to the lines below.
+  if (result.mode === 'series' && widget.view === 'cumulative_area' && shareToCumulative(result)) return <ShareAreaView widget={widget} result={result} />;
+  if (result.mode === 'series' && widget.view === 'share_vs_annual' && shareVsAnnualLines(result)) return <ShareVsAnnualView widget={widget} result={result} />;
   if (result.mode === 'series') {
     const series: SyChartSeries[] = (result.series ?? []).map((s) => ({ name: s.name, x: s.points.map((p) => p.year), y: s.points.map((p) => p.share_pct), kind: 'line' as const }));
     return (
