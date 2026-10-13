@@ -79,7 +79,7 @@ def cum_expected(country, upto):
 
 
 def world_cum(upto):
-    """OWID's World cumulative in the fixture: the countries plus 3 Mt/yr of international transport (decision 71)."""
+    """OWID's World cumulative in the fixture: the countries plus 3 Mt/yr of international transport (decision 110)."""
     return sum(cum_expected(c, upto) for c in COUNTRIES) + 3.0 * (upto - 1840 + 1)
 
 
@@ -388,7 +388,7 @@ def test_metadata_defines_both_the_cumulative_and_the_annual_share(tmp_path):
     assert "cumulative and annual" in meta["note"] and "not a measure of responsibility" in meta["note"]
 
 
-# ---------------------------------------------------------------- the acceptance check for decision 71
+# ---------------------------------------------------------------- the acceptance check for decision 110
 
 
 REAL_OWID = os.path.join(S.CLIMATE_DIR, "..", "owid-co2-data.csv")
