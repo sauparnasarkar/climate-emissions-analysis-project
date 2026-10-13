@@ -20,7 +20,7 @@ from collections.abc import Callable
 from urllib.parse import urlencode
 
 from .state import FollowUpLink, ToolCallRecord
-from .ui_selection import is_error_result, select_share_view
+from .ui_selection import asks_about_share, is_error_result, select_share_view
 
 MAX_FOLLOW_UP_LINKS = 3
 # The dashboard's pickers cap a selection at this many countries (climate-dashboard-react constants.ts,
@@ -111,7 +111,12 @@ def _share(record: ToolCallRecord, current_query: str = "") -> list[FollowUpLink
     flagged = [c["name"] for c in summary.get("countries") or [] if isinstance(c, dict) and c.get("name") and c.get("in_expanded_scope") is True][:MAX_LINK_COUNTRIES]
     if not flagged:
         return fixed
-    view = "cumulative" if select_share_view(current_query, summary, r.get("source")) == "cumulative_area" else "share"
+    if summary.get("since"):
+        # a since answer is always drawn from the period's emissions (so its chart is never the share lines), but the page to open follows the QUESTION: with `from=` the
+        # page's Share view is the period's own share, the same quantity as the answer's `share_of_period_pct`
+        view = "share" if asks_about_share(current_query) else "cumulative"
+    else:
+        view = "cumulative" if select_share_view(current_query, summary, r.get("source")) == "cumulative_area" else "share"
     # A "since YYYY" answer is the emissions of a period: carry `from=` (Release 24.8, the pages' counting-from choice) so the page opens on the answer's numbers
     # and not on the total since records began. Without a since, the page's default (since records began) is what the answer quoted, so no parameter.
     since_year = (summary.get("since") or {}).get("year")

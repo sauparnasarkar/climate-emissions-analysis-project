@@ -162,6 +162,12 @@ _SHARE_TREND_MARKERS = ("rising", "falling", "increasing", "decreasing", "growin
 _AMOUNT_MARKERS = ("how much", "total", "emitted", "cumulative emissions", "cumulative co", "tonnes", "tons", "gigaton", "megaton", "amount", "so far", "records began")
 
 
+def asks_about_share(current_query: str) -> bool:
+    """Whether the question is about a SHARE ("what share", "is its percentage rising"), as opposed to an amount. Used to pick the dashboard page's view for a link."""
+    query = f" {current_query.lower()} "
+    return any(m in query for m in _SHARE_MARKERS)
+
+
 def select_share_view(current_query: str, summary: dict, source: str | None) -> str | None:
     """Which picture a country-share SERIES gets (Release 24.4, ENHANCEMENTS.md R7): the same deterministic keyword seam as the other selectors, no LLM call.
 
