@@ -269,8 +269,11 @@ async def get_country_cumulative_share(
     `interpretation_note` and the source `caveats` stating this; keep that framing in your
     answer. For `owid_co2` the denominator is the World total including international aviation and
     shipping (the same total as the dashboard and the headline regression), so the countries'
-    shares sum to less than 100 and `remainder` (ranking) or `remainder_series` (series) carries
-    the rest; say 'share of the World total'. PRIMAP-hist has no world aggregate, so its shares
+    shares sum to less than 100 and `remainder` (ranking) or `remainder_series` (series) holds
+    only the part of the World total that no country holds (international aviation and shipping
+    plus a small unassigned residual): countries left out by `limit` are NOT in it, so the rows
+    shown plus `remainder` reach 100 only when every country is returned; say 'share of the
+    World total'. PRIMAP-hist has no world aggregate, so its shares
     are of its own country sum (they sum to 100, no `remainder`): say 'share of PRIMAP-hist's total'."""
     if countries is not None and not countries:
         raise ValueError("`countries` is an empty list; omit it for a ranking, or name at least one country.")

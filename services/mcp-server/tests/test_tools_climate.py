@@ -280,6 +280,7 @@ async def test_methodology_country_share_states_the_world_total_basis_and_the_pr
     assert "national sum" not in text and "differs by design" not in text
     doc = " ".join((get_country_cumulative_share.__doc__ or "").split())  # the docstring wraps lines
     assert "World total including international aviation and shipping" in doc and "remainder" in doc and "national sum excluding" not in doc
+    assert "countries left out by `limit` are NOT in it" in doc  # a limited ranking's rows plus the remainder do not make 100
 
 
 async def test_composition_defaults_to_1970_and_honours_an_explicit_start(climate_client):
