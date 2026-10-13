@@ -231,18 +231,19 @@ function ShareAreaView({ widget, result }: { widget: WidgetSpec; result: Correla
 function ShareVsAnnualView({ widget, result }: { widget: WidgetSpec; result: CorrelationCountryShareResponse }): ReactElement | null {
   const lines = useMemo(() => shareVsAnnualLines(result), [result]);
   if (!lines) return null;
+  const L = shareLabels(result);
   return (
     <>
       <ShareFigures widget={widget} result={result} />
       <ChartCard title={widget.title}>
         <p className="__s9cmpx-body4" style={{ ...caption, margin: '0 0 8px' }}>
-          Solid line: share of all CO₂ emitted so far. Dotted line: share of each year&rsquo;s emissions. When the dotted line is above the solid one, the share of the total is still rising.
+          Solid line: share of all {L.gas} emitted so far. Dotted line: share of each year&rsquo;s emissions. When the dotted line is above the solid one, the share of the total is still rising.
         </p>
         <SyChart
           height={280}
           xTitle="Year"
-          yTitle="% of world"
-          ariaLabel={`Line chart of ${lines.name}'s share of the world's cumulative CO₂ and of each year's CO₂ emissions, ${lines.years[0]} to ${lines.years[lines.years.length - 1]}`}
+          yTitle={`% of ${L.totalOf}`}
+          ariaLabel={`Line chart of ${lines.name}'s share of everything emitted so far and of each year's ${L.gas} emissions, as a percent of ${L.totalOf}, ${lines.years[0]} to ${lines.years[lines.years.length - 1]}`}
           series={[
             { name: 'Share of cumulative total', x: lines.years, y: lines.cumulative, kind: 'line', color: SINGLE_LINE_COLOR },
             { name: "Share of that year's emissions", x: lines.years, y: lines.annual, kind: 'line', color: SINGLE_LINE_COLOR, dashed: true },

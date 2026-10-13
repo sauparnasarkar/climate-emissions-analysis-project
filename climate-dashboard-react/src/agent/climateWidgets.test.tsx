@@ -256,12 +256,17 @@ describe('country shares', () => {
       expect(screen.queryByText('Fossil and cement')).toBeNull();
       expect(screen.getByText("Share of PRIMAP-hist's own total")).toBeInTheDocument(); // not 'Share of world total': it has no world aggregate
       expect(screen.queryByText('Share of world total')).toBeNull();
+      expect(screen.getByTestId('sychart')).toHaveAttribute('data-ytitle', "% of PRIMAP-hist's own total"); // not '% of world'
+      expect(screen.getByTestId('sychart')).toHaveAttribute('aria-label', expect.stringContaining("each year's greenhouse gases (CO₂e) emissions, as a percent of PRIMAP-hist's own total"));
+      expect(screen.getByText(/Solid line: share of all greenhouse gases \(CO₂e\) emitted so far/)).toBeInTheDocument();
     });
 
     it('share_vs_annual is the solid-against-dotted pair for one country', () => {
       mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'share_vs_annual', title: 'Share of cumulative CO₂ against share of each year\'s emissions – China', summary: SUMMARY }));
       expect(series()).toEqual([['Share of cumulative total', 'line', 2], ["Share of that year's emissions", 'line', 2]]);
       expect(screen.getByText(/When the dotted line is above the solid one, the share of the total is still rising/)).toBeInTheDocument();
+      expect(screen.getByTestId('sychart')).toHaveAttribute('data-ytitle', '% of world total');
+      expect(screen.getByTestId('sychart')).toHaveAttribute('aria-label', expect.stringContaining('as a percent of world total'));
       expect(screen.getByText('285 GtCO₂')).toBeInTheDocument();
     });
 
