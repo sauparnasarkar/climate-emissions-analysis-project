@@ -83,6 +83,24 @@ export interface HistoricalCumulativeResponse {
   world_cumulative_co2: Array<number | null>;
 }
 
+/** Latest-year headline figures for a country's cumulative CO2 (SPEC.md §5.28): cumulative_co2 in Mt, share in percent; rank is among sovereign countries with a value in `year`. */
+export interface CountryCumulativeLatest {
+  year: number;
+  cumulative_co2: number;
+  share_of_world_cumulative: number | null;
+  rank: number;
+  rank_of: number;
+}
+
+export interface CountryCumulativeResponse {
+  country: string;
+  years: number[];
+  cumulative_co2: Array<number | null>;
+  share_of_world_cumulative: Array<number | null>;
+  share_of_world_annual: Array<number | null>;
+  latest: CountryCumulativeLatest | null;
+}
+
 export interface DecadeGasShare {
   gas: string;
   gas_label: string;
