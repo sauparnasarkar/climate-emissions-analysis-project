@@ -55,14 +55,6 @@ class OverviewTierMetrics(BaseModel):
     latest_co2_total: float
     co2_1990_total: float
     pct_change_since_1990: float
-    # Per-year CO2 total, parallel to WorldMapTimeSeries.years (SPEC.md §5.17.5) -- lets the
-    # Overview page's animated choropleth drive its KPI numbers from the same year the map is
-    # currently showing, instead of a decorative 0-to-final count-up. Populated for All
-    # Countries/Expanded only (see overview.py's _tier_metrics); Selected is summed client-side
-    # from the same WorldMapTimeSeries payload instead, since it changes with the user's
-    # country selection and re-fetching it per selection change would defeat the point of a
-    # selection-invariant, fetch-once series endpoint.
-    co2_by_year: list[float] = []
 
 
 class OverviewResponse(BaseModel):

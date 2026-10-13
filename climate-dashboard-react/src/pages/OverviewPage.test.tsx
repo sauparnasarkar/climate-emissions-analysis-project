@@ -95,9 +95,9 @@ const COUNTRIES: CountriesResponse = {
 };
 
 const RESPONSE: OverviewResponse = {
-  all_countries: { label: 'All Countries', countries_count: 195, latest_year: 2024, latest_co2_total: 37406, co2_1990_total: 22184, pct_change_since_1990: 68.6, co2_by_year: [22184, 37406] },
-  expanded_countries: { label: 'Expanded', countries_count: 40, latest_year: 2024, latest_co2_total: 34477, co2_1990_total: 19686, pct_change_since_1990: 75.1, co2_by_year: [19686, 34477] },
-  selected: { label: 'Selected', countries_count: 10, latest_year: 2024, latest_co2_total: 25324, co2_1990_total: 14350, pct_change_since_1990: 76.5, co2_by_year: [] },
+  all_countries: { label: 'All Countries', countries_count: 195, latest_year: 2024, latest_co2_total: 37406, co2_1990_total: 22184, pct_change_since_1990: 68.6 },
+  expanded_countries: { label: 'Expanded', countries_count: 40, latest_year: 2024, latest_co2_total: 34477, co2_1990_total: 19686, pct_change_since_1990: 75.1 },
+  selected: { label: 'Selected', countries_count: 10, latest_year: 2024, latest_co2_total: 25324, co2_1990_total: 14350, pct_change_since_1990: 76.5 },
   selected_country_list: FEATURED,
   latest_year_bar: [{ country: 'China', value: 12000 }],
   // Reflects SPEC.md §5.18.1's own hand-verified default-selection example -- exercises a
@@ -205,13 +205,7 @@ afterEach(() => {
 describe('OverviewPage', () => {
   it('shows a loading state, then renders all three KPI rows from the API response', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
-    // the API's tier totals run 1990..2024, one per series row
-    const fullYears = (first: number, last: number) => [...Array(34).fill(first), last];
-    vi.mocked(api.overview).mockResolvedValue({
-      ...RESPONSE,
-      all_countries: { ...RESPONSE.all_countries, co2_by_year: fullYears(22184, 37406) },
-      expanded_countries: { ...RESPONSE.expanded_countries, co2_by_year: fullYears(19686, 34477) },
-    });
+    vi.mocked(api.overview).mockResolvedValue(RESPONSE);
     vi.mocked(api.worldMapSeries).mockResolvedValue(SERIES_CHINA);
     render(<MemoryRouter><OverviewPage /></MemoryRouter>);
 
@@ -229,8 +223,8 @@ describe('OverviewPage', () => {
     expect(screen.getAllByText('CO₂ (2024)')).toHaveLength(3);
     // Tier numbers snap directly to their value (no CountUpText/aria-hidden duplication --
     // these change every autoplay tick, unlike the one-time KpiStat count-ups below).
-    expect(screen.getByText('37,406 MtCO₂')).toBeInTheDocument();
-    expect(screen.getByText('34,477 MtCO₂')).toBeInTheDocument();
+    // All Countries and Expanded are summed from the series (the API sends no per-year tier totals since Release 24.0): China 25,324 + Vietnam 370, in both tiers here.
+    expect(screen.getAllByText('25,694 MtCO₂')).toHaveLength(2);
     // Selected's CO2 total is now computed client-side from WORLD_MAP_SERIES (25324 at
     // index 1), not read from RESPONSE.selected.latest_co2_total directly.
     expect(screen.getByText('25,324 MtCO₂')).toBeInTheDocument();
@@ -885,8 +879,6 @@ const ramp = (from: number, to: number) => Array.from({ length: 35 }, (_, i) => 
 const FULL_RESPONSE: OverviewResponse = {
   ...RESPONSE,
   selected_country_list: ['China'],
-  all_countries: { ...RESPONSE.all_countries, co2_by_year: ramp(22184, 37406) },
-  expanded_countries: { ...RESPONSE.expanded_countries, co2_by_year: ramp(19686, 34477) },
 };
 const tierChanges = () => screen.getAllByText('% Chg. since 1990').map((label) => label.nextElementSibling?.textContent);
 const mapSide = () => document.querySelector('.overview-hero-right') as HTMLElement;
@@ -1083,20 +1075,20 @@ describe('OverviewPage — map 1970–2024 with decade stops', () => {
     expect(tierChanges()).toEqual(['—', '—', '—']); // no change figure before the baseline, for any tier
   });
 
-  it('at 1990 the All Countries and Expanded tiers read the API totals (22,184 / 19,686) and the change is still suppressed (the baseline)', async () => {
+  it('at 1990 the All Countries and Expanded tiers sum the series and the change is still suppressed (the baseline)', async () => {
     mountFullRange(1990);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    expect(screen.getByText('22,184 MtCO₂')).toBeInTheDocument();
-    expect(screen.getByText('19,686 MtCO₂')).toBeInTheDocument();
+    expect(screen.getAllByText(`${fmt0(chinaAt(1990) + vietnamAt(1990))} MtCO₂`)).toHaveLength(2); // both countries are in the Expanded list here too
     expect(tierChanges()).toEqual(['—', '—', '—']);
   });
 
   it('after 1990 the change is measured against the 1990 baseline, not the 1970 start', async () => {
     mountFullRange(2024);
     await screen.findByRole('heading', { level: 1, name: 'Overview' });
-    // All Countries: 37,406 vs the 1990 total 22,184 -> +68.6% (not vs 1970's 805); Expanded 34,477 vs 19,686 -> +75.1%; Selected (China) 25,324 vs 1990
+    // All Countries and Expanded (both countries here): the 2024 sum against the 1990 sum, not against 1970's; Selected (China) against its own 1990
     const chinaChange = ((chinaAt(2024) - chinaAt(1990)) / chinaAt(1990)) * 100;
-    expect(tierChanges()).toEqual(['+68.6%', '+75.1%', `+${chinaChange.toFixed(1)}%`]);
+    const bothChange = (((chinaAt(2024) + vietnamAt(2024)) - (chinaAt(1990) + vietnamAt(1990))) / (chinaAt(1990) + vietnamAt(1990))) * 100;
+    expect(tierChanges()).toEqual([`+${bothChange.toFixed(1)}%`, `+${bothChange.toFixed(1)}%`, `+${chinaChange.toFixed(1)}%`]);
   });
 });
 

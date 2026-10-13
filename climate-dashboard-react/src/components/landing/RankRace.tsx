@@ -60,6 +60,9 @@ export function RankRace({ series, worldTotals, expandedCount }: { series: World
   const frame = raceFrame(model, yearIdx);
   const share = raceShare(frame.topTotal, worldTotals[yearIdx]);
   const ranked = frame.rows.filter((r) => r.inTop).sort((a, b) => a.rank - b.rank);
+  // Each country's share of the same World total as the heading's, one decimal; none if the total is unavailable (never a share of something else).
+  const worldNow = worldTotals[yearIdx];
+  const rowShare = (value: number) => (worldNow && worldNow > 0 ? `${((value / worldNow) * 100).toFixed(1)}%` : null);
   const transition = reduced ? 'none' : 'top 450ms ease, opacity 300ms, width 450ms ease';
 
   const togglePlay = () => {
@@ -108,7 +111,7 @@ export function RankRace({ series, worldTotals, expandedCount }: { series: World
         {/* Screen-reader view: the current year's ranking in rank order (the animated rows below are
             positioned absolutely in name order, so their DOM order says nothing about rank). */}
         <ol style={VISUALLY_HIDDEN} aria-label={`${RACE_SIZE} largest emitters in ${frame.year}, MtCO₂`}>
-          {ranked.map((r) => <li key={r.country}>{r.country}: {fmtInt(r.value)}</li>)}
+          {ranked.map((r) => <li key={r.country}>{r.country}: {fmtInt(r.value)}{rowShare(r.value) ? ` (${rowShare(r.value)})` : ''}</li>)}
         </ol>
         <div aria-hidden="true" style={{ position: 'relative', height: RACE_SIZE * ROW_PITCH - (ROW_PITCH - ROW_HEIGHT) }}>
           {frame.rows.map((r) => (
@@ -124,11 +127,12 @@ export function RankRace({ series, worldTotals, expandedCount }: { series: World
                 <div style={{ height: '100%', width: `${(r.value / model.maxValue) * 100}%`, background: 'var(--__s9cmpx-color-brand-500)', borderRadius: '0 4px 4px 0', transition: reduced ? 'none' : 'width 450ms ease' }} />
               </div>
               <div className="__s9cmpx-body2" style={{ width: 64, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{fmtInt(r.value)}</div>
+              {rowShare(r.value) != null && <div className="__s9cmpx-body4" style={{ width: 46, flexShrink: 0, fontVariantNumeric: 'tabular-nums', textAlign: 'right', color: 'var(--__s9cmpx-static-text-weak)' }}>{rowShare(r.value)}</div>}
             </div>
           ))}
         </div>
         <div className="__s9cmpx-body4" style={{ marginTop: 12, color: 'var(--__s9cmpx-static-text-weak)' }}>
-          MtCO₂ · bar length on a fixed 0–{fmtInt(model.maxValue)} scale
+          MtCO₂{worldNow && worldNow > 0 ? ', and each country’s share of the world total (international aviation and shipping included)' : ''} · bar length on a fixed 0–{fmtInt(model.maxValue)} scale
         </div>
       </div>
     </section>

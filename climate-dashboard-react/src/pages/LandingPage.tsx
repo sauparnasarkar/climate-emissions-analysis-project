@@ -19,6 +19,7 @@ import {
   FORECAST_END_YEAR, MAX_SELECTED_COUNTRIES, NEGATIVE_COLOR, POSITIVE_COLOR, SCENARIO_END_YEAR, SCENARIO_START_YEAR,
 } from '../constants';
 import { fmtInt, fmtPct, growthPhrase, latestTopShare, phoneGlobeMax, pickStories, RACE_SIZE, sparklinePath, type Story } from '../lib/landingData';
+import { worldTotalsFrom } from '../lib/cumulative';
 import { MAGNITUDE_SCALE } from '../lib/magnitudeScale';
 import { resolveNoDataColorHex } from '../lib/resolveThemeColorHex';
 import { NAV_ITEMS } from '../navigation';
@@ -111,7 +112,7 @@ function Kpi({ value, label, color, border }: { value: string; label: string; co
 }
 
 // Own component so the ~5s year-steps re-render only the hero, never the stories/race/feature cards.
-function Hero({ overview, map, globe, active = true }: { overview: OverviewResponse; map: WorldMapTimeSeries; globe: WorldMapTimeSeries; active?: boolean }) {
+function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview: OverviewResponse; map: WorldMapTimeSeries; globe: WorldMapTimeSeries; worldAnnualMt: ReadonlyArray<number>; active?: boolean }) {
   // `map` is the 1990-based view the KPIs and "change since" use; `globe` is the longer 1970 series the animation plays.
   const baselineYear = map.years[0];
   const minYear = globe.years[0];
@@ -157,7 +158,8 @@ function Hero({ overview, map, globe, active = true }: { overview: OverviewRespo
   const globeMax = isPhone ? phoneGlobeMax({ viewportHeight: stableViewportHeight, top: globeTop, ceiling: laptopMax, below: belowCanvas }) : laptopMax;
   const totals = useMemo(() => worldTotals(globe), [globe]);
   // Same top-10 share as the ranking-race heading (one shared computation, so the two change together).
-  const topShare = useMemo(() => latestTopShare(map, all.co2_by_year), [map, all.co2_by_year]);
+  // Of the World total (international aviation and shipping included, Release 24.0), like every other share on the site; none if that total is unavailable.
+  const topShare = useMemo(() => latestTopShare(map, worldAnnualMt), [map, worldAnnualMt]);
   const yearTotal = totals[yearIdx];
   // The current year and world total. On wide screens it overlays the globe's top-left corner; on a phone the globe is
   // small and centred, so the overlay would sit on the dark disc (dark text on a dark ocean) -- there it is shown
@@ -402,6 +404,13 @@ export default function LandingPage() {
   const globeQuery = useAsync(() => api.worldMapSeries(GLOBE_START_YEAR), []);
   const globe = globeQuery.data;
   const map = useMemo(() => (globe ? sliceMapSeries(globe, BASELINE_YEAR) : null), [globe]);
+  // The World total per year (Mt) the "N% of the world's CO₂" shares divide by: from the remainder the share endpoint publishes beside any series (one country keeps it small).
+  // Aligned to the map's years; a year without a total is NaN, so its share is left out rather than shown against the sum of the countries.
+  const worldQuery = useAsync(() => api.correlationCountryShare({ countries: ['USA'], startYear: BASELINE_YEAR }), []);
+  const worldAnnualMt = useMemo(() => {
+    const totals = worldTotalsFrom(worldQuery.data);
+    return map ? map.years.map((y) => totals?.annualMt.get(y) ?? NaN) : [];
+  }, [worldQuery.data, map]);
   // The climate-signal banner (Area 2) is additive: if any of its three series is missing or fails to load, the page is
   // the existing hero on its own -- never a banner with zeros or gaps. Waited for (settled either way) before the hero
   // mounts, so the hero never remounts -- and the globe never restarts -- when the carousel appears.
@@ -434,11 +443,11 @@ export default function LandingPage() {
             <HeroCarousel
               slides={[
                 { id: 'climate-signal', label: 'Climate signal', render: () => <ClimateSignalBanner signal={signal} headingId="climate-signal-title" /> },
-                { id: 'where-co2-comes-from', label: 'Where CO₂ comes from', render: (active) => <Hero overview={overview.data!} map={map!} globe={globe!} active={active} /> },
+                { id: 'where-co2-comes-from', label: 'Where CO₂ comes from', render: (active) => <Hero overview={overview.data!} map={map!} globe={globe!} worldAnnualMt={worldAnnualMt} active={active} /> },
               ]}
             />
           ) : (
-            <Hero overview={overview.data!} map={map!} globe={globe!} />
+            <Hero overview={overview.data!} map={map!} globe={globe!} worldAnnualMt={worldAnnualMt} />
           )}
           {signal && (
             <ChainBand
@@ -452,7 +461,7 @@ export default function LandingPage() {
             />
           )}
           <Stories overview={overview.data!} map={map!} />
-          <RankRace series={map!} worldTotals={overview.data!.all_countries.co2_by_year} expandedCount={overview.data!.expanded_countries.countries_count} />
+          <RankRace series={map!} worldTotals={worldAnnualMt} expandedCount={overview.data!.expanded_countries.countries_count} />
           <Features overview={overview.data!} map={map!} />
           <BuiltOn />
           <ClosingCta expandedCount={overview.data!.expanded_countries.countries_count} />

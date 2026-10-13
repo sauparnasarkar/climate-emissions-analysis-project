@@ -38,7 +38,9 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
 const mount = () => render(<MemoryRouter><RankRace series={MAP} worldTotals={WORLD} expandedCount={40} /></MemoryRouter>);
-const ranking = () => within(screen.getByRole('list', { name: /largest emitters in/i })).getAllByRole('listitem').map((li) => li.textContent);
+const rankingWithShares = () => within(screen.getByRole('list', { name: /largest emitters in/i })).getAllByRole('listitem').map((li) => li.textContent);
+// order and value only: the existing race tests are about the ranking, not the shares (those have their own tests below)
+const ranking = () => rankingWithShares().map((t) => t!.replace(/ \(.*\)$/, ''));
 
 describe('RankRace', () => {
   it('starts on the final year, in real rank order, with the share of the world total', () => {
@@ -122,5 +124,33 @@ describe('RankRace', () => {
     fireEvent.keyDown(slider, { key: 'ArrowLeft' });
     expect(slider).toHaveAttribute('aria-valuenow', '2001');
     expect(ranking()).toEqual(['Alpha: 100', 'Beta: 90', 'Gamma: 10']); // 2001's ranking
+  });
+
+  describe('the share of the world total on each bar', () => {
+    it("gives each country's share of that year's World total, one decimal, in the list and beside the bar", () => {
+      mount();
+      // 2002: World 410 (the three countries are 410 here), so Beta 300 -> 73.2%, Alpha 100 -> 24.4%, Gamma 10 -> 2.4%
+      expect(rankingWithShares()).toEqual(['Beta: 300 (73.2%)', 'Alpha: 100 (24.4%)', 'Gamma: 10 (2.4%)']);
+      const chart = screen.getByRole('group', { name: /ranking race, 2002/i });
+      expect(within(chart).getByText('73.2%')).toBeInTheDocument();
+      expect(within(chart).getByText('24.4%')).toBeInTheDocument();
+      expect(within(chart).getByText(/share of the world total \(international aviation and shipping included\)/)).toBeInTheDocument();
+    });
+
+    it('is of the World total, which can exceed the countries shown: the bars then sum to less than the heading', () => {
+      render(<MemoryRouter><RankRace series={MAP} worldTotals={[160, 200, 512.5]} expandedCount={40} /></MemoryRouter>);
+      // the same three countries against a World of 512.5 (410 plus international transport and the rest): 300/512.5 = 58.5%
+      expect(rankingWithShares()[0]).toBe('Beta: 300 (58.5%)');
+      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('10 countries, 80% of the world’s CO₂');
+    });
+
+    it('shows no share, on the bars or in the heading, when the World total is unavailable', () => {
+      render(<MemoryRouter><RankRace series={MAP} worldTotals={[]} expandedCount={40} /></MemoryRouter>);
+      expect(rankingWithShares()).toEqual(['Beta: 300', 'Alpha: 100', 'Gamma: 10']);
+      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(/^10 countries$/);
+      expect(screen.queryByText(/share of the world total/)).not.toBeInTheDocument();
+      render(<MemoryRouter><RankRace series={MAP} worldTotals={[NaN, NaN, NaN]} expandedCount={40} /></MemoryRouter>);
+      expect(screen.queryAllByText(/%/)).toHaveLength(0);
+    });
   });
 });
