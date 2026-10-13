@@ -292,8 +292,10 @@ async def get_country_cumulative_share(
     the period earlier. There is no per-gas cumulative: CO2 (OWID, PRIMAP) and total greenhouse
     gases in CO2e (PRIMAP) only, so cumulative methane or nitrous oxide is not available.
     UNITS: a field's unit is its suffix (`_gt` = GtCO2, billion tonnes; `_mt` = MtCO2, million tonnes;
-    `_pct` = percent; see `summary.units`) and the `*_text` fields are already formatted with their
-    unit -- quote those as written; never put Mt on a `_gt` figure (434.9 Gt is not 434.9 Mt).
+    `_pct` = percent; see `summary.units`) -- for `gas_scope='total_ghg'` (PRIMAP-hist total
+    greenhouse gases) the amounts are CO2-EQUIVALENT: GtCO2e / MtCO2e. The `*_text` fields are
+    already formatted with the right unit (GtCO2 or GtCO2e) -- quote those as written; never put Mt on
+    a `_gt` figure (434.9 Gt is not 434.9 Mt).
     QUOTE THE SUMMARY: per country in a series it carries `share_change_pp` and `share_trend`
     ('rising' / 'falling' / 'steady', computed over `trend_window` -- name that window, a trend since
     1850 says little about recent years), the latest cumulative total in Gt, `rank` of `rank_of`
