@@ -2,7 +2,12 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
-import type { CountriesResponse, HistoricalDecadeCompositionResponse, HistoricalTimeseriesResponse } from '../api/types';
+import type {
+  CountriesResponse,
+  HistoricalCumulativeResponse,
+  HistoricalDecadeCompositionResponse,
+  HistoricalTimeseriesResponse,
+} from '../api/types';
 import HistoricalTrendsPage from './HistoricalTrendsPage';
 
 // JumpLinks (SPEC.md §5.19) calls design-system's useReducedMotion during render -- jsdom has
@@ -20,7 +25,7 @@ function mockReducedMotion(matches: boolean) {
 }
 
 vi.mock('../api/client', () => ({
-  api: { listCountries: vi.fn(), historicalTimeseries: vi.fn(), historicalDecadeComposition: vi.fn() },
+  api: { listCountries: vi.fn(), historicalTimeseries: vi.fn(), historicalCumulative: vi.fn(), historicalDecadeComposition: vi.fn() },
 }));
 
 // See OverviewPage.test.tsx for why SyChart is stubbed rather than rendered for
@@ -46,6 +51,12 @@ const TIMESERIES: HistoricalTimeseriesResponse = {
   gas: 'co2',
   gas_label: 'CO₂',
   series: [{ name: 'China', years: [2020, 2021], values: [10000, 11000] }],
+};
+
+const CUMULATIVE: HistoricalCumulativeResponse = {
+  years: [1970, 2024],
+  series: [{ name: 'China', cumulative_co2: [10000, 285000], share_of_world_cumulative: [2.5, 15.4], share_of_world_annual: [4, 31.8] }],
+  world_cumulative_co2: [400000, 1849000],
 };
 
 const COMPOSITION: HistoricalDecadeCompositionResponse = {
@@ -200,5 +211,65 @@ describe('HistoricalTrendsPage', () => {
     render(<MemoryRouter initialEntries={['/historical?countries=Atlantis']}><HistoricalTrendsPage /></MemoryRouter>);
     await screen.findByText('CO₂ Emissions by Country');
     expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(FEATURED, 'co2');
+  });
+
+  describe('cumulative views (SPEC.md §5.28)', () => {
+    function arrange() {
+      vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+      vi.mocked(api.historicalTimeseries).mockResolvedValue(TIMESERIES);
+      vi.mocked(api.historicalCumulative).mockResolvedValue(CUMULATIVE);
+      vi.mocked(api.historicalDecadeComposition).mockResolvedValue(COMPOSITION);
+    }
+
+    it('keeps Annual as the default view and makes no cumulative request', async () => {
+      arrange();
+      render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
+      await screen.findByText('CO₂ Emissions by Country');
+      expect(screen.getByRole('radio', { name: 'Annual' })).toBeChecked();
+      expect(vi.mocked(api.historicalCumulative)).not.toHaveBeenCalled();
+    });
+
+    it('opens on ?view=cumulative: requests only the cumulative series, and says what the chart counts', async () => {
+      arrange();
+      render(<MemoryRouter initialEntries={['/historical?view=cumulative']}><HistoricalTrendsPage /></MemoryRouter>);
+      expect(await screen.findByText('Cumulative CO₂ Emissions by Country')).toBeInTheDocument();
+      expect(vi.mocked(api.historicalCumulative)).toHaveBeenCalledWith(FEATURED);
+      expect(vi.mocked(api.historicalTimeseries)).not.toHaveBeenCalled();
+      expect(screen.getByRole('radio', { name: 'Cumulative' })).toBeChecked();
+      expect(screen.getByText(/counted from each country.s first record, shown from 1970/)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Open in Climate Correlation' })).toHaveAttribute('href', '/climate-correlation');
+      // The metric selector only applies to the annual view.
+      expect(screen.getByLabelText('Emissions metric')).toBeDisabled();
+    });
+
+    it('switches between the three views without refetching the one it already has', async () => {
+      arrange();
+      const { default: userEvent } = await import('@testing-library/user-event');
+      const user = userEvent.setup();
+      render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
+      await screen.findByText('CO₂ Emissions by Country');
+
+      await user.click(screen.getByRole('radio', { name: 'Share of world' }));
+      expect(await screen.findByText("Share of the World's Cumulative CO₂")).toBeInTheDocument();
+      expect(vi.mocked(api.historicalCumulative)).toHaveBeenCalledTimes(1);
+
+      await user.click(screen.getByRole('radio', { name: 'Annual' }));
+      expect(await screen.findByText('CO₂ Emissions by Country')).toBeInTheDocument();
+    });
+
+    it('ignores an unknown ?view= and shows the annual chart', async () => {
+      arrange();
+      render(<MemoryRouter initialEntries={['/historical?view=bogus']}><HistoricalTrendsPage /></MemoryRouter>);
+      await screen.findByText('CO₂ Emissions by Country');
+      expect(vi.mocked(api.historicalCumulative)).not.toHaveBeenCalled();
+    });
+
+    it('shows an inline error when the cumulative request fails, and keeps the rest of the page', async () => {
+      arrange();
+      vi.mocked(api.historicalCumulative).mockRejectedValue(new Error('boom'));
+      render(<MemoryRouter initialEntries={['/historical?view=share']}><HistoricalTrendsPage /></MemoryRouter>);
+      expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+      expect(await screen.findByText('GHG Composition by Decade — 10 Countries (% share)')).toBeInTheDocument();
+    });
   });
 });

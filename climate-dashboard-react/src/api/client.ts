@@ -8,6 +8,7 @@ import type {
   ForecastCountryResponse,
   ForecastSummaryResponse,
   HistoricalDecadeCompositionResponse,
+  HistoricalCumulativeResponse,
   HistoricalTimeseriesResponse,
   ModelComparisonResponse,
   OverviewResponse,
@@ -85,6 +86,12 @@ export const api = {
     countries.forEach((c) => params.append('countries', c));
     params.set('gas', gas);
     return get<HistoricalTimeseriesResponse>(`/historical/timeseries?${params}`);
+  },
+
+  historicalCumulative: (countries: string[]) => {
+    const params = new URLSearchParams();
+    countries.forEach((c) => params.append('countries', c));
+    return get<HistoricalCumulativeResponse>(`/historical/cumulative?${params}`);
   },
 
   historicalDecadeComposition: (countries: string[]) => {
