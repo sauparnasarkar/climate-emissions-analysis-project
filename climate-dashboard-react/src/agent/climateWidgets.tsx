@@ -134,6 +134,18 @@ function NoShares({ result }: { result: CorrelationCountryShareResponse }) {
   return <Unavailable>{`No country shares are available${result.year != null ? ` for ${result.year}` : ''}.${lo != null && hi != null ? ` Coverage is ${lo}–${hi}.` : ''}${result.notes.length ? ` ${result.notes.join(' ')}` : ''}`}</Unavailable>;
 }
 
+/** What a share result's amounts are, from its own source and gas scope (never assumed to be OWID CO₂): total greenhouse gases are CO₂-equivalent. */
+function shareLabels(result: Pick<CorrelationCountryShareResponse, 'source' | 'gas_scope'>): { unit: string; gas: string; source: string; short: string } {
+  const ghg = result.gas_scope === 'total_ghg';
+  const primap = result.source === 'primap_hist';
+  return {
+    unit: ghg ? 'GtCO₂e' : 'GtCO₂',
+    gas: ghg ? 'greenhouse gases (CO₂e)' : 'CO₂',
+    source: primap ? `PRIMAP-hist ${ghg ? 'total greenhouse gases (CO₂e)' : 'CO₂'}` : 'Fossil and cement CO₂ · OWID',
+    short: primap ? 'PRIMAP-hist' : 'Fossil and cement',
+  };
+}
+
 interface SinceSummary {
   year: number;
   period: string;
@@ -152,7 +164,8 @@ interface ShareSummaryCountry {
 }
 
 /** A single country's three figures (cumulative total, share of the World total, rank), from the tool's own summary: the same trio Country Profile shows. */
-function ShareFigures({ widget }: WidgetProps): ReactElement | null {
+function ShareFigures({ widget, result }: WidgetProps & { result: CorrelationCountryShareResponse }): ReactElement | null {
+  const L = shareLabels(result);
   const summary = (widget.summary ?? {}) as { mode?: string; countries?: ShareSummaryCountry[]; since?: SinceSummary };
   const c = summary.mode === 'series' && summary.countries?.length === 1 ? summary.countries[0] : null;
   const pct = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)}%`);
@@ -162,7 +175,7 @@ function ShareFigures({ widget }: WidgetProps): ReactElement | null {
     // Emissions in a period: its own three figures, labelled with the period, never "since records began" (that is the other quantity).
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16, margin: '0 0 12px' }}>
-        <KpiStat card label={`Emitted ${since.period}`} value={`${fmtGt(sc.emitted_gt)} GtCO₂`} delta="Fossil and cement" deltaDirection="neutral" />
+        <KpiStat card label={`Emitted ${since.period}`} value={`${fmtGt(sc.emitted_gt)} ${L.unit}`} delta={L.short} deltaDirection="neutral" />
         <KpiStat card label={`Share of the world's emissions ${since.period}`} value={pct(sc.share_of_period_pct)} deltaDirection="neutral" />
         {sc.rank != null && since.rank_of != null && <KpiStat card label={`Rank by emissions ${since.period}`} value={`#${sc.rank}`} delta={`of ${since.rank_of} countries`} deltaDirection="neutral" />}
       </div>
@@ -171,7 +184,7 @@ function ShareFigures({ widget }: WidgetProps): ReactElement | null {
   if (!c || c.last_cumulative_gt == null || c.last_share_pct == null) return null;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16, margin: '0 0 12px' }}>
-      <KpiStat card label={`Cumulative CO₂ since records began · ${c.last_year ?? ''}`} value={`${fmtGt(c.last_cumulative_gt)} GtCO₂`} delta="Fossil and cement" deltaDirection="neutral" />
+      <KpiStat card label={`Cumulative ${L.gas} since records began · ${c.last_year ?? ''}`} value={`${fmtGt(c.last_cumulative_gt)} ${L.unit}`} delta={L.short} deltaDirection="neutral" />
       <KpiStat card label="Share of world total" value={pct(c.last_share_pct)} delta={c.first_share_pct == null || c.first_share_pct < 0.05 ? undefined : `${pct(c.first_share_pct)} in ${c.first_year}`} deltaDirection="neutral" />
       {c.rank != null && c.rank_of != null && <KpiStat card label={`Rank by cumulative CO₂ · ${c.last_year ?? ''}`} value={`#${c.rank}`} delta={`of ${c.rank_of} countries`} deltaDirection="neutral" />}
     </div>
@@ -191,7 +204,7 @@ function ShareAreaView({ widget, result }: { widget: WidgetSpec; result: Correla
   const period = (widget.summary as { since?: SinceSummary } | null | undefined)?.since?.period;
   return (
     <div ref={rootRef}>
-      <ShareFigures widget={widget} />
+      <ShareFigures widget={widget} result={result} />
       <ChartCard title={widget.title}>
         <SyChart
           height={320}
@@ -216,7 +229,7 @@ function ShareVsAnnualView({ widget, result }: { widget: WidgetSpec; result: Cor
   if (!lines) return null;
   return (
     <>
-      <ShareFigures widget={widget} />
+      <ShareFigures widget={widget} result={result} />
       <ChartCard title={widget.title}>
         <p className="__s9cmpx-body4" style={{ ...caption, margin: '0 0 8px' }}>
           Solid line: share of all CO₂ emitted so far. Dotted line: share of each year&rsquo;s emissions. When the dotted line is above the solid one, the share of the total is still rising.
@@ -240,12 +253,13 @@ function ShareVsAnnualView({ widget, result }: { widget: WidgetSpec; result: Cor
 function SinceRankingView({ widget, result }: { widget: WidgetSpec; result: CorrelationCountryShareResponse }): ReactElement {
   const rows = result.since_rows ?? [];
   const period = (widget.summary as { since?: SinceSummary } | null | undefined)?.since?.period ?? `${result.since_year}–${result.year}`;
+  const L = shareLabels(result);
   const series: SyChartSeries[] = [{ name: `Emitted ${period}`, x: rows.map((r) => r.name), y: rows.map((r) => (r.emitted_gt ?? r.emitted_mt / 1000)), kind: 'bar' }];
   return (
     <ChartCard title={widget.title}>
-      <SyChart series={series} xTitle="Country" yTitle={`CO₂ emitted ${period} (GtCO₂)`} showLegend={false} ariaLabel={`Bar chart of CO₂ emitted ${period} in gigatonnes for the ${rows.length} largest emitters`} />
+      <SyChart series={series} xTitle="Country" yTitle={`${L.gas === 'CO₂' ? 'CO₂' : 'Greenhouse gases (CO₂e)'} emitted ${period} (${L.unit})`} showLegend={false} ariaLabel={`Bar chart of ${L.gas} emitted ${period} in gigatonnes for the ${rows.length} largest emitters`} />
       <p className="__s9cmpx-body4" style={caption}>
-        Fossil and cement CO₂ · OWID · emissions in {period}: each country&rsquo;s cumulative total at the end year minus its total the year before {result.since_year}. Shares of the period are of the World&rsquo;s emissions in it.
+        {L.source} · emissions in {period}: each country&rsquo;s cumulative total at the end year minus its total the year before {result.since_year}. Shares of the period are of the World&rsquo;s emissions in it.
       </p>
     </ChartCard>
   );

@@ -194,10 +194,11 @@ def select_share_view(current_query: str, summary: dict, source: str | None) -> 
 def _share_title(record: ToolCallRecord, view: str | None = None) -> str:
     s = (record.result or {}).get("summary") or {}
     since = s.get("since") or {}
+    unit = "GtCO₂e" if (record.result or {}).get("gas_scope") == "total_ghg" else "GtCO₂"  # total greenhouse gases are CO2-equivalent
     if s.get("mode") == "series":
         names = [c.get("name") for c in s.get("countries", []) if c.get("name")]
         if view == "cumulative_area" and since.get("period"):
-            return f"Emitted {since['period']}, GtCO₂ – {join_countries(names)}"
+            return f"Emitted {since['period']}, {unit} – {join_countries(names)}"
         if view == "cumulative_area":
             start = (s.get("trend_window") or [None])[0]
             return f"Cumulative CO₂ since records began{f', shown from {start}' if start else ''} – {join_countries(names)}"
@@ -206,7 +207,7 @@ def _share_title(record: ToolCallRecord, view: str | None = None) -> str:
         return f"Cumulative share of emissions – {join_countries(names)}"
     n = s.get("n_rows")
     if since.get("period"):
-        return f"{f'Top {n} emitters' if n else 'Emitters'}, {since['period']}, GtCO₂"
+        return f"{f'Top {n} emitters' if n else 'Emitters'}, {since['period']}, {unit}"
     lead = f"Top {n} countries" if n else "Countries"
     return f"{lead} by cumulative share of emissions ({s.get('year')})"
 

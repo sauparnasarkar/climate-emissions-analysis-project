@@ -50,3 +50,26 @@ def test_emissions_since_a_year_are_the_difference_of_cumulatives_and_equal_the_
     base = {r["country"]: r["cumulative_mt"] for r in c.get("/api/correlation/country-share?all_countries=true&year=1969").json()["rows"]}
     emitted = sorted(((end[k] - base.get(k, 0.0), k) for k in end), reverse=True)
     assert [k for _, k in emitted[:5]] == ["USA", "CHN", "RUS", "IND", "JPN"]
+
+
+def test_the_pages_counting_from_a_year_equals_what_the_agents_tool_computes_for_the_same_period():
+    """Release 24.8: `/countries/{c}/cumulative?from_year=` (the page) and the share endpoint's two all-country rankings (end year, and the year before: what the
+    agent's `since_year` computes) are two independent routes to the same numbers: emissions in the period, its share of the World's, and the rank."""
+    c = TestClient(app)
+    year, since = c.get("/api/correlation/country-share?limit=1").json()["year"], 1990
+    end = c.get("/api/correlation/country-share?all_countries=true").json()
+    base = c.get(f"/api/correlation/country-share?all_countries=true&year={since - 1}").json()
+    base_mt = {r["country"]: r["cumulative_mt"] for r in base["rows"]}
+    emitted = {r["country"]: r["cumulative_mt"] - base_mt.get(r["country"], 0.0) for r in end["rows"]}
+    world = end["remainder"]["world_cumulative_mt"] - base["remainder"]["world_cumulative_mt"]
+    order = sorted(emitted, key=lambda k: (-emitted[k], k))
+    for name, iso in COUNTRIES:
+        page = c.get(f"/api/countries/{name}/cumulative", params={"from_year": since}).json()
+        latest = page["latest"]
+        assert latest["year"] == year and page["years"][0] == since, name
+        assert latest["cumulative_co2"] == pytest.approx(emitted[iso], rel=1e-6, abs=0.01), name
+        assert latest["share_of_world_cumulative"] == pytest.approx(emitted[iso] / world * 100, abs=0.01), name
+        assert latest["rank"] == order.index(iso) + 1 and latest["rank_of"] == len(order), name
+    # and for the whole historical view: the World's emissions in the period are the same figure
+    h = c.get("/api/historical/cumulative", params={"countries": ["China"], "from_year": since}).json()
+    assert h["world_cumulative_co2"][-1] == pytest.approx(world, rel=1e-6)

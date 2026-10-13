@@ -155,16 +155,21 @@ def _gt(mt: float | None) -> float | None:
     return None if mt is None else round(mt / _MT_PER_GT, 1)
 
 
-def gt_text(mt: float | None) -> str | None:
+def gt_unit(body: dict) -> str:
+    """The unit of a share response's amounts: total greenhouse gases are CO2-equivalent (GtCO₂e), everything else CO2. A first version said GtCO₂ for both."""
+    return "GtCO₂e" if body.get("gas_scope") == "total_ghg" else "GtCO₂"
+
+
+def gt_text(mt: float | None, unit: str = "GtCO₂") -> str | None:
     """A cumulative amount ready to quote, with its unit ("434.9 GtCO₂"): the model reads this instead of attaching a unit to a bare number. A live answer wrote
     "434.9 Mt" for the United States because the summary said `unit: Mt CO2` beside Gt-valued fields (a 1,000-fold error)."""
-    return None if mt is None else f"{mt / _MT_PER_GT:,.1f} GtCO₂"
+    return None if mt is None else f"{mt / _MT_PER_GT:,.1f} {unit}"
 
 
 # What each field's suffix means. The summary used to carry the BODY's `unit` ("Mt CO2") beside `_gt` fields, which is what mislabelled them.
 SHARE_SUMMARY_UNITS = {
     "_mt": "MtCO₂ (million tonnes)",
-    "_gt": "GtCO₂ (billion tonnes; 1 Gt = 1,000 Mt)",
+    "_gt": "GtCO₂ (billion tonnes; 1 Gt = 1,000 Mt; GtCO₂e for total greenhouse gases)",
     "_pct": "percent",
     "_pp": "percentage points",
     "_text": "already formatted with its unit: quote it as written",
@@ -178,6 +183,7 @@ def share_series_summary(body: dict, roster: dict, start_year: int | None) -> di
     `roster` is the all-countries ranking the tool already fetched to resolve names; it is the latest year's, so a rank is given only for a series that ends in
     that year (never a latest-year rank beside an earlier window). For OWID, whose shares are of the World total, `rest_of_world` is what the countries shown
     leave of it in the last year: World minus the countries shown, so it includes international aviation and shipping."""
+    unit = gt_unit(body)
     ranks = {r["country"]: r["rank"] for r in roster.get("rows", [])}
     rank_of, roster_year = len(ranks), roster.get("year")
     countries = []
@@ -199,7 +205,7 @@ def share_series_summary(body: dict, roster: dict, start_year: int | None) -> di
                 "share_trend": share_trend(change),
                 "last_cumulative_mt": round(last["cumulative_mt"], 1) if last else None,
                 "last_cumulative_gt": _gt(last["cumulative_mt"]) if last else None,
-                "last_cumulative_text": gt_text(last["cumulative_mt"]) if last else None,
+                "last_cumulative_text": gt_text(last["cumulative_mt"], unit) if last else None,
                 "last_annual_share_pct": round(last["annual_share_pct"], 2) if last and last.get("annual_share_pct") is not None else None,
                 "last_annual_mt": round(last["annual_mt"], 1) if last and last.get("annual_mt") is not None else None,
                 "rank": ranks[sr["country"]] if ranked else None,
@@ -231,12 +237,12 @@ def share_series_summary(body: dict, roster: dict, start_year: int | None) -> di
         shown_mt = sum(sr["points"][-1]["cumulative_mt"] for sr in body["series"])
         shown_pct = sum(sr["points"][-1]["share_pct"] for sr in body["series"])
         summary["world_cumulative_gt"] = _gt(w["world_cumulative_mt"])
-        summary["world_cumulative_text"] = gt_text(w["world_cumulative_mt"])
+        summary["world_cumulative_text"] = gt_text(w["world_cumulative_mt"], unit)
         summary["rest_of_world"] = {
             "year": last_year,
             "cumulative_mt": round(max(0.0, w["world_cumulative_mt"] - shown_mt), 1),
             "cumulative_gt": _gt(max(0.0, w["world_cumulative_mt"] - shown_mt)),
-            "cumulative_text": gt_text(max(0.0, w["world_cumulative_mt"] - shown_mt)),
+            "cumulative_text": gt_text(max(0.0, w["world_cumulative_mt"] - shown_mt), unit),
             "share_pct": round(max(0.0, 100 - shown_pct), 2),
             "includes": "every country not shown plus international aviation and shipping",
         }
@@ -246,6 +252,7 @@ def share_series_summary(body: dict, roster: dict, start_year: int | None) -> di
 def share_ranking_summary(body: dict) -> dict:
     """The `summary` of a country-share RANKING: the top rows (Gt included), the shown rows' share, and for OWID the remainder of the World total. With a limited ranking
     the rows plus the remainder do not make 100: `not_shown_share_pct` is what the countries left out by the limit hold."""
+    unit = gt_unit(body)
     rows = body["rows"]
     shown_pct = round(sum(r["share_pct"] for r in rows), 2) if rows else None
     summary: dict = {
@@ -253,7 +260,7 @@ def share_ranking_summary(body: dict) -> dict:
         "year": body["year"],
         "n_rows": len(rows),
         "top": [
-            {"rank": r["rank"], "name": r["name"], "share_pct": round(r["share_pct"], 2), "cumulative_gt": _gt(r["cumulative_mt"]), "cumulative_text": gt_text(r["cumulative_mt"]),
+            {"rank": r["rank"], "name": r["name"], "share_pct": round(r["share_pct"], 2), "cumulative_gt": _gt(r["cumulative_mt"]), "cumulative_text": gt_text(r["cumulative_mt"], unit),
              "in_expanded_scope": r.get("in_expanded_scope")}
             for r in rows[:5]
         ],
@@ -263,7 +270,7 @@ def share_ranking_summary(body: dict) -> dict:
     rem = body.get("remainder")
     if rem and rows:
         summary["world_cumulative_gt"] = _gt(body.get("total_cumulative_mt"))
-        summary["world_cumulative_text"] = gt_text(body.get("total_cumulative_mt"))
+        summary["world_cumulative_text"] = gt_text(body.get("total_cumulative_mt"), unit)
         summary["remainder_share_pct"] = round(rem["share_pct"], 2)
         summary["not_shown_share_pct"] = round(max(0.0, 100 - shown_pct - rem["share_pct"]), 2)
     if not rows:
@@ -298,6 +305,7 @@ def world_total_mt(ranking: dict) -> float:
 def period_rows(end: dict, base: dict) -> tuple[list[dict], float]:
     """Every country's emissions between the two rankings' years (`end` at the last year, `base` at since_year - 1), largest first with its rank, plus the World's
     emissions in the period (`world_emitted_mt`). `share_of_period_pct` is a share of THAT, not of the cumulative total."""
+    unit = gt_unit(end)
     base_mt = {r["country"]: r["cumulative_mt"] for r in base.get("rows", [])}
     world = world_total_mt(end) - world_total_mt(base)
     rows = [
@@ -314,12 +322,12 @@ def period_rows(end: dict, base: dict) -> tuple[list[dict], float]:
     for i, r in enumerate(rows, 1):
         r["rank"] = i
         r["emitted_gt"] = _gt(r["emitted_mt"])
-        r["emitted_text"] = gt_text(r["emitted_mt"])
+        r["emitted_text"] = gt_text(r["emitted_mt"], unit)
         r["share_of_period_pct"] = round(r["emitted_mt"] / world * 100, 2) if world > 0 else None
     return rows, world
 
 
-def since_series_block(rows: list[dict], world_emitted_mt: float, shown_codes: list[str], since_year: int, end_year: int, owid: bool, world_base_mt: float) -> dict:
+def since_series_block(rows: list[dict], world_emitted_mt: float, shown_codes: list[str], since_year: int, end_year: int, owid: bool, world_base_mt: float, unit: str = "GtCO₂") -> dict:
     """`summary.since` of a SERIES: each shown country's emissions in the period, its share of the World's emissions in it and its rank among all countries by
     emissions in it. For OWID the World's emissions and what the countries shown leave of them (`rest_of_world`, which includes international aviation and shipping);
     `base_cumulative_mt` per country and `world_base_cumulative_mt` are what the widget subtracts to draw the stacked area from zero in the first year."""
@@ -332,7 +340,7 @@ def since_series_block(rows: list[dict], world_emitted_mt: float, shown_codes: l
         "basis": "share of the World's emissions in the period (international aviation and shipping included)" if owid else "share of the source's own total emissions in the period",
         "rank_of": len(rows),
         "world_emitted_gt": _gt(world_emitted_mt),
-        "world_emitted_text": gt_text(world_emitted_mt),
+        "world_emitted_text": gt_text(world_emitted_mt, unit),
         "world_base_cumulative_mt": round(world_base_mt, 3),
         "countries": [
             {
@@ -350,11 +358,11 @@ def since_series_block(rows: list[dict], world_emitted_mt: float, shown_codes: l
     }
     if owid and shown:
         rest = max(0.0, world_emitted_mt - sum(r["emitted_mt"] for r in shown))
-        block["rest_of_world"] = {"emitted_gt": _gt(rest), "emitted_text": gt_text(rest), "share_of_period_pct": round(rest / world_emitted_mt * 100, 2) if world_emitted_mt > 0 else None}
+        block["rest_of_world"] = {"emitted_gt": _gt(rest), "emitted_text": gt_text(rest, unit), "share_of_period_pct": round(rest / world_emitted_mt * 100, 2) if world_emitted_mt > 0 else None}
     return block
 
 
-def since_ranking_summary(rows: list[dict], shown: list[dict], world_emitted_mt: float, since_year: int, end_year: int, owid: bool) -> dict:
+def since_ranking_summary(rows: list[dict], shown: list[dict], world_emitted_mt: float, since_year: int, end_year: int, owid: bool, unit: str = "GtCO₂") -> dict:
     """The `summary` of a RANKING of emissions since a year: the top rows, what the shown rows hold of the period and what the rest hold."""
     shown_pct = round(sum(r["share_of_period_pct"] or 0 for r in shown), 2)
     return {
@@ -368,7 +376,7 @@ def since_ranking_summary(rows: list[dict], shown: list[dict], world_emitted_mt:
             "basis": "share of the World's emissions in the period (international aviation and shipping included)" if owid else "share of the source's own total emissions in the period",
             "rank_of": len(rows),
             "world_emitted_gt": _gt(world_emitted_mt),
-            "world_emitted_text": gt_text(world_emitted_mt),
+            "world_emitted_text": gt_text(world_emitted_mt, unit),
         },
         "top": [
             {"rank": r["rank"], "name": r["name"], "emitted_gt": r["emitted_gt"], "emitted_text": r["emitted_text"], "share_of_period_pct": r["share_of_period_pct"], "in_expanded_scope": r["in_expanded_scope"]}

@@ -231,6 +231,26 @@ describe('country shares', () => {
       expect(screen.queryByText(/No country shares are available/)).toBeNull();
     });
 
+    it('labels a PRIMAP-hist total-greenhouse-gas ranking in CO₂e with its own source, never as OWID CO₂', () => {
+      const r = { ...shareResponse([]), source: 'primap_hist', gas_scope: 'total_ghg', mode: 'ranking', year: 2024, since_year: 1970, rows: [], since_rows: [
+        { rank: 1, country: 'USA', name: 'United States', emitted_mt: 400_000, emitted_gt: 400.0, emitted_text: '400.0 GtCO₂e', share_of_period_pct: 30.0 },
+      ] };
+      mount(widget('get_country_cumulative_share', r, { title: 'Top 1 emitters, 1970–2024, GtCO₂e', summary: { mode: 'ranking', since: { year: 1970, period: '1970–2024' } } }));
+      expect(screen.getByTestId('sychart')).toHaveAttribute('data-ytitle', 'Greenhouse gases (CO₂e) emitted 1970–2024 (GtCO₂e)');
+      expect(screen.getByTestId('sychart')).toHaveAttribute('aria-label', expect.stringContaining('greenhouse gases (CO₂e) emitted 1970–2024'));
+      expect(screen.getByText(/PRIMAP-hist total greenhouse gases \(CO₂e\) · emissions in 1970–2024/)).toBeInTheDocument();
+      expect(screen.queryByText(/Fossil and cement CO₂ · OWID/)).toBeNull();
+    });
+
+    it("a single country's figures use the result's own unit and source (GtCO₂e for PRIMAP total greenhouse gases)", () => {
+      const ghg = owid([['CHN', 'China']], { source: 'primap_hist', gas_scope: 'total_ghg', remainder_series: [] });
+      mount(widget('get_country_cumulative_share', ghg, { view: 'share_vs_annual', summary: SUMMARY }));
+      expect(screen.getByText('285 GtCO₂e')).toBeInTheDocument();
+      expect(screen.getByText('Cumulative greenhouse gases (CO₂e) since records began · 2024')).toBeInTheDocument();
+      expect(screen.getByText('PRIMAP-hist')).toBeInTheDocument();
+      expect(screen.queryByText('Fossil and cement')).toBeNull();
+    });
+
     it('share_vs_annual is the solid-against-dotted pair for one country', () => {
       mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'share_vs_annual', title: 'Share of cumulative CO₂ against share of each year\'s emissions – China', summary: SUMMARY }));
       expect(series()).toEqual([['Share of cumulative total', 'line', 2], ["Share of that year's emissions", 'line', 2]]);
