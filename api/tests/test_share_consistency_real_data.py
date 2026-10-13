@@ -32,3 +32,21 @@ def test_share_tool_numbers_equal_the_release_23_numbers():
         assert row["share_pct"] == pytest.approx(latest["share_of_world_cumulative"], abs=0.002), name  # OWID rounds its own shares to three decimals
         assert row["rank"] == latest["rank"], name
     assert len(ranking) == c.get("/api/countries/China/cumulative").json()["latest"]["rank_of"]
+
+
+def test_emissions_since_a_year_are_the_difference_of_cumulatives_and_equal_the_sum_of_the_annual_values():
+    """Release 24.7 ("since YYYY"): emitted since X = the cumulative total at the end year minus the total at X-1, which must equal the sum of the annual values
+    of X..end. Checked for China and the World, and the since-1970 ranking's top five pinned (US, China, Russia, India, Japan)."""
+    c = TestClient(app)
+    j = c.get("/api/correlation/country-share?countries=CHN&start_year=1989").json()
+    pts = {p["year"]: p for p in j["series"][0]["points"]}
+    last = max(pts)
+    since = pts[last]["cumulative_mt"] - pts[1989]["cumulative_mt"]
+    assert since == pytest.approx(sum(p["annual_mt"] for y, p in pts.items() if y >= 1990), rel=1e-9)
+    rem = {r["year"]: r for r in j["remainder_series"]}
+    world = rem[last]["world_cumulative_mt"] - rem[1989]["world_cumulative_mt"]
+    assert 0 < since / world < 0.5  # a share of the period's emissions (China 1990-2024: about 23%)
+    end = {r["country"]: r["cumulative_mt"] for r in c.get("/api/correlation/country-share?all_countries=true").json()["rows"]}
+    base = {r["country"]: r["cumulative_mt"] for r in c.get("/api/correlation/country-share?all_countries=true&year=1969").json()["rows"]}
+    emitted = sorted(((end[k] - base.get(k, 0.0), k) for k in end), reverse=True)
+    assert [k for _, k in emitted[:5]] == ["USA", "CHN", "RUS", "IND", "JPN"]

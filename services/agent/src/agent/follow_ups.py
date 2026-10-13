@@ -104,7 +104,9 @@ def _share(record: ToolCallRecord, current_query: str = "") -> list[FollowUpLink
     r = _result(record)
     summary = r.get("summary") or {}
     fixed = [_correlation("country-view"), _OVERVIEW_EMITTERS]
-    if summary.get("mode") != "series" or r.get("source") != "owid_co2":
+    # A "since YYYY" answer is the emissions of a period; the pages show totals counted from the first record until they get the counting-from toggle (a link
+    # would open numbers that disagree with the answer's), so it keeps the fixed links.
+    if summary.get("mode") != "series" or r.get("source") != "owid_co2" or summary.get("since"):
         return fixed
     flagged = [c["name"] for c in summary.get("countries") or [] if isinstance(c, dict) and c.get("name") and c.get("in_expanded_scope") is True][:MAX_LINK_COUNTRIES]
     if not flagged:

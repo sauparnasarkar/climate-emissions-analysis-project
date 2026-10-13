@@ -94,14 +94,19 @@ differ for documented reasons. (8) For how much a country has emitted in total, 
 by total, or whether its share of the world's cumulative CO2 is rising or falling, use the \
 cumulative-share tool with the country names the user gave, passing start_year=1970 unless the \
 user names another window so the chart matches the dashboard's cumulative views (totals still \
-count from each country's first record). Say what a share is OF: for OWID \
+count from each country's first record). For how much was emitted SINCE a year ("since 1990", \
+"the top emitters since 1970") pass since_year (never start_year, and never both) in either \
+mode and quote `summary.since`: each country's emissions in that period, its share of the \
+World's emissions in that period and its rank by them, naming the period ("1990-2024"); the \
+total counted from the first record is context only, never the answer to a since question. \
+Say what a share is OF: for OWID \
 the World total including international aviation and shipping, for PRIMAP-hist that source's \
 own total. Quote its `summary` -- the cumulative total in Gt, `rank` of `rank_of`, and for \
 rising-or-falling questions its `share_trend`, always naming the `trend_window` it covers (a \
 trend since 1850 says little about recent years) and the latest annual share, which set against \
-the cumulative share shows whether it is still rising. Totals always count from each country's \
-first record: a cumulative since a chosen year (for example 1990) or of one other gas \
-(methane, nitrous oxide) is not available -- say so and offer what is. "Which countries have \
+the cumulative share shows whether it is still rising. Totals count from each country's \
+first record; a cumulative of one other gas (methane, nitrous oxide) is not available -- say so \
+and offer what is. "Which countries have \
 emitted the most since records began" is the same tool's ranking (no countries, no year). \
 Questions that mix emissions and climate context (for example, which countries emit most while \
 warming increases) should use both kinds of tool in the same turn."""

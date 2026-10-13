@@ -158,6 +158,18 @@ export interface ShareRemainder {
   international_transport_annual_mt: number | null;
 }
 
+/** One row of a ranking by emissions IN A PERIOD ("since 1970", Release 24.7): its own fields, never `cumulative_mt` / `share_pct` (those are totals from the first record). */
+export interface SinceRow {
+  rank: number;
+  country: string;
+  name: string;
+  emitted_mt: number;
+  emitted_gt: number | null;
+  emitted_text: string | null;
+  share_of_period_pct: number | null;
+  in_expanded_scope?: boolean | null;
+}
+
 export interface CorrelationCountryShareResponse extends CorrelationEnvelope {
   name: string;
   method: string;
@@ -179,6 +191,9 @@ export interface CorrelationCountryShareResponse extends CorrelationEnvelope {
   /** A ranking's remainder (its year) and a series' remainder per year; null / empty for PRIMAP-hist and for output that predates the World-total basis. */
   remainder?: ShareRemainder | null;
   remainder_series?: ShareRemainder[];
+  /** A ranking by emissions since `since_year` (the tool's `since_year`); `rows` is then empty. */
+  since_rows?: SinceRow[];
+  since_year?: number;
   denominator: Record<string, unknown> | null;
   reconciliation: Record<string, unknown> | null;
   details: Record<string, unknown>;

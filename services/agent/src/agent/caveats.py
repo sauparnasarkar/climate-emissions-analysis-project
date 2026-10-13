@@ -41,6 +41,9 @@ COMPOSITION_NOTE = (
 SHARE_BASIS_OWID = "Shares are of the World total, which includes international aviation and shipping (OWID fossil-fuel and cement CO₂, land use excluded)."
 SHARE_BASIS_PRIMAP = "Shares are of PRIMAP-hist's own total: it has no world aggregate and excludes international aviation and shipping."
 SHARE_COUNTED_FROM = "Cumulative totals count from each country's first record, whatever year the chart starts."
+# A "since YYYY" answer (Release 24.7): what the period figures are. Replaces the counted-from sentence, which describes the other quantity.
+SHARE_SINCE = "Amounts for {period} are the emissions of those years: each country's cumulative total at the end year minus its total the year before {start}; shares are of the World's emissions in the period."
+SHARE_SINCE_PRIMAP = "Amounts for {period} are the emissions of those years: each country's cumulative total at the end year minus its total the year before {start}; shares are of the source's own total in the period."
 
 _TEMPERATURE_TOOLS = {"get_temperature_anomaly", "get_emissions_temperature_relationship", "get_scenario_temperature"}
 
@@ -73,7 +76,12 @@ def _notes_for(record: ToolCallRecord, result: dict) -> list[str]:
         # it (the stacked area's caption), not to every answer that merely has the numbers.
         basis = {"owid_co2": SHARE_BASIS_OWID, "primap_hist": SHARE_BASIS_PRIMAP}.get(result.get("source"))  # a basis only for a source we know
         if basis:
-            notes.append(f"{basis} {SHARE_COUNTED_FROM}" if summary.get("mode") == "series" else basis)
+            since = summary.get("since")
+            if since and since.get("period"):  # emissions in a period: say what they are instead of where totals count from
+                tmpl = SHARE_SINCE_PRIMAP if result.get("source") == "primap_hist" else SHARE_SINCE
+                notes.append(f"{basis} {tmpl.format(period=since['period'], start=since['year'])}")
+            else:
+                notes.append(f"{basis} {SHARE_COUNTED_FROM}" if summary.get("mode") == "series" else basis)
     elif name == "get_co2_concentration":
         splice = (result.get("details") or {}).get("splice") or {}
         if splice.get("splice_year"):
