@@ -327,7 +327,7 @@ def period_rows(end: dict, base: dict) -> tuple[list[dict], float]:
     return rows, world
 
 
-def since_series_block(rows: list[dict], world_emitted_mt: float, shown_codes: list[str], since_year: int, end_year: int, owid: bool, world_base_mt: float, unit: str = "GtCO₂") -> dict:
+def since_series_block(rows: list[dict], world_emitted_mt: float, shown_codes: list[str], since_year: int, end_year: int, owid: bool, world_base_mt: float, unit: str = "GtCO₂", latest_year: int | None = None) -> dict:
     """`summary.since` of a SERIES: each shown country's emissions in the period, its share of the World's emissions in it and its rank among all countries by
     emissions in it. For OWID the World's emissions and what the countries shown leave of them (`rest_of_world`, which includes international aviation and shipping);
     `base_cumulative_mt` per country and `world_base_cumulative_mt` are what the widget subtracts to draw the stacked area from zero in the first year."""
@@ -336,6 +336,8 @@ def since_series_block(rows: list[dict], world_emitted_mt: float, shown_codes: l
     block: dict = {
         "year": since_year,
         "end_year": end_year,
+        # the last year with data: an answer that ends earlier cannot be matched by a dashboard page (which runs to the latest year), so the agent's links need to know
+        "latest_year": latest_year,
         "period": f"{since_year}–{end_year}",
         "basis": "share of the World's emissions in the period (international aviation and shipping included)" if owid else "share of the source's own total emissions in the period",
         "rank_of": len(rows),

@@ -234,8 +234,22 @@ describe('country shares', () => {
       expect(screen.getByText('300 GtCO₂e')).toBeInTheDocument();
       expect(screen.getByText("Share of PRIMAP-hist's own total 1990–2024")).toBeInTheDocument();
       expect(screen.getByText(/PRIMAP-hist total greenhouse gases \(CO₂e\) · emissions in 1990–2024: each country.s cumulative total in each year minus its total the year before 1990, so every line starts at zero/)).toBeInTheDocument();
-      expect(screen.getByText(/no World total in this source to show a Rest of world against/)).toBeInTheDocument();
+      expect(screen.getByText(/no World total here to show a Rest of world against/)).toBeInTheDocument();
       expect(screen.queryByText(/Cumulative .* since records began/)).toBeNull();
+    });
+
+    it('reads the basis of a period share from the data: an older OWID output without a World remainder is of the country total, never claimed as the world\'s emissions', () => {
+      const legacy = { year: 1990, period: '1990–2024', rank_of: 215, basis: "share of the source's own total emissions in the period", world_base_cumulative_mt: 5000, countries: [{ name: 'China', emitted_gt: 200.0, share_of_period_pct: 25.0, rank: 1, base_cumulative_mt: 100 }] };
+      const r = owid([['CHN', 'China']], { remainder_series: [], denominator: { kind: 'country_sum' } }); // OWID, but the pipeline output predates the World total
+      mount(widget('get_country_cumulative_share', r, { view: 'emitted_lines', title: 'Emitted 1990–2024, GtCO₂ – China', summary: { ...SUMMARY, since: legacy } }));
+      expect(screen.getByText('Share of the country total 1990–2024')).toBeInTheDocument();
+      expect(screen.queryByText("Share of the world's emissions 1990–2024")).toBeNull();
+      expect(screen.getByText(/Fossil and cement CO₂ · OWID · emissions in 1990–2024/)).toBeInTheDocument(); // still OWID, not PRIMAP-hist
+      expect(screen.getByText(/no World total here to show a Rest of world against/)).toBeInTheDocument(); // true for this output; the old text claimed it of "this source"
+      cleanup();
+      const world = { ...legacy, basis: "share of the World's emissions in the period (international aviation and shipping included)" };
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']], { denominator: { kind: 'world' } }), { view: 'cumulative_area', summary: { ...SUMMARY, since: world } }));
+      expect(screen.getByText("Share of the world's emissions 1990–2024")).toBeInTheDocument();
     });
 
     it('a ranking since a year is bars of Gt emitted in the period, not the share bars', () => {

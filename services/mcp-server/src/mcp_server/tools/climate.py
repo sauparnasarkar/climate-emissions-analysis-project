@@ -378,7 +378,7 @@ async def _share_since(params: dict, countries: list[str] | None, since_year: in
         codes = resolve_share_countries(countries, latest["rows"])
         body = await fetch_correlation("country-share", {**params, "countries": codes, "start_year": since_year, "end_year": end_year, "year": None})
         summary = share_series_summary(body, end_ranking, None)  # not start_year: the window note would say the opposite of what since_year does
-        summary["since"] = since_series_block(rows, world_emitted, codes, since_year, end_year_used, owid, world_total_mt(base), gt_unit(end_ranking))
+        summary["since"] = since_series_block(rows, world_emitted, codes, since_year, end_year_used, owid, world_total_mt(base), gt_unit(end_ranking), latest["year"])
     else:
         shown = rows[: (limit if limit is not None else 15)]
         body = {**end_ranking, "rows": [], "since_rows": shown, "remainder": None, "total_cumulative_mt": None, "annual_total_mt": None}

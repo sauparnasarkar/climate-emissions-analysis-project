@@ -134,8 +134,21 @@ function NoShares({ result }: { result: CorrelationCountryShareResponse }) {
   return <Unavailable>{`No country shares are available${result.year != null ? ` for ${result.year}` : ''}.${lo != null && hi != null ? ` Coverage is ${lo}–${hi}.` : ''}${result.notes.length ? ` ${result.notes.join(' ')}` : ''}`}</Unavailable>;
 }
 
-/** What a share result's amounts are, from its own source and gas scope (never assumed to be OWID CO₂): total greenhouse gases are CO₂-equivalent. */
-function shareLabels(result: Pick<CorrelationCountryShareResponse, 'source' | 'gas_scope'>): { unit: string; gas: string; source: string; short: string; shareOf: string; totalOf: string } {
+/**
+ * Whether this result's shares are of a WORLD total (and not of the sum of the countries), from what the data itself says: a period answer's `summary.since.basis`, else
+ * the response's denominator kind. PRIMAP-hist never has one. OWID usually does (the current pipeline), but an older pipeline output without a World remainder is
+ * still served and its shares are of the country sum; absent any information OWID is taken as World.
+ */
+function isWorldBasis(result: Pick<CorrelationCountryShareResponse, 'source' | 'denominator'>, summary?: Record<string, unknown> | null): boolean {
+  if (result.source === 'primap_hist') return false;
+  const basis = (summary as { since?: { basis?: string } } | null | undefined)?.since?.basis;
+  if (typeof basis === 'string') return /World/.test(basis);
+  const kind = (result.denominator as { kind?: string } | null | undefined)?.kind;
+  return kind == null ? result.denominator == null : kind === 'world';
+}
+
+/** What a share result's amounts are, from its own source, gas scope and denominator (never assumed to be OWID CO₂ against a World total): total greenhouse gases are CO₂-equivalent. */
+function shareLabels(result: Pick<CorrelationCountryShareResponse, 'source' | 'gas_scope'>, world = true): { unit: string; gas: string; source: string; short: string; shareOf: string; totalOf: string } {
   const ghg = result.gas_scope === 'total_ghg';
   const primap = result.source === 'primap_hist';
   return {
@@ -143,10 +156,9 @@ function shareLabels(result: Pick<CorrelationCountryShareResponse, 'source' | 'g
     gas: ghg ? 'greenhouse gases (CO₂e)' : 'CO₂',
     source: primap ? `PRIMAP-hist ${ghg ? 'total greenhouse gases (CO₂e)' : 'CO₂'}` : 'Fossil and cement CO₂ · OWID',
     short: primap ? 'PRIMAP-hist' : 'Fossil and cement',
-    // what a share is OF: the World's emissions for OWID; PRIMAP-hist has no world aggregate, so its own total (the summary's `since.basis` says the same)
-    shareOf: primap ? "PRIMAP-hist's own total" : "the world's emissions",
-    // the cumulative share's denominator: the World total for OWID, PRIMAP-hist's own total (it has no world aggregate)
-    totalOf: primap ? "PRIMAP-hist's own total" : 'world total',
+    // what a share is OF: the World's emissions where there is a World total; otherwise the source's own total (PRIMAP-hist has no world aggregate; an older OWID output has only the country sum)
+    shareOf: world ? "the world's emissions" : primap ? "PRIMAP-hist's own total" : 'the country total',
+    totalOf: world ? 'world total' : primap ? "PRIMAP-hist's own total" : 'country total',
   };
 }
 
@@ -169,7 +181,7 @@ interface ShareSummaryCountry {
 
 /** A single country's three figures (cumulative total, share of the World total, rank), from the tool's own summary: the same trio Country Profile shows. */
 function ShareFigures({ widget, result }: WidgetProps & { result: CorrelationCountryShareResponse }): ReactElement | null {
-  const L = shareLabels(result);
+  const L = shareLabels(result, isWorldBasis(result, widget.summary));
   const summary = (widget.summary ?? {}) as { mode?: string; countries?: ShareSummaryCountry[]; since?: SinceSummary };
   const c = summary.mode === 'series' && summary.countries?.length === 1 ? summary.countries[0] : null;
   const pct = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)}%`);
@@ -232,7 +244,7 @@ function SinceLinesView({ widget, result }: { widget: WidgetSpec; result: Correl
   const rebase = useMemo(() => sinceRebase(widget.summary), [widget.summary]);
   const lines = useMemo(() => sinceEmittedLines(result, rebase), [result, rebase]);
   if (!lines) return null;
-  const L = shareLabels(result);
+  const L = shareLabels(result, isWorldBasis(result, widget.summary));
   const period = (widget.summary as { since?: SinceSummary } | null | undefined)?.since?.period ?? '';
   const gasName = L.gas === 'CO₂' ? 'CO₂' : 'Greenhouse gases (CO₂e)';
   return (
@@ -247,7 +259,7 @@ function SinceLinesView({ widget, result }: { widget: WidgetSpec; result: Correl
           series={lines.map((l) => ({ name: l.name, x: l.years, y: l.gt, kind: 'line' as const }))}
         />
         <p className="__s9cmpx-body4" style={caption}>
-          {L.source} · emissions in {period}: each country&rsquo;s cumulative total in each year minus its total the year before {lines[0].years[0]}, so every line starts at zero. There is no World total in this source to show a Rest of world against.
+          {L.source} · emissions in {period}: each country&rsquo;s cumulative total in each year minus its total the year before {lines[0].years[0]}, so every line starts at zero. There is no World total here to show a Rest of world against.
         </p>
       </ChartCard>
     </>
@@ -258,7 +270,7 @@ function SinceLinesView({ widget, result }: { widget: WidgetSpec; result: Correl
 function ShareVsAnnualView({ widget, result }: { widget: WidgetSpec; result: CorrelationCountryShareResponse }): ReactElement | null {
   const lines = useMemo(() => shareVsAnnualLines(result), [result]);
   if (!lines) return null;
-  const L = shareLabels(result);
+  const L = shareLabels(result, isWorldBasis(result, widget.summary));
   return (
     <>
       <ShareFigures widget={widget} result={result} />
@@ -285,7 +297,7 @@ function ShareVsAnnualView({ widget, result }: { widget: WidgetSpec; result: Cor
 function SinceRankingView({ widget, result }: { widget: WidgetSpec; result: CorrelationCountryShareResponse }): ReactElement {
   const rows = result.since_rows ?? [];
   const period = (widget.summary as { since?: SinceSummary } | null | undefined)?.since?.period ?? `${result.since_year}–${result.year}`;
-  const L = shareLabels(result);
+  const L = shareLabels(result, isWorldBasis(result, widget.summary));
   const series: SyChartSeries[] = [{ name: `Emitted ${period}`, x: rows.map((r) => r.name), y: rows.map((r) => (r.emitted_gt ?? r.emitted_mt / 1000)), kind: 'bar' }];
   return (
     <ChartCard title={widget.title}>

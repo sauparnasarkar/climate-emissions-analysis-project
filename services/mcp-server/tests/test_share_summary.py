@@ -353,3 +353,18 @@ def test_the_unit_guidance_says_total_greenhouse_gases_are_co2_equivalent():
     doc = " ".join((get_country_cumulative_share.__doc__ or "").split())
     assert "for `gas_scope='total_ghg'`" in doc and "CO2-EQUIVALENT: GtCO2e / MtCO2e" in doc and "(GtCO2 or GtCO2e)" in doc
     assert "MtCO₂e for total greenhouse gases" in SHARE_SUMMARY_UNITS["_mt"] and "GtCO₂e for total greenhouse gases" in SHARE_SUMMARY_UNITS["_gt"]
+
+
+def test_the_since_block_carries_the_last_data_year_so_a_bounded_period_can_be_told_from_one_to_the_latest():
+    end = ranking(2010, [("USA", "United States", 300_000.0)], world=1_000_000.0)
+    base = ranking(1989, [("USA", "United States", 100_000.0)], world=400_000.0)
+    rows, world = period_rows(end, base)
+    b = since_series_block(rows, world, ["USA"], 1990, 2010, True, world_total_mt(base), latest_year=2024)
+    assert b["end_year"] == 2010 and b["latest_year"] == 2024
+    assert since_series_block(rows, world, ["USA"], 1990, 2010, True, 0.0)["latest_year"] is None  # unknown stays unknown
+
+
+async def test_the_tool_reports_the_latest_year_beside_a_period_that_ends_earlier(climate_client):
+    out = (await get_country_cumulative_share(countries=["AAA"], since_year=1950, end_year=1960))["summary"]["since"]
+    assert out["end_year"] == 1960 and out["latest_year"] == 2000  # the stub's data ends in 2000
+    assert (await get_country_cumulative_share(countries=["AAA"], since_year=1950))["summary"]["since"]["latest_year"] == 2000
