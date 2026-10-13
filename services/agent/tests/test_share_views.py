@@ -217,3 +217,58 @@ def test_a_gt_figure_from_the_summary_written_with_mt_is_flagged():
     assert check_units("China emitted 285.1 GtCO₂ and 12,289 MtCO₂e in 2024.", [summary]) == []  # a real Mt CO₂e figure, and a Gt one with its Gt
     assert check_units("It emitted 7.5 Mt of methane.", [{"x_gt": 7.5}]) == []  # small values collide with ordinary Mt figures: ignored
     assert check_units("anything", []) == []
+
+
+# --- "since YYYY": emissions in a period (Release 24.7, D7) -------------------------------------------------------------------------------------------------------------
+
+
+def since_series(names=("China",), source="owid_co2", rest=True):
+    r = series_result(names, source=source, rest=False)
+    r["summary"]["since"] = {"year": 1990, "end_year": 2024, "period": "1990–2024", "rank_of": 215, "world_emitted_text": "1,064.8 GtCO₂",
+                             "countries": [{"name": n, "emitted_text": "244.2 GtCO₂", "share_of_period_pct": 22.93, "rank": 2, "base_cumulative_mt": 40000.0} for n in names]}
+    if rest:
+        r["summary"]["since"]["rest_of_world"] = {"emitted_text": "820.6 GtCO₂", "share_pct": 77.07}
+    return r
+
+
+def since_ranking():
+    return {"source": "owid_co2", "mode": "ranking", "rows": [], "since_rows": [{"rank": 1, "name": "United States"}], "since_year": 1970, "interpretation_note": "n",
+            "summary": {"mode": "ranking", "year": 2024, "n_rows": 15, "since": {"year": 1970, "end_year": 2024, "period": "1970–2024"}}}
+
+
+def test_a_since_series_is_an_amount_question_drawn_as_the_rebased_area_with_a_title_naming_the_period():
+    r = since_series()
+    assert select_share_view("What is China's cumulative CO₂ since 1990?", r["summary"], "owid_co2") == "cumulative_area"
+    w = build_widget(rec(r), "What is China's cumulative CO₂ since 1990?")
+    assert w.view == "cumulative_area" and w.title == "Emitted 1990–2024, GtCO₂ – China"
+    assert "since records began" not in w.title  # the period figures are not the total from the first record
+
+
+def test_a_since_series_for_primap_has_no_area_and_a_share_question_about_movement_still_gets_the_comparison():
+    assert select_share_view("How much since 1990?", since_series(source="primap_hist", rest=False)["summary"], "primap_hist") == "share_lines"
+    assert select_share_view("Is China's share rising since 1990?", since_series()["summary"], "owid_co2") == "share_vs_annual"
+
+
+def test_a_since_ranking_has_no_view_and_a_title_naming_the_period():
+    w = build_widget(rec(since_ranking()), "Which countries have emitted the most since 1970?")
+    assert w.view is None and w.chart_kind == "bar" and w.title == "Top 15 emitters, 1970–2024, GtCO₂"
+
+
+def test_a_since_answer_states_what_the_period_figures_are_not_where_totals_count_from():
+    notes = mandatory_notes([rec(since_series())])
+    assert len(notes) == 2 and "emissions of those years" in notes[1] and "cumulative total at the end year minus its total the year before 1990" in notes[1]
+    assert "World's emissions in the period" in notes[1] and SHARE_COUNTED_FROM not in notes[1]
+    assert "source's own total in the period" in mandatory_notes([rec(since_series(source="primap_hist", rest=False))])[1]
+    ranking = mandatory_notes([rec(since_ranking())])
+    assert len(ranking) == 2 and "emissions of those years" in ranking[1]
+
+
+def test_a_since_answer_keeps_the_fixed_links_until_the_pages_can_count_from_a_year():
+    out = routes(since_series(), "since 1990")
+    assert [r for _, r in out] == ["/climate-correlation#country-view", "/overview#top-emitters"]  # no Historical Trends / Country Profile link that would show other numbers
+
+
+def test_the_prompt_sends_since_questions_to_since_year_and_no_longer_says_they_are_unavailable():
+    p = " ".join(AGENT_SYSTEM_PROMPT.split())
+    assert "pass since_year (never start_year, and never both)" in p and "quote `summary.since`" in p
+    assert "a cumulative since a chosen year" not in p and "(methane, nitrous oxide) is not available" in p  # only the other-gas limit remains

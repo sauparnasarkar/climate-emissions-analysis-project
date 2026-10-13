@@ -16,7 +16,20 @@ export const SINGLE_LINE_COLOR = '#ecf0f6';
  * The result on the Release 23 shape (one `years` axis; `cumulative_co2` in Mt; shares in percent; the World's cumulative per year), for `cumulativeAreaSeries`.
  * Null when it cannot be drawn honestly: not OWID (a PRIMAP-hist share has no World total to leave a Rest of world), no World totals, or no points.
  */
-export function shareToCumulative(result: CorrelationCountryShareResponse): HistoricalCumulativeResponse | null {
+/** What a "since YYYY" answer subtracts to draw emissions in the period from zero: each country's cumulative total the year before (by name; absent = it had emitted nothing) and the World's. */
+export interface SinceRebase {
+  base: Record<string, number>;
+  world: number;
+}
+
+/** The rebase from the tool's `summary.since`, or null when the answer is not a since-answer or lacks the World base. */
+export function sinceRebase(summary: Record<string, unknown> | null | undefined): SinceRebase | null {
+  const since = (summary as { since?: { world_base_cumulative_mt?: number; countries?: Array<{ name: string; base_cumulative_mt?: number }> } } | null | undefined)?.since;
+  if (!since || typeof since.world_base_cumulative_mt !== 'number') return null;
+  return { base: Object.fromEntries((since.countries ?? []).map((c) => [c.name, c.base_cumulative_mt ?? 0])), world: since.world_base_cumulative_mt };
+}
+
+export function shareToCumulative(result: CorrelationCountryShareResponse, rebase?: SinceRebase | null): HistoricalCumulativeResponse | null {
   const series = result.series ?? [];
   const remainder = result.remainder_series ?? [];
   if (result.source !== 'owid_co2' || series.length === 0 || remainder.length === 0) return null;
@@ -27,18 +40,20 @@ export function shareToCumulative(result: CorrelationCountryShareResponse): Hist
   const world = new Map(remainder.map((r) => [r.year, r.world_cumulative_mt]));
   const years = [...world.keys()].filter((y) => y >= lo && y <= hi).sort((a, b) => a - b);
   if (years.length === 0) return null;
+  const sub = (v: number | null | undefined, base: number): number | null => (v == null ? null : Math.max(0, v - base));
   return {
     years,
     series: series.map((s) => {
       const byYear = new Map(s.points.map((p) => [p.year, p]));
+      const base = rebase?.base[s.name] ?? 0;
       return {
         name: s.name,
-        cumulative_co2: years.map((y) => byYear.get(y)?.cumulative_mt ?? null),
+        cumulative_co2: years.map((y) => sub(byYear.get(y)?.cumulative_mt, base)),
         share_of_world_cumulative: years.map((y) => byYear.get(y)?.share_pct ?? null),
         share_of_world_annual: years.map((y) => byYear.get(y)?.annual_share_pct ?? null),
       };
     }),
-    world_cumulative_co2: years.map((y) => world.get(y) ?? null),
+    world_cumulative_co2: years.map((y) => sub(world.get(y), rebase?.world ?? 0)),
   };
 }
 

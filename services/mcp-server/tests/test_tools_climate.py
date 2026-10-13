@@ -339,8 +339,8 @@ async def test_empty_ranking_is_unavailable_not_zero(climate_client):
 
 async def test_share_mode_mismatched_arguments_are_rejected_not_dropped(climate_client):
     code = (await get_country_cumulative_share())["rows"][0]["country"]
-    with pytest.raises(ClimateApiError, match="start_year/end_year apply to a countries series"):
-        await get_country_cumulative_share(start_year=1900)  # ranking + series-only argument
+    with pytest.raises(ValueError, match="since_year"):  # a ranking + a series-only argument: caught here, naming what to pass (the API's 422 lost a live answer its data)
+        await get_country_cumulative_share(start_year=1900)
     with pytest.raises(ValueError, match="`limit` applies to a ranking only"):
         await get_country_cumulative_share(countries=[code], limit=5)  # series + ranking-only argument
 

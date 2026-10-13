@@ -204,6 +204,31 @@ describe('country shares', () => {
       expect(screen.getByText('5.0% in 1990')).toBeInTheDocument(); // a real starting share is shown
     });
 
+    it('a since-answer draws the area from zero with its own figures and period, never "since records began"', () => {
+      const since = { year: 1990, period: '1990–2024', rank_of: 215, world_base_cumulative_mt: 5000, countries: [{ name: 'China', emitted_gt: 244.2, share_of_period_pct: 22.9, rank: 2, base_cumulative_mt: 100 }] };
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'cumulative_area', title: 'Emitted 1990–2024, GtCO₂ – China', summary: { ...SUMMARY, since } }));
+      expect(screen.getByText('Emitted 1990–2024')).toBeInTheDocument();
+      expect(screen.getByText('244 GtCO₂')).toBeInTheDocument();
+      expect(screen.getByText("Share of the world's emissions 1990–2024")).toBeInTheDocument();
+      expect(screen.getByText('22.9%')).toBeInTheDocument();
+      expect(screen.getByText('#2')).toBeInTheDocument();
+      expect(screen.getByText(/emissions in 1990–2024: each country's cumulative total in each year minus its total the year before 1990, so every area starts at zero/)).toBeInTheDocument();
+      expect(screen.getByTestId('sychart')).toHaveAttribute('aria-label', expect.stringContaining('CO₂ emitted 1990–2024 in gigatonnes'));
+      expect(screen.queryByText(/since records began/)).toBeNull();
+    });
+
+    it('a ranking since a year is bars of Gt emitted in the period, not the share bars', () => {
+      const r = { ...shareResponse([]), mode: 'ranking', year: 2024, since_year: 1970, rows: [], since_rows: [
+        { rank: 1, country: 'USA', name: 'United States', emitted_mt: 284_700, emitted_gt: 284.7, emitted_text: '284.7 GtCO₂', share_of_period_pct: 30.0 },
+        { rank: 2, country: 'CHN', name: 'China', emitted_mt: 275_000, emitted_gt: 275.0, emitted_text: '275.0 GtCO₂', share_of_period_pct: 29.0 },
+      ] };
+      mount(widget('get_country_cumulative_share', r, { title: 'Top 2 emitters, 1970–2024, GtCO₂', summary: { mode: 'ranking', since: { year: 1970, period: '1970–2024' } } }));
+      expect(JSON.parse(screen.getByTestId('sychart').dataset.series!)).toEqual([['Emitted 1970–2024', 'bar', 2]]);
+      expect(screen.getByTestId('sychart')).toHaveAttribute('aria-label', expect.stringContaining('CO₂ emitted 1970–2024 in gigatonnes for the 2 largest emitters'));
+      expect(screen.getByText(/cumulative total at the end year minus its total the year before 1970/)).toBeInTheDocument();
+      expect(screen.queryByText(/No country shares are available/)).toBeNull();
+    });
+
     it('share_vs_annual is the solid-against-dotted pair for one country', () => {
       mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'share_vs_annual', title: 'Share of cumulative CO₂ against share of each year\'s emissions – China', summary: SUMMARY }));
       expect(series()).toEqual([['Share of cumulative total', 'line', 2], ["Share of that year's emissions", 'line', 2]]);

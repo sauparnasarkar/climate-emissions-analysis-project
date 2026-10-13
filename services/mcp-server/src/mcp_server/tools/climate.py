@@ -11,12 +11,17 @@ from __future__ import annotations
 
 from ..climate import (
     SHARE_SUMMARY_UNITS,
+    check_since_year,
     fetch_correlation,
     normalize_typography,
+    period_rows,
     resolve_share_countries,
     share_ranking_summary,
     share_series_summary,
+    since_ranking_summary,
+    since_series_block,
     summarize_points,
+    world_total_mt,
 )
 from ..server import mcp
 
@@ -261,6 +266,7 @@ async def get_country_cumulative_share(
     end_year: int | None = None,
     source: str = "owid_co2",
     gas_scope: str | None = None,
+    since_year: int | None = None,
 ) -> dict:
     """Each country's cumulative share of global emissions -- where emissions have occurred over
     time. Two modes: omit `countries` for a RANKING in `year` (default: latest year; `limit`
@@ -271,10 +277,17 @@ async def get_country_cumulative_share(
     'primap_hist' (PRIMAP-hist; gas_scope 'co2' or 'total_ghg' -- total GHG in CO2e, excluding
     land use; 'primap_ghg' is accepted as an alias). Omit `gas_scope` to get the source's
     default; an unpublished source/gas_scope pair is rejected with the published ones. An unmatched country name is an explicit error with a suggestion.
-    THE WINDOW: `start_year`/`end_year` only choose which years are shown. Every total still counts
-    from each country's first record (the response's `cumulative_from` is the earliest) and is never
-    restarted, so "cumulative since 1990" is NOT available -- say so rather than passing start_year as
-    if it were. Likewise there is no per-gas cumulative: CO2 (OWID, PRIMAP) and total greenhouse
+    "SINCE YYYY": for how much was emitted since a year ("China since 1990", "the top emitters since
+    1970") pass `since_year` (1851 to the latest year), in either mode, NEVER `start_year` (which
+    only chooses the years a series is shown from, and a ranking rejects it). `since_year=1990` is
+    emissions in 1990 to the latest year: each country's cumulative total then minus its total at
+    1989. The `summary.since` block carries each country's emitted amount (`emitted_gt` /
+    `emitted_text`), its share of the World's emissions IN THAT PERIOD (`share_of_period_pct`, not the
+    cumulative share) and its rank by emissions in the period; a ranking with `since_year` is the
+    ranking by emissions in the period (`since_rows`) -- quote those, and say the period ("1990-2024").
+    The total counted from the first record is still in the summary, as context only. Omit
+    `since_year` for the total since records began. `end_year` (series) or `year` (ranking) can end
+    the period earlier. There is no per-gas cumulative: CO2 (OWID, PRIMAP) and total greenhouse
     gases in CO2e (PRIMAP) only, so cumulative methane or nitrous oxide is not available.
     UNITS: a field's unit is its suffix (`_gt` = GtCO2, billion tonnes; `_mt` = MtCO2, million tonnes;
     `_pct` = percent; see `summary.units`) and the `*_text` fields are already formatted with their
@@ -301,7 +314,17 @@ async def get_country_cumulative_share(
         raise ValueError("`countries` is an empty list; omit it for a ranking, or name at least one country.")
     if countries and limit is not None:
         raise ValueError("`limit` applies to a ranking only; omit it when passing `countries` (a series).")
+    if since_year is not None and countries and start_year is not None and start_year != since_year:
+        raise ValueError("`since_year` already sets where a series starts; omit `start_year` (or pass the same year).")
+    if not countries and (start_year is not None or end_year is not None):
+        # The API rejects these for a ranking; a live answer lost its data to that failed call. Say what to pass instead, so a retry succeeds.
+        raise ValueError(
+            "`start_year`/`end_year` choose the years of a SERIES (pass `countries`). For a ranking of what was emitted since a year pass `since_year` "
+            "(for example since_year=1970); for a ranking as of one year pass `year`."
+        )
     params = {"source": SHARE_SOURCE_ALIASES.get(source, source), "gas_scope": gas_scope}
+    if since_year is not None:
+        return await _share_since(params, countries, since_year, year, end_year, limit)
     if countries:
         # The endpoint takes ISO3 codes; resolve names against its own country set first, one
         # extra call (a full ranking carries every country's code and name).
@@ -320,6 +343,38 @@ async def get_country_cumulative_share(
         summary = share_ranking_summary(body)
     # NOT the body's `unit` ("Mt CO2"): the summary mixes Mt and Gt fields, so a single unit here mislabelled the Gt ones (a live answer said "434.9 Mt" for the
     # United States, 434.9 Gt). Each field's unit is its suffix; the `*_text` fields are ready to quote.
+    summary["units"] = SHARE_SUMMARY_UNITS
+    summary["label"] = body["label"]
+    body["summary"] = summary
+    body["interpretation_note"] = INTERPRETATION_NOTE_SHARE
+    return body
+
+
+async def _share_since(params: dict, countries: list[str] | None, since_year: int, year: int | None, end_year: int | None, limit: int | None) -> dict:
+    """`get_country_cumulative_share` with `since_year`: emissions in a period (Release 24.7). The end-year and base-year all-countries rankings give every
+    country's amount in the period; a series is the usual series from `since_year` plus the `since` block, a ranking is the period ranking in `since_rows`."""
+    latest = await fetch_correlation("country-share", {**params, "all_countries": True})
+    end = year if (not countries and year is not None) else (end_year if countries and end_year is not None else None)
+    check_since_year(since_year, latest["year"])
+    if end is not None and (end < since_year or end > latest["year"]):
+        raise ValueError(f"The period must end between {since_year} and {latest['year']}; got {end}.")
+    end_ranking = latest if end in (None, latest["year"]) else await fetch_correlation("country-share", {**params, "all_countries": True, "year": end})
+    end_year_used = end_ranking["year"]
+    base = await fetch_correlation("country-share", {**params, "all_countries": True, "year": since_year - 1})
+    if not base.get("rows"):
+        raise ValueError(f"No country shares are published for {since_year - 1}, the year before since_year; see the coverage in the response notes.")
+    rows, world_emitted = period_rows(end_ranking, base)
+    owid = bool(end_ranking.get("remainder"))
+    if countries:
+        codes = resolve_share_countries(countries, latest["rows"])
+        body = await fetch_correlation("country-share", {**params, "countries": codes, "start_year": since_year, "end_year": end_year, "year": None})
+        summary = share_series_summary(body, end_ranking, None)  # not start_year: the window note would say the opposite of what since_year does
+        summary["since"] = since_series_block(rows, world_emitted, codes, since_year, end_year_used, owid, world_total_mt(base))
+    else:
+        shown = rows[: (limit if limit is not None else 15)]
+        body = {**end_ranking, "rows": [], "since_rows": shown, "remainder": None, "total_cumulative_mt": None, "annual_total_mt": None}
+        summary = since_ranking_summary(rows, shown, world_emitted, since_year, end_year_used, owid)
+    body["since_year"] = since_year
     summary["units"] = SHARE_SUMMARY_UNITS
     summary["label"] = body["label"]
     body["summary"] = summary

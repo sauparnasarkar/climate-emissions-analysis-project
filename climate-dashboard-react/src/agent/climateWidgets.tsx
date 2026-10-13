@@ -23,7 +23,7 @@ import { buildHeadline } from '../lib/headline';
 import { fmtGt } from '../lib/cumulative';
 import { cumulativeAreaSeries } from '../lib/historicalCumulative';
 import { buildScenarioView } from '../lib/scenarioView';
-import { shareToCumulative, shareVsAnnualLines, SINGLE_LINE_COLOR } from '../lib/shareViews';
+import { shareToCumulative, shareVsAnnualLines, sinceRebase, SINGLE_LINE_COLOR } from '../lib/shareViews';
 import { singleYearRows, sourceRows } from './climateRows';
 import type { WidgetSpec } from './types';
 
@@ -134,6 +134,13 @@ function NoShares({ result }: { result: CorrelationCountryShareResponse }) {
   return <Unavailable>{`No country shares are available${result.year != null ? ` for ${result.year}` : ''}.${lo != null && hi != null ? ` Coverage is ${lo}–${hi}.` : ''}${result.notes.length ? ` ${result.notes.join(' ')}` : ''}`}</Unavailable>;
 }
 
+interface SinceSummary {
+  year: number;
+  period: string;
+  rank_of?: number;
+  countries?: Array<{ name: string; emitted_gt?: number | null; share_of_period_pct?: number | null; rank?: number | null }>;
+}
+
 interface ShareSummaryCountry {
   last_year?: number | null;
   last_share_pct?: number | null;
@@ -146,10 +153,22 @@ interface ShareSummaryCountry {
 
 /** A single country's three figures (cumulative total, share of the World total, rank), from the tool's own summary: the same trio Country Profile shows. */
 function ShareFigures({ widget }: WidgetProps): ReactElement | null {
-  const summary = (widget.summary ?? {}) as { mode?: string; countries?: ShareSummaryCountry[] };
+  const summary = (widget.summary ?? {}) as { mode?: string; countries?: ShareSummaryCountry[]; since?: SinceSummary };
   const c = summary.mode === 'series' && summary.countries?.length === 1 ? summary.countries[0] : null;
-  if (!c || c.last_cumulative_gt == null || c.last_share_pct == null) return null;
   const pct = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)}%`);
+  const since = summary.since;
+  const sc = since?.countries?.length === 1 ? since.countries[0] : null;
+  if (since && sc && sc.emitted_gt != null) {
+    // Emissions in a period: its own three figures, labelled with the period, never "since records began" (that is the other quantity).
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16, margin: '0 0 12px' }}>
+        <KpiStat card label={`Emitted ${since.period}`} value={`${fmtGt(sc.emitted_gt)} GtCO₂`} delta="Fossil and cement" deltaDirection="neutral" />
+        <KpiStat card label={`Share of the world's emissions ${since.period}`} value={pct(sc.share_of_period_pct)} deltaDirection="neutral" />
+        {sc.rank != null && since.rank_of != null && <KpiStat card label={`Rank by emissions ${since.period}`} value={`#${sc.rank}`} delta={`of ${since.rank_of} countries`} deltaDirection="neutral" />}
+      </div>
+    );
+  }
+  if (!c || c.last_cumulative_gt == null || c.last_share_pct == null) return null;
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16, margin: '0 0 12px' }}>
       <KpiStat card label={`Cumulative CO₂ since records began · ${c.last_year ?? ''}`} value={`${fmtGt(c.last_cumulative_gt)} GtCO₂`} delta="Fossil and cement" deltaDirection="neutral" />
@@ -165,9 +184,11 @@ const caption = { margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }
 function ShareAreaView({ widget, result }: { widget: WidgetSpec; result: CorrelationCountryShareResponse }): ReactElement | null {
   const rootRef = useRef<HTMLDivElement>(null);
   const palette = useCategoricalPalette(rootRef);
-  const data = useMemo(() => shareToCumulative(result), [result]);
+  const rebase = useMemo(() => sinceRebase(widget.summary), [widget.summary]);
+  const data = useMemo(() => shareToCumulative(result, rebase), [result, rebase]);
   if (!data) return null;
   const names = data.series.map((s) => s.name).join(', ');
+  const period = (widget.summary as { since?: SinceSummary } | null | undefined)?.since?.period;
   return (
     <div ref={rootRef}>
       <ShareFigures widget={widget} />
@@ -176,11 +197,13 @@ function ShareAreaView({ widget, result }: { widget: WidgetSpec; result: Correla
           height={320}
           xTitle="Year"
           yTitle="Cumulative CO₂ (GtCO₂)"
-          ariaLabel={`Stacked area chart of cumulative CO₂ in gigatonnes for ${names} and Rest of world, ${data.years[0]} to ${data.years[data.years.length - 1]}`}
+          ariaLabel={`Stacked area chart of ${period ? `CO₂ emitted ${period}` : 'cumulative CO₂'} in gigatonnes for ${names} and Rest of world, ${data.years[0]} to ${data.years[data.years.length - 1]}`}
           series={cumulativeAreaSeries(data, palette)}
         />
         <p className="__s9cmpx-body4" style={caption}>
-          Fossil and cement CO₂ · OWID · counted from each country&rsquo;s first record, shown from {data.years[0]}. Rest of world = World total minus the countries shown, so it includes international aviation and shipping.
+          {period
+            ? `Fossil and cement CO₂ · OWID · emissions in ${period}: each country's cumulative total in each year minus its total the year before ${data.years[0]}, so every area starts at zero. Rest of world = the World's emissions in the period minus the countries shown, so it includes international aviation and shipping.`
+            : `Fossil and cement CO₂ · OWID · counted from each country's first record, shown from ${data.years[0]}. Rest of world = World total minus the countries shown, so it includes international aviation and shipping.`}
         </p>
       </ChartCard>
     </div>
@@ -213,12 +236,28 @@ function ShareVsAnnualView({ widget, result }: { widget: WidgetSpec; result: Cor
   );
 }
 
+/** A ranking by emissions in a period ("the top emitters since 1970"): bars in Gt, with the period in the axis title. */
+function SinceRankingView({ widget, result }: { widget: WidgetSpec; result: CorrelationCountryShareResponse }): ReactElement {
+  const rows = result.since_rows ?? [];
+  const period = (widget.summary as { since?: SinceSummary } | null | undefined)?.since?.period ?? `${result.since_year}–${result.year}`;
+  const series: SyChartSeries[] = [{ name: `Emitted ${period}`, x: rows.map((r) => r.name), y: rows.map((r) => (r.emitted_gt ?? r.emitted_mt / 1000)), kind: 'bar' }];
+  return (
+    <ChartCard title={widget.title}>
+      <SyChart series={series} xTitle="Country" yTitle={`CO₂ emitted ${period} (GtCO₂)`} showLegend={false} ariaLabel={`Bar chart of CO₂ emitted ${period} in gigatonnes for the ${rows.length} largest emitters`} />
+      <p className="__s9cmpx-body4" style={caption}>
+        Fossil and cement CO₂ · OWID · emissions in {period}: each country&rsquo;s cumulative total at the end year minus its total the year before {result.since_year}. Shares of the period are of the World&rsquo;s emissions in it.
+      </p>
+    </ChartCard>
+  );
+}
+
 export function CountryShareWidget({ widget }: WidgetProps): ReactElement {
   const result = asResult<CorrelationCountryShareResponse>(widget);
+  if (result.mode !== 'series' && (result.since_rows ?? []).length > 0) return <SinceRankingView widget={widget} result={result} />;
   const nothing = result.mode === 'series' ? !(result.series ?? []).some((s) => s.points.length > 0) : (result.rows ?? []).length === 0;
   if (nothing) return <NoShares result={result} />;
   // A view that cannot be drawn honestly (no World total for a PRIMAP-hist share, no annual share, no points) falls through to the lines below.
-  if (result.mode === 'series' && widget.view === 'cumulative_area' && shareToCumulative(result)) return <ShareAreaView widget={widget} result={result} />;
+  if (result.mode === 'series' && widget.view === 'cumulative_area' && shareToCumulative(result, sinceRebase(widget.summary))) return <ShareAreaView widget={widget} result={result} />;
   if (result.mode === 'series' && widget.view === 'share_vs_annual' && shareVsAnnualLines(result)) return <ShareVsAnnualView widget={widget} result={result} />;
   if (result.mode === 'series') {
     const series: SyChartSeries[] = (result.series ?? []).map((s) => ({ name: s.name, x: s.points.map((p) => p.year), y: s.points.map((p) => p.share_pct), kind: 'line' as const }));
