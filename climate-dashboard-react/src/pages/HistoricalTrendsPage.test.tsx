@@ -305,8 +305,8 @@ describe('HistoricalTrendsPage', () => {
       expect(await screen.findByText('CO₂ Emitted Since 1990, by Country')).toBeInTheDocument();
       expect(vi.mocked(api.historicalCumulative)).toHaveBeenLastCalledWith(FEATURED, 1990);
       expect(screen.getByRole('combobox', { name: 'From year' })).toHaveTextContent('1990'); // the design-system Select is a button-style combobox: its displayed value
-      expect(screen.getByText(/emissions since 1990: each total minus its total the year before 1990, so every area starts at zero/)).toBeInTheDocument();
-      expect(screen.getByText(/CO₂ a country has emitted since 1990, from zero in 1990/)).toBeInTheDocument();
+      expect(screen.getByText(/emissions since 1990: each total minus its total the year before 1990, so the chart is rebased to zero just before 1990 and the first point is 1990.s own emissions/)).toBeInTheDocument();
+      expect(screen.getByText(/CO₂ a country has emitted since 1990, counted from zero just before 1990/)).toBeInTheDocument();
       await user.click(screen.getByRole('radio', { name: 'Since records began' }));
       expect(await screen.findByText('Cumulative CO₂ Emissions by Country')).toBeInTheDocument();
       expect(vi.mocked(api.historicalCumulative)).toHaveBeenLastCalledWith(FEATURED);

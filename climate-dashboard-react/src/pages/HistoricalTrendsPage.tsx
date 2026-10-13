@@ -38,7 +38,7 @@ function viewCopy(view: string, from: number | null): ViewCopy {
   if (view === 'cumulative') {
     return from == null
       ? { title: 'Cumulative CO₂ Emissions by Country', purpose: "Each band is a country's running total. The full height is the world total, and the grey band is every other country.", yTitle: 'GtCO₂, running total' }
-      : { title: `CO₂ Emitted Since ${from}, by Country`, purpose: `Each band is the CO₂ a country has emitted since ${from}, from zero in ${from}. The full height is the world's emissions in that period, and the grey band is every other country.`, yTitle: `GtCO₂ emitted since ${from}` };
+      : { title: `CO₂ Emitted Since ${from}, by Country`, purpose: `Each band is the CO₂ a country has emitted since ${from}, counted from zero just before ${from}. The full height is the world's emissions in that period, and the grey band is every other country.`, yTitle: `GtCO₂ emitted since ${from}` };
   }
   return from == null
     ? { title: "Share of the World's Cumulative CO₂", purpose: "A falling line means the country's share of the total is shrinking, even though its own total keeps growing.", yTitle: '% of world cumulative CO₂' }
@@ -165,7 +165,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
             series={view === 'cumulative' ? cumulativeAreaSeries(cumulative.data, palette) : shareLineSeries(cumulative.data)}
           />
           <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
-            Fossil and cement CO₂ · OWID · {from == null ? <>counted from each country&rsquo;s first record, shown from {cumulative.data.years[0]}</> : <>emissions since {from}: each total minus its total the year before {from}, so every area starts at zero</>}
+            Fossil and cement CO₂ · OWID · {from == null ? <>counted from each country&rsquo;s first record, shown from {cumulative.data.years[0]}</> : <>emissions since {from}: each total minus its total the year before {from}, so the chart is rebased to zero just before {from} and the first point is {from}&rsquo;s own emissions</>}
             {view === 'cumulative' ? ' · Rest of world = World minus the countries shown' : ''}. Shares are of the World total, international aviation and shipping included, the same as in Climate Correlation, which also offers PRIMAP-hist.{' '}
             <Link to="/climate-correlation">Open in Climate Correlation</Link>
           </p>
