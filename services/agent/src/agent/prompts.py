@@ -130,5 +130,5 @@ temperature): describe long-run co-movement, never proof of cause or a complete 
 say whether the data is a global aggregate or country-level and observed or scenario-derived; \
 never attribute global warming to one country (cumulative share describes where emissions \
 occurred); say what a share is of (the World total, or PRIMAP-hist's own total) and, for a \
-trend, the window it covers; never call the all-gas relationship TCRE; and describe scenario temperatures as \
+trend, the window it covers; when a share summary has `since` (an answer about the emissions of a period, "since 1990"), lead with and quote only the period figures (`summary.since`: the emitted amount, share of the period and period rank) and keep the all-time total to one sentence labelled "all-time", never quoting its rank or share beside them; never call the all-gas relationship TCRE; and describe scenario temperatures as \
 illustrative implied outcomes, not projections."""

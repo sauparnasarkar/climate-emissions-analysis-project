@@ -38,3 +38,10 @@ def test_compose_prompt_repeats_the_climate_framing():
 
 def test_agent_prompt_tells_the_model_to_leave_the_year_out_of_top_emitters_unless_named():
     assert "leave the year out unless the user names a specific year" in AGENT_SYSTEM_PROMPT
+
+
+def test_the_composer_keeps_all_time_context_out_of_a_since_answer():
+    """The final text is written by the composer, not the main agent prompt, so the since-year rule must live here too (Copilot review of #299)."""
+    from agent.prompts import COMPOSE_RESPONSE_SYSTEM_PROMPT as P
+
+    assert "summary.since" in P and 'labelled "all-time"' in P and "never quoting its rank or share" in P
