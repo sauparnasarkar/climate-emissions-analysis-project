@@ -52,3 +52,5 @@ def test_the_composer_says_a_single_gas_cumulative_is_unavailable_even_when_annu
     from agent.prompts import COMPOSE_RESPONSE_SYSTEM_PROMPT as P
 
     assert "CUMULATIVE total of a single gas other than CO2" in P and "not available" in P
+    # a sentence of its own, not inside the climate-context clause: an annual methane answer comes from a historical-emissions widget (Copilot review of #299)
+    assert P.index("CUMULATIVE total of a single gas") > P.index("not projections.")
