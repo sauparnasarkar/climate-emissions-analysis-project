@@ -20,13 +20,19 @@ export const SINGLE_LINE_COLOR = '#ecf0f6';
 export interface SinceRebase {
   base: Record<string, number>;
   world: number;
+  /** The period's first year: the chart's year axis starts here even when every selected country's own record starts later (they add nothing until it does). */
+  fromYear?: number;
 }
 
 /** The rebase from the tool's `summary.since`, or null when the answer is not a since-answer or lacks the World base. */
 export function sinceRebase(summary: Record<string, unknown> | null | undefined): SinceRebase | null {
-  const since = (summary as { since?: { world_base_cumulative_mt?: number; countries?: Array<{ name: string; base_cumulative_mt?: number }> } } | null | undefined)?.since;
+  const since = (summary as { since?: { year?: number; world_base_cumulative_mt?: number; countries?: Array<{ name: string; base_cumulative_mt?: number }> } } | null | undefined)?.since;
   if (!since || typeof since.world_base_cumulative_mt !== 'number') return null;
-  return { base: Object.fromEntries((since.countries ?? []).map((c) => [c.name, c.base_cumulative_mt ?? 0])), world: since.world_base_cumulative_mt };
+  return {
+    base: Object.fromEntries((since.countries ?? []).map((c) => [c.name, c.base_cumulative_mt ?? 0])),
+    world: since.world_base_cumulative_mt,
+    fromYear: typeof since.year === 'number' ? since.year : undefined,
+  };
 }
 
 export function shareToCumulative(result: CorrelationCountryShareResponse, rebase?: SinceRebase | null): HistoricalCumulativeResponse | null {
@@ -35,7 +41,9 @@ export function shareToCumulative(result: CorrelationCountryShareResponse, rebas
   if (result.source !== 'owid_co2' || series.length === 0 || remainder.length === 0) return null;
   const pointYears = series.flatMap((s) => s.points.map((p) => p.year));
   if (pointYears.length === 0) return null;
-  const lo = Math.min(...pointYears);
+  // A since-answer's axis starts at the period's first year, not at the earliest selected country's first point: if every selected country starts later, the early years of
+  // the period (and the World's emissions in them) must not be cut off; a country with no record yet adds nothing to the stack.
+  const lo = Math.min(...pointYears, rebase?.fromYear ?? Infinity);
   const hi = Math.max(...pointYears);
   const world = new Map(remainder.map((r) => [r.year, r.world_cumulative_mt]));
   const years = [...world.keys()].filter((y) => y >= lo && y <= hi).sort((a, b) => a - b);
