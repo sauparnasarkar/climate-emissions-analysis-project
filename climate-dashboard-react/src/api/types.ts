@@ -69,6 +69,20 @@ export interface HistoricalTimeseriesResponse {
   series: TimeseriesSeries[];
 }
 
+/** One country's cumulative-CO2 series on the response's shared `years` axis (SPEC.md §5.28). cumulative_co2 is in Mt, the shares in percent; null where OWID has no value. */
+export interface CumulativeSeries {
+  name: string;
+  cumulative_co2: Array<number | null>;
+  share_of_world_cumulative: Array<number | null>;
+  share_of_world_annual: Array<number | null>;
+}
+
+export interface HistoricalCumulativeResponse {
+  years: number[];
+  series: CumulativeSeries[];
+  world_cumulative_co2: Array<number | null>;
+}
+
 export interface DecadeGasShare {
   gas: string;
   gas_label: string;

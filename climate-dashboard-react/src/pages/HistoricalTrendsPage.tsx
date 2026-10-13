@@ -1,4 +1,5 @@
-import { ChartCard, SyChart, MultiSelect, Select, Button, InlineAlert, Spinner, useReducedMotion } from 'design-system';
+import { ChartCard, SyChart, MultiSelect, Select, SegmentedControl, Button, InlineAlert, Spinner, useReducedMotion } from 'design-system';
+import { Link } from 'react-router-dom';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
@@ -7,10 +8,32 @@ import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useUrlChoice } from '../hooks/useUrlChoice';
 import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
+import { cumulativeAreaSeries, shareLineSeries } from '../lib/historicalCumulative';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
 
 const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value, label }));
 const GAS_KEYS = Object.keys(GAS_COLUMNS);
+
+// The chart-card view switch (SPEC.md §5.28). URL-backed (?view=cumulative) so a link opens on it. Cumulative and Share
+// are CO₂-only (OWID has no cumulative methane/N₂O), so they ignore the gas selector.
+const VIEW_ITEMS = [
+  { value: 'annual', label: 'Annual' },
+  { value: 'cumulative', label: 'Cumulative' },
+  { value: 'share', label: 'Share of world' },
+];
+const VIEW_KEYS = VIEW_ITEMS.map((v) => v.value);
+const VIEW_COPY: Record<string, { title: string; purpose: string; yTitle: string }> = {
+  cumulative: {
+    title: 'Cumulative CO₂ Emissions by Country',
+    purpose: "Each band is a country's running total. The full height is the world total, and the grey band is every other country.",
+    yTitle: 'GtCO₂, running total',
+  },
+  share: {
+    title: "Share of the World's Cumulative CO₂",
+    purpose: "A falling line means the country's share of the total is shrinking, even though its own total keeps growing.",
+    yTitle: '% of world cumulative CO₂',
+  },
+};
 
 // Stable labels (SPEC.md §5.19) -- distinct from the h2s' own gas-dependent text (e.g. "CO₂
 // Emissions Over Time" vs. "Methane Emissions Over Time"), which would otherwise relabel the
@@ -31,9 +54,17 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   // URL-backed too (?gas=methane), so "Open in Historical Trends" from the Ask page lands on the same gas.
   const [gas, setGas] = useUrlChoice('gas', GAS_KEYS, 'co2');
 
+  const [view, setView] = useUrlChoice('view', VIEW_KEYS, 'annual');
+  const annual = view === 'annual';
+
+  // Only the active view's request is made: the annual one is skipped in the cumulative views and vice versa.
   const timeseries = useAsync(
-    () => api.historicalTimeseries(selectedCountries, gas),
-    [selectedCountries.join(','), gas],
+    () => (annual ? api.historicalTimeseries(selectedCountries, gas) : Promise.resolve(null)),
+    [selectedCountries.join(','), gas, annual],
+  );
+  const cumulative = useAsync(
+    () => (annual ? Promise.resolve(null) : api.historicalCumulative(selectedCountries)),
+    [selectedCountries.join(','), annual],
   );
   const composition = useAsync(
     () => api.historicalDecadeComposition(selectedCountries),
@@ -71,28 +102,55 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
           maxSelected={MAX_SELECTED_COUNTRIES}
         />
         <Button variant="ghost-blue" onClick={() => setSelectedCountries(featured)}>Reset to default</Button>
-        <Select label="Emissions metric" options={GAS_OPTIONS} value={gas} onChange={setGas} />
+        <Select label="Emissions metric" options={GAS_OPTIONS} value={annual ? gas : 'co2'} onChange={setGas} disabled={!annual} />
       </div>
 
-      <h2 id="emissions-over-time" className="__s9cmpx-headline6">{GAS_COLUMNS[gas]} Emissions Over Time</h2>
+      <h2 id="emissions-over-time" className="__s9cmpx-headline6">{annual ? `${GAS_COLUMNS[gas]} Emissions Over Time` : 'CO₂ Emissions Over Time'}</h2>
+      <div style={{ marginBottom: 12 }}>
+        <SegmentedControl name="historical-view" items={VIEW_ITEMS} value={view} onChange={setView} />
+      </div>
       {selectedCountries.length === 0 ? (
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>
-      ) : timeseries.loading ? (
+      ) : annual ? (
+        timeseries.loading ? (
+          <Spinner />
+        ) : timeseries.error ? (
+          <InlineAlert variant="warning">{timeseries.error}</InlineAlert>
+        ) : (
+          <ChartCard title={`${GAS_COLUMNS[gas]} Emissions by Country`} headingLevel={3}>
+            <SyChart
+              height={320}
+              xTitle="Year"
+              yTitle={`${GAS_COLUMNS[gas]} (MtCO₂e)`}
+              ariaLabel={`Line chart of ${GAS_COLUMNS[gas]} emissions over time for ${selectedCountries.join(', ')}`}
+              annotations={lockdownAnnotation}
+              series={(timeseries.data?.series ?? []).map((s) => ({ name: s.name, x: s.years, y: s.values, kind: 'line' as const }))}
+            />
+          </ChartCard>
+        )
+      ) : cumulative.loading ? (
         <Spinner />
-      ) : timeseries.error ? (
-        <InlineAlert variant="warning">{timeseries.error}</InlineAlert>
-      ) : (
-        <ChartCard title={`${GAS_COLUMNS[gas]} Emissions by Country`} headingLevel={3}>
+      ) : cumulative.error ? (
+        <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
+      ) : cumulative.data ? (
+        <ChartCard title={VIEW_COPY[view].title} headingLevel={3}>
+          <p className="__s9cmpx-body4" style={{ margin: '0 0 8px', color: 'var(--__s9cmpx-static-text-weak)' }}>
+            <strong>Purpose:</strong> {VIEW_COPY[view].purpose}
+          </p>
           <SyChart
             height={320}
             xTitle="Year"
-            yTitle={`${GAS_COLUMNS[gas]} (MtCO₂e)`}
-            ariaLabel={`Line chart of ${GAS_COLUMNS[gas]} emissions over time for ${selectedCountries.join(', ')}`}
-            annotations={lockdownAnnotation}
-            series={(timeseries.data?.series ?? []).map((s) => ({ name: s.name, x: s.years, y: s.values, kind: 'line' as const }))}
+            yTitle={VIEW_COPY[view].yTitle}
+            ariaLabel={`${view === 'cumulative' ? 'Stacked area chart of cumulative' : 'Line chart of the share of the world\u2019s cumulative'} CO₂ emissions from ${cumulative.data.years[0]} for ${selectedCountries.join(', ')}`}
+            series={view === 'cumulative' ? cumulativeAreaSeries(cumulative.data) : shareLineSeries(cumulative.data)}
           />
+          <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
+            Fossil and cement CO₂ · OWID · counted from each country&rsquo;s first record, shown from {cumulative.data.years[0]}
+            {view === 'cumulative' ? ' · Rest of world = World minus the countries shown' : ''}. Climate Correlation also counts land-use CO₂, so its country shares differ.{' '}
+            <Link to="/climate-correlation">Open in Climate Correlation</Link>
+          </p>
         </ChartCard>
-      )}
+      ) : null}
 
       <div style={{ marginTop: 24 }}>
         <h2 id="ghg-by-decade" className="__s9cmpx-headline6">GHG Share by Gas Type per Decade</h2>
