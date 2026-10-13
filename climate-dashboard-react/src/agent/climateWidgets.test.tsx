@@ -254,6 +254,7 @@ describe('country shares', () => {
       mount(widget('get_country_cumulative_share', ghg, { view: 'share_vs_annual', summary: SUMMARY }));
       expect(screen.getByText('285 GtCO₂e')).toBeInTheDocument();
       expect(screen.getByText('Cumulative greenhouse gases (CO₂e) since records began · 2024')).toBeInTheDocument();
+      expect(screen.getByText('Rank by cumulative greenhouse gases (CO₂e) · 2024')).toBeInTheDocument(); // not 'Rank by cumulative CO₂'
       expect(screen.getByText('PRIMAP-hist')).toBeInTheDocument();
       expect(screen.queryByText('Fossil and cement')).toBeNull();
       expect(screen.getByText("Share of PRIMAP-hist's own total")).toBeInTheDocument(); // not 'Share of world total': it has no world aggregate
