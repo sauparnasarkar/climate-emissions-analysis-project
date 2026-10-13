@@ -97,7 +97,14 @@ CLIMATE_METHODOLOGY = {
         "them as `remainder`. PRIMAP-hist has no world aggregate and excludes international "
         "aviation and shipping, so its shares are of the sum of its own reporting areas and sum "
         "to 100%: a PRIMAP share is of that source's total, not of the World total. It describes "
-        "where emissions occurred. It is not an estimate of any country's contribution to "
+        "where emissions occurred. Totals count from each country's first record (the earliest, "
+        "the World total, is 1750; the response's `cumulative_from` states it) and the shares are "
+        "published from 1850, so emissions before 1850 are counted; choosing a start year only "
+        "chooses the years shown and never restarts a total, so a cumulative since a later year "
+        "(for example 1990) is not available, and only CO₂ and total greenhouse gases in CO₂e "
+        "exist, not a cumulative of one other gas. With a country selection, `rest_of_world` is "
+        "the World total minus the countries shown (so it includes international aviation and "
+        "shipping). It is not an estimate of any country's contribution to "
         "warming, and no country's emissions are regressed against the global temperature series."
     ),
     "scenario_temperature_translation": (

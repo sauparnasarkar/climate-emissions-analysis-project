@@ -9,7 +9,7 @@ added. Capping what the *model* sees is the agent's job (agent SPEC.md §15.4), 
 
 from __future__ import annotations
 
-from ..climate import fetch_correlation, normalize_typography, resolve_share_countries, summarize_points
+from ..climate import fetch_correlation, normalize_typography, resolve_share_countries, share_ranking_summary, share_series_summary, summarize_points
 from ..server import mcp
 
 # Tool-facing reference label -> the API's `baseline` value.
@@ -263,6 +263,17 @@ async def get_country_cumulative_share(
     'primap_hist' (PRIMAP-hist; gas_scope 'co2' or 'total_ghg' -- total GHG in CO2e, excluding
     land use; 'primap_ghg' is accepted as an alias). Omit `gas_scope` to get the source's
     default; an unpublished source/gas_scope pair is rejected with the published ones. An unmatched country name is an explicit error with a suggestion.
+    THE WINDOW: `start_year`/`end_year` only choose which years are shown. Every total still counts
+    from each country's first record (the response's `cumulative_from` is the earliest) and is never
+    restarted, so "cumulative since 1990" is NOT available -- say so rather than passing start_year as
+    if it were. Likewise there is no per-gas cumulative: CO2 (OWID, PRIMAP) and total greenhouse
+    gases in CO2e (PRIMAP) only, so cumulative methane or nitrous oxide is not available.
+    QUOTE THE SUMMARY: per country in a series it carries `share_change_pp` and `share_trend`
+    ('rising' / 'falling' / 'steady', computed over `trend_window` -- name that window, a trend since
+    1850 says little about recent years), the latest cumulative total in Gt, `rank` of `rank_of`
+    countries (latest year only), and the latest annual share (a share of the year's emissions, set
+    against the cumulative share it shows whether the cumulative share is still rising); for OWID
+    `rest_of_world` is what the countries shown leave of the World total.
     IMPORTANT: this is cumulative share of EMISSIONS, not a country's contribution to
     temperature -- never say or imply a country caused a given amount of warming, and never
     regress a country against the global temperature series. The response carries
@@ -288,38 +299,14 @@ async def get_country_cumulative_share(
         body = await fetch_correlation(
             "country-share", {**params, "countries": codes, "start_year": start_year, "end_year": end_year, "year": year}
         )
-        summary = {
-            "mode": "series",
-            "countries": [
-                {
-                    "country": sr["country"],
-                    "name": sr["name"],
-                    "first_year": sr["points"][0]["year"] if sr["points"] else None,
-                    "first_share_pct": round(sr["points"][0]["share_pct"], 2) if sr["points"] else None,
-                    "last_year": sr["points"][-1]["year"] if sr["points"] else None,
-                    "last_share_pct": round(sr["points"][-1]["share_pct"], 2) if sr["points"] else None,
-                    "last_cumulative_mt": round(sr["points"][-1]["cumulative_mt"], 1) if sr["points"] else None,
-                }
-                for sr in body["series"]
-            ],
-        }
+        summary = share_series_summary(body, roster, start_year)
     else:
         # start_year/end_year are forwarded even though they belong to a series: the API rejects
         # them with an explanatory 422, which is better than silently dropping what the caller asked.
         body = await fetch_correlation(
             "country-share", {**params, "year": year, "limit": limit, "start_year": start_year, "end_year": end_year}
         )
-        rows = body["rows"]
-        summary = {
-            "mode": "ranking",
-            "year": body["year"],
-            "n_rows": len(rows),
-            "top": [{"rank": r["rank"], "name": r["name"], "share_pct": round(r["share_pct"], 2)} for r in rows[:5]],
-            # An empty ranking is "no data for that year", not zero emissions: keep it unavailable.
-            "shown_share_pct_total": round(sum(r["share_pct"] for r in rows), 2) if rows else None,
-        }
-        if not rows:
-            summary["unavailable"] = "No ranking rows for the requested year; see `notes` for the available coverage."
+        summary = share_ranking_summary(body)
     summary["unit"] = body["unit"]
     summary["label"] = body["label"]
     body["summary"] = summary
