@@ -9,14 +9,18 @@ A derived stage writing two files the API (Phase 1.4) only reads:
 Three combinations: `owid_co2` x `co2` (OWID fossil + cement CO2), `primap_hist` x `co2` and `primap_hist` x `total_ghg` (PRIMAP-hist, AR5 GWP-100).
 
 Rules (decisions 15 and 37):
-- **Share = a country's cumulative emissions / the sum of every country's cumulative emissions** in that year (the national sum: ISO3 countries, international
-  aviation and shipping and non-ISO aggregates excluded), so shares sum to 100 (1e-6). This is deliberately not the World series used by the headline regression.
+- **Share = a country's cumulative emissions / the denominator**, which depends on the source (Release 24.0, decision 71, amending decisions 15 and 37):
+  - `owid_co2`: OWID's **World total, international aviation and shipping included** -- the denominator the dashboard's Release 23 views use, so one country has one share
+    everywhere. Country shares then sum to *less* than 100 and the remainder (international aviation and shipping, plus a small unassigned residual) is published, per
+    year, in the combination's `denominator` block. The annual share divides by the World total of the same year.
+  - `primap_hist`: the sum of its reporting areas. The file has no world aggregate and excludes international aviation and shipping altogether, so there is nothing to add;
+    shares sum to 100 and each is "of the source's total".
 - **Cumulative from the source's first year, published from 1850.** A country has rows from its first observation (an absent row means no emissions recorded yet,
   i.e. a cumulative of zero).
 - **A missing year inside a country's record counts as zero and is listed**, not interpolated; a series that ends before the last year simply stops growing and is listed.
   The denominator is the sum of the same cumulatives, so shares stay consistent; OWID's World series excludes the same years.
-- **Reconciled to the artifacts already published**: the OWID sum equals the cumulative of `owid_world_co2_annual.national_sum_mt`; the PRIMAP sum equals the cumulative
-  of the global composition series. A mismatch is a deviation.
+- **Reconciled to the artifacts already published**: the OWID country sum equals the cumulative of `owid_world_co2_annual.national_sum_mt`; the PRIMAP sum equals the cumulative
+  of the global composition series. A mismatch is a deviation. For OWID the countries plus the remainder must also make the World total (a remainder below `-REMAINDER_TOL_MT` is a deviation).
 - **No attribution is claimed**: shares describe where emissions occurred, and no country series is ever regressed against the global temperature series.
 - Each combination fails independently (explicit `available: false` with a reason), and both files are always rewritten, so a stale share is never served.
 """
@@ -33,12 +37,13 @@ import pandas as pd
 from .common import CLIMATE_DIR, RunReport, utc_now, write_csv_atomic, write_json_atomic
 from .owid import DATA_PATH as OWID_PATH
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2: OWID shares are of the World total (Release 24.0); the `denominator` block carries `by_year`
 OUTPUT_CSV = "correlation_country_share.csv"
 OUTPUT_JSON = "correlation_country_share.json"
 CSV_COLUMNS = ["country", "year", "source", "gas_scope", "cumulative_mt", "share_pct", "annual_mt", "annual_share_pct"]
 SHARE_START = 1850
 SHARE_SUM_TOL = 1e-6  # percentage points, on the unrounded values
+REMAINDER_TOL_MT = 0.1  # OWID's World row and the sum of its country rows are rounded separately; a remainder this far below zero is rounding, further is a deviation
 RECONCILE_REL_TOL = 1e-6
 TOP_N = 10
 
@@ -50,10 +55,12 @@ COMBOS = {
 
 NO_ATTRIBUTION = ("Emissions shares (cumulative and annual) describe where emissions occurred over time. They are not a measure of responsibility for warming or a causal "
                   "attribution, and no country's emissions are regressed against the global temperature series.")
-DENOMINATOR_NOTE = ("A cumulative share (`share_pct`) is a country's cumulative emissions divided by the sum of all countries' cumulative emissions; an annual share "
-                    "(`annual_share_pct`) is the country's emissions in that one year divided by the sum of all countries' emissions in the same year. Both denominators are the "
-                    "national sum, which excludes international aviation and shipping, so each set of shares sums to 100% of national emissions in its year. This differs by design "
-                    "from the World series, which includes international transport, used for the headline regression.")
+DENOMINATOR_NOTE = ("A cumulative share (`share_pct`) is a country's cumulative emissions divided by the denominator's cumulative total; an annual share (`annual_share_pct`) is the "
+                    "country's emissions in that one year divided by the denominator's total for the same year. For OWID the denominator is the World total, which includes international "
+                    "aviation and shipping, so the country shares sum to less than 100% and the remainder (international transport and a small unassigned residual) is published "
+                    "beside them; this is the same basis as the dashboard's cumulative views and the headline regression. PRIMAP-hist has no world aggregate and excludes international "
+                    "aviation and shipping, so its denominator is the sum of its reporting areas and its shares sum to 100% of that total: a PRIMAP share is of the source's total, not "
+                    "of the World total.")
 TERRITORIAL_NOTE = ("Emissions are territorial (where they occurred), not adjusted for trade or consumption. Emissions before a country existed in its current borders are "
                     "allocated to it by the data provider; this platform does not re-allocate them.")
 GAP_NOTE = ("A year missing from a country's record is counted as zero and listed under `gaps`, not interpolated; a series that ends before the last year stops growing and is "
@@ -89,41 +96,53 @@ def cumulate(df: pd.DataFrame, id_col: str, value_col: str, last_year: int) -> d
     return {"years": years, "ids": ids, "annual": annual, "cum": annual.cumsum(axis=0), "first_obs": first_obs, "gaps": gaps, "ended": ended}
 
 
-def shares_rows(c: dict, source: str, gas_scope: str) -> tuple[pd.DataFrame, np.ndarray]:
-    """Long rows (from max(first observation, SHARE_START)) and the per-year sum of the published shares, validated to be 100."""
-    years, ids, cum = c["years"], c["ids"], c["cum"]
-    den = cum.sum(axis=1)
+def shares_rows(c: dict, source: str, gas_scope: str, den_cum: np.ndarray | None = None, den_annual: np.ndarray | None = None) -> tuple[pd.DataFrame, dict]:
+    """Long rows (from max(first observation, SHARE_START)) and the denominators used.
+
+    Without `den_cum`/`den_annual` (PRIMAP-hist) the denominator is the sum of the countries, so the published shares sum to 100 (validated). With them (OWID: the World
+    totals, aligned to `c["years"]`) the shares sum to less than 100 and the remainder -- what the World total holds beyond the countries -- must not be negative beyond
+    REMAINDER_TOL_MT; it is returned, not hidden. Returns (rows, {"cum", "annual", "remainder_cum", "remainder_annual"}), each an array over c["years"]."""
+    years, ids, cum, annual = c["years"], c["ids"], c["cum"], c["annual"]
     visible = years >= SHARE_START
+    world = den_cum is not None
+    if world != (den_annual is not None):
+        raise ValueError("den_cum and den_annual are given together or not at all")
+    den = den_cum if world else cum.sum(axis=1)
+    aden = den_annual if world else annual.sum(axis=1)
     if not np.all(den[visible] > 0):
         raise ValueError(f"{source}/{gas_scope}: a published year has a zero total, so shares are undefined")
-    share = cum / den[:, None] * 100
-    sums = share[visible].sum(axis=1)
-    if np.abs(sums - 100).max() > SHARE_SUM_TOL:
-        raise ValueError(f"{source}/{gas_scope}: shares sum to {sums[np.abs(sums - 100).argmax()]!r}, not 100")
-    # The same national-sum denominator, for the year's own emissions (decision 60): the "flow" beside the cumulative "stock".
-    annual = c["annual"]
-    aden = annual.sum(axis=1)
     if not np.all(aden[visible] > 0):
         raise ValueError(f"{source}/{gas_scope}: a published year has a zero annual total, so annual shares are undefined")
+    share = cum / den[:, None] * 100
     ashare = annual / aden[:, None] * 100
-    asums = ashare[visible].sum(axis=1)
-    if np.abs(asums - 100).max() > SHARE_SUM_TOL:
-        raise ValueError(f"{source}/{gas_scope}: annual shares sum to {asums[np.abs(asums - 100).argmax()]!r}, not 100")
+    # The remainder: 0 by construction when the denominator is the country sum; the World total's own surplus otherwise (decision 71).
+    rem_cum, rem_annual = den - cum.sum(axis=1), aden - annual.sum(axis=1)
+    if world:
+        for label, rem in (("cumulative", rem_cum), ("annual", rem_annual)):
+            if rem[visible].min() < -REMAINDER_TOL_MT:
+                y = int(years[visible][np.argmin(rem[visible])])
+                raise ValueError(f"{source}/{gas_scope}: the countries exceed the World {label} total by {-rem[visible].min():.3f} Mt in {y} (tolerance {REMAINDER_TOL_MT} Mt)")
+        rem_cum, rem_annual = np.maximum(rem_cum, 0.0), np.maximum(rem_annual, 0.0)  # rounding below the tolerance is not a negative share of anything
+    else:
+        for label, s in (("shares", share), ("annual shares", ashare)):
+            sums = s[visible].sum(axis=1)
+            if np.abs(sums - 100).max() > SHARE_SUM_TOL:
+                raise ValueError(f"{source}/{gas_scope}: {label} sum to {sums[np.abs(sums - 100).argmax()]!r}, not 100")
     start = np.array([max(c["first_obs"][k] or 10**9, SHARE_START) for k in ids])
     mask = (years[:, None] >= start[None, :])
     yi, ci = np.nonzero(mask)
     rows = pd.DataFrame({"country": np.array(ids)[ci], "year": years[yi], "source": source, "gas_scope": gas_scope, "cumulative_mt": cum[yi, ci], "share_pct": share[yi, ci],
                          "annual_mt": annual[yi, ci], "annual_share_pct": ashare[yi, ci]})
-    return rows, sums
+    return rows, {"cum": den, "annual": aden, "remainder_cum": rem_cum, "remainder_annual": rem_annual}
 
 
-def _combo_meta(c: dict, rows: pd.DataFrame, source: str, gas_scope: str) -> dict:
+def _combo_meta(c: dict, rows: pd.DataFrame, source: str, gas_scope: str, den: dict) -> dict:
     last = int(c["years"][-1])
     latest = rows[rows["year"] == last].sort_values("share_pct", ascending=False)
     return {"source": source, "gas_scope": gas_scope, **COMBOS[(source, gas_scope)], "available": True,
             "coverage": [int(max(SHARE_START, c["years"][0])), last], "cumulative_from": int(c["years"][0]), "n_countries": int(sum(v is not None for v in c["first_obs"].values())),
             "n_rows": int(len(rows)),
-            "latest": {"year": last, "total_cumulative_mt": float(c["cum"][-1].sum()),
+            "latest": {"year": last, "total_cumulative_mt": float(den["cum"][-1]),
                        "top": [{"country": r.country, "share_pct": float(r.share_pct), "cumulative_mt": float(r.cumulative_mt)} for r in latest.head(TOP_N).itertuples()]},
             "gaps": [{"country": k, **v} for k, v in sorted(c["gaps"].items())],
             "ended_before_last_year": [{"country": k, "last_observation": v} for k, v in sorted(c["ended"].items())]}
@@ -153,13 +172,38 @@ def _owid_combo(climate_dir: str, owid_path: str, report: RunReport):
     c = cumulate(iso, "iso_code", "co2", last)
     if np.any(c["annual"] < 0):
         report.deviate("owid_co2/co2: negative annual emissions in the country data; check the input before relying on the shares")
-    rows, _ = shares_rows(c, "owid_co2", "co2")
-    meta = _combo_meta(c, rows, "owid_co2", "co2")
+    # The denominator is OWID's World row (decision 71): its published cumulative where the file carries it (the dashboard divides by exactly that), else the running sum
+    # of the World annual series. Aligned to the country years; a World year missing there is a failure, not a zero.
+    wy = w.set_index("year")
+    annual_w = wy["co2_mt"].reindex(c["years"])
+    own_cum = wy["cumulative_co2_mt"] if "cumulative_co2_mt" in wy.columns else wy["co2_mt"].cumsum()
+    cum_w = own_cum.reindex(c["years"])
+    if annual_w.isna().any() or cum_w.isna().any():
+        raise ValueError(f"owid_world_co2_annual.csv has no World total for {int(c['years'][(annual_w.isna() | cum_w.isna()).to_numpy()][0])}")
+    rows, den = shares_rows(c, "owid_co2", "co2", cum_w.to_numpy(float), annual_w.to_numpy(float))
+    meta = _combo_meta(c, rows, "owid_co2", "co2", den)
     meta["reconciliation"] = _check_reconciliation(c, w["year"].to_numpy(), w["national_sum_mt"].to_numpy(), "owid_world_co2_annual.national_sum_mt", report)
-    world_cum = float(w["co2_mt"].sum())
-    meta["denominator"] = {"definition": "sum over ISO3 countries of cumulative OWID CO2 (excludes international aviation and shipping and non-ISO entities)",
-                           "total_cumulative_mt": meta["latest"]["total_cumulative_mt"], "world_cumulative_mt": world_cum,
-                           "difference_from_world_pct": (meta["latest"]["total_cumulative_mt"] / world_cum - 1) * 100}
+    transport = wy["international_transport_mt"].reindex(c["years"]).fillna(0.0).to_numpy(float) if "international_transport_mt" in wy.columns else np.zeros(len(c["years"]))
+    tcum = transport.cumsum()
+    countries_cum = float(c["cum"][-1].sum())
+    visible = c["years"] >= SHARE_START
+    meta["denominator"] = {
+        "kind": "world",
+        "definition": "OWID World total fossil and cement CO2, which includes international aviation and shipping; country shares are of this total and sum to less than 100",
+        "total_cumulative_mt": float(den["cum"][-1]),
+        "world_cumulative_mt": float(den["cum"][-1]),
+        "countries_cumulative_mt": countries_cum,
+        "remainder_cumulative_mt": float(den["remainder_cum"][-1]),
+        "remainder_pct": float(den["remainder_cum"][-1] / den["cum"][-1] * 100),
+        "international_transport_cumulative_mt": float(tcum[-1]),
+        # The countries' sum against the World total (negative: the countries hold less). Kept under its Release 21 name.
+        "difference_from_world_pct": (countries_cum / float(den["cum"][-1]) - 1) * 100,
+        "world_cumulative_source": "owid_world_co2_annual.cumulative_co2_mt" if "cumulative_co2_mt" in wy.columns else "running sum of owid_world_co2_annual.co2_mt",
+        "by_year": {"years": [int(y) for y in c["years"][visible]],
+                    "world_cumulative_mt": [round(float(v), 6) for v in den["cum"][visible]], "world_annual_mt": [round(float(v), 6) for v in den["annual"][visible]],
+                    "remainder_cumulative_mt": [round(float(v), 6) for v in den["remainder_cum"][visible]], "remainder_annual_mt": [round(float(v), 6) for v in den["remainder_annual"][visible]],
+                    "international_transport_cumulative_mt": [round(float(v), 6) for v in tcum[visible]], "international_transport_annual_mt": [round(float(v), 6) for v in transport[visible]]},
+    }
     return rows, meta
 
 
@@ -178,10 +222,10 @@ def _primap_combos(climate_dir: str, report: RunReport):
             c = cumulate(p, "iso3", col, last)
             if np.any(c["annual"] < 0):
                 report.deviate(f"primap_hist/{scope}: negative annual emissions in the country data; check the input before relying on the shares")
-            rows, _ = shares_rows(c, "primap_hist", scope)
-            meta = _combo_meta(c, rows, "primap_hist", scope)
+            rows, den = shares_rows(c, "primap_hist", scope)
+            meta = _combo_meta(c, rows, "primap_hist", scope, den)
             meta["reconciliation"] = _check_reconciliation(c, g["year"].to_numpy(), g[gcol].to_numpy(), f"primap_global_composition_annual.{gcol}", report)
-            meta["denominator"] = {"definition": "sum over PRIMAP-hist reporting areas of cumulative emissions (national totals; international aviation and shipping and land-use change excluded)",
+            meta["denominator"] = {"kind": "country_sum", "definition": "sum over PRIMAP-hist reporting areas of cumulative emissions (national totals; the file has no world aggregate and excludes international aviation and shipping and land-use change); shares sum to 100 and are of the source's total",
                                    "total_cumulative_mt": meta["latest"]["total_cumulative_mt"]}
             out[("primap_hist", scope)] = (rows, meta)
         except Exception as e:  # noqa: BLE001 -- one scope failing must not hide the other
@@ -253,8 +297,8 @@ def run(climate_dir: str = CLIMATE_DIR, out_dir: str | None = None, owid_path: s
     if prim_lic:
         caveats.append(f"PRIMAP-hist licence: {prim_lic}")
     meta = {"schema_version": SCHEMA_VERSION, "generated_at": utc_now(), "name": "Country cumulative share of global emissions", "note": NO_ATTRIBUTION,
-            "method": ("cumulative share (share_pct) = country cumulative emissions / sum of all countries' cumulative emissions; "
-                      "annual share (annual_share_pct) = country emissions in the year / sum of all countries' emissions in that year"), "published_from": SHARE_START,
+            "method": ("cumulative share (share_pct) = country cumulative emissions / the denominator's cumulative total; annual share (annual_share_pct) = country emissions in the year / the "
+                      "denominator's total for that year. Denominator: OWID World total including international aviation and shipping (OWID); sum of reporting areas (PRIMAP-hist)"), "published_from": SHARE_START,
             "combinations": metas, "countries": countries, "caveats": caveats, "attribution": attribution}
     write_csv_atomic(long.assign(cumulative_mt=pd.to_numeric(long["cumulative_mt"]).round(6), share_pct=pd.to_numeric(long["share_pct"]).round(10),
                                  annual_mt=pd.to_numeric(long["annual_mt"]).round(6), annual_share_pct=pd.to_numeric(long["annual_share_pct"]).round(10)), os.path.join(out_dir, OUTPUT_CSV))
