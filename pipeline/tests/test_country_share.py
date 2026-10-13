@@ -42,8 +42,7 @@ def write(tmp_path, owid_edit=None, primap_edit=None, world_edit=None, glob_edit
         raw.to_csv(tmp_path / "owid-co2-data.csv", index=False)
     national = [sum((annual(c, y) or 0.0) for c in COUNTRIES) for y in YEARS]
     nat = pd.DataFrame({"year": YEARS, "national_sum_mt": national, "co2_mt": [v + 3.0 for v in national]})  # World includes international transport
-    nat["international_transport_mt"] = 3.0
-    nat["cumulative_co2_mt"] = nat["co2_mt"].cumsum()
+    nat = nat.assign(international_transport_mt=3.0, cumulative_co2_mt=nat["co2_mt"].cumsum())
     if world_edit:
         nat = world_edit(nat)
     nat.to_csv(tmp_path / "owid_world_co2_annual.csv", index=False)

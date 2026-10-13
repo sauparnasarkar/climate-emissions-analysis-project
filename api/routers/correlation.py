@@ -27,6 +27,7 @@ from ..schemas_correlation import (
     SeriesPoint,
     SharePoint,
     ShareRow,
+    ShareRemainder,
     ShareSeries,
 )
 
@@ -50,10 +51,13 @@ TEMPERATURE_NOTE = ("Global mean surface temperature anomaly (Berkeley Earth Lan
                     "native-baseline anomaly, and is not re-derived for the 1850-1900 offset (whose own spread is in `details.offset`).")
 META_NOTE = ("Context for the climate-correlation endpoints: sources, licences, baselines and the rules that decide which combinations are valid. Paired series "
              "elsewhere are interpretive context, not proof of causation.")
-TWO_GLOBAL_TOTALS = ("Two different global totals are used on purpose. The emissions-temperature regression's X-variable is OWID's full World row, which includes "
-                     "international aviation and shipping (they are real atmospheric loading, so excluding them would understate cumulative CO2). The country-share denominator "
-                     "is the sum of national emissions, which excludes those bunkers, so country shares sum to 100% of territorial emissions. The two totals therefore differ "
-                     "by the international transport line, published as its own indicator.")
+# The field is still called `two_global_totals` (an API contract; renaming it would break clients). Since Release 24.0 the OWID country shares and the regression use the
+# same World total, so the text now says where the one remaining difference is: PRIMAP-hist.
+TWO_GLOBAL_TOTALS = ("The OWID country shares and the emissions-temperature regression use the same global total: OWID's World row, which includes international aviation and "
+                     "shipping (they are real atmospheric loading, so excluding them would understate cumulative CO2). Country shares are therefore shares of the World total and sum to "
+                     "less than 100%; the remainder is international transport and a small unassigned residual, published beside them. PRIMAP-hist has no world aggregate and excludes "
+                     "international aviation and shipping, so its country shares are of the sum of its own reporting areas (they sum to 100%): a PRIMAP share is of that source's "
+                     "total, not of the World total.")
 MATRIX = [
     {"source": "owid_co2", "baseline": "preindustrial", "valid": True, "fit": "published (1850 window)", "note": "headline view"},
     {"source": "owid_co2", "baseline": "1970", "valid": True, "fit": "published (1970 window)", "note": None},
@@ -407,6 +411,26 @@ def _attr_from_doc(attr, default_series: str) -> list[dict]:
     return []
 
 
+def _world_by_year(combo: dict) -> dict[int, dict] | None:
+    """The per-year World totals of a combination whose denominator is the World total (OWID, Release 24.0), keyed by year; None for a country-sum denominator (PRIMAP-hist)
+    or a file that predates it. A world denominator with a malformed block is unavailable, not guessed."""
+    den = combo.get("denominator")
+    if not isinstance(den, dict) or den.get("kind") != "world":
+        return None
+    by = den.get("by_year")
+    keys = ("world_cumulative_mt", "world_annual_mt", "remainder_cumulative_mt", "remainder_annual_mt", "international_transport_cumulative_mt", "international_transport_annual_mt")
+    if not isinstance(by, dict) or not isinstance(by.get("years"), list) or any(not isinstance(by.get(k), list) or len(by[k]) != len(by["years"]) for k in keys):
+        raise cl.ClimateDataUnavailable("correlation_country_share.json publishes a World-total denominator without a usable per-year block (denominator.by_year)")
+    return {int(y): {k: by[k][i] for k in keys} for i, y in enumerate(by["years"])}
+
+
+def _remainder(year: int, w: dict) -> ShareRemainder:
+    """The remainder of one year as published (Mt) with its shares of the World total."""
+    return ShareRemainder(year=year, cumulative_mt=float(w["remainder_cumulative_mt"]), share_pct=float(w["remainder_cumulative_mt"]) / float(w["world_cumulative_mt"]) * 100,
+                          annual_mt=float(w["remainder_annual_mt"]), annual_share_pct=float(w["remainder_annual_mt"]) / float(w["world_annual_mt"]) * 100 if w["world_annual_mt"] else None,
+                          international_transport_cumulative_mt=float(w["international_transport_cumulative_mt"]), international_transport_annual_mt=float(w["international_transport_annual_mt"]))
+
+
 def _share_combinations(doc: dict) -> list[dict]:
     return [c for c in doc.get("combinations", []) if isinstance(c, dict) and c.get("available") is True and "source" in c and "gas_scope" in c]
 
@@ -470,11 +494,13 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
         if d.duplicated(["country", "year"]).any():
             raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has duplicate country/year rows for source={source}, gas_scope={gas_scope}")
         names = {c["iso3"]: c.get("name", c["iso3"]) for c in doc.get("countries", []) if isinstance(c, dict) and "iso3" in c}
+        world = _world_by_year(combo)  # OWID: shares are of the World total, so the totals and the remainder come from it, not from summing the rows (Release 24.0)
         cov = combo.get("coverage") if isinstance(combo.get("coverage"), list) else None
         base = dict(schema_version=doc.get("schema_version", 1), generated_at=doc.get("generated_at"), note=doc.get("note") or "", caveats=_strings(doc.get("caveats")),
                     attribution=_attr_from_doc(doc.get("attribution"), "country_share"), name=doc.get("name") or "Country cumulative share of global emissions", method=doc.get("method") or "",
                     source=source, gas_scope=gas_scope, label=combo.get("label") or "", unit=combo.get("unit") or "", coverage=cov, cumulative_from=combo.get("cumulative_from"),
-                    denominator=combo.get("denominator"), reconciliation=combo.get("reconciliation"),
+                    denominator=({k: v for k, v in combo["denominator"].items() if k != "by_year"} if isinstance(combo.get("denominator"), dict) else combo.get("denominator")),
+                    reconciliation=combo.get("reconciliation"),
                     details={"gaps": combo.get("gaps"), "ended_before_last_year": combo.get("ended_before_last_year"), "published_from": doc.get("published_from")})
         if countries:
             codes = list(dict.fromkeys(c.strip().upper() for c in countries))
@@ -492,7 +518,8 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
                                                                                        **({"annual_mt": float(r.annual_mt), "annual_share_pct": float(r.annual_share_pct)} if has_annual else {})) for r in sub.itertuples()]))
             if not has_annual:
                 notes.append(ANNUAL_PREDATES_NOTE)
-            return CorrelationCountryShareResponse(**base, mode="series", start_year=start_year, end_year=end_year, series=series, notes=notes)
+            remainder_series = [_remainder(y, world[y]) for y in range(lo, hi + 1) if y in world] if world else []
+            return CorrelationCountryShareResponse(**base, mode="series", start_year=start_year, end_year=end_year, series=series, remainder_series=remainder_series, notes=notes)
         latest = int(d["year"].max())
         yr = year if year is not None else latest
         sub = d[d["year"] == yr].sort_values(["share_pct", "country"], ascending=[False, True])
@@ -505,10 +532,16 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
                 for i, r in enumerate(shown.itertuples())]
         total = float(sub["cumulative_mt"].sum()) if not sub.empty else None
         annual_total = float(sub["annual_mt"].sum()) if has_annual and not sub.empty else None
+        remainder = None
+        if world and not sub.empty:
+            if yr not in world:
+                raise cl.ClimateDataUnavailable(f"correlation_country_share.json publishes no World total for {yr} (denominator.by_year), which the share file has rows for")
+            total, annual_total = float(world[yr]["world_cumulative_mt"]), float(world[yr]["world_annual_mt"]) if has_annual else None
+            remainder = _remainder(yr, world[yr])
         if not has_annual:
             notes.append(ANNUAL_PREDATES_NOTE)
         return CorrelationCountryShareResponse(**base, mode="ranking", year=yr, limit=None if all_countries else (limit if limit is not None else SHARE_DEFAULT_LIMIT),
-                                               total_cumulative_mt=total, annual_total_mt=annual_total, rows=rows, notes=notes)
+                                               total_cumulative_mt=total, annual_total_mt=annual_total, rows=rows, remainder=remainder, notes=notes)
     except cl.ClimateDataUnavailable as e:
         raise _unavailable(e)
 

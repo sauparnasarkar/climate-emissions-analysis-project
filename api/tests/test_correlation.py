@@ -248,7 +248,7 @@ def test_meta_describes_sources_baselines_matrix_and_the_two_totals(api):
     assert next(s for s in j["sources"] if s["id"] == "temperature_anomaly_annual")["license"] == "CC BY-NC 4.0"
     assert "raw_sha256" not in json.dumps(j["sources"]) and "checksum" not in json.dumps(j["sources"])
     assert set(j["baselines"]["index_baselines"]) == {"1990", "1970", "preindustrial"} and j["baselines"]["trailing_window_years"] == 5
-    assert "different global totals" in j["two_global_totals"] or "Two different global totals" in j["two_global_totals"]
+    assert "same global total" in j["two_global_totals"] and "international aviation and shipping" in j["two_global_totals"] and "not of the World total" in j["two_global_totals"]
     assert {(m["source"], m["baseline"]): m["valid"] for m in j["source_baseline_matrix"]}[("primap_ghg", "preindustrial")] is False
     assert {i["id"] for i in j["indicators"]} >= {"co2_concentration_ppm", "temperature_anomaly_1850_1900_c"} and j["endpoints"][0] == "/api/correlation/meta"
     assert j["attribution"] and j["note"]
@@ -590,8 +590,10 @@ def test_the_default_is_the_latest_year_ranking_for_the_first_owid_combination(a
     assert (j["mode"], j["source"], j["gas_scope"], j["year"], j["limit"], j["coverage"]) == ("ranking", "owid_co2", "co2", 2000, 15, [1850, 2000])
     rows = j["rows"]
     assert [r["rank"] for r in rows] == [1, 2, 3, 4] and [r["country"] for r in rows][0] == "AAA" and rows[0]["name"] == "Aland"
-    assert [r["share_pct"] for r in rows] == sorted((r["share_pct"] for r in rows), reverse=True) and sum(r["share_pct"] for r in rows) == pytest.approx(100.0, abs=1e-6)
-    assert j["total_cumulative_mt"] == pytest.approx(sum(r["cumulative_mt"] for r in rows)) and j["unit"] == "Mt CO2" and j["label"]
+    assert [r["share_pct"] for r in rows] == sorted((r["share_pct"] for r in rows), reverse=True)
+    # OWID shares are of the World total (Release 24.0): the countries sum to less than 100 and `remainder` holds the rest, so the two make 100
+    assert sum(r["share_pct"] for r in rows) + j["remainder"]["share_pct"] == pytest.approx(100.0, abs=1e-6) and sum(r["share_pct"] for r in rows) < 100.0
+    assert j["total_cumulative_mt"] == pytest.approx(sum(r["cumulative_mt"] for r in rows) + j["remainder"]["cumulative_mt"]) and j["unit"] == "Mt CO2" and j["label"]
     assert "not a measure of responsibility" in j["note"] and j["denominator"]["definition"] and j["reconciliation"]["tolerance"] == 1e-06 and j["caveats"]
     assert {a["series"] for a in j["attribution"]} == {"owid", "primap_hist"} and j["cumulative_from"] == 1840 and j["details"]["published_from"] == 1850
 
@@ -958,11 +960,13 @@ def test_ranking_rows_and_series_points_carry_the_years_own_emissions_and_share(
     by = {r["country"]: r for r in j["rows"]}
     # fixture, year 2000: AAA 10/yr, BBB 5/yr, CCC 1/yr, DDD's record ended in 1970 (annual 0)
     assert [by[c]["annual_mt"] for c in ("AAA", "BBB", "CCC", "DDD")] == [10.0, 5.0, 1.0, 0.0]
-    assert by["AAA"]["annual_share_pct"] == pytest.approx(10 / 16 * 100, abs=1e-6) and sum(r["annual_share_pct"] for r in j["rows"]) == pytest.approx(100.0, abs=1e-6)
-    assert j["annual_total_mt"] == pytest.approx(16.0)
+    # the denominator is the World total of the year: the four countries (16) plus 3 of international transport
+    assert by["AAA"]["annual_share_pct"] == pytest.approx(10 / 19 * 100, abs=1e-6)
+    assert sum(r["annual_share_pct"] for r in j["rows"]) + j["remainder"]["annual_share_pct"] == pytest.approx(100.0, abs=1e-6)
+    assert j["annual_total_mt"] == pytest.approx(19.0) and j["remainder"]["annual_mt"] == pytest.approx(3.0)
     s = strict(api.get(CS + "?countries=AAA&countries=BBB&start_year=1999")).get("series")
     assert [p["annual_mt"] for p in s[0]["points"]] == [10.0, 10.0] and [p["annual_mt"] for p in s[1]["points"]] == [5.0, 5.0]
-    assert s[0]["points"][0]["annual_share_pct"] == pytest.approx(10 / 16 * 100, abs=1e-6)
+    assert s[0]["points"][0]["annual_share_pct"] == pytest.approx(10 / 19 * 100, abs=1e-6)
 
 
 def test_all_countries_returns_every_country_ranked_with_no_limit(api):
@@ -970,7 +974,7 @@ def test_all_countries_returns_every_country_ranked_with_no_limit(api):
     assert j["mode"] == "ranking" and j["limit"] is None and j["year"] == 1900
     assert sorted(r["country"] for r in j["rows"]) == ["AAA", "BBB", "CCC", "DDD"]
     assert [r["rank"] for r in j["rows"]] == [1, 2, 3, 4] and [r["share_pct"] for r in j["rows"]] == sorted((r["share_pct"] for r in j["rows"]), reverse=True)
-    assert j["total_cumulative_mt"] == pytest.approx(sum(r["cumulative_mt"] for r in j["rows"]))
+    assert j["total_cumulative_mt"] == pytest.approx(sum(r["cumulative_mt"] for r in j["rows"]) + j["remainder"]["cumulative_mt"])  # the World total, not the row sum
     assert len(api.get(CS + "?year=1900&limit=2").json()["rows"]) == 2  # the existing limited form is unchanged
     assert api.get(CS + "?all_countries=false").json()["limit"] == 15
 
@@ -1013,3 +1017,58 @@ def test_malformed_annual_columns_are_a_503_never_a_500(api, climate):
     cl.clear_caches()
     r = api.get(CS)
     assert r.status_code == 503 and "annual_mt/annual_share_pct" in r.json()["detail"]
+
+
+# ------------------------------------------------------------------ /country-share: World-total denominator and the remainder (Release 24.0)
+
+
+def test_a_limited_ranking_still_reports_the_world_total_and_the_remainder_of_every_country_not_just_the_rows_shown(api):
+    full = strict(api.get(CS + "?all_countries=true&year=1900"))
+    two = strict(api.get(CS + "?year=1900&limit=2"))
+    assert two["total_cumulative_mt"] == pytest.approx(full["total_cumulative_mt"]) and two["remainder"] == full["remainder"]  # the total is the denominator, whatever limit
+    assert two["remainder"]["year"] == 1900 and two["remainder"]["international_transport_cumulative_mt"] == pytest.approx(3.0 * 61)
+    assert two["remainder"]["cumulative_mt"] == pytest.approx(3.0 * 61) and two["remainder"]["share_pct"] == pytest.approx(3.0 * 61 / two["total_cumulative_mt"] * 100)
+
+
+def test_a_series_carries_the_remainder_for_each_year_of_its_window(api):
+    j = strict(api.get(CS + "?countries=AAA&start_year=1998&end_year=2000"))
+    assert [r["year"] for r in j["remainder_series"]] == [1998, 1999, 2000] and all(r["annual_mt"] == pytest.approx(3.0) for r in j["remainder_series"])
+    p = {x["year"]: x for x in j["series"][0]["points"]}
+    for r in j["remainder_series"]:  # one country's share + every other country's + the remainder = 100; here: the remainder is its own share of the World total
+        assert r["cumulative_mt"] == pytest.approx(3.0 * (r["year"] - 1840 + 1)) and p[r["year"]]["share_pct"] + r["share_pct"] < 100.0
+
+
+def test_primap_hist_has_no_remainder_because_its_shares_sum_to_100(api):
+    j = strict(api.get(CS + "?source=primap_hist&gas_scope=co2&all_countries=true"))
+    assert j["remainder"] is None and j["remainder_series"] == []
+    assert sum(r["share_pct"] for r in j["rows"]) == pytest.approx(100.0, abs=1e-6) and j["total_cumulative_mt"] == pytest.approx(sum(r["cumulative_mt"] for r in j["rows"]))
+    assert j["denominator"]["kind"] == "country_sum"
+
+
+def test_the_response_states_the_world_denominator_but_not_the_bulky_per_year_block(api):
+    j = strict(api.get(CS))
+    assert j["denominator"]["kind"] == "world" and "includes international aviation and shipping" in j["denominator"]["definition"] and "by_year" not in j["denominator"]
+    assert j["denominator"]["remainder_cumulative_mt"] == pytest.approx(j["remainder"]["cumulative_mt"]) and any("World total" in c for c in j["caveats"])
+
+
+def test_a_world_denominator_without_a_usable_per_year_block_is_a_503(api, climate):
+    doc = json.loads((climate / "correlation_country_share.json").read_text())
+    for c in doc["combinations"]:
+        if c["source"] == "owid_co2":
+            del c["denominator"]["by_year"]["remainder_annual_mt"]
+    (climate / "correlation_country_share.json").write_text(json.dumps(doc))
+    cl.clear_caches()
+    r = api.get(CS)
+    assert r.status_code == 503 and "per-year block" in r.json()["detail"]
+
+
+def test_a_file_that_predates_the_world_denominator_keeps_the_old_row_sum_totals_and_has_no_remainder(api, climate):
+    doc = json.loads((climate / "correlation_country_share.json").read_text())
+    for c in doc["combinations"]:
+        if c["source"] == "owid_co2":
+            c["denominator"].pop("kind")
+            c["denominator"].pop("by_year")
+    (climate / "correlation_country_share.json").write_text(json.dumps(doc))
+    cl.clear_caches()
+    j = strict(api.get(CS))
+    assert j["remainder"] is None and j["total_cumulative_mt"] == pytest.approx(sum(r["cumulative_mt"] for r in j["rows"]))

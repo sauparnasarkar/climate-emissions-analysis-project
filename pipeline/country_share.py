@@ -37,7 +37,7 @@ import pandas as pd
 from .common import CLIMATE_DIR, RunReport, utc_now, write_csv_atomic, write_json_atomic
 from .owid import DATA_PATH as OWID_PATH
 
-SCHEMA_VERSION = 2  # 2: OWID shares are of the World total (Release 24.0); the `denominator` block carries `by_year`
+SCHEMA_VERSION = 1  # unchanged on purpose: the API's gate is global and Release 24.0 is additive; `denominator.kind` ("world" / "country_sum") says which basis a combination uses
 OUTPUT_CSV = "correlation_country_share.csv"
 OUTPUT_JSON = "correlation_country_share.json"
 CSV_COLUMNS = ["country", "year", "source", "gas_scope", "cumulative_mt", "share_pct", "annual_mt", "annual_share_pct"]
