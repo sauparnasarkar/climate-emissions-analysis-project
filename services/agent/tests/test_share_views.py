@@ -289,6 +289,19 @@ def test_a_since_answer_links_to_the_pages_counting_from_that_year_so_they_show_
     assert dict(routes(since_series(), "Is China's share rising since 1990?"))["Open in Historical Trends"] == "/historical?view=share&from=1990&countries=China"
 
 
+def test_a_since_period_that_ends_before_the_latest_year_keeps_the_fixed_links_because_a_page_cannot_end_there():
+    fixed = ["/climate-correlation#country-view", "/overview#top-emitters"]
+    bounded = since_series()
+    bounded["summary"]["since"].update(end_year=2010, latest_year=2024, period="1990–2010")
+    assert [r for _, r in routes(bounded, "since 1990 until 2010")] == fixed  # the page would run to 2024 and show other totals
+    open_ended = since_series()
+    open_ended["summary"]["since"].update(end_year=2024, latest_year=2024)
+    assert dict(routes(open_ended, "since 1990"))["Open in Historical Trends"] == "/historical?view=cumulative&from=1990&countries=China"
+    unknown = since_series()
+    unknown["summary"]["since"].pop("end_year", None)
+    assert "Open in Historical Trends" in dict(routes(unknown, "since 1990"))  # no latest year reported: cannot tell, links as before
+
+
 def test_a_since_year_before_the_pages_window_keeps_the_fixed_links_instead_of_a_link_that_opens_other_numbers():
     fixed = ["/climate-correlation#country-view", "/overview#top-emitters"]
     old = since_series()

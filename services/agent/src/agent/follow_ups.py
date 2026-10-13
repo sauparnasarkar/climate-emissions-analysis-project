@@ -119,7 +119,13 @@ def _share(record: ToolCallRecord, current_query: str = "") -> list[FollowUpLink
         view = "cumulative" if select_share_view(current_query, summary, r.get("source")) == "cumulative_area" else "share"
     # A "since YYYY" answer is the emissions of a period: carry `from=` (Release 24.8, the pages' counting-from choice) so the page opens on the answer's numbers
     # and not on the total since records began. Without a since, the page's default (since records began) is what the answer quoted, so no parameter.
-    since_year = (summary.get("since") or {}).get("year")
+    since_info = summary.get("since") or {}
+    since_year = since_info.get("year")
+    latest_year = since_info.get("latest_year")
+    if isinstance(since_info.get("end_year"), int) and isinstance(latest_year, int) and since_info["end_year"] != latest_year:
+        # the answer's period ends before the latest data year ("1990 to 2010"), but a page's counting-from choice only has a start: it runs to the latest year and would
+        # show different totals than the answer. Keep the fixed links.
+        return fixed
     if isinstance(since_year, int) and since_year < COUNTING_FROM_MIN_YEAR:
         # The tool answers from 1851, but the pages' counting-from choice starts in 1970 (the cumulative views' window): a link would silently open the totals since
         # records began, numbers that disagree with the answer's. Keep the fixed links.
