@@ -231,7 +231,7 @@ function ShareAreaView({ widget, result }: { widget: WidgetSpec; result: Correla
         />
         <p className="__s9cmpx-body4" style={caption}>
           {period
-            ? `Fossil and cement CO₂ · OWID · emissions in ${period}: each country's cumulative total in each year minus its total the year before ${data.years[0]}, so every area starts at zero. Rest of world = the World's emissions in the period minus the countries shown, so it includes international aviation and shipping.`
+            ? `Fossil and cement CO₂ · OWID · emissions in ${period}: each country's cumulative total in each year minus its total the year before ${data.years[0]}, so the chart is rebased to zero just before ${data.years[0]} and the first point is ${data.years[0]}'s own emissions. Rest of world = the World's emissions in the period minus the countries shown, so it includes international aviation and shipping.`
             : `Fossil and cement CO₂ · OWID · counted from each country's first record, shown from ${data.years[0]}. Rest of world = World total minus the countries shown, so it includes international aviation and shipping.`}
         </p>
       </ChartCard>
@@ -259,7 +259,7 @@ function SinceLinesView({ widget, result }: { widget: WidgetSpec; result: Correl
           series={lines.map((l) => ({ name: l.name, x: l.years, y: l.gt, kind: 'line' as const }))}
         />
         <p className="__s9cmpx-body4" style={caption}>
-          {L.source} · emissions in {period}: each country&rsquo;s cumulative total in each year minus its total the year before {lines[0].years[0]}, so every line starts at zero. There is no World total here to show a Rest of world against.
+          {L.source} · emissions in {period}: each country&rsquo;s cumulative total in each year minus its total the year before {lines[0].years[0]}, so the chart is rebased to zero just before {lines[0].years[0]} and the first point is {lines[0].years[0]}&rsquo;s own emissions. There is no World total here to show a Rest of world against.
         </p>
       </ChartCard>
     </>

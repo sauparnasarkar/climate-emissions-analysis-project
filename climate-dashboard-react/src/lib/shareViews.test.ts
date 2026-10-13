@@ -66,7 +66,11 @@ describe('"since YYYY": emissions in the period, from zero (Release 24.7)', () =
     expect(sinceRebase(summary)).toEqual({ base: { China: 100, India: 0 }, world: 1500, fromYear: 1999 });
     expect(sinceRebase({})).toBeNull();
     expect(sinceRebase(null)).toBeNull();
-    expect(sinceRebase({ since: { year: 1999, countries: [] } })).toBeNull(); // no World base: the Rest of world could not be drawn honestly
+    expect(sinceRebase({ since: { year: 1999, countries: [] } })).toBeNull(); // no per-country bases: nothing to rebase by
+    // PRIMAP-hist has no World total: the per-country bases are enough for its lines, but the stacked area (which needs the World base) is not drawn
+    const noWorld = { since: { year: 1999, countries: [{ name: 'China', base_cumulative_mt: 100 }] } };
+    expect(sinceRebase(noWorld)).toEqual({ base: { China: 100 }, world: null, fromYear: 1999 });
+    expect(shareToCumulative(result(), sinceRebase(noWorld))).toBeNull();
   });
 
   it("subtracts each country's cumulative total the year before, and the World's, so every area starts at the period's first year from zero", () => {

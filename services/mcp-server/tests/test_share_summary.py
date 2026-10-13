@@ -222,7 +222,7 @@ def test_the_series_block_has_the_period_the_rest_of_world_and_the_widgets_base_
     base = ranking(1969, [("USA", "United States", 150_000.0), ("CHN", "China", 10_000.0)], world=900_000.0)
     rows, world = period_rows(end, base)
     b = since_series_block(rows, world, ["CHN"], 1970, 2024, True, world_total_mt(base))
-    assert b["period"] == "1970–2024" and b["rank_of"] == 2 and b["world_emitted_text"] == "949.0 GtCO₂" and b["world_base_cumulative_mt"] == 900_000.0
+    assert b["period"] == "1970–2024" and b["rank_of"] == 2 and b["world_emitted_text"] == "949.0 GtCO₂" and b["world_base_cumulative_mt"] == 900_000.0 and "source_total_emitted_text" not in b
     assert b["countries"] == [{"country": "CHN", "name": "China", "emitted_mt": 275_087.0, "emitted_gt": 275.1, "emitted_text": "275.1 GtCO₂", "share_of_period_pct": 28.99, "rank": 2, "base_cumulative_mt": 10_000.0}]
     assert b["rest_of_world"]["emitted_text"] == "673.9 GtCO₂" and "international aviation and shipping" in b["basis"]
     assert "rest_of_world" not in since_series_block(rows, world, ["CHN"], 1970, 2024, False, 0.0) and "source's own total" in since_series_block(rows, world, ["CHN"], 1970, 2024, False, 0.0)["basis"]
@@ -307,8 +307,8 @@ def test_total_greenhouse_gas_amounts_are_gtco2e_not_gtco2():
     assert gt_unit({"gas_scope": "total_ghg"}) == "GtCO₂e" and gt_unit({"gas_scope": "co2"}) == "GtCO₂" and gt_unit({}) == "GtCO₂"
     assert gt_text(434_866.0, "GtCO₂e") == "434.9 GtCO₂e" and gt_text(434_866.0) == "434.9 GtCO₂"
     rows, world = period_rows({**ranking(2024, [("USA", "United States", 434_866.0)], total=500_000.0), "gas_scope": "total_ghg"}, ranking(1969, [], total=100_000.0))
-    assert rows[0]["emitted_text"] == "434.9 GtCO₂e" and since_series_block(rows, world, ["USA"], 1970, 2024, False, 0.0, "GtCO₂e")["world_emitted_text"] == "400.0 GtCO₂e"
-    assert since_ranking_summary(rows, rows, world, 1970, 2024, False, "GtCO₂e")["since"]["world_emitted_text"] == "400.0 GtCO₂e"
+    assert rows[0]["emitted_text"] == "434.9 GtCO₂e" and since_series_block(rows, world, ["USA"], 1970, 2024, False, 0.0, "GtCO₂e")["source_total_emitted_text"] == "400.0 GtCO₂e"
+    assert since_ranking_summary(rows, rows, world, 1970, 2024, False, "GtCO₂e")["since"]["source_total_emitted_text"] == "400.0 GtCO₂e"
 
 
 async def test_the_tool_says_gtco2e_for_total_greenhouse_gases_in_every_mode(climate_client):
@@ -318,7 +318,7 @@ async def test_the_tool_says_gtco2e_for_total_greenhouse_gases_in_every_mode(cli
     ranking_s = (await get_country_cumulative_share(limit=3, **kw))["summary"]
     assert all(r["cumulative_text"].endswith("GtCO₂e") for r in ranking_s["top"])
     since = (await get_country_cumulative_share(countries=["AAA"], since_year=1950, **kw))["summary"]["since"]
-    assert since["countries"][0]["emitted_text"].endswith("GtCO₂e") and since["world_emitted_text"].endswith("GtCO₂e")
+    assert since["countries"][0]["emitted_text"].endswith("GtCO₂e") and since["source_total_emitted_text"].endswith("GtCO₂e")
     assert (await get_country_cumulative_share(since_year=1950, limit=2, **kw))["summary"]["top"][0]["emitted_text"].endswith("GtCO₂e")
     assert (await get_country_cumulative_share(countries=["AAA"]))["summary"]["countries"][0]["last_cumulative_text"].endswith("GtCO₂")  # OWID stays CO2
 
@@ -368,3 +368,15 @@ async def test_the_tool_reports_the_latest_year_beside_a_period_that_ends_earlie
     out = (await get_country_cumulative_share(countries=["AAA"], since_year=1950, end_year=1960))["summary"]["since"]
     assert out["end_year"] == 1960 and out["latest_year"] == 2000  # the stub's data ends in 2000
     assert (await get_country_cumulative_share(countries=["AAA"], since_year=1950))["summary"]["since"]["latest_year"] == 2000
+
+
+def test_a_source_without_a_world_total_never_serialises_its_denominator_under_a_world_name():
+    end = {**ranking(2024, [("USA", "United States", 434_866.0)], total=500_000.0), "gas_scope": "co2"}
+    base = ranking(1969, [], total=100_000.0)
+    rows, world = period_rows(end, base)
+    blk = since_series_block(rows, world, ["USA"], 1970, 2024, False, 0.0)
+    assert blk["source_total_emitted_gt"] == 400.0 and not any(k.startswith("world_") for k in blk) and "rest_of_world" not in blk
+    rk = since_ranking_summary(rows, rows, world, 1970, 2024, False)["since"]
+    assert rk["source_total_emitted_gt"] == 400.0 and not any(k.startswith("world_") for k in rk)
+    owid_blk = since_series_block(rows, world, ["USA"], 1970, 2024, True, 100_000.0)
+    assert owid_blk["world_emitted_gt"] == 400.0 and owid_blk["world_base_cumulative_mt"] == 100_000.0 and "source_total_emitted_gt" not in owid_blk
