@@ -165,6 +165,63 @@ describe('country shares', () => {
     expect(JSON.parse(screen.getByTestId('sychart').dataset.series!)).toEqual([['China', 'line', 2], ['United States', 'line', 2]]);
   });
 
+  describe('the cumulative views (Release 24.6)', () => {
+    const point = (year: number, cumulative_mt: number, share_pct: number, annual_share_pct: number | null) => ({ year, cumulative_mt, share_pct, annual_mt: null, annual_share_pct });
+    const remainder = (year: number, world: number) => ({ year, world_cumulative_mt: world, world_annual_mt: 1, cumulative_mt: 0, share_pct: 0, annual_mt: null, annual_share_pct: null, international_transport_cumulative_mt: null, international_transport_annual_mt: null });
+    const owid = (names: Array<[string, string]>, over: Record<string, unknown> = {}) => ({
+      ...shareResponse([]), source: 'owid_co2', mode: 'series',
+      series: names.map(([code, name], i) => ({ country: code, name, points: [point(1990, 100 + i, 5, 6), point(2024, 285_000 + i, 15.4, 31.8)] })),
+      remainder_series: [remainder(1990, 5000), remainder(2024, 1_849_000)],
+      ...over,
+    });
+    const SUMMARY = { mode: 'series', countries: [{ name: 'China', last_year: 2024, last_share_pct: 15.4, first_year: 1990, first_share_pct: 5, last_cumulative_gt: 285.1, rank: 2, rank_of: 215 }] };
+    const series = () => JSON.parse(screen.getByTestId('sychart').dataset.series!);
+
+    it('cumulative_area is a stacked area in Gt with Rest of world on top, and a single country gets its three figures', () => {
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'cumulative_area', title: 'Cumulative CO₂ since records began, shown from 1990 – China', summary: SUMMARY }));
+      expect(series()).toEqual([['China', 'area', 2], ['Rest of world', 'area', 2]]);
+      expect(screen.getByTestId('sychart')).toHaveAttribute('aria-label', expect.stringContaining('Stacked area chart of cumulative CO₂ in gigatonnes for China and Rest of world, 1990 to 2024'));
+      expect(screen.getByText('285 GtCO₂')).toBeInTheDocument();
+      expect(screen.getByText('15.4%')).toBeInTheDocument();
+      expect(screen.getByText('#2')).toBeInTheDocument();
+      expect(screen.getByText(/of 215 countries/)).toBeInTheDocument();
+      expect(screen.getByText(/Rest of world = World total minus the countries shown/)).toBeInTheDocument();
+    });
+
+    it('several countries draw the stack without the single-country figures', () => {
+      const two = { ...SUMMARY, countries: [SUMMARY.countries[0], { ...SUMMARY.countries[0], name: 'India' }] };
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China'], ['IND', 'India']]), { view: 'cumulative_area', summary: two }));
+      expect(series().map((s: unknown[]) => s[0])).toEqual(['India', 'China', 'Rest of world']); // largest accumulated total at the bottom (India's fixture total is 1 Mt higher), Rest of world on top
+      expect(screen.queryByText(/Rank by cumulative CO₂/)).toBeNull();
+    });
+
+    it('share_vs_annual is the solid-against-dotted pair for one country', () => {
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'share_vs_annual', title: 'Share of cumulative CO₂ against share of each year\'s emissions – China', summary: SUMMARY }));
+      expect(series()).toEqual([['Share of cumulative total', 'line', 2], ["Share of that year's emissions", 'line', 2]]);
+      expect(screen.getByText(/When the dotted line is above the solid one, the share of the total is still rising/)).toBeInTheDocument();
+      expect(screen.getByText('285 GtCO₂')).toBeInTheDocument();
+    });
+
+    it('a view that cannot be drawn honestly falls back to the share lines (PRIMAP-hist has no World total; no annual share)', () => {
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']], { source: 'primap_hist', remainder_series: [] }), { view: 'cumulative_area', summary: SUMMARY }));
+      expect(series()).toEqual([['China', 'line', 2]]);
+      cleanup();
+      const noAnnual = owid([['CHN', 'China']]);
+      noAnnual.series[0].points = noAnnual.series[0].points.map((p) => ({ ...p, annual_share_pct: null }));
+      mount(widget('get_country_cumulative_share', noAnnual, { view: 'share_vs_annual', summary: SUMMARY }));
+      expect(series()).toEqual([['China', 'line', 2]]);
+    });
+
+    it('share_lines, an absent view (an older agent) and a ranking are drawn as before', () => {
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'share_lines' }));
+      expect(series()).toEqual([['China', 'line', 2]]);
+      cleanup();
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']])));
+      expect(series()).toEqual([['China', 'line', 2]]);
+      expect(screen.queryByText(/GtCO₂/)).toBeNull();
+    });
+  });
+
   it('a ranking outside the data\'s coverage (200 with no rows) says so instead of drawing an empty chart', () => {
     const r = { ...shareResponse([]), mode: 'ranking', year: 1500, coverage: [1750, 2024], rows: [], notes: ['no data for 1500: coverage is 1750-2024'] };
     mount(widget('get_country_cumulative_share', r));

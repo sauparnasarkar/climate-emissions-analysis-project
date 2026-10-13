@@ -125,6 +125,8 @@ export interface ShareRow {
   /** The year's own emissions and share of the World total (PRIMAP-hist: of its own country sum); null when the pipeline output predates them (decision 60). */
   annual_mt: number | null;
   annual_share_pct: number | null;
+  /** In the ~40-country Expanded set the dashboard's pickers offer; null/absent when unknown (Release 24.2). */
+  in_expanded_scope?: boolean | null;
 }
 
 export interface SharePoint {
@@ -139,6 +141,7 @@ export interface ShareSeries {
   country: string;
   name: string;
   points: SharePoint[];
+  in_expanded_scope?: boolean | null;
 }
 
 /** OWID shares are of the World total (international aviation and shipping included), so the countries' shares sum to less than 100; this is the rest, and the World

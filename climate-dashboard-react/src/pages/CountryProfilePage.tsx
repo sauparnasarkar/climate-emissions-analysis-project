@@ -177,7 +177,7 @@ function CumulativeSection({ country, data }: { country: string; data: CountryCu
           ]}
         />
         <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
-          Fossil and cement CO₂ · OWID · counted from each country&rsquo;s first record, shown from {first}. Climate Correlation also counts land-use CO₂, so its country shares differ.{' '}
+          Fossil and cement CO₂ · OWID · counted from each country&rsquo;s first record, shown from {first}. Shares are of the World total, international aviation and shipping included, the same as in Climate Correlation, which also offers PRIMAP-hist.{' '}
           <Link to="/climate-correlation">Open in Climate Correlation</Link>
         </p>
       </ChartCard>
