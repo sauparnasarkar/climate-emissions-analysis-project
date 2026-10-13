@@ -153,6 +153,8 @@ class ShareRemainder(BaseModel):
     """What the World total holds beyond the countries in one year (OWID shares are of the World total, Release 24.0): international aviation and shipping plus a small
     unassigned residual. `share_pct` and `annual_share_pct` are of the World total, so the countries' shares plus this sum to 100."""
     year: int
+    world_cumulative_mt: float  # the denominator itself (Mt), so a client can compute any share of the World total without summing rows
+    world_annual_mt: float
     cumulative_mt: float
     share_pct: float
     annual_mt: float | None = None

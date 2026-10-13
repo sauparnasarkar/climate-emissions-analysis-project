@@ -426,7 +426,7 @@ def _world_by_year(combo: dict) -> dict[int, dict] | None:
 
 def _remainder(year: int, w: dict) -> ShareRemainder:
     """The remainder of one year as published (Mt) with its shares of the World total."""
-    return ShareRemainder(year=year, cumulative_mt=float(w["remainder_cumulative_mt"]), share_pct=float(w["remainder_cumulative_mt"]) / float(w["world_cumulative_mt"]) * 100,
+    return ShareRemainder(year=year, world_cumulative_mt=float(w["world_cumulative_mt"]), world_annual_mt=float(w["world_annual_mt"]), cumulative_mt=float(w["remainder_cumulative_mt"]), share_pct=float(w["remainder_cumulative_mt"]) / float(w["world_cumulative_mt"]) * 100,
                           annual_mt=float(w["remainder_annual_mt"]), annual_share_pct=float(w["remainder_annual_mt"]) / float(w["world_annual_mt"]) * 100 if w["world_annual_mt"] else None,
                           international_transport_cumulative_mt=float(w["international_transport_cumulative_mt"]), international_transport_annual_mt=float(w["international_transport_annual_mt"]))
 
@@ -518,7 +518,8 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
                                                                                        **({"annual_mt": float(r.annual_mt), "annual_share_pct": float(r.annual_share_pct)} if has_annual else {})) for r in sub.itertuples()]))
             if not has_annual:
                 notes.append(ANNUAL_PREDATES_NOTE)
-            remainder_series = [_remainder(y, world[y]) for y in range(lo, hi + 1) if y in world] if world else []
+            # Iterate the published years, not range(lo, hi + 1): end_year has no upper bound, so a huge value must not cost a loop that long.
+            remainder_series = [_remainder(y, world[y]) for y in sorted(world) if lo <= y <= hi] if world else []
             return CorrelationCountryShareResponse(**base, mode="series", start_year=start_year, end_year=end_year, series=series, remainder_series=remainder_series, notes=notes)
         latest = int(d["year"].max())
         yr = year if year is not None else latest

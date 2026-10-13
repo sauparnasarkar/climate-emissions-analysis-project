@@ -1072,3 +1072,19 @@ def test_a_file_that_predates_the_world_denominator_keeps_the_old_row_sum_totals
     cl.clear_caches()
     j = strict(api.get(CS))
     assert j["remainder"] is None and j["total_cumulative_mt"] == pytest.approx(sum(r["cumulative_mt"] for r in j["rows"]))
+
+
+def test_a_huge_end_year_costs_no_more_than_the_published_years_and_the_remainder_carries_the_world_totals(api):
+    j = strict(api.get(CS + "?countries=AAA&start_year=1990&end_year=2000000000"))  # end_year has no upper bound: the loop is over published years, not the range
+    assert [r["year"] for r in j["remainder_series"]] == list(range(1990, 2001))
+    r = j["remainder_series"][-1]
+    assert r["world_cumulative_mt"] == pytest.approx(world_cum_fixture(2000)) and r["world_annual_mt"] == pytest.approx(19.0)
+    assert r["share_pct"] == pytest.approx(r["cumulative_mt"] / r["world_cumulative_mt"] * 100)
+    assert strict(api.get(CS + "?year=2000"))["remainder"]["world_cumulative_mt"] == pytest.approx(r["world_cumulative_mt"])
+
+
+def world_cum_fixture(upto):
+    """The pipeline tests' stub: four countries (10, 5 from 1900, 1 less 1950-52, 2 to 1970) plus 3 Mt/yr of international transport, from 1840."""
+    from pipeline.tests.test_country_share import world_cum
+
+    return world_cum(upto)
