@@ -169,7 +169,7 @@ describe('country shares', () => {
     const point = (year: number, cumulative_mt: number, share_pct: number, annual_share_pct: number | null) => ({ year, cumulative_mt, share_pct, annual_mt: null, annual_share_pct });
     const remainder = (year: number, world: number) => ({ year, world_cumulative_mt: world, world_annual_mt: 1, cumulative_mt: 0, share_pct: 0, annual_mt: null, annual_share_pct: null, international_transport_cumulative_mt: null, international_transport_annual_mt: null });
     const owid = (names: Array<[string, string]>, over: Record<string, unknown> = {}) => ({
-      ...shareResponse([]), source: 'owid_co2', mode: 'series',
+      ...shareResponse([]), source: 'owid_co2', mode: 'series', denominator: { kind: 'world' }, // what the current pipeline returns
       series: names.map(([code, name], i) => ({ country: code, name, points: [point(1990, 100 + i, 5, 6), point(2024, 285_000 + i, 15.4, 31.8)] })),
       remainder_series: [remainder(1990, 5000), remainder(2024, 1_849_000)],
       ...over,
@@ -250,6 +250,24 @@ describe('country shares', () => {
       const world = { ...legacy, basis: "share of the World's emissions in the period (international aviation and shipping included)" };
       mount(widget('get_country_cumulative_share', owid([['CHN', 'China']], { denominator: { kind: 'world' } }), { view: 'cumulative_area', summary: { ...SUMMARY, since: world } }));
       expect(screen.getByText("Share of the world's emissions 1990–2024")).toBeInTheDocument();
+    });
+
+    it('never claims a World total without positive evidence: a null or omitted denominator (an older output) is labelled as the country total', () => {
+      const since = { year: 1990, period: '1990–2024', rank_of: 215, world_base_cumulative_mt: 5000, countries: [{ name: 'China', emitted_gt: 200.0, share_of_period_pct: 25.0, rank: 1, base_cumulative_mt: 100 }] }; // no `basis`
+      for (const denominator of [null, undefined]) {
+        const r = owid([['CHN', 'China']], { remainder_series: [], denominator });
+        mount(widget('get_country_cumulative_share', r, { view: 'emitted_lines', title: 'Emitted 1990–2024, GtCO₂ – China', summary: { ...SUMMARY, since } }));
+        expect(screen.getByText('Share of the country total 1990–2024')).toBeInTheDocument();
+        expect(screen.queryByText("Share of the world's emissions 1990–2024")).toBeNull();
+        cleanup();
+      }
+      // a non-since single-country card says 'country total' too, and 'world total' only with kind 'world'
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']], { denominator: null }), { view: 'share_vs_annual', summary: SUMMARY }));
+      expect(screen.getByText('Share of country total')).toBeInTheDocument();
+      expect(screen.queryByText('Share of world total')).toBeNull();
+      cleanup();
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'share_vs_annual', summary: SUMMARY }));
+      expect(screen.getByText('Share of world total')).toBeInTheDocument();
     });
 
     it('a ranking since a year is bars of Gt emitted in the period, not the share bars', () => {

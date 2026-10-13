@@ -59,15 +59,15 @@ def _ok(record: ToolCallRecord) -> dict | None:
 
 def _share_is_world(result: dict, since: dict | None) -> bool:
     """Whether a share result's shares are of a World total: never PRIMAP-hist (no world aggregate); for OWID what the data says (`since.basis`, else the denominator kind;
-    none given = the current World pipeline)."""
+    none given = NOT a World total: an older output may carry no denominator metadata at all (the API passes an absent one through as null), and "World total" must be
+    claimed only on positive evidence)."""
     if result.get("source") == "primap_hist":
         return False
     basis = (since or {}).get("basis")
     if isinstance(basis, str):
         return "World" in basis
     den = result.get("denominator")
-    kind = den.get("kind") if isinstance(den, dict) else None
-    return den is None if kind is None else kind == "world"
+    return isinstance(den, dict) and den.get("kind") == "world"
 
 
 def _notes_for(record: ToolCallRecord, result: dict) -> list[str]:
