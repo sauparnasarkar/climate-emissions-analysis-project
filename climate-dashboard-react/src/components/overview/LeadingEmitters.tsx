@@ -6,8 +6,9 @@ export type MapMode = 'absolute' | 'cumulative';
 /** `leaders` carry MtCO₂ in both modes (cumulative ones are shown in Gt).
  * The top-5 leading-emitter ranking beside the map for ALL countries (requirements §2.2 block 3, §2.6; owner decision C): it follows the
  * map's year and its Absolute/Cumulative mode, so the ranking, the tiers and the map always describe the same thing. The shares are
- * shares of the national sum for that year (annual) or of the cumulative total to that year; they describe contribution to emissions
- * only -- no warming is attributed to a country. */
+ * shares of the World total (international aviation and shipping included) for that year (annual) or of the cumulative World total to that year, the same
+ * basis as the Correlation country shares and the Release 23 views; a share is left out when that total is unavailable. They describe contribution to
+ * emissions only -- no warming is attributed to a country. */
 export function LeadingEmitters({ year, mode, leaders, cumulativeFrom }: { year: number; mode: MapMode; leaders: Leader[]; cumulativeFrom: number | null }) {
   const cumulative = mode === 'cumulative';
   const title = cumulative ? `Largest cumulative emitters, to ${year}` : `Leading emitters · ${year}`;
@@ -23,7 +24,7 @@ export function LeadingEmitters({ year, mode, leaders, cumulativeFrom }: { year:
             <span className="__s9cmpx-body4" style={{ color: 'var(--__s9cmpx-static-text-weak)' }}>{i + 1}</span>
             <span className="__s9cmpx-body3">{l.name}</span>
             <span className="__s9cmpx-body3" style={{ fontVariantNumeric: 'tabular-nums' }}>{cumulative ? `${fmtGt(l.value / 1000)} Gt` : `${fmtInt(l.value)} Mt`}</span>
-            <span className="__s9cmpx-body4" style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--__s9cmpx-static-text-weak)', minWidth: 44, textAlign: 'right' }}>{l.sharePct.toFixed(1)}%</span>
+            <span className="__s9cmpx-body4" style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--__s9cmpx-static-text-weak)', minWidth: 44, textAlign: 'right' }}>{l.sharePct == null ? '' : `${l.sharePct.toFixed(1)}%`}</span>
           </li>
         ))}
       </ol>

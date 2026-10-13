@@ -115,7 +115,7 @@ describe('CountryView', () => {
     expect(screen.getByRole('columnheader', { name: 'Country' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Share' })).toBeInTheDocument();
     expect(screen.getByRole('row', { name: /United States/ })).toHaveTextContent('24.1%');
-    expect(screen.getByText('Baseline cumulative since 1750 · national sum, bunkers excluded · OWID')).toBeInTheDocument();
+    expect(screen.getByText('Baseline cumulative since 1750 · World total, bunkers included · OWID')).toBeInTheDocument();
   });
 
   it('draws the global temperature record beside it: annual and 5-year mean, one global line, not a country', async () => {

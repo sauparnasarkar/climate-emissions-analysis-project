@@ -30,7 +30,7 @@ export interface ShareFrames {
   stock: number[][];
   /** Same shape; null when the pipeline output predates the annual columns (decision 60), so the flow bar is omitted. */
   flow: number[][] | null;
-  /** Rest of world = what the selected countries leave of 100, per year (exact: the denominator is the national sum). */
+  /** Rest of world = what the selected countries leave of 100, per year (exact: shares are of the World total for OWID, so it includes international aviation and shipping; for PRIMAP-hist, of its own country sum). */
   restStock: number[];
   restFlow: number[] | null;
   cumulativeFrom: number | null;

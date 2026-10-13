@@ -37,23 +37,40 @@ export interface Leader {
   name: string;
   iso: string;
   value: number;
-  /** The country's share of the row's total, % */
-  sharePct: number;
+  /** The country's share of the denominator, %; null when the denominator is unavailable (never shown on another basis) */
+  sharePct: number | null;
 }
 
-/** The `k` largest values in one year's row, with each one's share of the row total. Missing and non-positive values are skipped. */
-export function leaders(row: ReadonlyArray<number | null | undefined>, names: string[], isos: string[], k = 5): Leader[] {
-  let total = 0;
+/**
+ * The `k` largest values in one year's row, with each one's share of `total`. Missing and non-positive values are skipped.
+ * `total` is the denominator: the World total of that year in the row's unit (Release 24.0, so the share is the same one the Correlation tool and the Release 23
+ * views give); `null` means it is unavailable, so no share is claimed; omitted means the sum of the row (the countries listed), the old basis.
+ */
+export function leaders(row: ReadonlyArray<number | null | undefined>, names: string[], isos: string[], k = 5, total?: number | null): Leader[] {
+  let rowTotal = 0;
   const entries: Array<{ i: number; value: number }> = [];
   row.forEach((v, i) => {
     if (v == null || !(v > 0)) return;
-    total += v;
+    rowTotal += v;
     entries.push({ i, value: v });
   });
+  const denominator = total === undefined ? rowTotal : total;
   return entries
     .sort((a, b) => b.value - a.value || a.i - b.i)
     .slice(0, k)
-    .map(({ i, value }) => ({ name: names[i], iso: isos[i], value, sharePct: total ? (value / total) * 100 : 0 }));
+    .map(({ i, value }) => ({ name: names[i], iso: isos[i], value, sharePct: denominator === null || !(denominator > 0) ? null : (value / denominator) * 100 }));
+}
+
+/** The World total per year (Mt), from the remainder a country-share series carries: what every "share of the world total" divides by. Null when it has none. */
+export interface WorldTotals {
+  cumulativeMt: ReadonlyMap<number, number>;
+  annualMt: ReadonlyMap<number, number>;
+}
+
+export function worldTotalsFrom(resp: CorrelationCountryShareResponse | null | undefined): WorldTotals | null {
+  const rem = resp?.remainder_series;
+  if (!rem || rem.length === 0) return null;
+  return { cumulativeMt: new Map(rem.map((r) => [r.year, r.world_cumulative_mt])), annualMt: new Map(rem.map((r) => [r.year, r.world_annual_mt])) };
 }
 
 /** GtCO₂ for display: one decimal below 10, whole numbers above ("0.4", "9.8", "435"). */

@@ -40,9 +40,10 @@ describe('MethodologySection', () => {
   it('gives the API\'s two-totals note verbatim, why the series differ, and the splice figures from the concentration response', () => {
     render(<MethodologySection meta={META} metaFailed={false} splice={SPLICE} />);
     // the response's note, whole and unaltered (the fixture is the API's constant word for word, so this is checked against fixed text as well as the prop)
-    const note = screen.getByText(/^Two different global totals are used on purpose\./);
+    const note = screen.getByText(/^The OWID country shares and the emissions-temperature regression use the same global total/);
     expect(note.textContent).toBe(META.two_global_totals);
-    expect(note.textContent).toContain('so country shares sum to 100% of territorial emissions. The two totals therefore differ by the international transport line, published as its own indicator.');
+    expect(note.textContent).toContain('Country shares are therefore shares of the World total and sum to less than 100%');
+    expect(note.textContent).toContain("a PRIMAP share is of that source's total, not of the World total.");
     expect(screen.getByText(/differ in scope, method, the treatment of bunker fuels/)).toBeInTheDocument();
     expect(screen.getByText(/Law Dome ice-core values before 1959 and Mauna Loa from 1959\. Over the overlap years 1959–2004 the two records differ by up to 3\.9 ppm, and by 0\.28 ppm at the splice itself\./)).toBeInTheDocument();
   });
