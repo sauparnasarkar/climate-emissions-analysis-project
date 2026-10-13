@@ -51,7 +51,7 @@ def check_units(text: str, summaries: list[dict]) -> list[str]:
     out = []
     for v in sorted(gts):
         forms = {f"{v:,.1f}", f"{v:.1f}", f"{v:,.0f}" if v == round(v) else f"{v:,.1f}"}
-        if any(re.search(rf"(?<![\d.,]){re.escape(f)}\s*Mt\b", text) for f in forms):
+        if any(re.search(rf"(?<![\d.,]){re.escape(f)}\s*Mt(?:\s*CO[₂2])?\b", text) for f in forms):
             out.append(f"{v:,.1f} is a GtCO2 figure from the tool's summary but is written with Mt")
     return out
 
