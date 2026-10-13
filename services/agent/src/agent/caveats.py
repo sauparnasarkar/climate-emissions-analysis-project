@@ -40,10 +40,12 @@ COMPOSITION_NOTE = (
 # Country-share answers (Release 24.4): what the share is OF, where the totals count from, and what Rest of world is. Deterministic, shown with every such answer.
 SHARE_BASIS_OWID = "Shares are of the World total, which includes international aviation and shipping (OWID fossil-fuel and cement CO₂, land use excluded)."
 SHARE_BASIS_PRIMAP = "Shares are of PRIMAP-hist's own total: it has no world aggregate and excludes international aviation and shipping."
+# An older OWID pipeline output (no World remainder) is still served: its shares are of the sum of the countries, and the note must not say World total.
+SHARE_BASIS_OWID_COUNTRY_SUM = "Shares are of the sum of the countries, not of a World total (this OWID output predates the World-total basis; fossil-fuel and cement CO₂, land use excluded)."
 SHARE_COUNTED_FROM = "Cumulative totals count from each country's first record, whatever year the chart starts."
 # A "since YYYY" answer (Release 24.7): what the period figures are. Replaces the counted-from sentence, which describes the other quantity.
 SHARE_SINCE = "Amounts for {period} are the emissions of those years: each country's cumulative total at the end year minus its total the year before {start}; shares are of the World's emissions in the period."
-SHARE_SINCE_PRIMAP = "Amounts for {period} are the emissions of those years: each country's cumulative total at the end year minus its total the year before {start}; shares are of the source's own total in the period."
+SHARE_SINCE_OWN = "Amounts for {period} are the emissions of those years: each country's cumulative total at the end year minus its total the year before {start}; shares are of the source's own total in the period."
 
 _TEMPERATURE_TOOLS = {"get_temperature_anomaly", "get_emissions_temperature_relationship", "get_scenario_temperature"}
 
@@ -53,6 +55,19 @@ def _ok(record: ToolCallRecord) -> dict | None:
     if isinstance(result, dict) and "error" not in result:
         return result
     return None
+
+
+def _share_is_world(result: dict, since: dict | None) -> bool:
+    """Whether a share result's shares are of a World total: never PRIMAP-hist (no world aggregate); for OWID what the data says (`since.basis`, else the denominator kind;
+    none given = the current World pipeline)."""
+    if result.get("source") == "primap_hist":
+        return False
+    basis = (since or {}).get("basis")
+    if isinstance(basis, str):
+        return "World" in basis
+    den = result.get("denominator")
+    kind = den.get("kind") if isinstance(den, dict) else None
+    return den is None if kind is None else kind == "world"
 
 
 def _notes_for(record: ToolCallRecord, result: dict) -> list[str]:
@@ -74,11 +89,14 @@ def _notes_for(record: ToolCallRecord, result: dict) -> list[str]:
         summary = result.get("summary") or {}
         # ONE note, not three banners: what the share is of, and (for a series) where the totals count from. What Rest of world is belongs to the chart that draws
         # it (the stacked area's caption), not to every answer that merely has the numbers.
-        basis = {"owid_co2": SHARE_BASIS_OWID, "primap_hist": SHARE_BASIS_PRIMAP}.get(result.get("source"))  # a basis only for a source we know
+        # The basis comes from what the data itself says (a period answer's `since.basis`, else the response's denominator kind), not from the source alone: an older OWID
+        # output without a World remainder has shares of the country sum.
+        since = summary.get("since")
+        world = _share_is_world(result, since)
+        basis = (SHARE_BASIS_OWID if world else SHARE_BASIS_OWID_COUNTRY_SUM) if result.get("source") == "owid_co2" else SHARE_BASIS_PRIMAP if result.get("source") == "primap_hist" else None
         if basis:
-            since = summary.get("since")
             if since and since.get("period"):  # emissions in a period: say what they are instead of where totals count from
-                tmpl = SHARE_SINCE_PRIMAP if result.get("source") == "primap_hist" else SHARE_SINCE
+                tmpl = SHARE_SINCE if world else SHARE_SINCE_OWN
                 notes.append(f"{basis} {tmpl.format(period=since['period'], start=since['year'])}")
             else:
                 notes.append(f"{basis} {SHARE_COUNTED_FROM}" if summary.get("mode") == "series" else basis)
