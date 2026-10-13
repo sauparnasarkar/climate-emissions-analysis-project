@@ -4273,7 +4273,7 @@ trimming, methodology grounding, no UI directives); no model-facing payload cap 
 - **D3: build order.** 24.0 denominator change (pipeline, API, text, tests; Mac Mini re-run; its own deploy) → 24.3 MCP
   summary and methodology → 24.4 agent back end → 24.6 widget views → one deploy of mcp-server, agent and frontend. Each
   step a feature branch, PR, Copilot review loop and merge, as for Release 23.
-- **D4: starter prompt.** None (R14), or replace one of the six. Still open; default none.
+- **D4: starter prompt.** Closed: none (R14); the grid stays at six.
 - **D5: one share denominator.** Accepted: World total including international aviation and shipping for OWID shares, OWID's
   World row itself (matches the dashboard to the digit), remainder published as a visible line, PRIMAP-hist on its own total, stated.
 - **D6 (open, small): `share_trend` tolerance.** Proposed `steady` when cumulative share moved by less than 0.5 percentage
