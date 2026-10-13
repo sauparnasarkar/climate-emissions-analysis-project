@@ -328,3 +328,10 @@ async def test_a_series_with_since_year_rejects_year_and_points_to_end_year(clim
         await get_country_cumulative_share(countries=["AAA"], since_year=1950, year=1960)
     out = await get_country_cumulative_share(countries=["AAA"], since_year=1950, end_year=1960)  # the supported way to end the period earlier
     assert out["summary"]["since"]["period"] == "1950–1960"
+
+
+def test_the_tool_description_qualifies_the_period_share_by_source():
+    from mcp_server.tools.climate import get_country_cumulative_share
+
+    doc = " ".join((get_country_cumulative_share.__doc__ or "").split())
+    assert "of the World's emissions for OWID, of the source's own total for PRIMAP-hist" in doc and "`summary.since.basis` says which" in doc
