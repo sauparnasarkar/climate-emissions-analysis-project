@@ -31,12 +31,13 @@ def series_result(names=("China",), source="owid_co2", rest=True, expanded=True,
     if rest:
         summary["rest_of_world"] = {"year": 2024, "cumulative_gt": 1100.0, "share_pct": 60.0}
     return {"source": source, "gas_scope": "co2", "mode": "series", "summary": summary, "interpretation_note": "not warming",
+            "denominator": {"kind": "world"} if source == "owid_co2" else {"kind": "country_sum"},  # what the current pipeline returns
             "series": [{"country": c["country"], "name": c["name"], "points": [], "in_expanded_scope": expanded} for c in summary["countries"]],
             "remainder_series": [{"year": 1850 + i, "world_cumulative_mt": 1.0, "world_annual_mt": 1.0} for i in range(175)] if rest else []}
 
 
 def ranking_result():
-    return {"source": "owid_co2", "mode": "ranking", "summary": {"mode": "ranking", "year": 2024, "n_rows": 15}, "rows": [], "interpretation_note": "n"}
+    return {"source": "owid_co2", "mode": "ranking", "denominator": {"kind": "world"}, "summary": {"mode": "ranking", "year": 2024, "n_rows": 15}, "rows": [], "interpretation_note": "n"}
 
 
 # --- which view a question gets -----------------------------------------------------------------------------------------
@@ -234,7 +235,7 @@ def since_series(names=("China",), source="owid_co2", rest=True):
 
 
 def since_ranking():
-    return {"source": "owid_co2", "mode": "ranking", "rows": [], "since_rows": [{"rank": 1, "name": "United States"}], "since_year": 1970, "interpretation_note": "n",
+    return {"source": "owid_co2", "mode": "ranking", "denominator": {"kind": "world"}, "rows": [], "since_rows": [{"rank": 1, "name": "United States"}], "since_year": 1970, "interpretation_note": "n",
             "summary": {"mode": "ranking", "year": 2024, "n_rows": 15, "since": {"year": 1970, "end_year": 2024, "period": "1970–2024"}}}
 
 
@@ -377,5 +378,12 @@ def test_the_share_notes_follow_the_data_basis_an_older_owid_output_is_of_the_co
     assert SHARE_BASIS_OWID_COUNTRY_SUM in mandatory_notes([rec(legacy_total)])[1]
     legacy_total["denominator"] = {}  # an older file: a denominator object without a kind is the country sum too
     assert SHARE_BASIS_OWID_COUNTRY_SUM in mandatory_notes([rec(legacy_total)])[1]
+    # a null or omitted denominator (the API passes an absent one through as null) is not evidence of a World total either: never claim "World total" without it
+    legacy_total["denominator"] = None
+    assert SHARE_BASIS_OWID_COUNTRY_SUM in mandatory_notes([rec(legacy_total)])[1] and SHARE_BASIS_OWID not in mandatory_notes([rec(legacy_total)])[1]
+    del legacy_total["denominator"]
+    assert SHARE_BASIS_OWID_COUNTRY_SUM in mandatory_notes([rec(legacy_total)])[1] and SHARE_BASIS_OWID not in mandatory_notes([rec(legacy_total)])[1]
+    legacy_total["denominator"] = {"kind": "world"}
+    assert SHARE_BASIS_OWID in mandatory_notes([rec(legacy_total)])[1]  # positive evidence
     # PRIMAP-hist is never a World total, whatever the basis string says
     assert SHARE_BASIS_PRIMAP in mandatory_notes([rec(since_series(source="primap_hist", rest=False))])[1]

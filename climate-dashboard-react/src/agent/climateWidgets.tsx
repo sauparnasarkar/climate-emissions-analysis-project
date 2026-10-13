@@ -136,15 +136,15 @@ function NoShares({ result }: { result: CorrelationCountryShareResponse }) {
 
 /**
  * Whether this result's shares are of a WORLD total (and not of the sum of the countries), from what the data itself says: a period answer's `summary.since.basis`, else
- * the response's denominator kind. PRIMAP-hist never has one. OWID usually does (the current pipeline), but an older pipeline output without a World remainder is
- * still served and its shares are of the country sum; absent any information OWID is taken as World.
+ * the response's denominator kind. PRIMAP-hist never has one. OWID has one in the current pipeline (`denominator.kind === 'world'`), but an older pipeline output without a World remainder is
+ * still served and its shares are of the country sum; absent any information it is NOT taken as a World total.
  */
 function isWorldBasis(result: Pick<CorrelationCountryShareResponse, 'source' | 'denominator'>, summary?: Record<string, unknown> | null): boolean {
   if (result.source === 'primap_hist') return false;
   const basis = (summary as { since?: { basis?: string } } | null | undefined)?.since?.basis;
   if (typeof basis === 'string') return /World/.test(basis);
-  const kind = (result.denominator as { kind?: string } | null | undefined)?.kind;
-  return kind == null ? result.denominator == null : kind === 'world';
+  // Positive evidence only: an older output may carry no denominator metadata (the API passes an absent one through as null), and "World total" must not be claimed then.
+  return (result.denominator as { kind?: string } | null | undefined)?.kind === 'world';
 }
 
 /** What a share result's amounts are, from its own source, gas scope and denominator (never assumed to be OWID CO₂ against a World total): total greenhouse gases are CO₂-equivalent. */
