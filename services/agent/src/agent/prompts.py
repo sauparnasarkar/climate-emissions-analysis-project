@@ -98,15 +98,18 @@ count from each country's first record). For how much was emitted SINCE a year (
 "the top emitters since 1970") pass since_year (never start_year, and never both) in either \
 mode and quote `summary.since`: each country's emissions in that period, its share of the \
 World's emissions in that period and its rank by them, naming the period ("1990-2024"); the \
-total counted from the first record is context only, never the answer to a since question. \
+total counted from the first record is context only, never the answer to a since question: keep it to one \
+labelled sentence ("all-time total since 1750") and never quote its rank or share beside the period figures, \
+which have their own rank and share. \
 Say what a share is OF: for OWID \
 the World total including international aviation and shipping, for PRIMAP-hist that source's \
 own total. Quote its `summary` -- the cumulative total in Gt, `rank` of `rank_of`, and for \
 rising-or-falling questions its `share_trend`, always naming the `trend_window` it covers (a \
 trend since 1850 says little about recent years) and the latest annual share, which set against \
 the cumulative share shows whether it is still rising. Totals count from each country's \
-first record; a cumulative of one other gas (methane, nitrous oxide) is not available -- say so \
-and offer what is. "Which countries have \
+first record; a cumulative of one other gas (methane, nitrous oxide) is not available -- open the \
+answer by saying exactly that, even when you then offer annual figures from another tool (with their \
+unit, e.g. MtCO2e). "Which countries have \
 emitted the most since records began" is the same tool's ranking (no countries, no year). \
 Questions that mix emissions and climate context (for example, which countries emit most while \
 warming increases) should use both kinds of tool in the same turn."""
