@@ -211,7 +211,9 @@ def test_a_gt_figure_from_the_summary_written_with_mt_is_flagged():
     assert len(out) == 2 and any("434.9" in v for v in out) and any("1,849.1" in v for v in out)
     assert check_units("The United States leads with 434.9 MtCO₂.", [summary])
     assert check_units("The United States leads with 434.9 MtCO2.", [summary])
+    assert check_units("The United States leads with 434.9 MtCO₂e.", [summary])
+    assert check_units("The United States leads with 434.9 MtCO2e.", [summary])
     assert check_units("The United States leads with 434.9 Gt CO₂ of a World total of 1,849.1 Gt.", [summary]) == []
-    assert check_units("China emitted 285.1 GtCO₂ and 12,289 Mt in 2024.", [summary]) == []  # a real Mt figure, and a Gt one with its Gt
+    assert check_units("China emitted 285.1 GtCO₂ and 12,289 MtCO₂e in 2024.", [summary]) == []  # a real Mt CO₂e figure, and a Gt one with its Gt
     assert check_units("It emitted 7.5 Mt of methane.", [{"x_gt": 7.5}]) == []  # small values collide with ordinary Mt figures: ignored
     assert check_units("anything", []) == []
