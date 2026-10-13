@@ -4309,7 +4309,7 @@ basis, refuses attribution, and links to Historical Trends, Country Profile and 
 
 **Open.**
 - **`evals/run_cumulative.py` has not been run** (it needs a live model key and API + MCP server); run it on Sonnet and read the answers.
-- **The "since 1990" trap is only half-met live:** asked "What is China's cumulative CO₂ since 1990?", the model answered with the total counted from the
+- **(Superseded by D7, shipped 24.7/24.8) The "since 1990" trap was only half-met live:** asked "What is China's cumulative CO₂ since 1990?", the model answered with the total counted from the
   first record and said so ("counted from each country's first record"), plus the 1990 to 2024 change in share, but did not say plainly that a cumulative
   since 1990 is not available (rule (8) and the tool's `window_note` ask it to). The figures are right and the basis is disclosed; the direct statement is
   missing. A candidate fix is a stronger prompt sentence or an eval-driven tweak, to be judged against the eval above.
@@ -4327,7 +4327,7 @@ basis, refuses attribution, and links to Historical Trends, Country Profile and 
 - **D5: one share denominator.** Accepted: World total including international aviation and shipping for OWID shares, OWID's
   World row itself (matches the dashboard to the digit), remainder published as a visible line, PRIMAP-hist on its own total, stated.
 - **D6: `share_trend` tolerance.** Closed: `steady` when cumulative share moved by less than 0.5 percentage points over the window.
-- **D7: "since YYYY" (OPEN; found live 2026-10-13, owner asked for it to be handled).** R5 said a cumulative "since 1990" is *not available* and the
+- **D7: "since YYYY" (CLOSED 2026-10-13: both owner answers given, shipped as Release 24.7/24.8 in PR #298; as built below the proposal).** R5 said a cumulative "since 1990" is *not available* and the
   tool refuses to restart a total. Live, that gave poor answers: "What is China's cumulative CO₂ since 1990?" returned the total from 1750 (285 Gt) with a
   note that it "isn't restarted"; "top emitters since 1970" had no route (the model sent `start_year` to the ranking, which the API rejects, so the answer
   came from a failed call and a plain all-time top 15, plus a partial-data banner). **But the number is available and exact:** emissions since year X
@@ -4342,6 +4342,20 @@ basis, refuses attribution, and links to Historical Trends, Country Profile and 
   "since YYYY" mean emissions in that period (recommended)? (b) should Historical Trends and Country Profile get the counting-from toggle Release 23
   deferred, so the pages agree with the agent? If not, a since-answer's Historical Trends link opens on totals counted from the first record
   (285 Gt, against the 244 Gt the answer gave).
+  **Owner answers and as built (live 2026-10-13, bundle `index-DhqoSyBq.js`, rollback `~/dist-prev-release24-8`):** (a) yes, "since YYYY" means emissions
+  in that period; (b) yes to a toggle, default cumulative from when records began ("Since records began" / "From a year", `?from=YYYY`, years 1970 to the
+  latest), on Historical Trends and Country Profile; the agent's links for a since answer carry `from=` and keep the fixed links where a page cannot match
+  (a year before 1970, a period ending before the latest data year, a ranking, PRIMAP-hist). Historical Trends also hides the Cumulative and Share of world
+  tabs for non-CO₂ gases. API: `from_year` on `/historical/cumulative` and `/countries/{c}/cumulative` (1969 kept as the base year). MCP tool: `since_year`
+  (1851 to latest) in both modes; `summary.since` carries each country's emitted Gt, share of the period and rank, the denominator's period emissions
+  (`world_*` for OWID, `source_total_*` for PRIMAP-hist, which has no World total), the base values and `latest_year`; a since series is always drawn from
+  the period's own emissions (stacked area from zero for OWID with a Rest of world, `emitted_lines` for PRIMAP-hist), never as a lifetime-share chart, and a
+  since ranking is Gt bars; every "not available" statement flipped together. A World total is claimed only on positive evidence (`denominator.kind == "world"`).
+  **Live check:** China from 1990 = 244,176 Mt, 22.93%, rank 1 of 215 (API, page and agent agree); the agent named the period, gave Gt, led with 244.2 GtCO₂
+  and mentioned the 285.1 Gt all-time total only as context; "most since 1970" gave US 284.7 Gt (19.79%), China 275.0 Gt (19.12%), no failed call or banner.
+  Review: about twenty Copilot findings across #295 and #298, one root assumption (every share is of the World total, in CO₂); the lessons are in memory
+  (one PR not stacked; paginate comment reads; pre-PR invariant tests). **Still open:** `evals/run_cumulative.py` unrun; per-country first-record years not
+  exposed; the 1970 answer carries an oddly worded sentence about the temperature record that does not apply to a share question (prompt tweak candidate).
 
 ## Backlog (not scheduled)
 
