@@ -8,7 +8,7 @@ export interface WidgetSpec {
   intent: WidgetIntent
   chart_kind?: ChartKind | null
   /** Which picture of a country-share series to draw (Release 24.4: chosen per question by the agent, never part of the cached result); absent for every other widget. */
-  view?: 'share_lines' | 'cumulative_area' | 'share_vs_annual' | null
+  view?: 'share_lines' | 'cumulative_area' | 'share_vs_annual' | 'emitted_lines' | null
   title: string
   as_of?: string | null
   // source_tool_call is `${tool_name}:${json.dumps(args, sort_keys=True)}` (cache.py's

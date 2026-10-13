@@ -246,9 +246,22 @@ def test_a_since_series_is_an_amount_question_drawn_as_the_rebased_area_with_a_t
     assert "since records began" not in w.title  # the period figures are not the total from the first record
 
 
-def test_a_since_series_for_primap_has_no_area_and_a_share_question_about_movement_still_gets_the_comparison():
-    assert select_share_view("How much since 1990?", since_series(source="primap_hist", rest=False)["summary"], "primap_hist") == "share_lines"
-    assert select_share_view("Is China's share rising since 1990?", since_series()["summary"], "owid_co2") == "share_vs_annual"
+def test_a_since_series_is_never_drawn_as_a_lifetime_share_chart_whatever_the_wording():
+    """The share views plot the cumulative share since records began: a different quantity from the since answer's period figures, so they would contradict it."""
+    for q in ("How much since 1990?", "Is China's share rising since 1990?", "compare their share since 1990", "What share has China emitted since 1990?", "tell me about China since 1990"):
+        assert select_share_view(q, since_series()["summary"], "owid_co2") == "cumulative_area", q  # OWID: the rebased stacked area
+        assert select_share_view(q, since_series(source="primap_hist", rest=False)["summary"], "primap_hist") == "emitted_lines", q  # PRIMAP-hist: no World total, so lines of emissions
+    # and the same wording WITHOUT a since keeps the lifetime views (they are right for a question about the total since records began)
+    assert select_share_view("Is China's share rising?", series_result()["summary"], "owid_co2") == "share_vs_annual"
+    assert select_share_view("compare China and India on share", series_result(("China", "India"))["summary"], "owid_co2") == "share_lines"
+
+
+def test_the_primap_since_widget_is_emitted_lines_with_a_period_title_in_the_right_unit():
+    r = since_series(source="primap_hist", rest=False)
+    w = build_widget(rec(r), "How much since 1990?")
+    assert w.view == "emitted_lines" and w.title == "Emitted 1990–2024, GtCO₂ – China"
+    r["gas_scope"] = "total_ghg"
+    assert build_widget(rec(r), "How much since 1990?").title == "Emitted 1990–2024, GtCO₂e – China"
 
 
 def test_a_since_ranking_has_no_view_and_a_title_naming_the_period():
@@ -279,7 +292,7 @@ def test_the_prompt_sends_since_questions_to_since_year_and_no_longer_says_they_
 def test_titles_say_gtco2e_for_total_greenhouse_gases():
     r = since_series(source="primap_hist", rest=False)
     r["gas_scope"] = "total_ghg"
-    assert build_widget(rec(r), "What is China's cumulative CO₂ since 1990?").title == "Cumulative share of emissions – China"  # PRIMAP has no area view: the share lines, whose title has no unit
+    assert build_widget(rec(r), "What is China's cumulative CO₂ since 1990?").title == "Emitted 1990–2024, GtCO₂e – China"  # PRIMAP has no area view: emitted_lines, titled with the period
     rk = since_ranking()
     rk["gas_scope"] = "total_ghg"
     assert build_widget(rec(rk), "since 1970").title == "Top 15 emitters, 1970–2024, GtCO₂e"

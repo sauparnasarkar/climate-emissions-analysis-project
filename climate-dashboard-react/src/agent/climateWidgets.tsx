@@ -23,7 +23,7 @@ import { buildHeadline } from '../lib/headline';
 import { fmtGt } from '../lib/cumulative';
 import { cumulativeAreaSeries } from '../lib/historicalCumulative';
 import { buildScenarioView } from '../lib/scenarioView';
-import { shareToCumulative, shareVsAnnualLines, sinceRebase, SINGLE_LINE_COLOR } from '../lib/shareViews';
+import { shareToCumulative, shareVsAnnualLines, sinceEmittedLines, sinceRebase, SINGLE_LINE_COLOR } from '../lib/shareViews';
 import { singleYearRows, sourceRows } from './climateRows';
 import type { WidgetSpec } from './types';
 
@@ -227,6 +227,33 @@ function ShareAreaView({ widget, result }: { widget: WidgetSpec; result: Correla
   );
 }
 
+/** Emissions in a period as one line per country, in Gt from zero in the first year: the since-answer chart where there is no World total to stack against (PRIMAP-hist). */
+function SinceLinesView({ widget, result }: { widget: WidgetSpec; result: CorrelationCountryShareResponse }): ReactElement | null {
+  const rebase = useMemo(() => sinceRebase(widget.summary), [widget.summary]);
+  const lines = useMemo(() => sinceEmittedLines(result, rebase), [result, rebase]);
+  if (!lines) return null;
+  const L = shareLabels(result);
+  const period = (widget.summary as { since?: SinceSummary } | null | undefined)?.since?.period ?? '';
+  const gasName = L.gas === 'CO₂' ? 'CO₂' : 'Greenhouse gases (CO₂e)';
+  return (
+    <>
+      <ShareFigures widget={widget} result={result} />
+      <ChartCard title={widget.title}>
+        <SyChart
+          height={320}
+          xTitle="Year"
+          yTitle={`${gasName} emitted ${period} (${L.unit})`}
+          ariaLabel={`Line chart of ${L.gas} emitted ${period} in gigatonnes for ${lines.map((l) => l.name).join(', ')}, ${lines[0].years[0]} to ${lines[0].years[lines[0].years.length - 1]}`}
+          series={lines.map((l) => ({ name: l.name, x: l.years, y: l.gt, kind: 'line' as const }))}
+        />
+        <p className="__s9cmpx-body4" style={caption}>
+          {L.source} · emissions in {period}: each country&rsquo;s cumulative total in each year minus its total the year before {lines[0].years[0]}, so every line starts at zero. There is no World total in this source to show a Rest of world against.
+        </p>
+      </ChartCard>
+    </>
+  );
+}
+
 /** One country's share of everything emitted so far (solid) against its share of each year's emissions (dotted): Country Profile's comparison, on the tool's own result. */
 function ShareVsAnnualView({ widget, result }: { widget: WidgetSpec; result: CorrelationCountryShareResponse }): ReactElement | null {
   const lines = useMemo(() => shareVsAnnualLines(result), [result]);
@@ -277,6 +304,7 @@ export function CountryShareWidget({ widget }: WidgetProps): ReactElement {
   if (nothing) return <NoShares result={result} />;
   // A view that cannot be drawn honestly (no World total for a PRIMAP-hist share, no annual share, no points) falls through to the lines below.
   if (result.mode === 'series' && widget.view === 'cumulative_area' && shareToCumulative(result, sinceRebase(widget.summary))) return <ShareAreaView widget={widget} result={result} />;
+  if (result.mode === 'series' && widget.view === 'emitted_lines' && sinceEmittedLines(result, sinceRebase(widget.summary))) return <SinceLinesView widget={widget} result={result} />;
   if (result.mode === 'series' && widget.view === 'share_vs_annual' && shareVsAnnualLines(result)) return <ShareVsAnnualView widget={widget} result={result} />;
   if (result.mode === 'series') {
     const series: SyChartSeries[] = (result.series ?? []).map((s) => ({ name: s.name, x: s.points.map((p) => p.year), y: s.points.map((p) => p.share_pct), kind: 'line' as const }));
