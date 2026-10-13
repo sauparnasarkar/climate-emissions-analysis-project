@@ -28,6 +28,8 @@ MAX_FOLLOW_UP_LINKS = 3
 MAX_LINK_COUNTRIES = 10
 # Country Profile's anchor for its cumulative section (`CUMULATIVE_ANCHOR` in climate-dashboard-react/src/pages/CountryProfilePage.tsx; pinned by tests).
 COUNTRY_PROFILE_CUMULATIVE_ANCHOR = "cumulative"
+# The first year the pages' counting-from choice accepts (`COUNTING_FROM_MIN_YEAR` in climate-dashboard-react/src/hooks/useCountingFrom.ts; pinned by tests).
+COUNTING_FROM_MIN_YEAR = 1970
 
 _OVERVIEW_SIGNAL = FollowUpLink(label="Open in Overview", route="/overview#climate-signal")
 _OVERVIEW_RELATIONSHIP = FollowUpLink(label="Open in Overview", route="/overview#relationship")
@@ -113,6 +115,10 @@ def _share(record: ToolCallRecord, current_query: str = "") -> list[FollowUpLink
     # A "since YYYY" answer is the emissions of a period: carry `from=` (Release 24.8, the pages' counting-from choice) so the page opens on the answer's numbers
     # and not on the total since records began. Without a since, the page's default (since records began) is what the answer quoted, so no parameter.
     since_year = (summary.get("since") or {}).get("year")
+    if isinstance(since_year, int) and since_year < COUNTING_FROM_MIN_YEAR:
+        # The tool answers from 1851, but the pages' counting-from choice starts in 1970 (the cumulative views' window): a link would silently open the totals since
+        # records began, numbers that disagree with the answer's. Keep the fixed links.
+        return fixed
     from_param = [("from", str(since_year))] if isinstance(since_year, int) else []
     links = [FollowUpLink(label="Open in Historical Trends", route=f"/historical{_query([('view', view), *from_param, *[('countries', n) for n in flagged]])}")]
     if len(flagged) == 1:

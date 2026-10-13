@@ -276,6 +276,16 @@ def test_a_since_answer_links_to_the_pages_counting_from_that_year_so_they_show_
     assert dict(routes(since_series(), "Is China's share rising since 1990?"))["Open in Historical Trends"] == "/historical?view=share&from=1990&countries=China"
 
 
+def test_a_since_year_before_the_pages_window_keeps_the_fixed_links_instead_of_a_link_that_opens_other_numbers():
+    fixed = ["/climate-correlation#country-view", "/overview#top-emitters"]
+    old = since_series()
+    old["summary"]["since"].update(year=1950, period="1950–2024")
+    assert [r for _, r in routes(old, "since 1950")] == fixed  # the tool accepts 1851+, the pages' choice starts in 1970
+    edge = since_series()
+    edge["summary"]["since"].update(year=1970, period="1970–2024")
+    assert dict(routes(edge, "since 1970"))["Open in Historical Trends"] == "/historical?view=cumulative&from=1970&countries=China"  # 1970 itself is fine
+
+
 def test_a_since_ranking_and_a_primap_since_keep_the_fixed_links():
     fixed = ["/climate-correlation#country-view", "/overview#top-emitters"]
     assert [r for _, r in routes(since_ranking(), "which countries emitted the most since 1970")] == fixed
@@ -289,6 +299,9 @@ def test_the_dashboard_really_reads_the_from_parameter_on_both_pages():
         pytest.skip("climate-dashboard-react/src not present")
     hook = (src / "hooks" / "useCountingFrom.ts").read_text()
     assert "useUrlChoice('from'" in hook and "COUNTING_FROM_MIN_YEAR = 1970" in hook
+    from agent.follow_ups import COUNTING_FROM_MIN_YEAR
+
+    assert COUNTING_FROM_MIN_YEAR == int(re.search(r"COUNTING_FROM_MIN_YEAR = (\d+)", hook).group(1))  # the agent's copy cannot drift from the dashboard's
     assert "useCountingFrom()" in (src / "pages" / "HistoricalTrendsPage.tsx").read_text() and "useCountingFrom()" in (src / "pages" / "CountryProfilePage.tsx").read_text()
     for _, route in routes(since_series(), "since 1990"):
         qs = route.partition("#")[0].partition("?")[2]
