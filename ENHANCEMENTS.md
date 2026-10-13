@@ -4327,6 +4327,21 @@ basis, refuses attribution, and links to Historical Trends, Country Profile and 
 - **D5: one share denominator.** Accepted: World total including international aviation and shipping for OWID shares, OWID's
   World row itself (matches the dashboard to the digit), remainder published as a visible line, PRIMAP-hist on its own total, stated.
 - **D6: `share_trend` tolerance.** Closed: `steady` when cumulative share moved by less than 0.5 percentage points over the window.
+- **D7: "since YYYY" (OPEN; found live 2026-10-13, owner asked for it to be handled).** R5 said a cumulative "since 1990" is *not available* and the
+  tool refuses to restart a total. Live, that gave poor answers: "What is China's cumulative CO₂ since 1990?" returned the total from 1750 (285 Gt) with a
+  note that it "isn't restarted"; "top emitters since 1970" had no route (the model sent `start_year` to the ranking, which the API rejects, so the answer
+  came from a failed call and a plain all-time top 15, plus a partial-data banner). **But the number is available and exact:** emissions since year X
+  are the cumulative total at the end year minus the total at X−1, equal to the sum of the annual values (verified on the real data: China 1990–2024 =
+  244,176 Mt both ways; World 1,064.8 Gt, so 22.9% of that period against China's 15.4% of everything; since 1970 the ranking is US 284.7 Gt, China
+  275.0 Gt, Russia 99.2, India 61.9, Japan 60.1, against the all-time US 434.9 / China 285.1). **Proposal:** an explicit `since_year` (valid from 1851 to
+  the latest year, because year X−1 must be a published year; a country with no row at X−1 had nothing before it, base 0, the pipeline's own rule) on
+  `get_country_cumulative_share`, in both modes: a series gets a `since` block (emitted Gt, share of the period's emissions, World emitted) and the
+  widget draws the stacked area rebased to start at 0 in year X ("emitted 1990–2024", never "since records began"); a ranking is the period ranking
+  (bars in Gt). Period figures live in their own fields, never in `rows` / `cumulative_mt` / `share_pct`. Every "not available" statement flips together:
+  the tool description, the methodology text, `window_note`, prompt rule (8), the `since-1990` eval case and R5. **Two owner questions:** (a) should
+  "since YYYY" mean emissions in that period (recommended)? (b) should Historical Trends and Country Profile get the counting-from toggle Release 23
+  deferred, so the pages agree with the agent? If not, a since-answer's Historical Trends link opens on totals counted from the first record
+  (285 Gt, against the 244 Gt the answer gave).
 
 ## Backlog (not scheduled)
 
