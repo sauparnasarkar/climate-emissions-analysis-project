@@ -25,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from agent.area2_lint import check_response  # noqa: E402
+from agent.area2_lint import check_response, check_units  # noqa: E402
 from agent.graph import build_graph  # noqa: E402
 
 SHARE_TOOL = "get_country_cumulative_share"
@@ -75,6 +75,7 @@ async def run_case(graph, case: Case) -> tuple[bool, list[str]]:
     if case.view and case.view not in views:
         problems.append(f"expected the {case.view!r} view, widgets had {views or 'no share widget'}")
     problems += check_response(text, result["scope_notes"], share_answer=True)
+    problems += check_units(text, [w.summary for w in result["widgets"] if w.summary])  # a Gt figure written with Mt (a live answer said 434.9 Mt for the US's 434.9 Gt)
     print(f"\n=== {case.id}: {case.prompt}\n  classification={result['classification']} tools={tools} views={views}")
     print(f"  notes={len(result['scope_notes'])} widgets={len(result['widgets'])} links={[l.route for l in result.get('follow_up_links', [])]}\n  answer: {text[:700]}")
     for p in problems:

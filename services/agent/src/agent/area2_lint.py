@@ -30,6 +30,32 @@ _SHARE_WORD = re.compile(r"\bshare\b", re.I)
 _BASIS = re.compile(r"\b(?:world|global|PRIMAP|source's total|all countries|all emissions)\b", re.I)
 
 
+def check_units(text: str, summaries: list[dict]) -> list[str]:
+    """Violations of one specific, deterministic slip: a Gt figure from a share summary written with Mt ("434.9 Mt" for the United States' 434.9 Gt). A live answer
+    did exactly that. Looks for every `*_gt` value in the summaries followed by "Mt" (the Mt-or-Gt letter is what is checked, so "434.9 Gt" passes)."""
+    gts: set[float] = set()
+
+    def collect(obj) -> None:
+        if isinstance(obj, dict):
+            for key, v in obj.items():
+                if key.endswith("_gt") and isinstance(v, (int, float)) and v >= 10:  # small values collide with ordinary Mt figures
+                    gts.add(round(float(v), 1))
+                else:
+                    collect(v)
+        elif isinstance(obj, list):
+            for v in obj:
+                collect(v)
+
+    for s in summaries:
+        collect(s)
+    out = []
+    for v in sorted(gts):
+        forms = {f"{v:,.1f}", f"{v:.1f}", f"{v:,.0f}" if v == round(v) else f"{v:,.1f}"}
+        if any(re.search(rf"(?<![\d.,]){re.escape(f)}\s*Mt\b", text) for f in forms):
+            out.append(f"{v:,.1f} is a GtCO2 figure from the tool's summary but is written with Mt")
+    return out
+
+
 def _sentences(text: str) -> list[str]:
     return [s.strip() for s in _SENTENCE.split(text) if s.strip()]
 
