@@ -280,6 +280,50 @@ describe('HistoricalTrendsPage', () => {
       expect(screen.queryByText('Cumulative CO₂ Emissions by Country')).toBeNull();
     });
 
+    it('counts from each countrys first record by default, with the counting-from choice shown only in the cumulative views', async () => {
+      arrange();
+      const { default: userEvent } = await import('@testing-library/user-event');
+      const user = userEvent.setup();
+      render(<MemoryRouter><HistoricalTrendsPage /></MemoryRouter>);
+      await screen.findByText('CO₂ Emissions by Country');
+      expect(screen.queryByRole('radio', { name: 'Since records began' })).toBeNull(); // not in the annual view
+      await user.click(screen.getByRole('radio', { name: 'Cumulative' }));
+      expect(await screen.findByText('Cumulative CO₂ Emissions by Country')).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'Since records began' })).toBeChecked();
+      expect(screen.queryByLabelText('From year')).toBeNull(); // the year choice appears only for "From a year"
+      expect(vi.mocked(api.historicalCumulative)).toHaveBeenLastCalledWith(FEATURED); // the default request carries no year
+    });
+
+    it('From a year asks the API to count from 1990 and says what the figures are', async () => {
+      arrange();
+      const { default: userEvent } = await import('@testing-library/user-event');
+      const user = userEvent.setup();
+      render(<MemoryRouter initialEntries={['/historical?view=cumulative']}><HistoricalTrendsPage /></MemoryRouter>);
+      await screen.findByText('Cumulative CO₂ Emissions by Country');
+      await user.click(screen.getByRole('radio', { name: 'From a year' }));
+      expect(await screen.findByText('CO₂ Emitted Since 1990, by Country')).toBeInTheDocument();
+      expect(vi.mocked(api.historicalCumulative)).toHaveBeenLastCalledWith(FEATURED, 1990);
+      expect(screen.getByRole('combobox', { name: 'From year' })).toHaveTextContent('1990'); // the design-system Select is a button-style combobox: its displayed value
+      expect(screen.getByText(/emissions since 1990: each total minus its total the year before 1990, so every area starts at zero/)).toBeInTheDocument();
+      expect(screen.getByText(/CO₂ a country has emitted since 1990, from zero in 1990/)).toBeInTheDocument();
+      await user.click(screen.getByRole('radio', { name: 'Since records began' }));
+      expect(await screen.findByText('Cumulative CO₂ Emissions by Country')).toBeInTheDocument();
+      expect(vi.mocked(api.historicalCumulative)).toHaveBeenLastCalledWith(FEATURED);
+    });
+
+    it('opens on ?from= (so the agent link shows its answer\'s numbers), in the share view too, and ignores an unrecognised year', async () => {
+      arrange();
+      const { unmount } = render(<MemoryRouter initialEntries={['/historical?view=share&from=2000']}><HistoricalTrendsPage /></MemoryRouter>);
+      expect(await screen.findByText("Share of the World's CO₂ Emitted Since 2000")).toBeInTheDocument();
+      expect(vi.mocked(api.historicalCumulative)).toHaveBeenLastCalledWith(FEATURED, 2000);
+      expect(screen.getByRole('radio', { name: 'From a year' })).toBeChecked();
+      unmount();
+      vi.mocked(api.historicalCumulative).mockClear();
+      render(<MemoryRouter initialEntries={['/historical?view=cumulative&from=1850']}><HistoricalTrendsPage /></MemoryRouter>); // before the window: read as absent
+      await screen.findByText('Cumulative CO₂ Emissions by Country');
+      expect(vi.mocked(api.historicalCumulative)).toHaveBeenCalledWith(FEATURED);
+    });
+
     it('ignores an unknown ?view= and shows the annual chart', async () => {
       arrange();
       render(<MemoryRouter initialEntries={['/historical?view=bogus']}><HistoricalTrendsPage /></MemoryRouter>);

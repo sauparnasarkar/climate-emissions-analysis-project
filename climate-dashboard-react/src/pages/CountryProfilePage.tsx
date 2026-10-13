@@ -11,6 +11,8 @@ import type { CountryCumulativeResponse, CountryProfileTableRow } from '../api/t
 import { resolveDivergingEndpointHex } from '../lib/resolveThemeColorHex';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
 import { fmtGt } from '../lib/cumulative';
+import { useCountingFrom } from '../hooks/useCountingFrom';
+import { CountingFromControl } from '../components/CountingFromControl';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
 
 // The CO2 Emissions and CO2 per Capita line charts below pass no explicit `color`, so each
@@ -62,7 +64,8 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
   const [country, setCountry] = useSelectedCountry(featured[0], expanded);
   const { data, error, loading } = useAsync(() => api.countryProfile(country), [country]);
   // Its own request, so a slow or failed cumulative fetch never blanks the sections above it (SPEC.md §5.28).
-  const cumulative = useAsync(() => api.countryCumulative(country), [country]);
+  const [from, setFrom] = useCountingFrom();
+  const cumulative = useAsync(() => (from == null ? api.countryCumulative(country) : api.countryCumulative(country, from)), [country, from]);
   const reduceMotion = useReducedMotion();
   // The deep-link jump also waits for the pinned row's first measurement: where it wraps, the offset is wrong until then.
   const { rowReady, onRowReady } = useStickyRowReady();
@@ -136,12 +139,13 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
 
           <div id={CUMULATIVE_ANCHOR} style={{ marginTop: 24 }}>
             <h2 className="__s9cmpx-headline6">Cumulative contribution</h2>
+            <CountingFromControl name="country-counting-from" from={from} onChange={setFrom} lastYear={cumulative.data?.years.at(-1) ?? new Date().getFullYear() - 2} />
             {cumulative.loading ? (
               <Spinner />
             ) : cumulative.error ? (
               <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
             ) : cumulative.data ? (
-              <CumulativeSection country={country} data={cumulative.data} />
+              <CumulativeSection country={country} data={cumulative.data} from={from} />
             ) : null}
           </div>
         </>
@@ -150,7 +154,7 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
   );
 }
 
-function CumulativeSection({ country, data }: { country: string; data: CountryCumulativeResponse }) {
+function CumulativeSection({ country, data, from }: { country: string; data: CountryCumulativeResponse; from: number | null }) {
   const { latest } = data;
   const first = data.years[0];
   const lastYear = data.years[data.years.length - 1];
@@ -162,13 +166,13 @@ function CumulativeSection({ country, data }: { country: string; data: CountryCu
   return (
     <>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16, margin: '12px 0' }}>
-        <KpiStat card label={`Cumulative CO₂ since records began · ${latest.year}`} value={`${fmtGt(latest.cumulative_co2 / 1000)} GtCO₂`} delta="Fossil and cement" deltaDirection="neutral" />
-        <KpiStat card label="Share of world total" value={shareLabel(latest.share_of_world_cumulative)} delta={firstShare == null ? undefined : `${shareLabel(firstShare)} in ${first}`} deltaDirection="neutral" />
-        <KpiStat card label={`Rank by cumulative CO₂ · ${latest.year}`} value={`#${latest.rank}`} delta={`of ${latest.rank_of} countries`} deltaDirection="neutral" />
+        <KpiStat card label={from == null ? `Cumulative CO₂ since records began · ${latest.year}` : `Emitted since ${from} · ${latest.year}`} value={`${fmtGt(latest.cumulative_co2 / 1000)} GtCO₂`} delta="Fossil and cement" deltaDirection="neutral" />
+        <KpiStat card label={from == null ? 'Share of world total' : `Share of the world's emissions since ${from}`} value={shareLabel(latest.share_of_world_cumulative)} delta={from != null || firstShare == null ? undefined : `${shareLabel(firstShare)} in ${first}`} deltaDirection="neutral" />
+        <KpiStat card label={from == null ? `Rank by cumulative CO₂ · ${latest.year}` : `Rank by emissions since ${from} · ${latest.year}`} value={`#${latest.rank}`} delta={`of ${latest.rank_of} countries`} deltaDirection="neutral" />
       </div>
-      <ChartCard title={`Share of World CO₂ — ${country}`} headingLevel={3}>
+      <ChartCard title={from == null ? `Share of World CO₂ — ${country}` : `Share of World CO₂ since ${from} — ${country}`} headingLevel={3}>
         <p className="__s9cmpx-body4" style={{ margin: '0 0 8px', color: 'var(--__s9cmpx-static-text-weak)' }}>
-          <strong>Purpose:</strong> Solid line: share of all CO₂ emitted so far. Dotted line: share of each year&rsquo;s emissions. When the dotted line is above the solid one, the country&rsquo;s share of the total is rising.
+          <strong>Purpose:</strong> {from == null ? <>Solid line: share of all CO₂ emitted so far. Dotted line: share of each year&rsquo;s emissions. When the dotted line is above the solid one, the country&rsquo;s share of the total is rising.</> : <>Solid line: share of all the CO₂ the world emitted since {from}. Dotted line: share of each year&rsquo;s emissions. When the dotted line is above the solid one, the country&rsquo;s share of the period&rsquo;s total is rising.</>}
         </p>
         <SyChart
           height={280}
@@ -181,7 +185,7 @@ function CumulativeSection({ country, data }: { country: string; data: CountryCu
           ]}
         />
         <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
-          Fossil and cement CO₂ · OWID · counted from each country&rsquo;s first record, shown from {first}. Shares are of the World total, international aviation and shipping included, the same as in Climate Correlation, which also offers PRIMAP-hist.{' '}
+          Fossil and cement CO₂ · OWID · {from == null ? <>counted from each country&rsquo;s first record, shown from {first}.</> : <>emissions since {from}: each total minus its total the year before {from}.</>} Shares are of the World total, international aviation and shipping included, the same as in Climate Correlation, which also offers PRIMAP-hist.{' '}
           <Link to="/climate-correlation">Open in Climate Correlation</Link>
         </p>
       </ChartCard>
