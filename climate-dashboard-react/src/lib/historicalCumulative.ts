@@ -27,11 +27,14 @@ const lastValue = (values: Array<number | null>): number => {
 };
 
 /**
- * Stacked areas in GtCO₂, largest accumulated total at the bottom, with a grey Rest of world on top so the full height
+ * Stacked areas in GtCO₂, largest accumulated total at the bottom (each country keeps its picker-order colour), with a grey Rest of world on top so the full height
  * is the World total. A country with no value in a year (before its record starts) adds nothing to the stack; Rest of
  * world is World minus what is shown, floored at zero, and null where World itself has no value.
  */
-export function cumulativeAreaSeries(data: HistoricalCumulativeResponse): CumulativeChartSeries[] {
+export function cumulativeAreaSeries(data: HistoricalCumulativeResponse, palette: readonly string[]): CumulativeChartSeries[] {
+  // Colour by picker position (data.series is in request order), the same slot SyChart gives that country in the Annual and
+  // Share views, so a country keeps its colour when the view switches even though this view re-orders the stack by size.
+  const slot = new Map(data.series.map((s, i) => [s.name, palette[i % palette.length]]));
   const ordered = [...data.series].sort((a, b) => lastValue(b.cumulative_co2) - lastValue(a.cumulative_co2));
   const shown = data.years.map((_, i) => ordered.reduce((sum, s) => sum + (s.cumulative_co2[i] ?? 0), 0));
   const countries = ordered.map((s) => ({
@@ -39,6 +42,7 @@ export function cumulativeAreaSeries(data: HistoricalCumulativeResponse): Cumula
     x: data.years,
     y: s.cumulative_co2.map((v) => (v == null ? 0 : v / MT_PER_GT)),
     kind: 'area' as const,
+    color: slot.get(s.name),
   }));
   const rest: CumulativeChartSeries = {
     name: REST_OF_WORLD,

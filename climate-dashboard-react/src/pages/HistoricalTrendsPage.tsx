@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { ChartCard, SyChart, MultiSelect, Select, SegmentedControl, Button, InlineAlert, Spinner, useReducedMotion } from 'design-system';
 import { Link } from 'react-router-dom';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
@@ -5,6 +6,7 @@ import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
+import { useCategoricalPalette } from '../hooks/useCategoricalPalette';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
 import { useUrlChoice } from '../hooks/useUrlChoice';
 import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
@@ -54,6 +56,8 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   // URL-backed too (?gas=methane), so "Open in Historical Trends" from the Ask page lands on the same gas.
   const [gas, setGas] = useUrlChoice('gas', GAS_KEYS, 'co2');
 
+  const rootRef = useRef<HTMLDivElement>(null);
+  const palette = useCategoricalPalette(rootRef);
   const [view, setView] = useUrlChoice('view', VIEW_KEYS, 'annual');
   const annual = view === 'annual';
 
@@ -89,7 +93,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
   useJumpToHashOnLoad(rowReady, reduceMotion);
 
   return (
-    <div>
+    <div ref={rootRef}>
       <h1 className="__s9cmpx-headline2" style={{ margin: '0 0 16px' }}>Historical Emissions Trends</h1>
       <StickyJumpLinks onReady={onRowReady} items={JUMP_ITEMS} />
 
@@ -142,7 +146,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
             xTitle="Year"
             yTitle={VIEW_COPY[view].yTitle}
             ariaLabel={`${view === 'cumulative' ? 'Stacked area chart of cumulative' : 'Line chart of the share of the world\u2019s cumulative'} CO₂ emissions from ${cumulative.data.years[0]} for ${selectedCountries.join(', ')}`}
-            series={view === 'cumulative' ? cumulativeAreaSeries(cumulative.data) : shareLineSeries(cumulative.data)}
+            series={view === 'cumulative' ? cumulativeAreaSeries(cumulative.data, palette) : shareLineSeries(cumulative.data)}
           />
           <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
             Fossil and cement CO₂ · OWID · counted from each country&rsquo;s first record, shown from {cumulative.data.years[0]}
