@@ -4012,6 +4012,87 @@ profile, then offline.
 - The "very likely" wording on the AR6 strip is a separate, already-logged follow-up and is not
   folded into this release.
 
+## Release 23 — Cumulative CO₂ on Historical Trends and Country Profile
+
+**Status: Docs-first, not started.** Written before implementation, per the project's convention;
+revise to "Shipped" once merged and deployed. `api/` + `climate-dashboard-react`; no notebook,
+Streamlit or design-system change planned (new views compose existing `SyChart` and card
+components; confirm during build).
+
+**The ask.** Show cumulative CO₂ as an option on Historical Trends and Country Profile, from 1970
+(the same window the Overview's top-emitters map plays), so the page shows new economies
+industrialising while developed countries level off. Mockup: Claude Design's "Cumulative Emissions
+Mockup" (1a/1b Historical Trends desktop/mobile, 1c/1d Country Profile desktop/mobile).
+
+### 23.1 Data: what exists and what it means
+
+- `data/owid-co2-data.csv` already has `cumulative_co2` (Mt), `share_global_cumulative_co2` (%)
+  and `share_global_co2` (%, share of that year's emissions). **No derivation is needed.**
+- `cumulative_co2` is the running total **from each country's first record** (World 1750, UK 1750,
+  Germany 1792, US 1800, Russia 1830, India 1858, China 1907). Loading rows from 1970 therefore
+  still gives the true accumulated total; 1970 is a display window, not a counting start. The scope
+  line says so on both pages.
+- Fossil and cement CO₂ only (the OWID column); land-use CO₂ is excluded. Climate Correlation
+  counts land-use too, so its country shares differ. Both pages' scope line says this and links to
+  Climate Correlation.
+- Checked against the data (2024): US 23.5% of the cumulative total vs 12.7% of that year's
+  emissions; China 15.4% vs 31.8%; summed sovereign countries 1,803 Gt vs World 1,849 Gt (the
+  difference is non-sovereign sources, so "Rest of world = World minus the countries shown").
+- **Not in this release:** the mockup's "count from 1750 or 1970" tweak (counting from 1970 would
+  mean summing annual CO₂ ourselves) and the 100% stacked share view.
+
+### 23.2 API (new endpoints; existing ones untouched)
+
+Both read `owid-co2-data.csv` through a new loader that keeps `year >= 1970` (the existing
+`load_raw()` stays at 1990, so the Annual view and every other consumer, including the MCP tools,
+are unchanged). Values are in Mt; the frontend formats Gt.
+
+- `GET /historical/cumulative?countries=...&scope=` — per country `years`, `cumulative_co2`,
+  `share_of_world_cumulative`, `share_of_world_annual` (None-filled where OWID has no value), plus
+  a `world` series (`years`, `cumulative_co2`) so the frontend can draw "Rest of world". `scope`
+  takes the same values and default as `/historical/timeseries`. Unknown country → 404; more than
+  10 countries → 422 (same cap as the picker); missing data file → 503.
+- `GET /countries/{country}/cumulative` — `years`, `cumulative_co2`, `share_of_world_cumulative`,
+  `share_of_world_annual`, and latest-year headline figures: cumulative total, share, and `rank`
+  by cumulative CO₂ **among sovereign countries** (iso-coded rows; OWID aggregates such as "Asia"
+  never rank) with `rank_of` (the count ranked). Same 404/503 behaviour as the profile endpoint.
+  `/countries/{country}/profile` is unchanged.
+
+### 23.3 Frontend
+
+- **Historical Trends** — a view switch on the existing chart card: Annual | Cumulative | Share of
+  world. The country picker and each country's colour are shared by all three views. Cumulative =
+  stacked area, largest total at the bottom, grey "Rest of world" on top so the full height is the
+  World total. Share = one line per country (Rest of world omitted; it would flatten the others).
+  A legend under the chart reads every series at the hovered year (tap on phones), so no tooltip
+  covers the bands. Annual keeps today's data and window.
+- **Country Profile** — a new last section "Cumulative contribution" (`#cumulative`, added to the
+  jump links): three figures (cumulative CO₂, share of the world total, rank) and one chart: share
+  of the cumulative total (solid) against share of each year's emissions (dashed). Dashed above
+  solid means the country's share is rising (China); below means falling (United States).
+- **Phones** — the picker collapses to one button that opens the existing MultiSelect sheet; the
+  view switch and links are 44 px targets; legends sit below the chart in two columns (Historical)
+  or stacked (Profile); figures are a 3-up row.
+- **Accessibility and themes** — chart `aria-label` carries the view's title; the readout is
+  keyboard-reachable text, not tooltip-only; both themes; no year animation (the time axis already
+  shows the change).
+
+### 23.4 Testing and verification plan
+
+- API: fixture-CSV tests (the existing temp-dir pattern) for both endpoints: happy path, a country
+  whose cumulative series starts after 1970 or has gaps, `scope` variants, the 10-country cap,
+  404 and 503, rank excluding aggregates, and "Rest of world" never negative.
+- App: Vitest for the view switch, the Rest-of-world arithmetic, the readout at a hovered year, and
+  a loading/data/error smoke test per new section; `tsc -b` and lint clean.
+- Real-data spot check before the PR: US, China, India, Germany values against a pandas read of the
+  raw CSV, and the Rest-of-world band against World minus the shown countries.
+- Visual preview in both themes and at phone width, and confirmation, before merge.
+
+### 23.5 Deliberately out of scope
+
+MCP tools and the agent's use of cumulative data; the 1750/1970 counting toggle; 100% stacked
+share; Overview changes (a ranked bar race there remains an idea); a Streamlit equivalent.
+
 ## Backlog (not scheduled)
 
 Things deliberately left as they are for now, with enough detail to pick them up later. Numbered `B<n>`; items stay here until done or dropped.
