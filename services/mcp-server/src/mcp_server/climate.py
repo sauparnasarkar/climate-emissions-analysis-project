@@ -131,3 +131,120 @@ def resolve_share_countries(names: list[str], universe: list[dict]) -> list[str]
                 raise CountryResolutionError(f"No match for '{raw}' — did you mean: {candidate}?")
             resolved.append(by_name[candidate])
     return list(dict.fromkeys(resolved))
+
+
+# --- country-share summaries (Release 24.3) ----------------------------------------------------------------
+
+# ENHANCEMENTS.md D6: a country's cumulative share counts as "steady" when it moved by less than this over the window shown.
+SHARE_TREND_TOLERANCE_PP = 0.5
+_MT_PER_GT = 1000
+
+
+def share_trend(change_pp: float | None) -> str | None:
+    """`rising`, `falling` or `steady`, computed here so the model reports it instead of inferring it. None when there is nothing to compare."""
+    if change_pp is None:
+        return None
+    if change_pp > SHARE_TREND_TOLERANCE_PP:
+        return "rising"
+    if change_pp < -SHARE_TREND_TOLERANCE_PP:
+        return "falling"
+    return "steady"
+
+
+def _gt(mt: float | None) -> float | None:
+    return None if mt is None else round(mt / _MT_PER_GT, 1)
+
+
+def share_series_summary(body: dict, roster: dict, start_year: int | None) -> dict:
+    """The `summary` of a country-share SERIES: per country the first and last cumulative share, its change in percentage points over the window shown and the
+    `share_trend` of that change, the latest cumulative total (Mt and Gt), the latest annual share, and the country's rank among `rank_of` countries.
+
+    `roster` is the all-countries ranking the tool already fetched to resolve names; it is the latest year's, so a rank is given only for a series that ends in
+    that year (never a latest-year rank beside an earlier window). For OWID, whose shares are of the World total, `rest_of_world` is what the countries shown
+    leave of it in the last year: World minus the countries shown, so it includes international aviation and shipping."""
+    ranks = {r["country"]: r["rank"] for r in roster.get("rows", [])}
+    rank_of, roster_year = len(ranks), roster.get("year")
+    countries = []
+    for sr in body["series"]:
+        pts = sr["points"]
+        first, last = (pts[0], pts[-1]) if pts else (None, None)
+        change = round(last["share_pct"] - first["share_pct"], 2) if first and last and last["year"] != first["year"] else None
+        ranked = last is not None and last["year"] == roster_year and sr["country"] in ranks
+        countries.append(
+            {
+                "country": sr["country"],
+                "name": sr["name"],
+                "in_expanded_scope": sr.get("in_expanded_scope"),
+                "first_year": first["year"] if first else None,
+                "first_share_pct": round(first["share_pct"], 2) if first else None,
+                "last_year": last["year"] if last else None,
+                "last_share_pct": round(last["share_pct"], 2) if last else None,
+                "share_change_pp": change,
+                "share_trend": share_trend(change),
+                "last_cumulative_mt": round(last["cumulative_mt"], 1) if last else None,
+                "last_cumulative_gt": _gt(last["cumulative_mt"]) if last else None,
+                "last_annual_share_pct": round(last["annual_share_pct"], 2) if last and last.get("annual_share_pct") is not None else None,
+                "last_annual_mt": round(last["annual_mt"], 1) if last and last.get("annual_mt") is not None else None,
+                "rank": ranks[sr["country"]] if ranked else None,
+                "rank_of": rank_of if ranked else None,
+            }
+        )
+    firsts = [c["first_year"] for c in countries if c["first_year"] is not None]
+    lasts = [c["last_year"] for c in countries if c["last_year"] is not None]
+    summary: dict = {
+        "mode": "series",
+        "countries": countries,
+        # The window each `share_trend` is measured over: a trend since 1850 says little about recent movement, so say which window it is.
+        "trend_window": [min(firsts), max(lasts)] if firsts else None,
+        "rank_year": roster_year,
+        "trend_tolerance_pp": SHARE_TREND_TOLERANCE_PP,
+        "counted_from": body.get("cumulative_from"),
+    }
+    cumulative_from = body.get("cumulative_from")
+    if start_year is not None and cumulative_from is not None and start_year > cumulative_from:
+        summary["window_note"] = (
+            f"start_year only chooses the first year shown: every total still counts from each country's first record (the earliest is {cumulative_from}) "
+            "and is never restarted at start_year, so a cumulative since a later year is not available."
+        )
+    # Rest of world, for OWID only (a remainder exists only where the denominator is the World total)
+    rem = {r["year"]: r for r in body.get("remainder_series") or []}
+    last_year = max(lasts) if lasts else None
+    if last_year in rem and countries and all(c["last_year"] == last_year for c in countries):
+        w = rem[last_year]
+        shown_mt = sum(sr["points"][-1]["cumulative_mt"] for sr in body["series"])
+        shown_pct = sum(sr["points"][-1]["share_pct"] for sr in body["series"])
+        summary["world_cumulative_gt"] = _gt(w["world_cumulative_mt"])
+        summary["rest_of_world"] = {
+            "year": last_year,
+            "cumulative_mt": round(max(0.0, w["world_cumulative_mt"] - shown_mt), 1),
+            "cumulative_gt": _gt(max(0.0, w["world_cumulative_mt"] - shown_mt)),
+            "share_pct": round(max(0.0, 100 - shown_pct), 2),
+            "includes": "every country not shown plus international aviation and shipping",
+        }
+    return summary
+
+
+def share_ranking_summary(body: dict) -> dict:
+    """The `summary` of a country-share RANKING: the top rows (Gt included), the shown rows' share, and for OWID the remainder of the World total. With a limited ranking
+    the rows plus the remainder do not make 100: `not_shown_share_pct` is what the countries left out by the limit hold."""
+    rows = body["rows"]
+    shown_pct = round(sum(r["share_pct"] for r in rows), 2) if rows else None
+    summary: dict = {
+        "mode": "ranking",
+        "year": body["year"],
+        "n_rows": len(rows),
+        "top": [
+            {"rank": r["rank"], "name": r["name"], "share_pct": round(r["share_pct"], 2), "cumulative_gt": _gt(r["cumulative_mt"]), "in_expanded_scope": r.get("in_expanded_scope")}
+            for r in rows[:5]
+        ],
+        # An empty ranking is "no data for that year", not zero emissions: keep it unavailable.
+        "shown_share_pct_total": shown_pct,
+    }
+    rem = body.get("remainder")
+    if rem and rows:
+        summary["world_cumulative_gt"] = _gt(body.get("total_cumulative_mt"))
+        summary["remainder_share_pct"] = round(rem["share_pct"], 2)
+        summary["not_shown_share_pct"] = round(max(0.0, 100 - shown_pct - rem["share_pct"]), 2)
+    if not rows:
+        summary["unavailable"] = "No ranking rows for the requested year; see `notes` for the available coverage."
+    return summary
