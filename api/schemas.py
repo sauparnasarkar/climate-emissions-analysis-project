@@ -143,6 +143,38 @@ class CountryProfileTableRow(BaseModel):
     ghg_intensity: Optional[float]
 
 
+class CumulativeSeries(BaseModel):
+    """One country's cumulative-CO2 series on the response's shared `years` axis (None where OWID has no value).
+    Units: cumulative_co2 in Mt; the two shares in percent."""
+    name: str
+    cumulative_co2: list[Optional[float]]
+    share_of_world_cumulative: list[Optional[float]]
+    share_of_world_annual: list[Optional[float]]
+
+
+class HistoricalCumulativeResponse(BaseModel):
+    years: list[int]
+    series: list[CumulativeSeries]
+    world_cumulative_co2: list[Optional[float]]
+
+
+class CountryCumulativeLatest(BaseModel):
+    year: int
+    cumulative_co2: float
+    share_of_world_cumulative: Optional[float]
+    rank: int
+    rank_of: int
+
+
+class CountryCumulativeResponse(BaseModel):
+    country: str
+    years: list[int]
+    cumulative_co2: list[Optional[float]]
+    share_of_world_cumulative: list[Optional[float]]
+    share_of_world_annual: list[Optional[float]]
+    latest: Optional[CountryCumulativeLatest]
+
+
 class CountryProfileResponse(BaseModel):
     country: str
     years: list[int]

@@ -17,6 +17,10 @@ WORLD_MAP_YEAR_END = 2024
 # The earliest `start_year` /overview/world-map-series accepts (the loader reads the OWID file once and slices it per request).
 WORLD_MAP_YEAR_EARLIEST = 1900
 
+# First year of the cumulative-CO2 views (SPEC.md §5.28). A display window only: OWID's `cumulative_co2` counts from
+# each country's first record, so rows from this year on still carry the true running total.
+CUMULATIVE_YEAR_START = 1970
+
 # The year every tier's "% change since 1990" figure is computed against (overview.py's
 # _tier_metrics) -- previously a bare literal.
 PCT_CHANGE_BASELINE_YEAR = 1990

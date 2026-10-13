@@ -1,9 +1,10 @@
 import math
 
+import pandas as pd
 from fastapi import APIRouter, HTTPException
 
-from ..data_loaders import DataNotFoundError, load_expanded_countries, load_features
-from ..schemas import CountryProfileResponse, CountryProfileTableRow
+from ..data_loaders import DataNotFoundError, load_cumulative, load_expanded_countries, load_features
+from ..schemas import CountryCumulativeLatest, CountryCumulativeResponse, CountryProfileResponse, CountryProfileTableRow
 
 router = APIRouter()
 
@@ -49,4 +50,46 @@ def get_country_profile(country: str):
         yoy_years=df_yoy["year"].tolist(),
         yoy_values=df_yoy["co2_yoy_pct_change"].tolist(),
         table=table,
+    )
+
+
+@router.get("/countries/{country}/cumulative", response_model=CountryCumulativeResponse)
+def get_country_cumulative(country: str):
+    """The country's cumulative-CO2 series from 1970 plus its latest headline figures (SPEC.md §5.28). `rank` is
+    among sovereign (iso-coded) countries with a value in the same year, so OWID aggregates such as "Asia" never rank."""
+    if country not in load_expanded_countries():
+        raise HTTPException(status_code=404, detail=f"Unknown country: {country}")
+    try:
+        df = load_cumulative()
+    except DataNotFoundError as e:
+        raise HTTPException(status_code=503, detail=e.message)
+
+    d = df[df["country"] == country].drop_duplicates("year").sort_values("year")
+    if d.empty:
+        raise HTTPException(status_code=404, detail=f"No cumulative data for: {country}")
+
+    def opt(s):
+        return [None if pd.isna(v) else float(v) for v in s]
+
+    have = d.dropna(subset=["cumulative_co2"])
+    latest = None
+    if not have.empty:
+        row = have.iloc[-1]
+        year = int(row["year"])
+        peers = df[(df["year"] == year) & df["iso_code"].notna()].dropna(subset=["cumulative_co2"])
+        share = row["share_global_cumulative_co2"]
+        latest = CountryCumulativeLatest(
+            year=year,
+            cumulative_co2=float(row["cumulative_co2"]),
+            share_of_world_cumulative=None if pd.isna(share) else float(share),
+            rank=int((peers["cumulative_co2"] > row["cumulative_co2"]).sum()) + 1,
+            rank_of=int(len(peers)),
+        )
+    return CountryCumulativeResponse(
+        country=country,
+        years=d["year"].astype(int).tolist(),
+        cumulative_co2=opt(d["cumulative_co2"]),
+        share_of_world_cumulative=opt(d["share_global_cumulative_co2"]),
+        share_of_world_annual=opt(d["share_global_co2"]),
+        latest=latest,
     )

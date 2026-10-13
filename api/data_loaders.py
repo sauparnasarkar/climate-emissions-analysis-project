@@ -7,7 +7,7 @@ from functools import lru_cache
 
 import pandas as pd
 
-from .constants import FEATURED_COUNTRIES, WORLD_MAP_YEAR_EARLIEST, WORLD_MAP_YEAR_END, WORLD_MAP_YEAR_START
+from .constants import CUMULATIVE_YEAR_START, FEATURED_COUNTRIES, WORLD_MAP_YEAR_EARLIEST, WORLD_MAP_YEAR_END, WORLD_MAP_YEAR_START
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
@@ -77,6 +77,23 @@ def load_raw() -> pd.DataFrame:
     ]
     df_r = pd.read_csv(path, usecols=cols)
     return df_r[(df_r["country"].isin(load_expanded_countries())) & (df_r["year"] >= 1990)].copy()
+
+
+@lru_cache(maxsize=1)
+def load_cumulative() -> pd.DataFrame:
+    """OWID's cumulative-CO2 columns from CUMULATIVE_YEAR_START on, for every row (countries and the "World"
+    aggregate -- the Rest-of-world band needs it). `cumulative_co2` (Mt) is the running total since each country's first
+    record, so this 1970 cut is a display window, not a counting start. iso_code marks sovereign rows (SPEC.md §6.1).
+    Separate from load_raw() on purpose: that loader stays at 1990 for every other consumer."""
+    path = _path("owid-co2-data.csv")
+    if not os.path.exists(path):
+        raise DataNotFoundError("data/owid-co2-data.csv not found.")
+    cols = ["country", "year", "iso_code", "cumulative_co2", "share_global_cumulative_co2", "share_global_co2"]
+    try:
+        df_r = pd.read_csv(path, usecols=cols)
+    except ValueError as e:  # usecols names a column the file doesn't have
+        raise DataNotFoundError(f"data/owid-co2-data.csv is missing cumulative columns: {e}")
+    return df_r[df_r["year"] >= CUMULATIVE_YEAR_START].copy()
 
 
 @lru_cache(maxsize=1)

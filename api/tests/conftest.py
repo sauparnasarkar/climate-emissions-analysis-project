@@ -26,6 +26,7 @@ _LOADERS = [
     data_loaders.load_scenarios,
     data_loaders.load_raw,
     data_loaders.load_raw_sovereign,
+    data_loaders.load_cumulative,
     data_loaders._world_map_raw,
     data_loaders.load_world_map_series,
     data_loaders.load_filtered,
@@ -250,6 +251,35 @@ def owid_raw_change_summary_df() -> pd.DataFrame:
         "co2_per_capita", "methane_per_capita", "nitrous_oxide_per_capita",
         "co2_growth_prct", "co2_per_gdp",
     ])
+
+
+def owid_cumulative_df() -> pd.DataFrame:
+    """Cumulative-CO2 fixture for /historical/cumulative and /countries/{country}/cumulative. Deliberately NOT part of
+    FIXTURE_BUILDERS/full_data (it replaces owid-co2-data.csv, whose other fixture has no cumulative columns), mirroring
+    owid_raw_world_map_series_df's precedent: tests write it to a bare data_dir.
+
+    Values are chosen so the arithmetic is checkable by eye: World = China + United States + Germany + Canada + "other"
+    (a 4,000 Mt unlisted remainder), and the shares are consistent with those totals. Rows: a 1965 row (must be cut by the
+    1970 window), "Asia" (iso_code None: an aggregate, must never rank), Canada (sovereign, not in FEATURED_COUNTRIES),
+    and Ruritania (sovereign, null cumulative in 2022 to exercise None handling)."""
+    nan = float("nan")
+    rows = [  # country, iso, {year: (cumulative, share_cum, share_annual)}
+        ("World", None, {1965: (900.0, 100.0, 100.0), 1970: (1000.0, 100.0, 100.0), 2022: (2000.0, 100.0, 100.0), 2023: (2100.0, 100.0, 100.0)}),
+        ("China", "CHN", {1965: (5.0, 0.5, 4.0), 1970: (50.0, 5.0, 4.0), 2022: (400.0, 20.0, 30.0), 2023: (450.0, 21.4, 31.0)}),
+        ("United States", "USA", {1970: (300.0, 30.0, 25.0), 2022: (700.0, 35.0, 13.0), 2023: (720.0, 34.3, 12.5)}),
+        ("Germany", "DEU", {1970: (100.0, 10.0, 5.0), 2022: (150.0, 7.5, 2.0), 2023: (152.0, 7.2, 1.9)}),
+        ("Canada", "CAN", {1970: (40.0, 4.0, 2.0), 2022: (80.0, 4.0, 1.5), 2023: (82.0, 3.9, 1.5)}),
+        ("Ruritania", "RUR", {1970: (10.0, 1.0, 1.0), 2022: (nan, nan, nan), 2023: (11.0, 0.52, 0.1)}),
+        ("Asia", None, {1970: (60.0, 6.0, 5.0), 2022: (600.0, 30.0, 50.0), 2023: (650.0, 31.0, 51.0)}),
+    ]
+    out = [(c, y, iso, *v) for c, iso, by_year in rows for y, v in by_year.items()]
+    return pd.DataFrame(out, columns=[
+        "country", "year", "iso_code", "cumulative_co2", "share_global_cumulative_co2", "share_global_co2",
+    ])
+
+
+def write_cumulative_fixture(data_dir) -> None:
+    owid_cumulative_df().to_csv(data_dir / "owid-co2-data.csv", index=False)
 
 
 def ghg_filtered_df() -> pd.DataFrame:
