@@ -89,9 +89,10 @@ export const api = {
     return get<HistoricalTimeseriesResponse>(`/historical/timeseries?${params}`);
   },
 
-  historicalCumulative: (countries: string[]) => {
+  historicalCumulative: (countries: string[], fromYear?: number) => {
     const params = new URLSearchParams();
     countries.forEach((c) => params.append('countries', c));
+    if (fromYear != null) params.set('from_year', String(fromYear));
     return get<HistoricalCumulativeResponse>(`/historical/cumulative?${params}`);
   },
 
@@ -102,7 +103,8 @@ export const api = {
   },
 
   countryProfile: (country: string) => get<CountryProfileResponse>(`/countries/${encodeURIComponent(country)}/profile`),
-  countryCumulative: (country: string) => get<CountryCumulativeResponse>(`/countries/${encodeURIComponent(country)}/cumulative`),
+  countryCumulative: (country: string, fromYear?: number) =>
+    get<CountryCumulativeResponse>(`/countries/${encodeURIComponent(country)}/cumulative${fromYear != null ? `?from_year=${fromYear}` : ''}`),
 
   forecast: (country: string) => get<ForecastCountryResponse>(`/forecasts/${encodeURIComponent(country)}`),
 
