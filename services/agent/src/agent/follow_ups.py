@@ -104,17 +104,19 @@ def _share(record: ToolCallRecord, current_query: str = "") -> list[FollowUpLink
     r = _result(record)
     summary = r.get("summary") or {}
     fixed = [_correlation("country-view"), _OVERVIEW_EMITTERS]
-    # A "since YYYY" answer is the emissions of a period; the pages show totals counted from the first record until they get the counting-from toggle (a link
-    # would open numbers that disagree with the answer's), so it keeps the fixed links.
-    if summary.get("mode") != "series" or r.get("source") != "owid_co2" or summary.get("since"):
+    if summary.get("mode") != "series" or r.get("source") != "owid_co2":
         return fixed
     flagged = [c["name"] for c in summary.get("countries") or [] if isinstance(c, dict) and c.get("name") and c.get("in_expanded_scope") is True][:MAX_LINK_COUNTRIES]
     if not flagged:
         return fixed
     view = "cumulative" if select_share_view(current_query, summary, r.get("source")) == "cumulative_area" else "share"
-    links = [FollowUpLink(label="Open in Historical Trends", route=f"/historical{_query([('view', view), *[('countries', n) for n in flagged]])}")]
+    # A "since YYYY" answer is the emissions of a period: carry `from=` (Release 24.8, the pages' counting-from choice) so the page opens on the answer's numbers
+    # and not on the total since records began. Without a since, the page's default (since records began) is what the answer quoted, so no parameter.
+    since_year = (summary.get("since") or {}).get("year")
+    from_param = [("from", str(since_year))] if isinstance(since_year, int) else []
+    links = [FollowUpLink(label="Open in Historical Trends", route=f"/historical{_query([('view', view), *from_param, *[('countries', n) for n in flagged]])}")]
     if len(flagged) == 1:
-        links.append(FollowUpLink(label=f"Open {flagged[0]} in Country Profile", route=f"/country-profile{_query([('country', flagged[0])])}#{COUNTRY_PROFILE_CUMULATIVE_ANCHOR}"))
+        links.append(FollowUpLink(label=f"Open {flagged[0]} in Country Profile", route=f"/country-profile{_query([('country', flagged[0]), *from_param])}#{COUNTRY_PROFILE_CUMULATIVE_ANCHOR}"))
     return [*links, *fixed]
 
 

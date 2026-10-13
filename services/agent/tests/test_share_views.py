@@ -263,9 +263,35 @@ def test_a_since_answer_states_what_the_period_figures_are_not_where_totals_coun
     assert len(ranking) == 2 and "emissions of those years" in ranking[1]
 
 
-def test_a_since_answer_keeps_the_fixed_links_until_the_pages_can_count_from_a_year():
-    out = routes(since_series(), "since 1990")
-    assert [r for _, r in out] == ["/climate-correlation#country-view", "/overview#top-emitters"]  # no Historical Trends / Country Profile link that would show other numbers
+def test_a_since_answer_links_to_the_pages_counting_from_that_year_so_they_show_the_answers_numbers():
+    out = dict(routes(since_series(), "since 1990"))
+    assert out["Open in Historical Trends"] == "/historical?view=cumulative&from=1990&countries=China"
+    assert out["Open China in Country Profile"] == "/country-profile?country=China&from=1990#cumulative"
+    # a plain total keeps the pages' default (since records began): no parameter
+    plain = dict(routes(series_result(("China",)), "How much has China emitted?"))
+    assert plain["Open in Historical Trends"] == "/historical?view=cumulative&countries=China" and "from=" not in plain["Open China in Country Profile"]
+    # a share question about a since answer opens the share view from that year
+    assert dict(routes(since_series(), "Is China's share rising since 1990?"))["Open in Historical Trends"] == "/historical?view=share&from=1990&countries=China"
+
+
+def test_a_since_ranking_and_a_primap_since_keep_the_fixed_links():
+    fixed = ["/climate-correlation#country-view", "/overview#top-emitters"]
+    assert [r for _, r in routes(since_ranking(), "which countries emitted the most since 1970")] == fixed
+    assert [r for _, r in routes(since_series(source="primap_hist", rest=False), "since 1990")] == fixed  # the dashboard's views are OWID's
+
+
+def test_the_dashboard_really_reads_the_from_parameter_on_both_pages():
+    """Pinned against the dashboard's source like the `?view=` values: a rename there must fail here, not leave a link that opens the wrong numbers."""
+    src = Path(__file__).resolve().parents[3] / "climate-dashboard-react" / "src"
+    if not src.exists():
+        pytest.skip("climate-dashboard-react/src not present")
+    hook = (src / "hooks" / "useCountingFrom.ts").read_text()
+    assert "useUrlChoice('from'" in hook and "COUNTING_FROM_MIN_YEAR = 1970" in hook
+    assert "useCountingFrom()" in (src / "pages" / "HistoricalTrendsPage.tsx").read_text() and "useCountingFrom()" in (src / "pages" / "CountryProfilePage.tsx").read_text()
+    for _, route in routes(since_series(), "since 1990"):
+        qs = route.partition("#")[0].partition("?")[2]
+        if "from=" in qs:
+            assert 1970 <= int(re.search(r"from=(\d+)", qs).group(1)) <= 2100  # a year the hook accepts
 
 
 def test_the_prompt_sends_since_questions_to_since_year_and_no_longer_says_they_are_unavailable():

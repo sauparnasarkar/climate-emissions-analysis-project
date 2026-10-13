@@ -38,6 +38,9 @@ PLANS: list[tuple[str, list[tuple[str, dict]]]] = [
     (r"share of the world.s cumulative.*(rising|falling)", [("get_country_cumulative_share", {"countries": ["India"], "start_year": 1970})]),
     (r"cumulative emissions for the top emitters since 1970", [("get_country_cumulative_share", {"countries": TOP5, "start_year": 1970})]),
     (r"emitted the most since records began", [("get_country_cumulative_share", {"limit": 10})]),
+    # "since YYYY" is emissions in the period (Release 24.7): the tool is told since_year, never start_year
+    (r"china.s cumulative co.* since 1990", [("get_country_cumulative_share", {"countries": ["China"], "since_year": 1990})]),
+    (r"emitted the most since 1970", [("get_country_cumulative_share", {"since_year": 1970, "limit": 10})]),
     (r"china and the us compare on cumulative share", [("get_country_cumulative_share", {"countries": ["China", "United States"], "start_year": 1970})]),
     (r"relationship between cumulative emissions and warming", [("get_emissions_temperature_relationship", {})]),
     (r"temperature outcomes|emissions pathways", [("get_scenario_temperature", {})]),
