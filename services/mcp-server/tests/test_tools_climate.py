@@ -270,6 +270,19 @@ async def test_methodology_all_merges_and_unknown_topic_is_rejected(climate_clie
         await get_methodology_notes(topic="weather")
 
 
+async def test_methodology_country_share_states_the_world_total_basis_and_the_primap_exception(climate_client):
+    """Release 24.0: OWID country shares are of the World total (bunkers included), so the text must not say the denominator excludes them."""
+    from mcp_server.methodology import CLIMATE_METHODOLOGY
+
+    text = CLIMATE_METHODOLOGY["country_share"]
+    assert "World series, which includes international aviation and shipping" in text and "less than 100%" in text and "`remainder`" in text
+    assert "PRIMAP-hist has no world aggregate" in text and "not of the World total" in text
+    assert "national sum" not in text and "differs by design" not in text
+    doc = " ".join((get_country_cumulative_share.__doc__ or "").split())  # the docstring wraps lines
+    assert "World total including international aviation and shipping" in doc and "remainder" in doc and "national sum excluding" not in doc
+    assert "countries left out by `limit` are NOT in it" in doc  # a limited ranking's rows plus the remainder do not make 100
+
+
 async def test_composition_defaults_to_1970_and_honours_an_explicit_start(climate_client):
     default = await get_ghg_composition()
     assert any("1970 onward by default" in n for n in default["notes"])

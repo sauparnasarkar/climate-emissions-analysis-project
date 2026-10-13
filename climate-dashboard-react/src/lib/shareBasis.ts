@@ -1,5 +1,5 @@
 /**
- * What a country share is a share of, by source (Release 24.0, ENHANCEMENTS.md decision 71). OWID shares are of the World total, which includes international
+ * What a country share is a share of, by source (Release 24.0, ENHANCEMENTS.md decision 110). OWID shares are of the World total, which includes international
  * aviation and shipping, so a selection's "Rest of world" includes international transport; PRIMAP-hist has no world aggregate and excludes international
  * aviation and shipping, so its shares are of the sum of its own reporting areas and sum to 100%.
  */

@@ -9,7 +9,7 @@ A derived stage writing two files the API (Phase 1.4) only reads:
 Three combinations: `owid_co2` x `co2` (OWID fossil + cement CO2), `primap_hist` x `co2` and `primap_hist` x `total_ghg` (PRIMAP-hist, AR5 GWP-100).
 
 Rules (decisions 15 and 37):
-- **Share = a country's cumulative emissions / the denominator**, which depends on the source (Release 24.0, decision 71, amending decisions 15 and 37):
+- **Share = a country's cumulative emissions / the denominator**, which depends on the source (Release 24.0, decision 110, amending decisions 15 and 37):
   - `owid_co2`: OWID's **World total, international aviation and shipping included** -- the denominator the dashboard's Release 23 views use, so one country has one share
     everywhere. Country shares then sum to *less* than 100 and the remainder (international aviation and shipping, plus a small unassigned residual) is published, per
     year, in the combination's `denominator` block. The annual share divides by the World total of the same year.
@@ -115,7 +115,7 @@ def shares_rows(c: dict, source: str, gas_scope: str, den_cum: np.ndarray | None
         raise ValueError(f"{source}/{gas_scope}: a published year has a zero annual total, so annual shares are undefined")
     share = cum / den[:, None] * 100
     ashare = annual / aden[:, None] * 100
-    # The remainder: 0 by construction when the denominator is the country sum; the World total's own surplus otherwise (decision 71).
+    # The remainder: 0 by construction when the denominator is the country sum; the World total's own surplus otherwise (decision 110).
     rem_cum, rem_annual = den - cum.sum(axis=1), aden - annual.sum(axis=1)
     if world:
         for label, rem in (("cumulative", rem_cum), ("annual", rem_annual)):
@@ -172,7 +172,7 @@ def _owid_combo(climate_dir: str, owid_path: str, report: RunReport):
     c = cumulate(iso, "iso_code", "co2", last)
     if np.any(c["annual"] < 0):
         report.deviate("owid_co2/co2: negative annual emissions in the country data; check the input before relying on the shares")
-    # The denominator is OWID's World row (decision 71): its published cumulative where the file carries it (the dashboard divides by exactly that), else the running sum
+    # The denominator is OWID's World row (decision 110): its published cumulative where the file carries it (the dashboard divides by exactly that), else the running sum
     # of the World annual series. Aligned to the country years; a World year missing there is a failure, not a zero.
     wy = w.set_index("year")
     annual_w = wy["co2_mt"].reindex(c["years"])

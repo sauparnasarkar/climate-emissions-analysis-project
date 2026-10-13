@@ -90,11 +90,15 @@ CLIMATE_METHODOLOGY = {
     ),
     "country_share": (
         "Country responsibility is shown as cumulative share of emissions: a country's cumulative "
-        "emissions divided by the national sum over all countries (international aviation and "
-        "shipping excluded, so shares sum to 100% of territorial emissions; this differs by design "
-        "from the World series used in the headline regression). It describes where emissions "
-        "occurred. It is not an estimate of any country's contribution to warming, and no "
-        "country's emissions are regressed against the global temperature series."
+        "emissions divided by a global total. For OWID that total is the World series, which "
+        "includes international aviation and shipping (the same total as the headline regression "
+        "and the dashboard's cumulative views), so country shares sum to less than 100% and the "
+        "remainder, international transport plus a small unassigned residual, is reported beside "
+        "them as `remainder`. PRIMAP-hist has no world aggregate and excludes international "
+        "aviation and shipping, so its shares are of the sum of its own reporting areas and sum "
+        "to 100%: a PRIMAP share is of that source's total, not of the World total. It describes "
+        "where emissions occurred. It is not an estimate of any country's contribution to "
+        "warming, and no country's emissions are regressed against the global temperature series."
     ),
     "scenario_temperature_translation": (
         "An illustrative, partial-coverage translation, not a climate-model projection: the "
