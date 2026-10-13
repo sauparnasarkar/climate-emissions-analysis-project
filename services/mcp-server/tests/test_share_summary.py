@@ -296,3 +296,35 @@ async def test_primap_since_is_a_share_of_the_sources_own_total_without_a_rest_o
     out = await get_country_cumulative_share(countries=["AAA"], since_year=1950, source="primap_hist")
     since = out["summary"]["since"]
     assert "source's own total" in since["basis"] and "rest_of_world" not in since and since["countries"][0]["emitted_mt"] == 510.0
+
+
+# --- review follow-ups on "since YYYY" (Copilot, Release 24.7): CO2e units, and `year` on a series ----------------------------------------------------------------------
+
+
+def test_total_greenhouse_gas_amounts_are_gtco2e_not_gtco2():
+    from mcp_server.climate import gt_text, gt_unit
+
+    assert gt_unit({"gas_scope": "total_ghg"}) == "GtCO₂e" and gt_unit({"gas_scope": "co2"}) == "GtCO₂" and gt_unit({}) == "GtCO₂"
+    assert gt_text(434_866.0, "GtCO₂e") == "434.9 GtCO₂e" and gt_text(434_866.0) == "434.9 GtCO₂"
+    rows, world = period_rows({**ranking(2024, [("USA", "United States", 434_866.0)], total=500_000.0), "gas_scope": "total_ghg"}, ranking(1969, [], total=100_000.0))
+    assert rows[0]["emitted_text"] == "434.9 GtCO₂e" and since_series_block(rows, world, ["USA"], 1970, 2024, False, 0.0, "GtCO₂e")["world_emitted_text"] == "400.0 GtCO₂e"
+    assert since_ranking_summary(rows, rows, world, 1970, 2024, False, "GtCO₂e")["since"]["world_emitted_text"] == "400.0 GtCO₂e"
+
+
+async def test_the_tool_says_gtco2e_for_total_greenhouse_gases_in_every_mode(climate_client):
+    kw = {"source": "primap_hist", "gas_scope": "total_ghg"}
+    series = (await get_country_cumulative_share(countries=["AAA"], **kw))["summary"]
+    assert series["countries"][0]["last_cumulative_text"].endswith("GtCO₂e") and "world_cumulative_text" not in series  # PRIMAP-hist has no World total to state
+    ranking_s = (await get_country_cumulative_share(limit=3, **kw))["summary"]
+    assert all(r["cumulative_text"].endswith("GtCO₂e") for r in ranking_s["top"])
+    since = (await get_country_cumulative_share(countries=["AAA"], since_year=1950, **kw))["summary"]["since"]
+    assert since["countries"][0]["emitted_text"].endswith("GtCO₂e") and since["world_emitted_text"].endswith("GtCO₂e")
+    assert (await get_country_cumulative_share(since_year=1950, limit=2, **kw))["summary"]["top"][0]["emitted_text"].endswith("GtCO₂e")
+    assert (await get_country_cumulative_share(countries=["AAA"]))["summary"]["countries"][0]["last_cumulative_text"].endswith("GtCO₂")  # OWID stays CO2
+
+
+async def test_a_series_with_since_year_rejects_year_and_points_to_end_year(climate_client):
+    with pytest.raises(ValueError, match="use `end_year`"):
+        await get_country_cumulative_share(countries=["AAA"], since_year=1950, year=1960)
+    out = await get_country_cumulative_share(countries=["AAA"], since_year=1950, end_year=1960)  # the supported way to end the period earlier
+    assert out["summary"]["since"]["period"] == "1950–1960"

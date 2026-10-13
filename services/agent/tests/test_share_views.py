@@ -274,3 +274,13 @@ def test_the_prompt_sends_since_questions_to_since_year_and_no_longer_says_they_
     p = " ".join(AGENT_SYSTEM_PROMPT.split())
     assert "pass since_year (never start_year, and never both)" in p and "quote `summary.since`" in p
     assert "a cumulative since a chosen year" not in p and "(methane, nitrous oxide) is not available" in p  # only the other-gas limit remains
+
+
+def test_titles_say_gtco2e_for_total_greenhouse_gases():
+    r = since_series(source="primap_hist", rest=False)
+    r["gas_scope"] = "total_ghg"
+    assert build_widget(rec(r), "What is China's cumulative CO₂ since 1990?").title == "Cumulative share of emissions – China"  # PRIMAP has no area view: the share lines, whose title has no unit
+    rk = since_ranking()
+    rk["gas_scope"] = "total_ghg"
+    assert build_widget(rec(rk), "since 1970").title == "Top 15 emitters, 1970–2024, GtCO₂e"
+    assert build_widget(rec(since_ranking()), "since 1970").title == "Top 15 emitters, 1970–2024, GtCO₂"

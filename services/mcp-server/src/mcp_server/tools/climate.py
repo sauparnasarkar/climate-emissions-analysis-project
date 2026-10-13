@@ -12,6 +12,7 @@ from __future__ import annotations
 from ..climate import (
     SHARE_SUMMARY_UNITS,
     check_since_year,
+    gt_unit,
     fetch_correlation,
     normalize_typography,
     period_rows,
@@ -314,6 +315,8 @@ async def get_country_cumulative_share(
         raise ValueError("`countries` is an empty list; omit it for a ranking, or name at least one country.")
     if countries and limit is not None:
         raise ValueError("`limit` applies to a ranking only; omit it when passing `countries` (a series).")
+    if since_year is not None and countries and year is not None:
+        raise ValueError("`year` does not apply to a series; with `since_year` use `end_year` to end the period earlier.")
     if since_year is not None and countries and start_year is not None and start_year != since_year:
         raise ValueError("`since_year` already sets where a series starts; omit `start_year` (or pass the same year).")
     if not countries and (start_year is not None or end_year is not None):
@@ -369,11 +372,11 @@ async def _share_since(params: dict, countries: list[str] | None, since_year: in
         codes = resolve_share_countries(countries, latest["rows"])
         body = await fetch_correlation("country-share", {**params, "countries": codes, "start_year": since_year, "end_year": end_year, "year": None})
         summary = share_series_summary(body, end_ranking, None)  # not start_year: the window note would say the opposite of what since_year does
-        summary["since"] = since_series_block(rows, world_emitted, codes, since_year, end_year_used, owid, world_total_mt(base))
+        summary["since"] = since_series_block(rows, world_emitted, codes, since_year, end_year_used, owid, world_total_mt(base), gt_unit(end_ranking))
     else:
         shown = rows[: (limit if limit is not None else 15)]
         body = {**end_ranking, "rows": [], "since_rows": shown, "remainder": None, "total_cumulative_mt": None, "annual_total_mt": None}
-        summary = since_ranking_summary(rows, shown, world_emitted, since_year, end_year_used, owid)
+        summary = since_ranking_summary(rows, shown, world_emitted, since_year, end_year_used, owid, gt_unit(end_ranking))
     body["since_year"] = since_year
     summary["units"] = SHARE_SUMMARY_UNITS
     summary["label"] = body["label"]
