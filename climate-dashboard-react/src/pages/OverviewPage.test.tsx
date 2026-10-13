@@ -874,8 +874,6 @@ const chinaAt = (y: number) => 800 + (y - 1970) * ((25324 - 800) / 54);
 const vietnamAt = (y: number) => 5 + (y - 1970) * ((370 - 5) / 54);
 const fmt0 = (n: number) => Math.round(n).toLocaleString('en-US');
 
-// Realistic API tier totals: one value per year 1990-2024 (the real arrays are that long), rising linearly to the 2024 figures.
-const ramp = (from: number, to: number) => Array.from({ length: 35 }, (_, i) => from + (i * (to - from)) / 34);
 const FULL_RESPONSE: OverviewResponse = {
   ...RESPONSE,
   selected_country_list: ['China'],
