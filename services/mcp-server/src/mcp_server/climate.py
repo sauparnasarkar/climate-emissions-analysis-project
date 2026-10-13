@@ -155,6 +155,22 @@ def _gt(mt: float | None) -> float | None:
     return None if mt is None else round(mt / _MT_PER_GT, 1)
 
 
+def gt_text(mt: float | None) -> str | None:
+    """A cumulative amount ready to quote, with its unit ("434.9 GtCO₂"): the model reads this instead of attaching a unit to a bare number. A live answer wrote
+    "434.9 Mt" for the United States because the summary said `unit: Mt CO2` beside Gt-valued fields (a 1,000-fold error)."""
+    return None if mt is None else f"{mt / _MT_PER_GT:,.1f} GtCO₂"
+
+
+# What each field's suffix means. The summary used to carry the BODY's `unit` ("Mt CO2") beside `_gt` fields, which is what mislabelled them.
+SHARE_SUMMARY_UNITS = {
+    "_mt": "MtCO₂ (million tonnes)",
+    "_gt": "GtCO₂ (billion tonnes; 1 Gt = 1,000 Mt)",
+    "_pct": "percent",
+    "_pp": "percentage points",
+    "_text": "already formatted with its unit: quote it as written",
+}
+
+
 def share_series_summary(body: dict, roster: dict, start_year: int | None) -> dict:
     """The `summary` of a country-share SERIES: per country the first and last cumulative share, its change in percentage points over the window shown and the
     `share_trend` of that change, the latest cumulative total (Mt and Gt), the latest annual share, and the country's rank among `rank_of` countries.
@@ -183,6 +199,7 @@ def share_series_summary(body: dict, roster: dict, start_year: int | None) -> di
                 "share_trend": share_trend(change),
                 "last_cumulative_mt": round(last["cumulative_mt"], 1) if last else None,
                 "last_cumulative_gt": _gt(last["cumulative_mt"]) if last else None,
+                "last_cumulative_text": gt_text(last["cumulative_mt"]) if last else None,
                 "last_annual_share_pct": round(last["annual_share_pct"], 2) if last and last.get("annual_share_pct") is not None else None,
                 "last_annual_mt": round(last["annual_mt"], 1) if last and last.get("annual_mt") is not None else None,
                 "rank": ranks[sr["country"]] if ranked else None,
@@ -214,10 +231,12 @@ def share_series_summary(body: dict, roster: dict, start_year: int | None) -> di
         shown_mt = sum(sr["points"][-1]["cumulative_mt"] for sr in body["series"])
         shown_pct = sum(sr["points"][-1]["share_pct"] for sr in body["series"])
         summary["world_cumulative_gt"] = _gt(w["world_cumulative_mt"])
+        summary["world_cumulative_text"] = gt_text(w["world_cumulative_mt"])
         summary["rest_of_world"] = {
             "year": last_year,
             "cumulative_mt": round(max(0.0, w["world_cumulative_mt"] - shown_mt), 1),
             "cumulative_gt": _gt(max(0.0, w["world_cumulative_mt"] - shown_mt)),
+            "cumulative_text": gt_text(max(0.0, w["world_cumulative_mt"] - shown_mt)),
             "share_pct": round(max(0.0, 100 - shown_pct), 2),
             "includes": "every country not shown plus international aviation and shipping",
         }
@@ -234,7 +253,8 @@ def share_ranking_summary(body: dict) -> dict:
         "year": body["year"],
         "n_rows": len(rows),
         "top": [
-            {"rank": r["rank"], "name": r["name"], "share_pct": round(r["share_pct"], 2), "cumulative_gt": _gt(r["cumulative_mt"]), "in_expanded_scope": r.get("in_expanded_scope")}
+            {"rank": r["rank"], "name": r["name"], "share_pct": round(r["share_pct"], 2), "cumulative_gt": _gt(r["cumulative_mt"]), "cumulative_text": gt_text(r["cumulative_mt"]),
+             "in_expanded_scope": r.get("in_expanded_scope")}
             for r in rows[:5]
         ],
         # An empty ranking is "no data for that year", not zero emissions: keep it unavailable.
@@ -243,6 +263,7 @@ def share_ranking_summary(body: dict) -> dict:
     rem = body.get("remainder")
     if rem and rows:
         summary["world_cumulative_gt"] = _gt(body.get("total_cumulative_mt"))
+        summary["world_cumulative_text"] = gt_text(body.get("total_cumulative_mt"))
         summary["remainder_share_pct"] = round(rem["share_pct"], 2)
         summary["not_shown_share_pct"] = round(max(0.0, 100 - shown_pct - rem["share_pct"]), 2)
     if not rows:

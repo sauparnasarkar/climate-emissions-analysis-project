@@ -93,7 +93,7 @@ def test_ranking_summary_reports_the_remainder_and_what_a_limit_leaves_out():
     b = {"year": 2024, "rows": [row(1, "United States", 23.52, 434866.56), row(2, "China", 15.42, 285087.04)], "total_cumulative_mt": 1_849_000.0,
          "remainder": {"share_pct": 2.49}}
     s = share_ranking_summary(b)
-    assert s["top"][0] == {"rank": 1, "name": "United States", "share_pct": 23.52, "cumulative_gt": 434.9, "in_expanded_scope": True}
+    assert s["top"][0] == {"rank": 1, "name": "United States", "share_pct": 23.52, "cumulative_gt": 434.9, "cumulative_text": "434.9 GtCO₂", "in_expanded_scope": True}
     assert s["shown_share_pct_total"] == 38.94 and s["remainder_share_pct"] == 2.49 and s["world_cumulative_gt"] == 1849.0
     assert s["not_shown_share_pct"] == round(100 - 38.94 - 2.49, 2)  # held by the countries the limit left out: rows + remainder are not 100
 
@@ -142,3 +142,31 @@ async def test_the_ranking_summary_carries_the_remainder_and_not_shown_share(cli
     s = out["summary"]
     assert s["remainder_share_pct"] == pytest.approx(out["remainder"]["share_pct"], abs=0.01)
     assert s["shown_share_pct_total"] + s["remainder_share_pct"] + s["not_shown_share_pct"] == pytest.approx(100.0, abs=0.03)
+
+
+# --- units: a live answer wrote "434.9 Mt" for the United States' 434.9 Gt ----------------------------------------------------------------------------------
+
+
+def test_the_summary_does_not_carry_the_bodys_mt_unit_beside_gt_fields_and_says_what_each_suffix_means():
+    from mcp_server.climate import SHARE_SUMMARY_UNITS
+
+    assert set(SHARE_SUMMARY_UNITS) == {"_mt", "_gt", "_pct", "_pp", "_text"}
+    assert "GtCO₂" in SHARE_SUMMARY_UNITS["_gt"] and "MtCO₂" in SHARE_SUMMARY_UNITS["_mt"] and "1,000" in SHARE_SUMMARY_UNITS["_gt"]
+
+
+def test_cumulative_values_come_with_a_ready_to_quote_text_that_carries_the_unit():
+    from mcp_server.climate import gt_text
+
+    assert gt_text(434_866.56) == "434.9 GtCO₂" and gt_text(1_849_100.0) == "1,849.1 GtCO₂" and gt_text(None) is None
+    b = {"series": [{"country": "USA", "name": "United States", "points": [pt(2023, 430000.0, 23.6), pt(2024, 434866.56, 23.52)]}], "cumulative_from": 1750,
+         "remainder_series": [{"year": 2024, "world_cumulative_mt": 1_849_100.0, "world_annual_mt": 38600.0}]}
+    s = share_series_summary(b, {"year": 2024, "rows": [{"country": "USA", "rank": 1}]}, None)
+    assert s["countries"][0]["last_cumulative_text"] == "434.9 GtCO₂" and s["world_cumulative_text"] == "1,849.1 GtCO₂" and s["rest_of_world"]["cumulative_text"] == "1,414.2 GtCO₂"
+    r = share_ranking_summary({"year": 2024, "rows": [row(1, "United States", 23.52, 434866.56)], "total_cumulative_mt": 1_849_100.0, "remainder": {"share_pct": 2.49}})
+    assert r["top"][0]["cumulative_text"] == "434.9 GtCO₂" and r["world_cumulative_text"] == "1,849.1 GtCO₂"
+
+
+async def test_the_tool_summary_has_a_units_map_and_no_single_unit(climate_client):
+    for out in (await get_country_cumulative_share(limit=3), await get_country_cumulative_share(countries=["AAA"])):
+        assert "unit" not in out["summary"] and out["summary"]["units"]["_gt"].startswith("GtCO₂")
+        assert out["unit"] == "Mt CO₂"  # the body is unchanged (its raw values really are Mt; the server's typography pass writes the subscript)

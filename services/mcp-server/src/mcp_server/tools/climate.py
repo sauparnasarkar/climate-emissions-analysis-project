@@ -9,7 +9,15 @@ added. Capping what the *model* sees is the agent's job (agent SPEC.md §15.4), 
 
 from __future__ import annotations
 
-from ..climate import fetch_correlation, normalize_typography, resolve_share_countries, share_ranking_summary, share_series_summary, summarize_points
+from ..climate import (
+    SHARE_SUMMARY_UNITS,
+    fetch_correlation,
+    normalize_typography,
+    resolve_share_countries,
+    share_ranking_summary,
+    share_series_summary,
+    summarize_points,
+)
 from ..server import mcp
 
 # Tool-facing reference label -> the API's `baseline` value.
@@ -268,6 +276,9 @@ async def get_country_cumulative_share(
     restarted, so "cumulative since 1990" is NOT available -- say so rather than passing start_year as
     if it were. Likewise there is no per-gas cumulative: CO2 (OWID, PRIMAP) and total greenhouse
     gases in CO2e (PRIMAP) only, so cumulative methane or nitrous oxide is not available.
+    UNITS: a field's unit is its suffix (`_gt` = GtCO2, billion tonnes; `_mt` = MtCO2, million tonnes;
+    `_pct` = percent; see `summary.units`) and the `*_text` fields are already formatted with their
+    unit -- quote those as written; never put Mt on a `_gt` figure (434.9 Gt is not 434.9 Mt).
     QUOTE THE SUMMARY: per country in a series it carries `share_change_pp` and `share_trend`
     ('rising' / 'falling' / 'steady', computed over `trend_window` -- name that window, a trend since
     1850 says little about recent years), the latest cumulative total in Gt, `rank` of `rank_of`
@@ -307,7 +318,9 @@ async def get_country_cumulative_share(
             "country-share", {**params, "year": year, "limit": limit, "start_year": start_year, "end_year": end_year}
         )
         summary = share_ranking_summary(body)
-    summary["unit"] = body["unit"]
+    # NOT the body's `unit` ("Mt CO2"): the summary mixes Mt and Gt fields, so a single unit here mislabelled the Gt ones (a live answer said "434.9 Mt" for the
+    # United States, 434.9 Gt). Each field's unit is its suffix; the `*_text` fields are ready to quote.
+    summary["units"] = SHARE_SUMMARY_UNITS
     summary["label"] = body["label"]
     body["summary"] = summary
     body["interpretation_note"] = INTERPRETATION_NOTE_SHARE
