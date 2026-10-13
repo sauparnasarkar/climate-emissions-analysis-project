@@ -1031,7 +1031,9 @@ pins at the final year with Play disabled (manual scrubbing still works) when
 `prefers-reduced-motion` is set. All Countries/Expanded's per-year KPI totals come from the API's
 new `co2_by_year` field; Selected is summed client-side from the same `world-map-series` payload
 restricted to the current selection, since re-fetching it per selection change would defeat the
-point of a selection-invariant, fetch-once endpoint.
+point of a selection-invariant, fetch-once endpoint. **Release 24.0 removed `co2_by_year`:** it was
+identical (to 1e-16 on the real data) to the sum of that same payload, and once the Landing page moved
+to the World total nothing needed it, so every tier is now summed client-side from `world-map-series`.
 
 **Two corrections found by verifying against the real data before implementing, not assumed from
 the original draft spec:**
