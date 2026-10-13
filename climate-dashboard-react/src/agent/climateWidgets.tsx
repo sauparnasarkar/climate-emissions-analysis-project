@@ -135,7 +135,7 @@ function NoShares({ result }: { result: CorrelationCountryShareResponse }) {
 }
 
 /** What a share result's amounts are, from its own source and gas scope (never assumed to be OWID CO₂): total greenhouse gases are CO₂-equivalent. */
-function shareLabels(result: Pick<CorrelationCountryShareResponse, 'source' | 'gas_scope'>): { unit: string; gas: string; source: string; short: string } {
+function shareLabels(result: Pick<CorrelationCountryShareResponse, 'source' | 'gas_scope'>): { unit: string; gas: string; source: string; short: string; shareOf: string } {
   const ghg = result.gas_scope === 'total_ghg';
   const primap = result.source === 'primap_hist';
   return {
@@ -143,6 +143,8 @@ function shareLabels(result: Pick<CorrelationCountryShareResponse, 'source' | 'g
     gas: ghg ? 'greenhouse gases (CO₂e)' : 'CO₂',
     source: primap ? `PRIMAP-hist ${ghg ? 'total greenhouse gases (CO₂e)' : 'CO₂'}` : 'Fossil and cement CO₂ · OWID',
     short: primap ? 'PRIMAP-hist' : 'Fossil and cement',
+    // what a share is OF: the World's emissions for OWID; PRIMAP-hist has no world aggregate, so its own total (the summary's `since.basis` says the same)
+    shareOf: primap ? "PRIMAP-hist's own total" : "the world's emissions",
   };
 }
 
@@ -176,7 +178,7 @@ function ShareFigures({ widget, result }: WidgetProps & { result: CorrelationCou
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16, margin: '0 0 12px' }}>
         <KpiStat card label={`Emitted ${since.period}`} value={`${fmtGt(sc.emitted_gt)} ${L.unit}`} delta={L.short} deltaDirection="neutral" />
-        <KpiStat card label={`Share of the world's emissions ${since.period}`} value={pct(sc.share_of_period_pct)} deltaDirection="neutral" />
+        <KpiStat card label={`Share of ${L.shareOf} ${since.period}`} value={pct(sc.share_of_period_pct)} deltaDirection="neutral" />
         {sc.rank != null && since.rank_of != null && <KpiStat card label={`Rank by emissions ${since.period}`} value={`#${sc.rank}`} delta={`of ${since.rank_of} countries`} deltaDirection="neutral" />}
       </div>
     );
@@ -259,7 +261,7 @@ function SinceRankingView({ widget, result }: { widget: WidgetSpec; result: Corr
     <ChartCard title={widget.title}>
       <SyChart series={series} xTitle="Country" yTitle={`${L.gas === 'CO₂' ? 'CO₂' : 'Greenhouse gases (CO₂e)'} emitted ${period} (${L.unit})`} showLegend={false} ariaLabel={`Bar chart of ${L.gas} emitted ${period} in gigatonnes for the ${rows.length} largest emitters`} />
       <p className="__s9cmpx-body4" style={caption}>
-        {L.source} · emissions in {period}: each country&rsquo;s cumulative total at the end year minus its total the year before {result.since_year}. Shares of the period are of the World&rsquo;s emissions in it.
+        {L.source} · emissions in {period}: each country&rsquo;s cumulative total at the end year minus its total the year before {result.since_year}. Shares of the period are of {L.shareOf} in it.
       </p>
     </ChartCard>
   );

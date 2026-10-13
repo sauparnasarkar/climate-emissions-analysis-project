@@ -210,6 +210,12 @@ describe('country shares', () => {
       expect(screen.getByText('Emitted 1990–2024')).toBeInTheDocument();
       expect(screen.getByText('244 GtCO₂')).toBeInTheDocument();
       expect(screen.getByText("Share of the world's emissions 1990–2024")).toBeInTheDocument();
+      cleanup();
+      const sinceP = { ...since, countries: [{ name: 'China', emitted_gt: 200.0, share_of_period_pct: 25.0, rank: 1 }] };
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']], { source: 'primap_hist', gas_scope: 'co2', remainder_series: [] }), { view: 'share_vs_annual', summary: { ...SUMMARY, since: sinceP } }));
+      expect(screen.getByText("Share of PRIMAP-hist's own total 1990–2024")).toBeInTheDocument();
+      cleanup();
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'cumulative_area', title: 'Emitted 1990–2024, GtCO₂ – China', summary: { ...SUMMARY, since } }));
       expect(screen.getByText('22.9%')).toBeInTheDocument();
       expect(screen.getByText('#2')).toBeInTheDocument();
       expect(screen.getByText(/emissions in 1990–2024: each country's cumulative total in each year minus its total the year before 1990, so every area starts at zero/)).toBeInTheDocument();
@@ -237,6 +243,7 @@ describe('country shares', () => {
       expect(screen.getByTestId('sychart')).toHaveAttribute('data-ytitle', 'Greenhouse gases (CO₂e) emitted 1970–2024 (GtCO₂e)');
       expect(screen.getByTestId('sychart')).toHaveAttribute('aria-label', expect.stringContaining('greenhouse gases (CO₂e) emitted 1970–2024'));
       expect(screen.getByText(/PRIMAP-hist total greenhouse gases \(CO₂e\) · emissions in 1970–2024/)).toBeInTheDocument();
+      expect(screen.getByText(/Shares of the period are of PRIMAP-hist's own total in it\./)).toBeInTheDocument(); // not 'the World's emissions': PRIMAP-hist has no world aggregate
       expect(screen.queryByText(/Fossil and cement CO₂ · OWID/)).toBeNull();
     });
 
