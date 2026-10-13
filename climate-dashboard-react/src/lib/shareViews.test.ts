@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
 import { cumulativeAreaSeries } from './historicalCumulative';
-import { shareToCumulative, shareVsAnnualLines, sinceRebase } from './shareViews';
+import { shareToCumulative, shareVsAnnualLines, sinceEmittedLines, sinceRebase } from './shareViews';
 
 const pt = (year: number, cumulative_mt: number, share_pct: number, annual_share_pct: number | null = null) => ({ year, cumulative_mt, share_pct, annual_mt: null, annual_share_pct });
 const rem = (year: number, world: number) => ({ year, world_cumulative_mt: world, world_annual_mt: 1, cumulative_mt: 0, share_pct: 0, annual_mt: null, annual_share_pct: null, international_transport_cumulative_mt: null, international_transport_annual_mt: null });
@@ -85,5 +85,17 @@ describe('"since YYYY": emissions in the period, from zero (Release 24.7)', () =
     expect(d.world_cumulative_co2).toEqual([0, 0, 0]);
     expect(shareToCumulative(result())!.series[0].cumulative_co2).toEqual([100, 110, 125]);
     expect(shareToCumulative(result(), null)!.world_cumulative_co2).toEqual([1500, 1600, 1700]);
+  });
+
+  it('sinceEmittedLines is one line per country of the period so far in Gt, from zero, for any source (PRIMAP-hist has no World total to stack against)', () => {
+    const primap = result({ source: 'primap_hist', remainder_series: [] });
+    const lines = sinceEmittedLines(primap, sinceRebase(summary))!;
+    expect(lines.map((l) => l.name)).toEqual(['China', 'India']);
+    expect(lines[0].years).toEqual([1998, 1999, 2000]);
+    expect(lines[0].gt).toEqual([0, 0.01, 0.025]); // 100/110/125 Mt minus China's base of 100, in Gt
+    expect(lines[1].gt).toEqual([0.04, 0.045]); // India's points start in 1999; base 0
+    expect(sinceEmittedLines(primap, null)).toBeNull(); // no base values: not a since answer
+    expect(sinceEmittedLines(result({ series: [] }), sinceRebase(summary))).toBeNull();
+    expect(sinceEmittedLines(result({ series: [{ country: 'CHN', name: 'China', points: [] }] } as never), sinceRebase(summary))).toBeNull();
   });
 });

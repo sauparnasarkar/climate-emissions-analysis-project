@@ -6,7 +6,7 @@ import type { HistoricalCumulativeResponse } from '../api/types';
 // Release 23 builders want one shared year axis, so this lines them up (null where a country has no value yet) and takes the World total for each year from
 // the remainder the endpoint publishes beside any OWID series. Pure, so the alignment is unit-tested without rendering a chart.
 
-export const SHARE_VIEWS = ['share_lines', 'cumulative_area', 'share_vs_annual'] as const;
+export const SHARE_VIEWS = ['share_lines', 'cumulative_area', 'share_vs_annual', 'emitted_lines'] as const;
 export type ShareView = (typeof SHARE_VIEWS)[number];
 
 /** The colour of a single-country line, as on Country Profile (the chart panel is dark in every theme). */
@@ -55,6 +55,16 @@ export function shareToCumulative(result: CorrelationCountryShareResponse, rebas
     }),
     world_cumulative_co2: years.map((y) => sub(world.get(y), rebase?.world ?? 0)),
   };
+}
+
+/**
+ * One line per country of what it has emitted in the period so far, in Gt (the lifetime total minus the total the year before the period, never below zero): the since-answer
+ * chart for a source with no World total to leave a Rest of world (PRIMAP-hist). Any source; null without points or without the base values.
+ */
+export function sinceEmittedLines(result: CorrelationCountryShareResponse, rebase: SinceRebase | null): Array<{ name: string; years: number[]; gt: number[] }> | null {
+  const series = (result.series ?? []).filter((s) => s.points.length > 0);
+  if (!rebase || series.length === 0) return null;
+  return series.map((s) => ({ name: s.name, years: s.points.map((p) => p.year), gt: s.points.map((p) => Math.max(0, p.cumulative_mt - (rebase.base[s.name] ?? 0)) / 1000) }));
 }
 
 /** The two lines of the single-country comparison: share of everything emitted so far (solid) against share of each year's emissions (dotted). Null without an annual share. */

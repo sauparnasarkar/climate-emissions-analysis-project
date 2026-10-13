@@ -225,6 +225,21 @@ describe('country shares', () => {
       expect(screen.getByTestId('sychart')).toHaveAttribute('data-ytitle', 'CO₂ emitted 1990–2024 (GtCO₂)'); // the axis names the period, not "Cumulative CO₂"
     });
 
+    it('a PRIMAP-hist since-answer is lines of emissions in the period (no World total for a Rest of world), in its own gas and unit, never the lifetime share lines', () => {
+      const since = { year: 1990, period: '1990–2024', rank_of: 207, world_base_cumulative_mt: 5000, countries: [{ name: 'China', emitted_gt: 300.0, share_of_period_pct: 24.0, rank: 1, base_cumulative_mt: 100 }] };
+      const r = owid([['CHN', 'China']], { source: 'primap_hist', gas_scope: 'total_ghg', remainder_series: [] });
+      mount(widget('get_country_cumulative_share', r, { view: 'emitted_lines', title: 'Emitted 1990–2024, GtCO₂e – China', summary: { ...SUMMARY, since } }));
+      expect(series()).toEqual([['China', 'line', 2]]);
+      expect(screen.getByTestId('sychart')).toHaveAttribute('data-ytitle', 'Greenhouse gases (CO₂e) emitted 1990–2024 (GtCO₂e)');
+      expect(screen.getByTestId('sychart')).toHaveAttribute('aria-label', expect.stringContaining('greenhouse gases (CO₂e) emitted 1990–2024 in gigatonnes for China'));
+      expect(screen.getByText('Emitted 1990–2024')).toBeInTheDocument();
+      expect(screen.getByText('300 GtCO₂e')).toBeInTheDocument();
+      expect(screen.getByText("Share of PRIMAP-hist's own total 1990–2024")).toBeInTheDocument();
+      expect(screen.getByText(/PRIMAP-hist total greenhouse gases \(CO₂e\) · emissions in 1990–2024: each country.s cumulative total in each year minus its total the year before 1990, so every line starts at zero/)).toBeInTheDocument();
+      expect(screen.getByText(/no World total in this source to show a Rest of world against/)).toBeInTheDocument();
+      expect(screen.queryByText(/Cumulative .* since records began/)).toBeNull();
+    });
+
     it('a ranking since a year is bars of Gt emitted in the period, not the share bars', () => {
       const r = { ...shareResponse([]), mode: 'ranking', year: 2024, since_year: 1970, rows: [], since_rows: [
         { rank: 1, country: 'USA', name: 'United States', emitted_mt: 284_700, emitted_gt: 284.7, emitted_text: '284.7 GtCO₂', share_of_period_pct: 30.0 },
