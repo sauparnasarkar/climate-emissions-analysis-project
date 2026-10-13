@@ -4276,8 +4276,7 @@ trimming, methodology grounding, no UI directives); no model-facing payload cap 
 - **D4: starter prompt.** Closed: none (R14); the grid stays at six.
 - **D5: one share denominator.** Accepted: World total including international aviation and shipping for OWID shares, OWID's
   World row itself (matches the dashboard to the digit), remainder published as a visible line, PRIMAP-hist on its own total, stated.
-- **D6 (open, small): `share_trend` tolerance.** Proposed `steady` when cumulative share moved by less than 0.5 percentage
-  points over the window; confirm or give another value.
+- **D6: `share_trend` tolerance.** Closed: `steady` when cumulative share moved by less than 0.5 percentage points over the window.
 
 ## Backlog (not scheduled)
 
