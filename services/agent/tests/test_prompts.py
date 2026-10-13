@@ -44,4 +44,11 @@ def test_the_composer_keeps_all_time_context_out_of_a_since_answer():
     """The final text is written by the composer, not the main agent prompt, so the since-year rule must live here too (Copilot review of #299)."""
     from agent.prompts import COMPOSE_RESPONSE_SYSTEM_PROMPT as P
 
-    assert "summary.since" in P and 'labelled "all-time"' in P and "never quoting its rank or share" in P
+    assert "`since`" in P and 'labelled "all-time"' in P and "never quoting its rank or share" in P
+    assert "`summary.top`" in P  # a ranking carries its country figures there, not in `since` (Copilot review of #299)
+
+
+def test_the_composer_says_a_single_gas_cumulative_is_unavailable_even_when_annual_figures_follow():
+    from agent.prompts import COMPOSE_RESPONSE_SYSTEM_PROMPT as P
+
+    assert "CUMULATIVE total of a single gas other than CO2" in P and "not available" in P

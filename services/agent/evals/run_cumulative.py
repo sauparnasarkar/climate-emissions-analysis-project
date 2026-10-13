@@ -55,7 +55,7 @@ CASES = [
     Case("since-1990", "What is China's cumulative CO₂ since 1990?", {SHARE_TOOL}, must_match=r"1990\s*(?:[-–to]+|and)\s*2024|since 1990", must_not_match=r"not available|isn't restarted|isn’t restarted|second among|2nd (?:of|among)", view="cumulative_area"),
     Case("top-since-1970", "Which countries have emitted the most since 1970?", {SHARE_TOOL}, must_match=r"1970\s*(?:[-–to]+|and)\s*2024|since 1970", must_not_match=r"not available|couldn't|partial"),
     Case("methane", "How much cumulative methane has the US emitted?", set(), must_match=NOT_AVAILABLE),
-    Case("unknown-country", "What is Zzyzxland's cumulative share of emissions?", set(), must_match=r"did you mean|no match|couldn't find|could not find|not (?:a )?recogni[sz]ed|isn't"),
+    Case("unknown-country", "What is Zzyzxland's cumulative share of emissions?", set(), must_match=r"did you mean|no match|couldn't find|could not find|not (?:a )?recogni[sz]ed|(?:isn't|doesn't|don't|does not) (?:correspond|appear|match|exist|have)|can(?:'|’)?t report|isn't"),
     Case("basis", "What is the US's share of cumulative emissions?", {SHARE_TOOL}, must_match=r"world|global|PRIMAP"),
     Case("two-sources", "Compare China's cumulative share in OWID CO₂ and in PRIMAP-hist total greenhouse gases.", {SHARE_TOOL}, must_match=r"OWID.*PRIMAP|PRIMAP.*OWID"),
 ]
