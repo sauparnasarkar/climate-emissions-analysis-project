@@ -359,6 +359,23 @@ describe('LandingPage — climate-signal carousel', () => {
     expect(screen.getByRole('link', { name: `Forecasts to ${FORECAST_END_YEAR} →` })).toHaveAttribute('href', '/forecasts');
   });
 
+  it('the two banners are laid out alike: figures, then the button, then Forecasts as a plain text link with an arrow', async () => {
+    mountWithClimate();
+    await screen.findByRole('region', { name: 'Featured' });
+    const after = (a: Element, b: Element) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    // Banner 1: metrics, then ctas. Banner 2 used to put its buttons first; now its figures come first too.
+    expect(after(document.querySelector('.climate-banner__metrics')!, document.querySelector('.climate-banner__ctas')!)).toBe(true);
+    expect(after(document.querySelector('.landing-kpis')!, document.querySelector('.landing-hero__ctas')!)).toBe(true);
+    // Forecasts is the same plain link in both (not a second button), in the same words.
+    const link = document.querySelector('.landing-hero__ctas .landing-hero__forecasts') as HTMLAnchorElement;
+    const banner1 = document.querySelector('.climate-banner__forecasts') as HTMLAnchorElement;
+    expect(link).toHaveAttribute('href', '/forecasts');
+    expect(link.textContent).toBe(banner1.textContent);
+    expect(link.textContent).toBe(`Forecasts to ${FORECAST_END_YEAR} →`);
+    expect(link.className).not.toMatch(/button/i);
+    expect(document.querySelector('.landing-hero__ctas')!.querySelectorAll('a')).toHaveLength(2); // the button and the link
+  });
+
   let savedMatchMedia = window.matchMedia;
   const restoreMedia = () => { window.matchMedia = savedMatchMedia; }; // not vi.unstubAllGlobals: it would also drop the file's other stubs
   const stubPhone = (phone: boolean) => { savedMatchMedia = window.matchMedia; window.matchMedia = ((q: string) => ({ matches: phone && q === '(max-width: 640px)', media: q, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia; };
