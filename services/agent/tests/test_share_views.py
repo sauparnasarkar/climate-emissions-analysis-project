@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from agent.area2_lint import check_response
-from agent.caveats import SHARE_BASIS_OWID, SHARE_BASIS_PRIMAP, SHARE_COUNTED_FROM, SHARE_REST_OF_WORLD, mandatory_notes
+from agent.caveats import SHARE_BASIS_OWID, SHARE_BASIS_PRIMAP, SHARE_COUNTED_FROM, mandatory_notes
 from agent.follow_ups import follow_up_links
 from agent.payload_cap import cap_for_model
 from agent.prompts import AGENT_SYSTEM_PROMPT, COMPOSE_RESPONSE_SYSTEM_PROMPT
@@ -97,15 +97,16 @@ def test_a_ranking_widget_has_no_view():
 # --- caveats ------------------------------------------------------------------------------------------------------------------
 
 
-def test_share_notes_state_the_basis_the_count_start_and_the_rest_of_world():
+def test_share_notes_are_one_note_with_the_basis_and_where_totals_count_from():
     notes = mandatory_notes([rec(series_result())])
-    assert SHARE_BASIS_OWID in notes and SHARE_COUNTED_FROM in notes and SHARE_REST_OF_WORLD in notes and "not warming" in notes
+    assert notes == ["not warming", f"{SHARE_BASIS_OWID} {SHARE_COUNTED_FROM}"]  # two banners, not four
     primap = mandatory_notes([rec(series_result(source="primap_hist", rest=False))])
-    assert SHARE_BASIS_PRIMAP in primap and SHARE_BASIS_OWID not in primap and SHARE_REST_OF_WORLD not in primap
+    assert primap == ["not warming", f"{SHARE_BASIS_PRIMAP} {SHARE_COUNTED_FROM}"]
     ranking = mandatory_notes([rec(ranking_result())])
-    assert SHARE_BASIS_OWID in ranking and SHARE_COUNTED_FROM not in ranking  # a ranking has no chart start year
-    assert mandatory_notes([rec(series_result()), rec(series_result(("India",)))]).count(SHARE_BASIS_OWID) == 1  # de-duplicated
-    for n in (SHARE_BASIS_OWID, SHARE_BASIS_PRIMAP, SHARE_COUNTED_FROM, SHARE_REST_OF_WORLD):
+    assert SHARE_BASIS_OWID in ranking and not any(SHARE_COUNTED_FROM in n for n in ranking)  # a ranking has no chart start year
+    assert "Rest of world" not in " ".join(notes)  # explained by the chart that draws it, not by every answer
+    assert mandatory_notes([rec(series_result()), rec(series_result(("India",)))]).count(f"{SHARE_BASIS_OWID} {SHARE_COUNTED_FROM}") == 1  # de-duplicated
+    for n in (SHARE_BASIS_OWID, SHARE_BASIS_PRIMAP, SHARE_COUNTED_FROM):
         assert "--" not in n and not re.search(r"\bCO2\b", n)
 
 
@@ -193,6 +194,6 @@ def test_every_share_link_points_at_a_real_page_anchor_and_view():
 
 def test_the_prompts_route_cumulative_questions_and_say_what_is_not_available():
     p = " ".join(AGENT_SYSTEM_PROMPT.split())
-    for needle in ("share_trend", "trend_window", "rank_of", "not available", "methane, nitrous oxide", "the World total including international aviation and shipping", "no countries, no year"):
+    for needle in ("share_trend", "trend_window", "rank_of", "not available", "methane, nitrous oxide", "the World total including international aviation and shipping", "no countries, no year", "start_year=1970 unless the user names another window"):
         assert needle in p, needle
     assert "say what a share is of" in " ".join(COMPOSE_RESPONSE_SYSTEM_PROMPT.split())

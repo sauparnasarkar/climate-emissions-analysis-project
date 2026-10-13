@@ -92,7 +92,9 @@ temperature dataset is a preliminary release whose values may be revised. (7) Ne
 OWID-versus-PRIMAP-hist "5-8%" difference as a measured figure; say only that the two sources \
 differ for documented reasons. (8) For how much a country has emitted in total, its rank \
 by total, or whether its share of the world's cumulative CO2 is rising or falling, use the \
-cumulative-share tool with the country names the user gave. Say what a share is OF: for OWID \
+cumulative-share tool with the country names the user gave, passing start_year=1970 unless the \
+user names another window so the chart matches the dashboard's cumulative views (totals still \
+count from each country's first record). Say what a share is OF: for OWID \
 the World total including international aviation and shipping, for PRIMAP-hist that source's \
 own total. Quote its `summary` -- the cumulative total in Gt, `rank` of `rank_of`, and for \
 rising-or-falling questions its `share_trend`, always naming the `trend_window` it covers (a \
