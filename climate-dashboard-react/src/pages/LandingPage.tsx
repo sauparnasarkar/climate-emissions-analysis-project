@@ -90,8 +90,9 @@ const STYLES = `
   .landing-hero__cards > div { padding: 10px 12px; border: 1px solid var(--climate-banner-line); border-radius: 8px; min-width: 0; }
   .landing-hero__card-value { font-size: 1.5rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; color: var(--__s9cmpx-static-text-strong); }
   .landing-hero__cards .__s9cmpx-body4 { color: var(--__s9cmpx-static-text-weak); }
-  .landing-hero__ctas { flex-direction: column; }
+  .landing-hero__ctas { flex-direction: column; align-items: stretch !important; gap: 8px !important; }
   .landing-hero__ctas > a { justify-content: center; }
+  .landing-hero__ctas > a.landing-hero__forecasts { text-align: center; padding: 6px 0; }  /* the text link, as Banner 1's on a phone */
 }
 `;
 
@@ -181,11 +182,12 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
 
   // On a phone the buttons follow the globe in the markup as well as on screen (decision 73), so focus and reading order match what is seen.
   const ctas = (
-    <div className="landing-hero__ctas" style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+    // Laid out like Banner 1's (the climate signal): the button, then Forecasts as a plain text link with an arrow, centred on the button's row.
+    <div className="landing-hero__ctas" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
       <Link to="/overview" className={ctaClass('primary')} style={{ textDecoration: 'none' }}>
         Explore the data <Icon name="expand" size={16} />
       </Link>
-      <Link to="/forecasts" className={ctaClass('secondary')} style={{ textDecoration: 'none' }}>Forecasts to {FORECAST_END_YEAR}</Link>
+      <Link to="/forecasts" className="landing-hero__forecasts" style={{ fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>Forecasts to {FORECAST_END_YEAR} →</Link>
     </div>
   );
 
@@ -202,7 +204,7 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
           Global CO₂ emissions have {growthPhrase(all.pct_change_since_1990)} since {baselineYear}
           {topShare != null ? `, and the ${RACE_SIZE} largest emitters now account for ${topShare}% of the total.` : '.'}
         </p>
-        {!isPhone && ctas}
+        {/* The figures, then the buttons: the same order as Banner 1 (the climate signal). */}
         {!isPhone && (
           <div className="landing-kpis">
             <Kpi border={false} value={fmtInt(all.latest_co2_total)} label={`MtCO₂ in ${all.latest_year}, all countries`} />
@@ -210,6 +212,7 @@ function Hero({ overview, map, globe, worldAnnualMt, active = true }: { overview
             <Kpi border value={String(overview.expanded_countries.countries_count)} label="Countries in the Expanded set" />
           </div>
         )}
+        {!isPhone && ctas}
       </div>
 
       <div className="landing-hero__globe" ref={globeRef} style={{ ['--globe-size' as string]: `${globeMax}px` }}>
