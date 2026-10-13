@@ -3,7 +3,8 @@ import { useUrlChoice } from './useUrlChoice';
 
 /** The first year "counting from a year" can start at: the cumulative views' window (the API holds 1969 as the base, ENHANCEMENTS.md Release 24.8). */
 export const COUNTING_FROM_MIN_YEAR = 1970;
-// Valid values for `?from=`; the API rejects a year after its last data year (a 422 the page shows as its error).
+// Valid values for `?from=`: 1970 to the current calendar year. The hook cannot know where the data ends (that is in the API's response), so a year after the last
+// data year passes here and the API answers 422 with its range; the page shows that message and the control keeps showing the year asked for.
 const FROM_OPTIONS = Array.from({ length: new Date().getFullYear() - COUNTING_FROM_MIN_YEAR + 1 }, (_, i) => String(COUNTING_FROM_MIN_YEAR + i));
 
 /**

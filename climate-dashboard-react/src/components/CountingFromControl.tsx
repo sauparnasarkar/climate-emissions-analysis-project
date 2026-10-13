@@ -13,7 +13,10 @@ const ITEMS = [
  * with data, so no year the API would refuse is offered.
  */
 export function CountingFromControl({ from, onChange, lastYear, name }: { from: number | null; onChange: (year: number | null) => void; lastYear: number; name: string }) {
-  const years = Array.from({ length: Math.max(0, lastYear - COUNTING_FROM_MIN_YEAR + 1) }, (_, i) => COUNTING_FROM_MIN_YEAR + i);
+  // Up to the last year with data, or the requested year if it is later (a hand-edited ?from=2025): the control must show what was asked for, not a different year,
+  // while the page shows the API's own message about the range (the hook only knows the calendar year, not where the data ends).
+  const top = Math.max(lastYear, from ?? 0);
+  const years = Array.from({ length: Math.max(0, top - COUNTING_FROM_MIN_YEAR + 1) }, (_, i) => COUNTING_FROM_MIN_YEAR + i);
   const defaultYear = Math.min(Math.max(BASELINE_YEAR, COUNTING_FROM_MIN_YEAR), lastYear);
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: '8px 12px', margin: '0 0 12px' }}>
@@ -22,7 +25,7 @@ export function CountingFromControl({ from, onChange, lastYear, name }: { from: 
         <Select
           label="From year"
           options={years.map((y) => ({ value: String(y), label: String(y) }))}
-          value={String(Math.min(from, lastYear))}
+          value={String(from)}
           onChange={(v) => onChange(Number(v))}
         />
       )}

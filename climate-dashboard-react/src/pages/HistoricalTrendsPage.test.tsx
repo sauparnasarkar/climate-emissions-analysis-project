@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
+import { ApiError } from '../api/types';
 import type {
   CountriesResponse,
   HistoricalCumulativeResponse,
@@ -322,6 +323,15 @@ describe('HistoricalTrendsPage', () => {
       render(<MemoryRouter initialEntries={['/historical?view=cumulative&from=1850']}><HistoricalTrendsPage /></MemoryRouter>); // before the window: read as absent
       await screen.findByText('Cumulative CO₂ Emissions by Country');
       expect(vi.mocked(api.historicalCumulative)).toHaveBeenCalledWith(FEATURED);
+    });
+
+    it('a ?from= after the last data year shows the API\'s range message and keeps the year asked for in the control (no silent clamp)', async () => {
+      arrange();
+      vi.mocked(api.historicalCumulative).mockRejectedValue(new ApiError(422, 'from_year must be between 1970 and 2023'));
+      render(<MemoryRouter initialEntries={['/historical?view=cumulative&from=2025']}><HistoricalTrendsPage /></MemoryRouter>);
+      expect(await screen.findByText('from_year must be between 1970 and 2023')).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'From a year' })).toBeChecked();
+      expect(screen.getByRole('combobox', { name: 'From year' })).toHaveTextContent('2025'); // not 2024: the control says what the URL asked for
     });
 
     it('ignores an unknown ?view= and shows the annual chart', async () => {
