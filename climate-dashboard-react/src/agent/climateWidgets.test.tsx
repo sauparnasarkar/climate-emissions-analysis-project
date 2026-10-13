@@ -195,6 +195,15 @@ describe('country shares', () => {
       expect(screen.queryByText(/Rank by cumulative CO₂/)).toBeNull();
     });
 
+    it("shows no start-share delta when the share was nil at the window's start (not a meaningful figure)", () => {
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'cumulative_area', summary: { ...SUMMARY, countries: [{ ...SUMMARY.countries[0], first_share_pct: 0.0, first_year: 1907 }] } }));
+      expect(screen.getByText('15.4%')).toBeInTheDocument();
+      expect(screen.queryByText(/in 1907/)).toBeNull();
+      cleanup();
+      mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'cumulative_area', summary: SUMMARY }));
+      expect(screen.getByText('5.0% in 1990')).toBeInTheDocument(); // a real starting share is shown
+    });
+
     it('share_vs_annual is the solid-against-dotted pair for one country', () => {
       mount(widget('get_country_cumulative_share', owid([['CHN', 'China']]), { view: 'share_vs_annual', title: 'Share of cumulative CO₂ against share of each year\'s emissions – China', summary: SUMMARY }));
       expect(series()).toEqual([['Share of cumulative total', 'line', 2], ["Share of that year's emissions", 'line', 2]]);

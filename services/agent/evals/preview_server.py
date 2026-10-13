@@ -34,8 +34,8 @@ TOP5 = ["China", "India", "United States", "Russia", "Japan"]
 # (pattern on the lower-cased question, tool calls). First match wins; order matters.
 PLANS: list[tuple[str, list[tuple[str, dict]]]] = [
     # The cumulative-share questions of Release 24 (ENHANCEMENTS.md §24.1): the view each gets is chosen by the real `select_share_view`, not here.
-    (r"how much co.* has china emitted", [("get_country_cumulative_share", {"countries": ["China"]})]),
-    (r"share of the world.s cumulative.*(rising|falling)", [("get_country_cumulative_share", {"countries": ["India"]})]),
+    (r"how much co.* has china emitted", [("get_country_cumulative_share", {"countries": ["China"], "start_year": 1970})]),
+    (r"share of the world.s cumulative.*(rising|falling)", [("get_country_cumulative_share", {"countries": ["India"], "start_year": 1970})]),
     (r"cumulative emissions for the top emitters since 1970", [("get_country_cumulative_share", {"countries": TOP5, "start_year": 1970})]),
     (r"emitted the most since records began", [("get_country_cumulative_share", {"limit": 10})]),
     (r"china and the us compare on cumulative share", [("get_country_cumulative_share", {"countries": ["China", "United States"], "start_year": 1970})]),
