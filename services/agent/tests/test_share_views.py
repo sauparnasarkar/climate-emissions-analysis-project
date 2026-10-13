@@ -122,6 +122,12 @@ def test_a_share_quoted_without_what_it_is_of_is_flagged_only_for_share_answers(
         assert check_response(ok, [], share_answer=True) == [], ok
     # the scope notes always carry the basis, so they must not excuse a bare sentence
     assert check_response(bare, [SHARE_BASIS_OWID], share_answer=True)
+    # a basis stated in an EARLIER sentence covers a later remark about a share (the live answers that tripped the sentence-level check, eval runs 4-5)...
+    later = "India holds 3.57% of the World's cumulative CO₂. Its annual share of emissions in 2024 alone was higher, at 8.27%."
+    assert check_response(later, [], share_answer=True) == []
+    # ...but not one quoted BEFORE any basis is stated
+    first = "India's annual share in 2024 was 8.27%. That is 3.57% of the World's cumulative CO₂."
+    assert any("without its basis" in v for v in check_response(first, [], share_answer=True))
 
 
 # --- the model's copy ------------------------------------------------------------------------------------------------------------

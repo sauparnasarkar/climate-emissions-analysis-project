@@ -84,9 +84,12 @@ def check_response(text: str, scope_notes: list[str] | None = None, *, scenario_
         violations.append("temperature slope quoted without the preliminary-release note")
     if scenario_answer and not re.search(r"illustrative", combined, re.I):
         violations.append("scenario temperature not labelled illustrative")
-    # Judged on the answer's own text, not the scope notes (which always carry the basis): the sentence that quotes a share must say what it is a share of.
+    # Judged on the answer's own text, not the scope notes (which always carry the basis): a share must be quoted after the answer has said what shares are OF (the World
+    # total, the world's emissions, PRIMAP-hist's own total) -- in its own sentence or an earlier one, since a later remark about the annual share does not need to repeat it.
     if share_answer:
+        basis_stated = False
         for sentence in _sentences(text):
-            if _PERCENT.search(sentence) and _SHARE_WORD.search(sentence) and not _BASIS.search(sentence):
+            basis_stated = basis_stated or bool(_BASIS.search(sentence))
+            if _PERCENT.search(sentence) and _SHARE_WORD.search(sentence) and not basis_stated:
                 violations.append(f"country share quoted without its basis: {sentence!r}")
     return violations
