@@ -63,7 +63,7 @@ describe('"since YYYY": emissions in the period, from zero (Release 24.7)', () =
   const summary = { since: { year: 1999, world_base_cumulative_mt: 1500, countries: [{ name: 'China', base_cumulative_mt: 100 }, { name: 'India', base_cumulative_mt: 0 }] } };
 
   it('reads the base values from the tool summary and is null for anything that is not a since answer', () => {
-    expect(sinceRebase(summary)).toEqual({ base: { China: 100, India: 0 }, world: 1500 });
+    expect(sinceRebase(summary)).toEqual({ base: { China: 100, India: 0 }, world: 1500, fromYear: 1999 });
     expect(sinceRebase({})).toBeNull();
     expect(sinceRebase(null)).toBeNull();
     expect(sinceRebase({ since: { year: 1999, countries: [] } })).toBeNull(); // no World base: the Rest of world could not be drawn honestly
@@ -77,6 +77,20 @@ describe('"since YYYY": emissions in the period, from zero (Release 24.7)', () =
     const area = cumulativeAreaSeries(d, ['#a', '#b']);
     expect(area.find((s) => s.name === 'China')!.y).toEqual([0, 0.01, 0.025]); // Gt
     expect(area.find((s) => s.name === 'Rest of world')!.y[2]).toBeCloseTo((200 - 25 - 45) / 1000); // the World's emissions in the period minus the countries shown
+  });
+
+  it("starts the axis at the period's first year when every selected country's record starts later, with the World's emissions for those early years and nothing stacked for the countries", () => {
+    const late = result({
+      series: [{ country: 'IND', name: 'India', points: [pt(1999, 40, 2, 4), pt(2000, 45, 2.2, 4.5)] }],
+      remainder_series: [rem(1997, 1000), rem(1998, 1500), rem(1999, 1600), rem(2000, 1700)],
+    } as never);
+    const since1998 = { since: { year: 1998, world_base_cumulative_mt: 1400, countries: [{ name: 'India', base_cumulative_mt: 0 }] } };
+    const d = shareToCumulative(late, sinceRebase(since1998))!;
+    expect(d.years).toEqual([1998, 1999, 2000]); // 1998 is the period's first year although India's first point is 1999
+    expect(d.series[0].cumulative_co2).toEqual([null, 40, 45]); // nothing for India in 1998: it adds nothing to the stack
+    expect(d.world_cumulative_co2).toEqual([100, 200, 300]); // the World's emissions in 1998 are there
+    expect(cumulativeAreaSeries(d, ['#a']).find((s) => s.name === 'Rest of world')!.y[0]).toBeCloseTo(0.1); // all of 1998's emissions are Rest of world
+    expect(shareToCumulative(late)!.years).toEqual([1999, 2000]); // without a since: unchanged
   });
 
   it('never goes negative when a base exceeds the value (a rounding gap), and an absent rebase changes nothing', () => {
