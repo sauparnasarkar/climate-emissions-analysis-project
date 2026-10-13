@@ -133,6 +133,8 @@ class ShareRow(BaseModel):
     # The year's own emissions and share of the national sum (decision 60); null when the pipeline output predates the columns.
     annual_mt: float | None = None
     annual_share_pct: float | None = None
+    # Whether the country is in the ~40-country Expanded set the dashboard's pickers offer (the pipeline's crosswalk flag); null when the output predates it.
+    in_expanded_scope: bool | None = None
 
 
 class SharePoint(BaseModel):
@@ -147,6 +149,8 @@ class ShareSeries(BaseModel):
     country: str
     name: str
     points: list[SharePoint]
+    # As on ShareRow: lets a client link to a dashboard page only for countries that page's picker can show.
+    in_expanded_scope: bool | None = None
 
 
 class ShareRemainder(BaseModel):

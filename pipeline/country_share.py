@@ -254,8 +254,14 @@ def _countries(climate_dir: str, used: set[str]) -> list[dict]:
         cw = pd.read_csv(path)
         for r in cw.itertuples():
             names[r.iso3] = {"name": r.primap_name if isinstance(r.primap_name, str) else (r.owid_name if isinstance(r.owid_name, str) else r.iso3),
-                             "expanded": bool(getattr(r, "expanded", False))}
-    return [{"iso3": k, "name": names.get(k, {}).get("name", k), "expanded": names.get(k, {}).get("expanded", False)} for k in sorted(used)]
+                             "expanded": _flag(getattr(r, "expanded", None))}
+    # a country with no crosswalk row, or a crosswalk written without the selected-countries file, is unknown (null), not "outside the Expanded set"
+    return [{"iso3": k, "name": names.get(k, {}).get("name", k), "expanded": names.get(k, {}).get("expanded")} for k in sorted(used)]
+
+
+def _flag(value) -> bool | None:
+    """The crosswalk's `expanded` cell as a bool, or None when it is blank (the set was unknown when the crosswalk was written)."""
+    return None if value is None or pd.isna(value) else bool(value)
 
 
 def run(climate_dir: str = CLIMATE_DIR, out_dir: str | None = None, owid_path: str = OWID_PATH) -> RunReport:
@@ -289,7 +295,7 @@ def run(climate_dir: str = CLIMATE_DIR, out_dir: str | None = None, owid_path: s
         countries = _countries(climate_dir, set(long["country"]) if len(long) else set())
     except Exception:  # noqa: BLE001
         logging.exception("country_share: unable to read the country crosswalk")
-        countries = [{"iso3": k, "name": k, "expanded": False} for k in sorted(set(long["country"]))] if len(long) else []
+        countries = [{"iso3": k, "name": k, "expanded": None} for k in sorted(set(long["country"]))] if len(long) else []
     caveats = [NO_ATTRIBUTION, DENOMINATOR_NOTE, TERRITORIAL_NOTE, GAP_NOTE,
                "OWID: fossil fuel and cement CO2 only (land-use change excluded); the ISO-coded entities include some non-sovereign territories.",
                "PRIMAP-hist: national totals excluding land-use change and international aviation and shipping; a composite of country-reported and third-party data."]
