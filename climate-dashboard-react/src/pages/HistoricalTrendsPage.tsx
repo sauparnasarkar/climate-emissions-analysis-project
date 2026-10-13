@@ -17,7 +17,8 @@ const GAS_OPTIONS = Object.entries(GAS_COLUMNS).map(([value, label]) => ({ value
 const GAS_KEYS = Object.keys(GAS_COLUMNS);
 
 // The chart-card view switch (SPEC.md §5.28). URL-backed (?view=cumulative) so a link opens on it. Cumulative and Share
-// are CO₂-only (OWID has no cumulative methane/N₂O), so they ignore the gas selector.
+// are CO₂-only (OWID has no cumulative methane/N₂O): for any other gas the switch is not shown at all (only Annual exists),
+// and a stale ?view=cumulative with ?gas=methane is read as Annual.
 const VIEW_ITEMS = [
   { value: 'annual', label: 'Annual' },
   { value: 'cumulative', label: 'Cumulative' },
@@ -58,7 +59,9 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
 
   const rootRef = useRef<HTMLDivElement>(null);
   const palette = useCategoricalPalette(rootRef);
-  const [view, setView] = useUrlChoice('view', VIEW_KEYS, 'annual');
+  const [viewChoice, setView] = useUrlChoice('view', VIEW_KEYS, 'annual');
+  const co2 = gas === 'co2';
+  const view = co2 ? viewChoice : 'annual';
   const annual = view === 'annual';
 
   // Only the active view's request is made: the annual one is skipped in the cumulative views and vice versa.
@@ -110,9 +113,11 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
       </div>
 
       <h2 id="emissions-over-time" className="__s9cmpx-headline6">{annual ? `${GAS_COLUMNS[gas]} Emissions Over Time` : 'CO₂ Emissions Over Time'}</h2>
-      <div style={{ marginBottom: 12 }}>
-        <SegmentedControl name="historical-view" items={VIEW_ITEMS} value={view} onChange={setView} />
-      </div>
+      {co2 && (
+        <div style={{ marginBottom: 12 }}>
+          <SegmentedControl name="historical-view" items={VIEW_ITEMS} value={view} onChange={setView} />
+        </div>
+      )}
       {selectedCountries.length === 0 ? (
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>
       ) : annual ? (

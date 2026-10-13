@@ -1,8 +1,10 @@
 import math
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
+from ..constants import CUMULATIVE_YEAR_START
+from ..cumulative_period import base_cumulative, check_from_year, rebase, share_of_period
 from ..data_loaders import DataNotFoundError, load_cumulative, load_expanded_countries, load_features
 from ..schemas import CountryCumulativeLatest, CountryCumulativeResponse, CountryProfileResponse, CountryProfileTableRow
 
@@ -54,19 +56,30 @@ def get_country_profile(country: str):
 
 
 @router.get("/countries/{country}/cumulative", response_model=CountryCumulativeResponse)
-def get_country_cumulative(country: str):
+def get_country_cumulative(country: str, from_year: int | None = Query(default=None, description="Count from this year (1970 to the latest): emissions from then, not the total since records began.")):
     """The country's cumulative-CO2 series from 1970 plus its latest headline figures (SPEC.md §5.28). `rank` is
-    among sovereign (iso-coded) countries with a value in the same year, so OWID aggregates such as "Asia" never rank."""
+    among sovereign (iso-coded) countries with a value in the same year, so OWID aggregates such as "Asia" never rank.
+    With `from_year` (Release 24.8) the series and `latest` are emissions FROM that year: the years start there, the running total has the total at the year before
+    subtracted, `latest.share_of_world_cumulative` is a share of the World's emissions in the period and `rank` is by emissions in the period."""
     if country not in load_expanded_countries():
         raise HTTPException(status_code=404, detail=f"Unknown country: {country}")
     try:
-        df = load_cumulative()
+        full = load_cumulative()  # from 1969: the extra year is the base of from_year=1970
     except DataNotFoundError as e:
         raise HTTPException(status_code=503, detail=e.message)
+    df = full[full["year"] >= CUMULATIVE_YEAR_START]
 
     d = df[df["country"] == country].drop_duplicates("year").sort_values("year")
     if d.empty:
         raise HTTPException(status_code=404, detail=f"No cumulative data for: {country}")
+    if from_year is not None:
+        check_from_year(from_year, int(df["year"].max()))
+        d = d[d["year"] >= from_year]
+        emitted = rebase(d["cumulative_co2"], base_cumulative(full, country, from_year))
+        world = df[df["country"] == "World"].drop_duplicates("year").set_index("year")["cumulative_co2"]
+        world_emitted = rebase(world, base_cumulative(full, "World", from_year))
+        # assign, not item assignment on a subset frame: that trips pandas' chained-assignment warning on Python 3.14 (a false positive; see pipeline/country_share.py)
+        d = d.assign(cumulative_co2=emitted, share_global_cumulative_co2=share_of_period(emitted, d["year"].map(world_emitted)))
 
     def opt(s):
         return [None if pd.isna(v) else float(v) for v in s]
@@ -77,12 +90,16 @@ def get_country_cumulative(country: str):
         row = have.iloc[-1]
         year = int(row["year"])
         peers = df[(df["year"] == year) & df["iso_code"].notna()].dropna(subset=["cumulative_co2"])
+        peer_values = peers["cumulative_co2"]
+        if from_year is not None:  # rank by emissions in the period: each peer's total minus its own base
+            bases = full[full["year"] == from_year - 1].dropna(subset=["cumulative_co2"]).drop_duplicates("country").set_index("country")["cumulative_co2"]
+            peer_values = peers["cumulative_co2"] - peers["country"].map(bases).fillna(0.0)
         share = row["share_global_cumulative_co2"]
         latest = CountryCumulativeLatest(
             year=year,
             cumulative_co2=float(row["cumulative_co2"]),
             share_of_world_cumulative=None if pd.isna(share) else float(share),
-            rank=int((peers["cumulative_co2"] > row["cumulative_co2"]).sum()) + 1,
+            rank=int((peer_values.clip(lower=0) > row["cumulative_co2"]).sum()) + 1,
             rank_of=int(len(peers)),
         )
     return CountryCumulativeResponse(
@@ -92,4 +109,5 @@ def get_country_cumulative(country: str):
         share_of_world_cumulative=opt(d["share_global_cumulative_co2"]),
         share_of_world_annual=opt(d["share_global_co2"]),
         latest=latest,
+        from_year=from_year,
     )

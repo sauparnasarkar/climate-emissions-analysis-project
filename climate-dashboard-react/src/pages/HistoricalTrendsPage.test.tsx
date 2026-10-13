@@ -257,6 +257,29 @@ describe('HistoricalTrendsPage', () => {
       expect(await screen.findByText('CO₂ Emissions by Country')).toBeInTheDocument();
     });
 
+    it('shows no Annual / Cumulative / Share tabs for a gas other than CO₂ (only Annual exists), and brings them back for CO₂', async () => {
+      arrange();
+      const { unmount } = render(<MemoryRouter initialEntries={['/historical?gas=methane']}><HistoricalTrendsPage /></MemoryRouter>);
+      expect(await screen.findByText('Methane (CH₄) Emissions by Country')).toBeInTheDocument();
+      expect(screen.queryByRole('radio', { name: 'Cumulative' })).toBeNull();
+      expect(screen.queryByRole('radio', { name: 'Share of world' })).toBeNull();
+      expect(screen.queryByRole('radio', { name: 'Annual' })).toBeNull(); // a switch with one option is not shown at all
+      expect(screen.getByLabelText('Emissions metric')).not.toBeDisabled(); // the gas can still be changed
+      unmount();
+      render(<MemoryRouter initialEntries={['/historical?gas=co2']}><HistoricalTrendsPage /></MemoryRouter>);
+      await screen.findByText('CO₂ Emissions by Country');
+      for (const name of ['Annual', 'Cumulative', 'Share of world']) expect(screen.getByRole('radio', { name })).toBeInTheDocument();
+    });
+
+    it('reads a stale ?view=cumulative with a non-CO₂ gas as Annual: the annual chart, no cumulative request', async () => {
+      arrange();
+      render(<MemoryRouter initialEntries={['/historical?gas=methane&view=cumulative']}><HistoricalTrendsPage /></MemoryRouter>);
+      expect(await screen.findByText('Methane (CH₄) Emissions by Country')).toBeInTheDocument();
+      expect(vi.mocked(api.historicalCumulative)).not.toHaveBeenCalled();
+      expect(vi.mocked(api.historicalTimeseries)).toHaveBeenCalledWith(FEATURED, 'methane');
+      expect(screen.queryByText('Cumulative CO₂ Emissions by Country')).toBeNull();
+    });
+
     it('ignores an unknown ?view= and shows the annual chart', async () => {
       arrange();
       render(<MemoryRouter initialEntries={['/historical?view=bogus']}><HistoricalTrendsPage /></MemoryRouter>);
