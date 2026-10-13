@@ -15,8 +15,8 @@ vi.mock('../api/client', () => ({
 // Plotly's DOM lifecycle is design-system's own suite's concern; the series each widget hands SyChart is what is under test here.
 vi.mock('design-system', async (orig) => ({
   ...(await orig<typeof import('design-system')>()),
-  SyChart: (p: { ariaLabel?: string; series: Array<{ name: string; kind?: string; x: unknown[]; y: unknown[] }> }) => (
-    <div data-testid="sychart" aria-label={p.ariaLabel} data-series={JSON.stringify(p.series.map((s) => [s.name, s.kind, s.x.length]))} />
+  SyChart: (p: { ariaLabel?: string; yTitle?: string; series: Array<{ name: string; kind?: string; x: unknown[]; y: unknown[] }> }) => (
+    <div data-testid="sychart" aria-label={p.ariaLabel} data-ytitle={p.yTitle} data-series={JSON.stringify(p.series.map((s) => [s.name, s.kind, s.x.length]))} />
   ),
 }));
 
@@ -185,6 +185,7 @@ describe('country shares', () => {
       expect(screen.getByText('15.4%')).toBeInTheDocument();
       expect(screen.getByText('#2')).toBeInTheDocument();
       expect(screen.getByText(/of 215 countries/)).toBeInTheDocument();
+      expect(screen.getByTestId('sychart')).toHaveAttribute('data-ytitle', 'Cumulative CO₂ (GtCO₂)');
       expect(screen.getByText(/Rest of world = World total minus the countries shown/)).toBeInTheDocument();
     });
 
@@ -215,6 +216,7 @@ describe('country shares', () => {
       expect(screen.getByText(/emissions in 1990–2024: each country's cumulative total in each year minus its total the year before 1990, so every area starts at zero/)).toBeInTheDocument();
       expect(screen.getByTestId('sychart')).toHaveAttribute('aria-label', expect.stringContaining('CO₂ emitted 1990–2024 in gigatonnes'));
       expect(screen.queryByText(/since records began/)).toBeNull();
+      expect(screen.getByTestId('sychart')).toHaveAttribute('data-ytitle', 'CO₂ emitted 1990–2024 (GtCO₂)'); // the axis names the period, not "Cumulative CO₂"
     });
 
     it('a ranking since a year is bars of Gt emitted in the period, not the share bars', () => {

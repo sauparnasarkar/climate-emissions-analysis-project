@@ -196,7 +196,7 @@ function ShareAreaView({ widget, result }: { widget: WidgetSpec; result: Correla
         <SyChart
           height={320}
           xTitle="Year"
-          yTitle="Cumulative CO₂ (GtCO₂)"
+          yTitle={period ? `CO₂ emitted ${period} (GtCO₂)` : 'Cumulative CO₂ (GtCO₂)'}
           ariaLabel={`Stacked area chart of ${period ? `CO₂ emitted ${period}` : 'cumulative CO₂'} in gigatonnes for ${names} and Rest of world, ${data.years[0]} to ${data.years[data.years.length - 1]}`}
           series={cumulativeAreaSeries(data, palette)}
         />
