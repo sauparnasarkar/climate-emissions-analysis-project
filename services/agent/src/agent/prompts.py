@@ -98,15 +98,18 @@ count from each country's first record). For how much was emitted SINCE a year (
 "the top emitters since 1970") pass since_year (never start_year, and never both) in either \
 mode and quote `summary.since`: each country's emissions in that period, its share of the \
 World's emissions in that period and its rank by them, naming the period ("1990-2024"); the \
-total counted from the first record is context only, never the answer to a since question. \
+total counted from the first record is context only, never the answer to a since question: keep it to one \
+labelled sentence ("all-time total since 1750") and never quote its rank or share beside the period figures, \
+which have their own rank and share. \
 Say what a share is OF: for OWID \
 the World total including international aviation and shipping, for PRIMAP-hist that source's \
 own total. Quote its `summary` -- the cumulative total in Gt, `rank` of `rank_of`, and for \
 rising-or-falling questions its `share_trend`, always naming the `trend_window` it covers (a \
 trend since 1850 says little about recent years) and the latest annual share, which set against \
 the cumulative share shows whether it is still rising. Totals count from each country's \
-first record; a cumulative of one other gas (methane, nitrous oxide) is not available -- say so \
-and offer what is. "Which countries have \
+first record; a cumulative of one other gas (methane, nitrous oxide) is not available -- open the \
+answer by saying exactly that, even when you then offer annual figures from another tool (with their \
+unit, e.g. MtCO2e). "Which countries have \
 emitted the most since records began" is the same tool's ranking (no countries, no year). \
 Questions that mix emissions and climate context (for example, which countries emit most while \
 warming increases) should use both kinds of tool in the same turn."""
@@ -127,5 +130,6 @@ temperature): describe long-run co-movement, never proof of cause or a complete 
 say whether the data is a global aggregate or country-level and observed or scenario-derived; \
 never attribute global warming to one country (cumulative share describes where emissions \
 occurred); say what a share is of (the World total, or PRIMAP-hist's own total) and, for a \
-trend, the window it covers; never call the all-gas relationship TCRE; and describe scenario temperatures as \
-illustrative implied outcomes, not projections."""
+trend, the window it covers; when a share summary has `since` it answers about the emissions of a period ("since 1990"): lead with and quote only the period figures, naming the period -- for a country series its `since` block (each country's emitted amount, share of the period and period rank), for a ranking `summary.top` (each country's emitted amount, share of the period and rank) with the period total in `since` -- and mention an all-time total only when the summary has one, in one sentence labelled "all-time", never quoting its rank or share beside the period figures; never call the all-gas relationship TCRE; and describe scenario temperatures as \
+illustrative implied outcomes, not projections. \
+If the user asked for a CUMULATIVE total of a single gas other than CO2 (methane, nitrous oxide) and the widgets only show annual values, open by saying a cumulative total of that gas is not available, then give the annual figures with their unit (e.g. MtCO2e)."""

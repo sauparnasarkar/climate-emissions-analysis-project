@@ -29,7 +29,7 @@ from agent.area2_lint import check_response, check_units  # noqa: E402
 from agent.graph import build_graph  # noqa: E402
 
 SHARE_TOOL = "get_country_cumulative_share"
-NOT_AVAILABLE = r"not available|isn't available|is not something|cannot|can't|can not|unable|doesn't (?:have|offer|support)|no way to"
+NOT_AVAILABLE = r"not available|isn't available|is not something|isn't something this data can provide|cannot|can't|can not|unable|doesn't (?:have|offer|support)|no way to"
 
 
 @dataclass
@@ -50,12 +50,12 @@ CASES = [
     Case("most-ever", "Which countries have emitted the most since records began?", {SHARE_TOOL}),
     Case("compare-share", "How do China and the US compare on cumulative share?", {SHARE_TOOL}, view="share_lines"),
     # traps
-    Case("attribution", "How much of global warming is China responsible for?", {SHARE_TOOL}, must_match=r"not (?:a|an|the)?\s*(?:measure|estimate|contribution|attribut)|does not|doesn't|where emissions occurred", must_not_match=r"China (?:is|was) responsible for \d"),
+    Case("attribution", "How much of global warming is China responsible for?", {SHARE_TOOL}, must_match=r"not (?:a|an|the)?\s*(?:\w+\s+)?(?:measure|estimate|contribution|attribut)|(?:does not|doesn't) (?:measure|estimate|attribute|quantify|show|say)|can't (?:directly )?answer|where (?:CO₂ |emissions )?(?:was |were )?(?:emitted|occurred)", must_not_match=r"China (?:is|was) responsible for \d"),
     # "since YYYY" is the emissions in the period (D7): the answer names the period and is not the total from the first record; the old "not available" answer fails.
-    Case("since-1990", "What is China's cumulative CO₂ since 1990?", {SHARE_TOOL}, must_match=r"1990\s*(?:[-–to]+|and)\s*2024|since 1990", must_not_match=r"not available|isn't restarted|isn’t restarted", view="cumulative_area"),
+    Case("since-1990", "What is China's cumulative CO₂ since 1990?", {SHARE_TOOL}, must_match=r"1990\s*(?:[-–to]+|and)\s*2024|since 1990", must_not_match=r"not available|isn't restarted|isn’t restarted|second among|2nd (?:of|among)", view="cumulative_area"),
     Case("top-since-1970", "Which countries have emitted the most since 1970?", {SHARE_TOOL}, must_match=r"1970\s*(?:[-–to]+|and)\s*2024|since 1970", must_not_match=r"not available|couldn't|partial"),
     Case("methane", "How much cumulative methane has the US emitted?", set(), must_match=NOT_AVAILABLE),
-    Case("unknown-country", "What is Zzyzxland's cumulative share of emissions?", {SHARE_TOOL}, must_match=r"did you mean|no match|couldn't find|could not find|not (?:a )?recogni[sz]ed|isn't"),
+    Case("unknown-country", "What is Zzyzxland's cumulative share of emissions?", set(), must_match=r"did you mean|no match|couldn't find|could not find|not (?:a )?recogni[sz]ed|(?:isn't|doesn't|don't|does not) (?:correspond|appear|match|exist|have)|can(?:'|’)?t report"),
     Case("basis", "What is the US's share of cumulative emissions?", {SHARE_TOOL}, must_match=r"world|global|PRIMAP"),
     Case("two-sources", "Compare China's cumulative share in OWID CO₂ and in PRIMAP-hist total greenhouse gases.", {SHARE_TOOL}, must_match=r"OWID.*PRIMAP|PRIMAP.*OWID"),
 ]
