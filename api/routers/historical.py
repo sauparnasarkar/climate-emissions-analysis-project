@@ -4,7 +4,8 @@ from typing import Literal
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
-from ..constants import FEATURED_COUNTRIES, GAS_COLUMNS, MAX_SELECTED_COUNTRIES, PCT_CHANGE_BASELINE_YEAR
+from ..constants import CUMULATIVE_YEAR_START, FEATURED_COUNTRIES, GAS_COLUMNS, MAX_SELECTED_COUNTRIES, PCT_CHANGE_BASELINE_YEAR
+from ..cumulative_period import base_cumulative, check_from_year, rebase, share_of_period
 from ..data_loaders import DataNotFoundError, load_cumulative, load_expanded_countries, load_raw, load_raw_sovereign
 from ..schemas import (
     CumulativeSeries,
@@ -82,15 +83,19 @@ def get_timeseries(
 def get_cumulative(
     countries: list[str] | None = Query(default=None, max_length=MAX_SELECTED_COUNTRIES),
     scope: Scope = "expanded",
+    from_year: int | None = Query(default=None, description="Count from this year (1970 to the latest): emissions from then, not the total since records began."),
 ):
     """Cumulative CO2 (Mt) and the two world shares (%) per country from 1970 (SPEC.md §5.28). Every series is aligned
     to the response's `years` (the World aggregate's years), None where OWID has no value, so the frontend can stack
-    them without re-aligning. Unlike /historical/timeseries, a country outside `scope` is a 404, not silently dropped."""
+    them without re-aligning. Unlike /historical/timeseries, a country outside `scope` is a 404, not silently dropped.
+    With `from_year` the totals are emissions from that year (Release 24.8): the years start there, each running total has the total at the year before
+    subtracted (the World's too), and the cumulative share is a share of the World's emissions in that period."""
     try:
-        df = load_cumulative()
+        full = load_cumulative()  # from 1969: the extra year is the base of from_year=1970
         expanded = load_expanded_countries()
     except DataNotFoundError as e:
         raise HTTPException(status_code=503, detail=e.message)
+    df = full[full["year"] >= CUMULATIVE_YEAR_START]
 
     selected = list(dict.fromkeys(countries)) if countries else FEATURED_COUNTRIES
     if scope == "sovereign":
@@ -102,20 +107,30 @@ def get_cumulative(
         raise HTTPException(status_code=404, detail=f"Unknown country: {', '.join(unknown)}")
 
     world = df[df["country"] == "World"].drop_duplicates("year").set_index("year").sort_index()
+    latest_year = int(world.index.max()) if len(world) else None
+    if from_year is not None:
+        check_from_year(from_year, latest_year or from_year)
+        world = world[world.index >= from_year]
     years = world.index.tolist()
+    world_cum = world["cumulative_co2"] if from_year is None else rebase(world["cumulative_co2"], base_cumulative(full, "World", from_year))
     series = []
     for country in selected:
         d = df[df["country"] == country].drop_duplicates("year").set_index("year").reindex(years)
+        if from_year is None:
+            cum, share_cum = d["cumulative_co2"], d["share_global_cumulative_co2"]
+        else:
+            cum = rebase(d["cumulative_co2"], base_cumulative(full, country, from_year))
+            share_cum = share_of_period(cum, world_cum)
         series.append(
             CumulativeSeries(
                 name=country,
-                cumulative_co2=_optional_floats(d["cumulative_co2"]),
-                share_of_world_cumulative=_optional_floats(d["share_global_cumulative_co2"]),
+                cumulative_co2=_optional_floats(cum),
+                share_of_world_cumulative=_optional_floats(share_cum),
                 share_of_world_annual=_optional_floats(d["share_global_co2"]),
             )
         )
     return HistoricalCumulativeResponse(
-        years=[int(y) for y in years], series=series, world_cumulative_co2=_optional_floats(world["cumulative_co2"])
+        years=[int(y) for y in years], series=series, world_cumulative_co2=_optional_floats(world_cum), from_year=from_year, latest_year=latest_year
     )
 
 

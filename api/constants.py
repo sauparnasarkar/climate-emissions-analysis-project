@@ -20,6 +20,9 @@ WORLD_MAP_YEAR_EARLIEST = 1900
 # First year of the cumulative-CO2 views (SPEC.md §5.28). A display window only: OWID's `cumulative_co2` counts from
 # each country's first record, so rows from this year on still carry the true running total.
 CUMULATIVE_YEAR_START = 1970
+# One year earlier, kept in the cumulative loader as the BASE of "counting from a year" (`from_year`): emissions from year X are the cumulative total at the end
+# minus the total at X-1, so counting from 1970 needs 1969. Never shown: the default views start at CUMULATIVE_YEAR_START.
+CUMULATIVE_BASE_YEAR = CUMULATIVE_YEAR_START - 1
 
 # The year every tier's "% change since 1990" figure is computed against (overview.py's
 # _tier_metrics) -- previously a bare literal.
