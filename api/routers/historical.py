@@ -4,11 +4,13 @@ from typing import Literal
 import pandas as pd
 from fastapi import APIRouter, HTTPException, Query
 
-from ..constants import FEATURED_COUNTRIES, GAS_COLUMNS, PCT_CHANGE_BASELINE_YEAR
-from ..data_loaders import DataNotFoundError, load_raw, load_raw_sovereign
+from ..constants import FEATURED_COUNTRIES, GAS_COLUMNS, MAX_SELECTED_COUNTRIES, PCT_CHANGE_BASELINE_YEAR
+from ..data_loaders import DataNotFoundError, load_cumulative, load_expanded_countries, load_raw, load_raw_sovereign
 from ..schemas import (
+    CumulativeSeries,
     DecadeGasShare,
     EmissionsChangeSummaryResponse,
+    HistoricalCumulativeResponse,
     HistoricalDecadeCompositionResponse,
     HistoricalTimeseriesResponse,
     MoverRow,
@@ -74,6 +76,47 @@ def get_timeseries(
         )
 
     return HistoricalTimeseriesResponse(gas=gas, gas_label=GAS_COLUMNS[gas], series=series)
+
+
+@router.get("/historical/cumulative", response_model=HistoricalCumulativeResponse)
+def get_cumulative(
+    countries: list[str] | None = Query(default=None, max_length=MAX_SELECTED_COUNTRIES),
+    scope: Scope = "expanded",
+):
+    """Cumulative CO2 (Mt) and the two world shares (%) per country from 1970 (SPEC.md §5.28). Every series is aligned
+    to the response's `years` (the World aggregate's years), None where OWID has no value, so the frontend can stack
+    them without re-aligning. Unlike /historical/timeseries, a country outside `scope` is a 404, not silently dropped."""
+    try:
+        df = load_cumulative()
+        expanded = load_expanded_countries()
+    except DataNotFoundError as e:
+        raise HTTPException(status_code=503, detail=e.message)
+
+    selected = list(dict.fromkeys(countries)) if countries else FEATURED_COUNTRIES
+    if scope == "sovereign":
+        allowed = set(df.loc[df["iso_code"].notna(), "country"])
+    else:
+        allowed = set(expanded if scope == "expanded" else FEATURED_COUNTRIES) & set(df["country"])
+    unknown = [c for c in selected if c not in allowed]
+    if unknown:
+        raise HTTPException(status_code=404, detail=f"Unknown country: {', '.join(unknown)}")
+
+    world = df[df["country"] == "World"].drop_duplicates("year").set_index("year").sort_index()
+    years = world.index.tolist()
+    series = []
+    for country in selected:
+        d = df[df["country"] == country].drop_duplicates("year").set_index("year").reindex(years)
+        series.append(
+            CumulativeSeries(
+                name=country,
+                cumulative_co2=_optional_floats(d["cumulative_co2"]),
+                share_of_world_cumulative=_optional_floats(d["share_global_cumulative_co2"]),
+                share_of_world_annual=_optional_floats(d["share_global_co2"]),
+            )
+        )
+    return HistoricalCumulativeResponse(
+        years=[int(y) for y in years], series=series, world_cumulative_co2=_optional_floats(world["cumulative_co2"])
+    )
 
 
 @router.get("/historical/decade-composition", response_model=HistoricalDecadeCompositionResponse)
