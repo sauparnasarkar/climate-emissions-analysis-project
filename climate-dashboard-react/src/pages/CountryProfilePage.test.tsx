@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
-import type { CountriesResponse, CountryProfileResponse } from '../api/types';
+import type { CountriesResponse, CountryCumulativeResponse, CountryProfileResponse } from '../api/types';
 import CountryProfilePage from './CountryProfilePage';
 
 // JumpLinks (SPEC.md §5.19) calls design-system's useReducedMotion during render -- jsdom has
@@ -19,7 +19,7 @@ function mockReducedMotion(matches: boolean) {
   );
 }
 
-vi.mock('../api/client', () => ({ api: { countryProfile: vi.fn(), listCountries: vi.fn() } }));
+vi.mock('../api/client', () => ({ api: { countryProfile: vi.fn(), countryCumulative: vi.fn(), listCountries: vi.fn() } }));
 
 // See OverviewPage.test.tsx — SyChart's Plotly rendering is design-system's own
 // concern, stubbed here so this page's data-wiring is what's under test. Also surfaces the
@@ -60,8 +60,18 @@ const RESPONSE: CountryProfileResponse = {
   table: [{ year: 2021, co2: 11000, co2_per_capita: 7.4, co2_yoy_pct_change: 10.5, ghg_intensity: 0.3 }],
 };
 
+const CUMULATIVE: CountryCumulativeResponse = {
+  country: 'China',
+  years: [1970, 2024],
+  cumulative_co2: [10870, 285087],
+  share_of_world_cumulative: [2.6, 15.4],
+  share_of_world_annual: [4.1, 31.8],
+  latest: { year: 2024, cumulative_co2: 285087, share_of_world_cumulative: 15.4, rank: 2, rank_of: 215 },
+};
+
 beforeEach(() => {
   mockReducedMotion(false);
+  vi.mocked(api.countryCumulative).mockResolvedValue(CUMULATIVE);
 });
 
 afterEach(() => {
@@ -100,7 +110,7 @@ describe('CountryProfilePage', () => {
     expect(charts[1]).toHaveAttribute('data-line-color', '#ecf0f6');
   });
 
-  it('renders a Jump To nav under the h1 linking to all four sections', async () => {
+  it('renders a Jump To nav under the h1 linking to all five sections', async () => {
     vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
     vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
     render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
@@ -108,8 +118,8 @@ describe('CountryProfilePage', () => {
 
     const nav = await screen.findByRole('navigation', { name: 'Jump links' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map((l) => l.textContent)).toEqual(['Emissions', 'Per Capita', 'YoY Change', 'Key Statistics']);
-    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#emissions', '#per-capita', '#yoy-change', '#key-stats']);
+    expect(links.map((l) => l.textContent)).toEqual(['Emissions', 'Per Capita', 'YoY Change', 'Key Statistics', 'Cumulative']);
+    expect(links.map((l) => l.getAttribute('href'))).toEqual(['#emissions', '#per-capita', '#yoy-change', '#key-stats', '#cumulative']);
     expect(document.getElementById('emissions')).not.toBeNull();
     expect(document.getElementById('key-stats')).not.toBeNull();
   });
@@ -202,5 +212,60 @@ describe('CountryProfilePage', () => {
     render(<MemoryRouter initialEntries={['/country-profile?country=Atlantis']}><CountryProfilePage /></MemoryRouter>);
     await screen.findByText(/CO₂ Emissions — China/);
     expect(vi.mocked(api.countryProfile)).toHaveBeenCalledWith('China');
+  });
+
+  describe('Cumulative contribution (SPEC.md §5.28)', () => {
+    function arrange() {
+      vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
+      vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
+    }
+
+    it('shows the three figures and the share chart for the selected country', async () => {
+      arrange();
+      render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
+      expect(await screen.findByRole('heading', { name: 'Cumulative contribution' })).toBeInTheDocument();
+      expect(vi.mocked(api.countryCumulative)).toHaveBeenCalledWith('China');
+      expect(await screen.findByText('285 GtCO₂')).toBeInTheDocument();
+      expect(screen.getByText('15.4%')).toBeInTheDocument();
+      expect(screen.getByText('2.6% in 1970')).toBeInTheDocument();
+      expect(screen.getByText('#2')).toBeInTheDocument();
+      expect(screen.getByText('of 215 countries')).toBeInTheDocument();
+      expect(screen.getByLabelText(/share of the world's cumulative CO₂ and of each year's CO₂ emissions, 1970 to 2024/)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Open in Climate Correlation' })).toHaveAttribute('href', '/climate-correlation');
+    });
+
+    it('adds a Cumulative jump link to the new section', async () => {
+      arrange();
+      render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
+      const nav = await screen.findByRole('navigation', { name: 'Jump links' });
+      expect(within(nav).getByRole('link', { name: 'Cumulative' })).toHaveAttribute('href', '#cumulative');
+      expect(document.getElementById('cumulative')).not.toBeNull();
+    });
+
+    it('keeps the rest of the profile when the cumulative request fails', async () => {
+      arrange();
+      vi.mocked(api.countryCumulative).mockRejectedValue(new Error('boom'));
+      render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
+      expect(await screen.findByText('Failed to load data.')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Key Statistics' })).toBeInTheDocument();
+    });
+
+    it('says so when the country has no cumulative data', async () => {
+      arrange();
+      vi.mocked(api.countryCumulative).mockResolvedValue({ ...CUMULATIVE, latest: null });
+      render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
+      expect(await screen.findByText('No cumulative CO₂ data for China.')).toBeInTheDocument();
+    });
+
+    it('shows a dash when OWID has no share for the latest year', async () => {
+      arrange();
+      vi.mocked(api.countryCumulative).mockResolvedValue({
+        ...CUMULATIVE,
+        share_of_world_cumulative: [null, null],
+        latest: { ...CUMULATIVE.latest!, share_of_world_cumulative: null },
+      });
+      render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
+      expect(await screen.findByText('—')).toBeInTheDocument();
+    });
   });
 });

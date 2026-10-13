@@ -1,14 +1,16 @@
 import type { ColDef } from 'ag-grid-community';
-import { ChartCard, SyChart, Select, DataTable, InlineAlert, Spinner, useReducedMotion } from 'design-system';
+import { ChartCard, SyChart, Select, DataTable, InlineAlert, KpiStat, Spinner, useReducedMotion } from 'design-system';
+import { Link } from 'react-router-dom';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
 import { useAsync } from '../hooks/useAsync';
 import { useCountries } from '../hooks/useCountries';
 import { useSelectedCountry } from '../hooks/useCountrySelection';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
-import type { CountryProfileTableRow } from '../api/types';
+import type { CountryCumulativeResponse, CountryProfileTableRow } from '../api/types';
 import { resolveDivergingEndpointHex } from '../lib/resolveThemeColorHex';
 import { useThemeColorHex } from '../hooks/useThemeColorHex';
+import { fmtGt } from '../lib/cumulative';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
 
 // The CO2 Emissions and CO2 per Capita line charts below pass no explicit `color`, so each
@@ -45,6 +47,7 @@ const JUMP_ITEMS: JumpLinkItem[] = [
   { id: 'per-capita', label: 'Per Capita', href: '#per-capita', topSection: true },
   { id: 'yoy-change', label: 'YoY Change', href: '#yoy-change' },
   { id: 'key-stats', label: 'Key Statistics', href: '#key-stats' },
+  { id: 'cumulative', label: 'Cumulative', href: '#cumulative' },
 ];
 
 // Split out so the country-profile fetch only ever starts once the expanded country list
@@ -54,6 +57,8 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
   // URL-backed (?country=…, SPEC.md §5.25) so links can open a specific country's profile.
   const [country, setCountry] = useSelectedCountry(featured[0], expanded);
   const { data, error, loading } = useAsync(() => api.countryProfile(country), [country]);
+  // Its own request, so a slow or failed cumulative fetch never blanks the sections above it (SPEC.md §5.28).
+  const cumulative = useAsync(() => api.countryCumulative(country), [country]);
   const reduceMotion = useReducedMotion();
   // The deep-link jump also waits for the pinned row's first measurement: where it wraps, the offset is wrong until then.
   const { rowReady, onRowReady } = useStickyRowReady();
@@ -124,9 +129,59 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
             <h2 className="__s9cmpx-headline6">Key Statistics</h2>
             <DataTable columns={COLUMNS} rows={data.table} />
           </div>
+
+          <div id="cumulative" style={{ marginTop: 24 }}>
+            <h2 className="__s9cmpx-headline6">Cumulative contribution</h2>
+            {cumulative.loading ? (
+              <Spinner />
+            ) : cumulative.error ? (
+              <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
+            ) : cumulative.data ? (
+              <CumulativeSection country={country} data={cumulative.data} />
+            ) : null}
+          </div>
         </>
       ) : null}
     </div>
+  );
+}
+
+function CumulativeSection({ country, data }: { country: string; data: CountryCumulativeResponse }) {
+  const { latest } = data;
+  const first = data.years[0];
+  const lastYear = data.years[data.years.length - 1];
+  const shareLabel = (v: number | null | undefined) => (v == null ? '—' : `${v.toFixed(1)}%`);
+  const firstShare = data.share_of_world_cumulative[0];
+
+  if (!latest) return <InlineAlert variant="warning">{`No cumulative CO₂ data for ${country}.`}</InlineAlert>;
+
+  return (
+    <>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16, margin: '12px 0' }}>
+        <KpiStat card label={`Cumulative CO₂ since records began · ${latest.year}`} value={`${fmtGt(latest.cumulative_co2 / 1000)} GtCO₂`} delta="Fossil and cement" deltaDirection="neutral" />
+        <KpiStat card label="Share of world total" value={shareLabel(latest.share_of_world_cumulative)} delta={firstShare == null ? undefined : `${shareLabel(firstShare)} in ${first}`} deltaDirection="neutral" />
+        <KpiStat card label={`Rank by cumulative CO₂ · ${latest.year}`} value={`#${latest.rank}`} delta={`of ${latest.rank_of} countries`} deltaDirection="neutral" />
+      </div>
+      <ChartCard title={`Share of World CO₂ — ${country}`} headingLevel={3}>
+        <p className="__s9cmpx-body4" style={{ margin: '0 0 8px', color: 'var(--__s9cmpx-static-text-weak)' }}>
+          <strong>Purpose:</strong> Solid line: share of all CO₂ emitted so far. Dotted line: share of each year&rsquo;s emissions. When the dotted line is above the solid one, the country&rsquo;s share of the total is rising.
+        </p>
+        <SyChart
+          height={280}
+          xTitle="Year"
+          yTitle="% of world"
+          ariaLabel={`Line chart of ${country}'s share of the world's cumulative CO₂ and of each year's CO₂ emissions, ${first} to ${lastYear}`}
+          series={[
+            { name: 'Share of cumulative total', x: data.years, y: data.share_of_world_cumulative, kind: 'line', color: SINGLE_LINE_COLOR },
+            { name: "Share of that year's emissions", x: data.years, y: data.share_of_world_annual, kind: 'line', color: SINGLE_LINE_COLOR, dashed: true },
+          ]}
+        />
+        <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
+          Fossil and cement CO₂ · OWID · counted from each country&rsquo;s first record, shown from {first}. Climate Correlation also counts land-use CO₂, so its country shares differ.{' '}
+          <Link to="/climate-correlation">Open in Climate Correlation</Link>
+        </p>
+      </ChartCard>
+    </>
   );
 }
 

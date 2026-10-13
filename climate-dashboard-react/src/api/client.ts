@@ -8,6 +8,7 @@ import type {
   ForecastCountryResponse,
   ForecastSummaryResponse,
   HistoricalDecadeCompositionResponse,
+  CountryCumulativeResponse,
   HistoricalCumulativeResponse,
   HistoricalTimeseriesResponse,
   ModelComparisonResponse,
@@ -101,6 +102,7 @@ export const api = {
   },
 
   countryProfile: (country: string) => get<CountryProfileResponse>(`/countries/${encodeURIComponent(country)}/profile`),
+  countryCumulative: (country: string) => get<CountryCumulativeResponse>(`/countries/${encodeURIComponent(country)}/cumulative`),
 
   forecast: (country: string) => get<ForecastCountryResponse>(`/forecasts/${encodeURIComponent(country)}`),
 
