@@ -8,6 +8,7 @@ import { COUNTRY_VIEW_ANCHOR, COUNTRY_VIEW_MAX, buildCountryLines, defaultCountr
 import { fmtShare } from '../../lib/shareBars';
 import { BaselineChip } from '../climate/BaselineChip';
 import { PurposeLine } from '../climate/PurposeLine';
+import { shareBasis } from '../../lib/shareBasis';
 
 const TEMP_COLOR = '#EA5B62';
 const SHARE_FROM = 1850;
@@ -15,8 +16,8 @@ const SHARE_FROM = 1850;
 /**
  * The country view (requirements §1.3.4; ENHANCEMENTS.md decision 66): each selected country's share of cumulative CO₂ over time, beside the global
  * temperature anomaly. Shown together for context only: no country series is regressed against the global temperature series, and no warming is
- * attributed to a country. The share's denominator is the national sum (international aviation and shipping excluded), so it differs by design
- * from the World series behind the headline relationship.
+ * attributed to a country. The share's denominator is the World total, international aviation and shipping included (OWID; the same total as the
+ * headline relationship and the dashboard's cumulative views), so the shares sum to less than 100%.
  */
 export function CountryView({ temperature, mean5y }: { temperature: YearValue[]; mean5y: YearValue[] | null }) {
   // Every country at the latest year, ranked: the picker's pool, and the largest five are where it starts.
@@ -89,7 +90,7 @@ export function CountryView({ temperature, mean5y }: { temperature: YearValue[];
           </tbody>
         </table>
         <div style={{ marginTop: 8 }}>
-          <BaselineChip baseline={`cumulative${lines.cumulativeFrom != null ? ` since ${lines.cumulativeFrom}` : ''}`} source="national sum, bunkers excluded · OWID" />
+          <BaselineChip baseline={`cumulative${lines.cumulativeFrom != null ? ` since ${lines.cumulativeFrom}` : ''}`} source={`${shareBasis('owid_co2').chip} · OWID`} />
         </div>
       </>
     );

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WorldMapTimeSeries } from '../api/types';
 import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
-import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange } from './cumulative';
+import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange, worldTotalsFrom } from './cumulative';
 
 const S: WorldMapTimeSeries = {
   iso_codes: ['AAA', 'BBB', 'CCC'], countries: ['Alpha', 'Beta', 'Gamma'], years: [1970, 1971, 1972],
@@ -76,5 +76,29 @@ describe('cumulativeBaseFrom', () => {
     expect(cumulativeBaseFrom(null, 1969)).toBeNull();
     expect(cumulativeBaseFrom(undefined, 1969)).toBeNull();
     expect(cumulativeBaseFrom(snapshot({ coverage: null, cumulative_from: null }), 1969)).toEqual({ byIso: { USA: 200, CHN: 100 }, from: null });
+  });
+});
+
+describe('leaders against a World total (Release 24.0)', () => {
+  it('shares are of the given total, so they can sum to less than 100 over all the countries', () => {
+    const l = leaders([10, null, 30, 0, 60], ['a', 'b', 'c', 'd', 'e'], ['A', 'B', 'C', 'D', 'E'], 2, 125); // the World is 125: the 100 held by countries and 25 of international transport
+    expect(l.map((x) => x.name)).toEqual(['e', 'c']);
+    expect(l[0].sharePct).toBeCloseTo(48); // 60 of 125, not of 100
+    expect(l[1].sharePct).toBeCloseTo(24);
+  });
+
+  it('claims no share when the total is unavailable (null or zero), instead of falling back to the sum of the row', () => {
+    expect(leaders([10, 30], ['a', 'b'], ['A', 'B'], 5, null).map((x) => x.sharePct)).toEqual([null, null]);
+    expect(leaders([10, 30], ['a', 'b'], ['A', 'B'], 5, 0).map((x) => x.sharePct)).toEqual([null, null]);
+  });
+
+  it('worldTotalsFrom reads the World totals per year from the remainder of a series, null when there is none', () => {
+    const rem = (year: number, c: number, a: number) => ({ year, world_cumulative_mt: c, world_annual_mt: a, cumulative_mt: 1, share_pct: 1, annual_mt: 1, annual_share_pct: 1, international_transport_cumulative_mt: null, international_transport_annual_mt: null });
+    const w = worldTotalsFrom({ remainder_series: [rem(1970, 100, 10), rem(1971, 110, 10)] } as never);
+    expect(w?.cumulativeMt.get(1971)).toBe(110);
+    expect(w?.annualMt.get(1970)).toBe(10);
+    expect(worldTotalsFrom({ remainder_series: [] } as never)).toBeNull();
+    expect(worldTotalsFrom({} as never)).toBeNull();
+    expect(worldTotalsFrom(null)).toBeNull();
   });
 });

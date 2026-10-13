@@ -904,6 +904,17 @@ const SHARE_SNAPSHOT = {
 } as CorrelationCountryShareResponse;
 const CUM = buildCumulative(FULL_MAP, BASE_MT) as number[][]; // Gt, [yearIdx][country] (both countries in the fixture have history, so no nulls)
 const gt = (v: number) => (v < 10 ? v.toFixed(1) : Math.round(v).toLocaleString('en-US'));
+// Release 24.0: every share of the world total is of the WORLD total, which holds more than the countries (international aviation and shipping). In this fixture the World
+// is 20% above the two countries, so a country's share is smaller than its share of their sum.
+const WORLD_OVER_COUNTRIES = 1.2;
+const WORLD_SERIES = {
+  ...SHARE_SNAPSHOT, mode: 'series', year: null, start_year: 1970, rows: [],
+  remainder_series: Array.from({ length: 55 }, (_, i) => {
+    const world_cumulative_mt = (CUM[i][0] + CUM[i][1]) * 1000 * WORLD_OVER_COUNTRIES;
+    const world_annual_mt = (chinaAt(1970 + i) + vietnamAt(1970 + i)) * WORLD_OVER_COUNTRIES;
+    return { year: 1970 + i, world_cumulative_mt, world_annual_mt, cumulative_mt: world_cumulative_mt * 0.1667, share_pct: 16.67, annual_mt: world_annual_mt * 0.1667, annual_share_pct: 16.67, international_transport_cumulative_mt: null, international_transport_annual_mt: null };
+  }),
+} as unknown as CorrelationCountryShareResponse;
 const showCumulative = async () => {
   await screen.findByRole('heading', { level: 1, name: 'Overview' });
   fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
@@ -917,7 +928,8 @@ function mountFullRange(currentYear: number, hash = '') {
   vi.mocked(api.correlationEmissionsTemperature).mockResolvedValue(PAIR);
   vi.mocked(api.correlationTemperature).mockImplementation(async (o) => (o?.view === 'mean5y' ? TEMPERATURE_MEAN5Y : TEMPERATURE));
   vi.mocked(api.correlationConcentration).mockResolvedValue(CONCENTRATION);
-  vi.mocked(api.correlationCountryShare).mockResolvedValue(SHARE_SNAPSHOT);
+  // The page asks for the all-countries snapshot (cumulative base) and, as a series, for the World totals per year
+  vi.mocked(api.correlationCountryShare).mockImplementation(async (o) => (o?.countries ? WORLD_SERIES : SHARE_SNAPSHOT));
   return render(<MemoryRouter initialEntries={[`/overview?countries=China${hash}`]}><OverviewPage /></MemoryRouter>);
 }
 
@@ -1181,8 +1193,8 @@ describe('OverviewPage — Absolute / Cumulative map', () => {
     const sideText = mapSide().textContent!;
     expect(sideText).toContain(`${gt(world)} GtCO₂`); // All Countries (and Expanded: the same two countries)
     expect(sideText).toContain(`${gt(china)} GtCO₂`); // Selected = China
-    expect(sideText).toContain('100.0%'); // All Countries is the whole world
-    expect(sideText).toContain(`${((china / world) * 100).toFixed(1)}%`);
+    expect(sideText).toContain(`${((world / (world * WORLD_OVER_COUNTRIES)) * 100).toFixed(1)}%`); // All Countries is NOT the whole world: the rest is international transport
+    expect(sideText).toContain(`${((china / (world * WORLD_OVER_COUNTRIES)) * 100).toFixed(1)}%`);
   });
 
   it('the table view follows the mode (the running totals in MtCO₂, with a cumulative caption)', async () => {
@@ -1237,7 +1249,7 @@ describe('OverviewPage — leading emitters', () => {
     expect(rows).toHaveLength(2); // two countries in the fixture
     expect(rows[0]).toHaveTextContent('China');
     expect(rows[0]).toHaveTextContent(`${fmt0(chinaAt(2024))} Mt`);
-    expect(rows[0]).toHaveTextContent(`${((chinaAt(2024) / (chinaAt(2024) + vietnamAt(2024))) * 100).toFixed(1)}%`);
+    expect(rows[0]).toHaveTextContent(`${((chinaAt(2024) / ((chinaAt(2024) + vietnamAt(2024)) * WORLD_OVER_COUNTRIES)) * 100).toFixed(1)}%`); // of the World total, not of the two countries
     expect(rows[1]).toHaveTextContent('Vietnam');
     expect(within(card).getByText('MtCO₂ in the year, and share of the world total')).toBeInTheDocument();
   });
@@ -1251,8 +1263,25 @@ describe('OverviewPage — leading emitters', () => {
     const rows = within(card).getAllByRole('listitem');
     expect(rows[0]).toHaveTextContent('China');
     expect(rows[0]).toHaveTextContent(`${gt(CUM[10][0])} Gt`);
-    expect(rows[0]).toHaveTextContent(`${((CUM[10][0] / (CUM[10][0] + CUM[10][1])) * 100).toFixed(1)}%`);
+    expect(rows[0]).toHaveTextContent(`${((CUM[10][0] / ((CUM[10][0] + CUM[10][1]) * WORLD_OVER_COUNTRIES)) * 100).toFixed(1)}%`);
     expect(within(card).getByText('GtCO₂ emitted since 1750, and share of the world total')).toBeInTheDocument();
+  });
+
+  it('claims no share when the World totals are unavailable, rather than showing one against another total', async () => {
+    mountFullRange(2024);
+    vi.mocked(api.correlationCountryShare).mockImplementation(async (o) => {
+      if (o?.countries) throw new ApiError(503, 'unavailable');
+      return SHARE_SNAPSHOT;
+    });
+    cleanup();
+    render(<MemoryRouter initialEntries={['/overview?countries=China']}><OverviewPage /></MemoryRouter>);
+    const card = await screen.findByRole('region', { name: 'Leading emitters · 2024' });
+    const rows = within(card).getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('China');
+    expect(rows[0]).toHaveTextContent(`${fmt0(chinaAt(2024))} Mt`);
+    expect(rows[0].textContent).not.toMatch(/%/);
+    fireEvent.click(await screen.findByRole('radio', { name: 'Cumulative' }));
+    expect(mapSide().textContent).toContain('—'); // the tiers' share cell is a dash, not a percentage of the countries' sum
   });
 
   it('states no warming attribution anywhere on the card: it ranks emissions only', async () => {

@@ -42,6 +42,7 @@ def write(tmp_path, owid_edit=None, primap_edit=None, world_edit=None, glob_edit
         raw.to_csv(tmp_path / "owid-co2-data.csv", index=False)
     national = [sum((annual(c, y) or 0.0) for c in COUNTRIES) for y in YEARS]
     nat = pd.DataFrame({"year": YEARS, "national_sum_mt": national, "co2_mt": [v + 3.0 for v in national]})  # World includes international transport
+    nat = nat.assign(international_transport_mt=3.0, cumulative_co2_mt=nat["co2_mt"].cumsum())
     if world_edit:
         nat = world_edit(nat)
     nat.to_csv(tmp_path / "owid_world_co2_annual.csv", index=False)
@@ -77,6 +78,11 @@ def cum_expected(country, upto):
     return sum((annual(country, y) or 0.0) for y in range(1840, upto + 1))
 
 
+def world_cum(upto):
+    """OWID's World cumulative in the fixture: the countries plus 3 Mt/yr of international transport (decision 71)."""
+    return sum(cum_expected(c, upto) for c in COUNTRIES) + 3.0 * (upto - 1840 + 1)
+
+
 def row(long, source, scope, country, year):
     r = long[(long.source == source) & (long.gas_scope == scope) & (long.country == country) & (long.year == year)]
     return r.iloc[0] if len(r) else None
@@ -89,7 +95,7 @@ def test_cumulative_and_share_match_hand_calculation(tmp_path):
     rep, meta, long = go(tmp_path)
     assert rep.deviations == []
     for year in (1900, 1953, 2000):
-        total = sum(cum_expected(c, year) for c in COUNTRIES)
+        total = world_cum(year)  # OWID shares are of the World total, international transport included
         for c in COUNTRIES:
             r = row(long, "owid_co2", "co2", c, year)
             assert r.cumulative_mt == pytest.approx(cum_expected(c, year), abs=1e-6) and r.share_pct == pytest.approx(cum_expected(c, year) / total * 100, abs=1e-8)
@@ -109,20 +115,65 @@ def test_a_country_has_rows_only_from_its_first_observation(tmp_path):
     assert b.year.min() == 1900 and b.year.max() == 2000 and len(b) == 101 and row(long, "owid_co2", "co2", "BBB", 1899) is None  # absent = no emissions recorded yet
 
 
-def test_shares_sum_to_100_every_year_including_the_published_rounded_values(tmp_path):
+def test_primap_shares_sum_to_100_and_owid_shares_sum_to_100_less_the_remainder(tmp_path):
     _, _, long = go(tmp_path)
     sums = long.groupby(["source", "gas_scope", "year"]).share_pct.sum()
-    assert (sums - 100).abs().max() < 1e-6 and len(sums) == 3 * 151
+    assert len(sums) == 3 * 151
+    assert (sums.loc["primap_hist"] - 100).abs().max() < 1e-6  # PRIMAP-hist: the denominator is its own country sum
+    owid = sums.loc["owid_co2", "co2"]
+    expected = pd.Series({y: sum(cum_expected(c, y) for c in COUNTRIES) / world_cum(y) * 100 for y in owid.index})
+    assert (owid - expected).abs().max() < 1e-8 and (owid < 100).all()  # the rest is international transport
 
 
-def test_non_iso_entities_and_international_transport_never_enter_the_denominator(tmp_path):
+def test_non_iso_entities_and_international_transport_are_never_countries_but_the_world_total_includes_transport(tmp_path):
     _, meta, long = go(tmp_path)
     c = combo(meta, "owid_co2", "co2")
-    expected = sum(cum_expected(x, 2000) for x in COUNTRIES)
-    assert c["latest"]["total_cumulative_mt"] == pytest.approx(expected) and set(long.country) == set(COUNTRIES)  # no 'Europe', no aviation
-    world = sum(annual_total + 3.0 for annual_total in [sum((annual(x, y) or 0.0) for x in COUNTRIES) for y in YEARS])
-    assert c["denominator"]["world_cumulative_mt"] == pytest.approx(world) and c["denominator"]["difference_from_world_pct"] == pytest.approx((expected / world - 1) * 100)
-    assert c["denominator"]["difference_from_world_pct"] < 0  # the national sum is below the World series, by design
+    countries = sum(cum_expected(x, 2000) for x in COUNTRIES)
+    assert set(long.country) == set(COUNTRIES)  # no 'Europe', no aviation row: they are not countries
+    d = c["denominator"]
+    assert d["kind"] == "world" and c["latest"]["total_cumulative_mt"] == pytest.approx(world_cum(2000)) == pytest.approx(d["world_cumulative_mt"])
+    assert d["countries_cumulative_mt"] == pytest.approx(countries) and d["remainder_cumulative_mt"] == pytest.approx(3.0 * 161) == pytest.approx(d["international_transport_cumulative_mt"])
+    assert d["difference_from_world_pct"] == pytest.approx((countries / world_cum(2000) - 1) * 100) and d["difference_from_world_pct"] < 0
+    assert d["remainder_pct"] == pytest.approx(3.0 * 161 / world_cum(2000) * 100) and d["world_cumulative_source"] == "owid_world_co2_annual.cumulative_co2_mt"
+
+
+def test_the_denominator_publishes_the_remainder_per_year(tmp_path):
+    _, meta, _ = go(tmp_path)
+    b = combo(meta, "owid_co2", "co2")["denominator"]["by_year"]
+    assert b["years"] == list(range(1850, 2001)) and len({len(v) for v in b.values()}) == 1
+    i = b["years"].index(1900)
+    assert b["world_cumulative_mt"][i] == pytest.approx(world_cum(1900)) and b["remainder_cumulative_mt"][i] == pytest.approx(3.0 * 61)
+    assert b["remainder_annual_mt"][i] == pytest.approx(3.0) and b["international_transport_annual_mt"][i] == 3.0 and b["world_annual_mt"][i] == pytest.approx(3.0 + 10 + 1 + 2 + 5)
+    assert "by_year" not in combo(meta, "primap_hist", "co2")["denominator"] and combo(meta, "primap_hist", "co2")["denominator"]["kind"] == "country_sum"
+
+
+def test_the_world_cumulative_is_the_published_column_when_present_else_the_running_sum(tmp_path):
+    _, _, long = go(tmp_path, world_edit=lambda w: w.assign(cumulative_co2_mt=w.cumulative_co2_mt + 1000.0))
+    r = row(long, "owid_co2", "co2", "AAA", 2000)
+    assert r.share_pct == pytest.approx(1610.0 / (world_cum(2000) + 1000.0) * 100, abs=1e-8)  # uses the published column, the one the dashboard divides by
+    sub = tmp_path / "nocol"
+    sub.mkdir()
+    _, meta, long2 = go(sub, world_edit=lambda w: w.drop(columns=["cumulative_co2_mt"]))
+    assert row(long2, "owid_co2", "co2", "AAA", 2000).share_pct == pytest.approx(1610.0 / world_cum(2000) * 100, abs=1e-8)
+    assert combo(meta, "owid_co2", "co2")["denominator"]["world_cumulative_source"] == "running sum of owid_world_co2_annual.co2_mt"
+
+
+def test_a_remainder_slightly_below_zero_is_rounding_but_a_real_excess_makes_owid_unavailable(tmp_path):
+    def shave(amount):
+        return lambda w: w.assign(co2_mt=np.where(w.year == 1900, w.co2_mt - 3.0 - amount, w.co2_mt)).assign(cumulative_co2_mt=lambda x: x.co2_mt.cumsum())
+    _, meta, long = go(tmp_path, world_edit=shave(0.05))
+    assert combo(meta, "owid_co2", "co2")["available"]
+    assert combo(meta, "owid_co2", "co2")["denominator"]["by_year"]["remainder_annual_mt"][50] == 0.0  # 1900: clamped, not published as a negative
+    sub = tmp_path / "big"
+    sub.mkdir()
+    rep, meta2, _ = go(sub, world_edit=shave(0.5))
+    o = combo(meta2, "owid_co2", "co2")
+    assert not o["available"] and "exceed the World annual total by 0.500 Mt in 1900" in o["unavailable_reason"] and combo(meta2, "primap_hist", "co2")["available"]
+
+
+def test_a_world_year_missing_is_a_failure_not_a_zero(tmp_path):
+    _, meta, long = go(tmp_path, world_edit=lambda w: w[w.year != 1900])
+    assert "no World total for 1900" in combo(meta, "owid_co2", "co2")["unavailable_reason"] and combo(meta, "primap_hist", "co2")["available"]
 
 
 def test_missing_years_count_as_zero_and_are_listed_not_interpolated(tmp_path):
@@ -156,7 +207,8 @@ def test_primap_scopes_use_their_own_columns(tmp_path):
 
     _, meta, long = go(tmp_path, primap_edit=uneven, glob_edit=lambda g: g.assign(total_ghg_mtco2e=g.co2_mt * 0))  # the global file is edited below to match
     # co2 uses co2_mt, total_ghg uses total_ghg_mtco2e: AAA's total_ghg share must differ from its co2 share
-    assert row(long, "primap_hist", "co2", "AAA", 2000).share_pct == pytest.approx(row(long, "owid_co2", "co2", "AAA", 2000).share_pct, abs=1e-8)  # same underlying co2
+    total = sum(cum_expected(c, 2000) for c in COUNTRIES)  # PRIMAP-hist divides by its own country sum, not by a World total (it has none)
+    assert row(long, "primap_hist", "co2", "AAA", 2000).share_pct == pytest.approx(cum_expected("AAA", 2000) / total * 100, abs=1e-8)
     assert row(long, "primap_hist", "total_ghg", "AAA", 2000).share_pct > row(long, "primap_hist", "co2", "AAA", 2000).share_pct + 5
 
 
@@ -249,7 +301,7 @@ def test_no_attribution_denominator_territorial_and_licence_caveats_travel_with_
     _, meta, _ = go(tmp_path)
     c = " ".join(meta["caveats"])
     assert "not a measure of responsibility for warming or a causal attribution" in c and "no country's emissions are regressed against the global temperature series" in c
-    assert "differs by design from the World series" in c and "territorial" in c and "not adjusted for trade" in c and "PRIMAP-hist licence: CC BY-NC-SA 4.0" in c
+    assert "which includes international aviation and shipping" in c and "not of the World total" in c and "territorial" in c and "not adjusted for trade" in c and "PRIMAP-hist licence: CC BY-NC-SA 4.0" in c
     assert meta["note"] == S.NO_ATTRIBUTION and meta["attribution"]["owid"]["license"] == "CC BY 4.0" and meta["attribution"]["primap_hist"]["citations"] == ["Gütschow & Pflüger"]
 
 
@@ -272,11 +324,13 @@ def test_the_outputs_are_deterministic_and_the_stage_is_registered_and_gated(tmp
 
 
 def test_a_share_sum_violation_makes_the_combination_unavailable_instead_of_publishing_bad_shares(tmp_path, monkeypatch):
-    """Shares sum to 100 by construction, so the guard is a defensive invariant; this forces it to fire and checks the wiring."""
+    """PRIMAP-hist shares sum to 100 by construction, so the guard is a defensive invariant; this forces it to fire and checks the wiring.
+    OWID is not on this guard (its denominator is the World total): its own invariant is the remainder tolerance, tested above."""
     monkeypatch.setattr(S, "SHARE_SUM_TOL", -1.0)
     rep, meta, long = go(tmp_path)
-    assert all(not c["available"] and "shares sum to" in c["unavailable_reason"] for c in meta["combinations"]) and len(long) == 0
-    assert len([d for d in rep.deviations if "country shares unavailable" in d]) == 3
+    assert all(not c["available"] and "shares sum to" in c["unavailable_reason"] for c in meta["combinations"] if c["source"] == "primap_hist")
+    assert combo(meta, "owid_co2", "co2")["available"] and set(long.source) == {"owid_co2"}
+    assert len([d for d in rep.deviations if "country shares unavailable" in d]) == 2
 
 
 # ---------------------------------------------------------------- annual values (decision 60)
@@ -290,17 +344,22 @@ def test_annual_columns_match_hand_calculation(tmp_path):
     _, _, long = go(tmp_path)
     assert {"annual_mt", "annual_share_pct"} <= set(long.columns)
     for year in (1900, 1951, 1953, 2000):  # 1951 is inside CCC's missing run (counted as zero); 2000 is after DDD's record ends
-        total = sum(annual_expected(c, year) for c in COUNTRIES)
+        total = sum(annual_expected(c, year) for c in COUNTRIES) + 3.0  # the World total of the year, international transport included
         for c in COUNTRIES:
             r = row(long, "owid_co2", "co2", c, year)
             assert r.annual_mt == pytest.approx(annual_expected(c, year), abs=1e-6)
             assert r.annual_share_pct == pytest.approx(annual_expected(c, year) / total * 100, abs=1e-8)
 
 
-def test_annual_shares_sum_to_100_per_year_and_annual_sum_reconciles_to_the_national_series(tmp_path):
+def test_annual_shares_sum_to_100_for_primap_and_to_100_less_the_remainder_for_owid_and_the_sum_reconciles(tmp_path):
     _, _, long = go(tmp_path)
     for (source, scope), g in long.groupby(["source", "gas_scope"]):
-        assert (g.groupby("year")["annual_share_pct"].sum() - 100).abs().max() < 1e-6
+        sums = g.groupby("year")["annual_share_pct"].sum()
+        if source == "primap_hist":
+            assert (sums - 100).abs().max() < 1e-6
+        else:
+            expected = pd.Series({y: sum(annual_expected(c, y) for c in COUNTRIES) / (sum(annual_expected(c, y) for c in COUNTRIES) + 3.0) * 100 for y in sums.index})
+            assert (sums - expected).abs().max() < 1e-8 and (sums < 100).all()
     owid = long[(long.source == "owid_co2")].groupby("year")["annual_mt"].sum()
     national = pd.read_csv(tmp_path / "owid_world_co2_annual.csv").set_index("year")["national_sum_mt"]
     common = owid.index.intersection(national.index)
@@ -314,8 +373,8 @@ def test_primap_total_ghg_annual_uses_its_own_column(tmp_path):
 
 
 def test_a_year_with_a_zero_annual_total_makes_the_combination_unavailable_not_a_division_error(tmp_path):
-    # every country reports 0 in 1990: cumulative totals stay positive (earlier years), annual shares are undefined
-    rep, meta, long = go(tmp_path, owid_edit=lambda raw: raw.assign(co2=np.where(raw["year"] == 1990, 0.0, raw["co2"])))
+    # the World reports 0 in 1990: its cumulative total stays positive (earlier years), annual shares are undefined
+    rep, meta, long = go(tmp_path, world_edit=lambda w: w.assign(co2_mt=np.where(w["year"] == 1990, 0.0, w["co2_mt"])))
     assert not combo(meta, "owid_co2", "co2")["available"]
     assert any("zero annual total" in m for m in rep.deviations)
     assert len(long[long.source == "owid_co2"]) == 0
@@ -323,7 +382,27 @@ def test_a_year_with_a_zero_annual_total_makes_the_combination_unavailable_not_a
 
 def test_metadata_defines_both_the_cumulative_and_the_annual_share(tmp_path):
     _, meta, _ = go(tmp_path)
-    assert "share_pct" in meta["method"] and "annual_share_pct" in meta["method"] and "in that year" in meta["method"]
+    assert "share_pct" in meta["method"] and "annual_share_pct" in meta["method"] and "for that year" in meta["method"] and "World total including international aviation and shipping" in meta["method"]
     denominator = next(c for c in meta["caveats"] if "annual share" in c)
-    assert "cumulative share" in denominator and "national sum" in denominator
+    assert "cumulative share" in denominator and "World total" in denominator and "sum of its reporting areas" in denominator
     assert "cumulative and annual" in meta["note"] and "not a measure of responsibility" in meta["note"]
+
+
+# ---------------------------------------------------------------- the acceptance check for decision 71
+
+
+REAL_OWID = os.path.join(S.CLIMATE_DIR, "..", "owid-co2-data.csv")
+
+
+@pytest.mark.skipif(not (os.path.exists(REAL_OWID) and os.path.exists(os.path.join(S.CLIMATE_DIR, "owid_world_co2_annual.csv"))), reason="needs the real (gitignored) OWID data")
+def test_owid_shares_equal_oweds_published_world_shares_on_the_real_data(tmp_path):
+    """One country, one share: the pipeline's cumulative and annual shares must equal OWID's own `share_global_cumulative_co2` and `share_global_co2` (what the dashboard
+    shows), to OWID's three-decimal rounding, for every country in several years."""
+    S.run(S.CLIMATE_DIR, out_dir=str(tmp_path), owid_path=os.path.normpath(REAL_OWID))
+    mine = pd.read_csv(tmp_path / "correlation_country_share.csv")
+    mine = mine[mine.source == "owid_co2"]
+    theirs = pd.read_csv(REAL_OWID, usecols=["year", "iso_code", "share_global_cumulative_co2", "share_global_co2"]).dropna(subset=["iso_code"])
+    for year in (1900, 1970, 2000, int(mine.year.max())):
+        m = mine[mine.year == year].merge(theirs[theirs.year == year], left_on="country", right_on="iso_code")
+        assert len(m) > 30
+        assert (m.share_pct - m.share_global_cumulative_co2).abs().max() < 0.002 and (m.annual_share_pct - m.share_global_co2).abs().max() < 0.002
