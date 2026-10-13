@@ -11,7 +11,8 @@ from __future__ import annotations
 from .state import ToolCallRecord
 
 OWID_SCOPE = "territorial CO₂ from fossil fuels and cement; land-use change excluded"
-NATIONAL_SUM = "national sum, international aviation and shipping excluded"
+WORLD_TOTAL = "share of the World total, international aviation and shipping included"
+PRIMAP_TOTAL = "share of the source's own total, which excludes international aviation and shipping"
 _DASH = "–"
 
 
@@ -54,8 +55,8 @@ def _relationship(r: dict) -> str:
 def _share(r: dict) -> str:
     if r.get("source") == "primap_hist":
         what = "total greenhouse gases (CO₂e)" if r.get("gas_scope") == "total_ghg" else "CO₂"
-        return f"Source: PRIMAP-hist · cumulative {what}; {NATIONAL_SUM}"
-    return f"Source: OWID · cumulative territorial CO₂ from fossil fuels and cement; {NATIONAL_SUM}"
+        return f"Source: PRIMAP-hist · cumulative {what}; {PRIMAP_TOTAL}"
+    return f"Source: OWID · cumulative territorial CO₂ from fossil fuels and cement; {WORLD_TOTAL}"
 
 
 def _scenario(r: dict) -> str:

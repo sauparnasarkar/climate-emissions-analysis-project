@@ -128,6 +128,14 @@ def test_owid_lines_state_the_land_use_scope_and_read_the_coverage_from_the_data
     assert "land-use" not in source_line(_rec("get_historical_emissions", methane)) and "methane" in source_line(_rec("get_historical_emissions", methane))
 
 
+def test_share_source_lines_name_the_denominator_world_total_for_owid_and_the_sources_own_total_for_primap():
+    """Release 24.0: an OWID share is of the World total (bunkers included); a PRIMAP-hist share is of its own total (it has no world aggregate)."""
+    owid = source_line(_rec("get_country_cumulative_share", {"source": "owid_co2", "gas_scope": "co2", "rows": []}))
+    assert owid.startswith("Source: OWID") and "share of the World total, international aviation and shipping included" in owid and "excluded" not in owid
+    prim = source_line(_rec("get_country_cumulative_share", {"source": "primap_hist", "gas_scope": "total_ghg", "rows": []}))
+    assert "PRIMAP-hist" in prim and "share of the source's own total, which excludes international aviation and shipping" in prim
+
+
 def test_headline_relationship_line_says_land_use_is_included_and_fossil_variant_says_excluded():
     head = source_line(_rec("get_emissions_temperature_relationship", {"summary": {"relationship": "headline long-run relationship (...)", "window": [1850, 2024]}}))
     assert "land use" in head and "land use excluded" not in head and "1850–2024" in head and "preliminary release" in head
