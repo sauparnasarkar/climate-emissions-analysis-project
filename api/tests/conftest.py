@@ -261,13 +261,14 @@ def owid_cumulative_df() -> pd.DataFrame:
     Values are chosen so the arithmetic is checkable by eye: World = China + United States + Germany + Canada + "other"
     (a 4,000 Mt unlisted remainder), and the shares are consistent with those totals. Rows: a 1965 row (must be cut by the
     1970 window), "Asia" (iso_code None: an aggregate, must never rank), Canada (sovereign, not in FEATURED_COUNTRIES),
-    and Ruritania (sovereign, null cumulative in 2022 to exercise None handling)."""
+    and Ruritania (sovereign, null cumulative in 2022 to exercise None handling). 1969 rows (World, China, United States, Germany) are the base of counting from
+    1970 (`from_year`): the default views never show them; Canada and Ruritania have none, so their base is 0."""
     nan = float("nan")
     rows = [  # country, iso, {year: (cumulative, share_cum, share_annual)}
-        ("World", None, {1965: (900.0, 100.0, 100.0), 1970: (1000.0, 100.0, 100.0), 2022: (2000.0, 100.0, 100.0), 2023: (2100.0, 100.0, 100.0)}),
-        ("China", "CHN", {1965: (5.0, 0.5, 4.0), 1970: (50.0, 5.0, 4.0), 2022: (400.0, 20.0, 30.0), 2023: (450.0, 21.4, 31.0)}),
-        ("United States", "USA", {1970: (300.0, 30.0, 25.0), 2022: (700.0, 35.0, 13.0), 2023: (720.0, 34.3, 12.5)}),
-        ("Germany", "DEU", {1970: (100.0, 10.0, 5.0), 2022: (150.0, 7.5, 2.0), 2023: (152.0, 7.2, 1.9)}),
+        ("World", None, {1965: (900.0, 100.0, 100.0), 1969: (950.0, 100.0, 100.0), 1970: (1000.0, 100.0, 100.0), 2022: (2000.0, 100.0, 100.0), 2023: (2100.0, 100.0, 100.0)}),
+        ("China", "CHN", {1965: (5.0, 0.5, 4.0), 1969: (20.0, 2.1, 4.0), 1970: (50.0, 5.0, 4.0), 2022: (400.0, 20.0, 30.0), 2023: (450.0, 21.4, 31.0)}),
+        ("United States", "USA", {1969: (280.0, 29.5, 25.0), 1970: (300.0, 30.0, 25.0), 2022: (700.0, 35.0, 13.0), 2023: (720.0, 34.3, 12.5)}),
+        ("Germany", "DEU", {1969: (95.0, 10.0, 5.0), 1970: (100.0, 10.0, 5.0), 2022: (150.0, 7.5, 2.0), 2023: (152.0, 7.2, 1.9)}),
         ("Canada", "CAN", {1970: (40.0, 4.0, 2.0), 2022: (80.0, 4.0, 1.5), 2023: (82.0, 3.9, 1.5)}),
         ("Ruritania", "RUR", {1970: (10.0, 1.0, 1.0), 2022: (nan, nan, nan), 2023: (11.0, 0.52, 0.1)}),
         ("Asia", None, {1970: (60.0, 6.0, 5.0), 2022: (600.0, 30.0, 50.0), 2023: (650.0, 31.0, 51.0)}),

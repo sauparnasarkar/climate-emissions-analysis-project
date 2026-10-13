@@ -141,3 +141,55 @@ def test_country_profile_is_unchanged(full_data):
 
     body = TestClient(app).get("/api/countries/China/profile").json()
     assert "cumulative_co2" not in body and body["years"] == [1990, 2020, 2023]
+
+
+# --- counting from a year: `from_year` (Release 24.8, D7) -------------------------------------------------------------------------------------------------------
+# Fixture totals: World 950 (1969) / 1000 (1970) / 2000 (2022) / 2100 (2023); China 20 / 50 / 400 / 450; United States 280 / 300 / 700 / 720; Germany 95 / 100 / 150 / 152;
+# Canada (no 1969 row: base 0) 40 / 80 / 82; Ruritania (no 1969 row) 10 / NaN / 11.
+
+
+def test_the_default_still_counts_from_the_first_record_and_never_shows_the_1969_base_year(cclient):
+    body = cclient.get("/api/historical/cumulative", params={"countries": ["China"]}).json()
+    assert body["years"] == [1970, 2022, 2023] and body["from_year"] is None and body["latest_year"] == 2023
+    assert body["series"][0]["cumulative_co2"] == [50.0, 400.0, 450.0] and body["world_cumulative_co2"] == [1000.0, 2000.0, 2100.0]
+
+
+def test_from_1970_subtracts_the_1969_total_from_every_running_total_and_the_worlds(cclient):
+    body = cclient.get("/api/historical/cumulative", params={"countries": ["China", "Canada"], "from_year": 1970, "scope": "sovereign"}).json()
+    assert body["years"] == [1970, 2022, 2023] and body["from_year"] == 1970
+    assert body["world_cumulative_co2"] == [50.0, 1050.0, 1150.0]  # the World's emissions in the period, from zero at the base
+    china, canada = body["series"]
+    assert china["cumulative_co2"] == [30.0, 380.0, 430.0]  # minus its 1969 total of 20
+    assert canada["cumulative_co2"] == [40.0, 80.0, 82.0]  # no 1969 row: it had emitted nothing before, so its base is 0
+    assert china["share_of_world_cumulative"] == [60.0, pytest.approx(380 / 1050 * 100), pytest.approx(430 / 1150 * 100)]  # a share of the PERIOD's emissions
+    assert china["share_of_world_annual"] == [4.0, 30.0, 31.0]  # the year's own share is unchanged
+
+
+def test_from_a_later_year_starts_the_years_there_and_uses_the_year_before_as_the_base(cclient):
+    body = cclient.get("/api/historical/cumulative", params={"countries": ["China"], "from_year": 1971}).json()
+    assert body["years"] == [2022, 2023]  # the fixture has no 1971..2021 rows; the base is the 1970 total (50)
+    assert body["series"][0]["cumulative_co2"] == [350.0, 400.0] and body["world_cumulative_co2"] == [1000.0, 1100.0]
+
+
+def test_from_year_outside_1970_to_the_latest_year_is_a_422_naming_the_range(cclient):
+    for bad in (1969, 1800, 2024):
+        r = cclient.get("/api/historical/cumulative", params={"countries": ["China"], "from_year": bad})
+        assert r.status_code == 422 and "between 1970 and 2023" in r.json()["detail"], bad
+        assert cclient.get("/api/countries/China/cumulative", params={"from_year": bad}).status_code == 422
+    assert cclient.get("/api/historical/cumulative", params={"countries": ["China"], "from_year": 2023}).status_code == 200
+
+
+def test_the_country_profile_counting_from_a_year_has_the_periods_total_share_and_rank(cclient):
+    body = cclient.get("/api/countries/China/cumulative", params={"from_year": 1970}).json()
+    assert body["from_year"] == 1970 and body["years"] == [1970, 2022, 2023] and body["cumulative_co2"] == [30.0, 380.0, 430.0]
+    latest = body["latest"]
+    assert latest["year"] == 2023 and latest["cumulative_co2"] == 430.0 and latest["share_of_world_cumulative"] == pytest.approx(430 / 1150 * 100)
+    # emissions 1970-2023 among sovereign countries: USA 440, China 430, Canada 82, Germany 57, Ruritania 11 -> China is 2nd of 5
+    assert (latest["rank"], latest["rank_of"]) == (2, 5)
+    default = cclient.get("/api/countries/China/cumulative").json()["latest"]
+    assert default["cumulative_co2"] == 450.0 and default["rank"] == 2 and body["latest"]["cumulative_co2"] < default["cumulative_co2"]  # a smaller figure than since records began
+
+
+def test_a_late_starter_with_no_value_at_the_base_year_has_a_zero_base_and_a_missing_value_stays_missing(cclient):
+    body = cclient.get("/api/historical/cumulative", params={"countries": ["Ruritania"], "from_year": 1970, "scope": "sovereign"}).json()
+    assert body["series"][0]["cumulative_co2"] == [10.0, None, 11.0]  # no 1969 row: base 0; the null 2022 value stays None, not a number

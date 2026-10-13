@@ -145,9 +145,14 @@ class CumulativeSeries(BaseModel):
 
 
 class HistoricalCumulativeResponse(BaseModel):
+    """With `from_year` (counting from a year): `cumulative_co2` is the emissions from that year (each country's running total minus its total the year before; the
+    World's likewise in `world_cumulative_co2`) and `share_of_world_cumulative` is a share of the World's emissions in that period. Otherwise the totals count
+    from each country's first record. `latest_year` is the last year with data."""
     years: list[int]
     series: list[CumulativeSeries]
     world_cumulative_co2: list[Optional[float]]
+    from_year: Optional[int] = None
+    latest_year: Optional[int] = None
 
 
 class CountryCumulativeLatest(BaseModel):
@@ -159,12 +164,15 @@ class CountryCumulativeLatest(BaseModel):
 
 
 class CountryCumulativeResponse(BaseModel):
+    """With `from_year` the series and `latest` are emissions FROM that year (see HistoricalCumulativeResponse): `latest.cumulative_co2` is the period's emissions,
+    its share a share of the World's emissions in the period, and `rank` is among countries by emissions in the period."""
     country: str
     years: list[int]
     cumulative_co2: list[Optional[float]]
     share_of_world_cumulative: list[Optional[float]]
     share_of_world_annual: list[Optional[float]]
     latest: Optional[CountryCumulativeLatest]
+    from_year: Optional[int] = None
 
 
 class CountryProfileResponse(BaseModel):
