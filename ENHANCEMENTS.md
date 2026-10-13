@@ -4121,8 +4121,8 @@ share; Overview changes (a ranked bar race there remains an idea); a Streamlit e
 
 ## Release 24 — Cumulative CO₂ in the MCP Server and the Agent (Requirements, revised)
 
-**Status: Requirements revised after owner review (D5 and the extend-not-add recommendations accepted); awaiting go-ahead to
-build. No code.** Follows Release 23 (`SPEC.md` §5.28), which put cumulative CO₂ on Historical Trends and Country Profile.
+**Status: Shipped and deployed 2026-10-13** (24.0: decision 110, PRs #285–#289; 24.2–24.6: PRs #290–#293; see "As built" at the end of
+this section). Requirements as revised after owner review (D5 and the extend-not-add recommendations accepted). Follows Release 23 (`SPEC.md` §5.28), which put cumulative CO₂ on Historical Trends and Country Profile.
 This release lets the agent (`services/agent`) answer the same questions through `services/mcp-server`, and show the same
 charts in the Ask page. Not internship scope.
 
@@ -4267,6 +4267,53 @@ trimming, methodology grounding, no UI directives); no model-facing payload cap 
   two-source question (must label each). Exits non-zero on any flagged case.
 - **Cross-check (the point of 24.0).** For the same country and year the agent, Country Profile and Historical Trends quote
   one share. Real-data targets after 24.0: China 285,087 Mt, 15.4%, rank 2 of 215; United States 434,866 Mt, 23.5%, rank 1.
+
+### 24.9 As built (deployed 2026-10-13)
+
+**What shipped, against the requirements.** All of 24.3 to 24.6 shipped as extensions of `get_country_cumulative_share`: no new tools, no new endpoint.
+- **24.2 (PR #290, new):** the API's share rows and series carry `in_expanded_scope`, the pipeline's own crosswalk flag (40 of 215 countries; identical to
+  `/countries`' expanded list). It exists because R12's links may only carry countries the dashboard pickers can show; a name comparison would have been
+  fragile. An unknown set (no `selected_countries.json`) is blank/null, never false (Copilot's finding).
+- **24.3 (#291):** the summary computes what the model quotes: per country `share_change_pp`, `share_trend` (steady below 0.5 pp, D6, edges inclusive),
+  `last_cumulative_gt`, `last_annual_share_pct`, `rank` / `rank_of` (only when the series ends in the ranking's year), `in_expanded_scope`; top level
+  `trend_window`, `rank_year`, `counted_from`, and for OWID `rest_of_world` and `world_cumulative_gt`; a limited ranking adds `remainder_share_pct` and
+  `not_shown_share_pct`. A `start_year` is explained (`window_note`), never applied: totals count from each country's first record.
+- **24.4 (#292):** `WidgetSpec.view` (`share_lines` / `cumulative_area` / `share_vs_annual`) chosen per question by `select_share_view` and kept on the
+  widget, never in the cached tool result; view-aware titles; one share note (basis + where totals count from); the lint (`share_answer=True`); link
+  builders (Historical Trends `?view=`, Country Profile `#cumulative` via a `CUMULATIVE_ANCHOR` constant the link tests pin); prompt rule (8);
+  `evals/run_cumulative.py`.
+- **24.6 (#293):** `CountryShareWidget` draws the stacked area (Gt, Rest of world on top) and the solid-against-dotted pair through the Release 23
+  builders, with a single country's three figures; PRIMAP-hist or a missing annual share falls back to the lines. `lib/shareViews.ts` aligns the share
+  endpoint's per-country series on one year axis.
+
+**Differences from the requirements.**
+- **R4:** the per-country first-record years (China 1907, ...) are not readable live (the API does not expose them), so the methodology text states the
+  rule and the live `cumulative_from` instead of typing the years.
+- **R5:** a "clear error for a gas argument" is not implementable (the tool has no gas parameter); the description and the methodology say it is not available.
+- **R9:** the Rest of world sentence is the stacked area's caption, not a scope note: as a note it appeared for views that draw no Rest of world; the basis and
+  counted-from sentences are one note, because three banners above every answer was noise (found by running the whole chain in a browser, not by review).
+- **R11:** the cap was a gap in 24.0, not 24.4: since 24.0 the model had been receiving about 175 yearly World-total entries per series; its copy now drops
+  `remainder_series` (the widget keeps it; `summary.rest_of_world` is what the model quotes).
+- **R13/R14** as written. **Prompt:** the model is asked for `start_year=1970` unless the user names a window, so a chart starts where the dashboard's do
+  (without it a series starts at a country's first record: China 1907, with a 0.0% start share).
+- **Also fixed:** Country Profile and Historical Trends said Climate Correlation "also counts land-use CO₂, so its country shares differ"; never true of
+  country shares, and since 24.0 they are the same.
+- **Tests added beyond the plan:** `api/tests/test_share_consistency_real_data.py` (one country, one number against `/countries/{c}/cumulative`: China,
+  US, India, Germany, UK identical in cumulative, share, rank, `rank_of` 215); the preview server (`services/agent/evals/preview_server.py`) has plans for
+  the five release questions so the chain can be reviewed with real data and no LLM key.
+
+**Deploy.** Mac Mini, bundle `index-B07JmIr_.js` (was `index-BhgzHflT.js`); API, mcp-server and agent restarted; `dist` backup `~/dist-prev-release24-4`
+(the 24.0 ones, `~/dist-prev-release24` and `~/data-climate-prev-release24`, still exist). Verified live in a fresh browser on the real model: "How much CO₂
+has China emitted in total?" draws the stacked area with the three figures, quotes 285.1 Gt / 15.42% / rank 2 of 215 and its window, names the World-total
+basis, refuses attribution, and links to Historical Trends, Country Profile and Climate Correlation.
+
+**Open.**
+- **`evals/run_cumulative.py` has not been run** (it needs a live model key and API + MCP server); run it on Sonnet and read the answers.
+- **The "since 1990" trap is only half-met live:** asked "What is China's cumulative CO₂ since 1990?", the model answered with the total counted from the
+  first record and said so ("counted from each country's first record"), plus the 1990 to 2024 change in share, but did not say plainly that a cumulative
+  since 1990 is not available (rule (8) and the tool's `window_note` ask it to). The figures are right and the basis is disclosed; the direct statement is
+  missing. A candidate fix is a stronger prompt sentence or an eval-driven tweak, to be judged against the eval above.
+- Per-country first-record years are not exposed by the API (R4 above); a small pipeline/API addition would let the text name them from data.
 
 ### 24.8 Decisions
 

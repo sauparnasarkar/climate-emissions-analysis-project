@@ -1050,7 +1050,7 @@ model's tool choice, steered by `AGENT_SYSTEM_PROMPT`:
 |---|---|---|
 | `get_emissions_temperature_relationship` | `chart` | none — rendered by the module's headline-relationship component (cumulative-emissions/temperature *pairs* with the fit from `summary.fit`) |
 | `get_ghg_composition` | `chart` over a range, `grid` for a single year | none — the module's gas-composition component; single year → `grid` |
-| `get_country_cumulative_share` | `chart` | `line` for a country series, `bar` for a ranking (decided from `summary.mode`) |
+| `get_country_cumulative_share` | `chart` | `line` for a country series, `bar` for a ranking (decided from `summary.mode`); a series also gets `WidgetSpec.view` (`share_lines` / `cumulative_area` / `share_vs_annual`), chosen per question by a deterministic keyword rule (`select_share_view`, Release 24.4) and never stored in the cached result; a ranking has none |
 | `get_scenario_temperature` | `chart` | `line`, BAU/Moderate/Aggressive, with the fossil-only second line |
 | `get_co2_concentration`, `get_temperature_anomaly` | `card` (`KpiStat`) for a "what is it now" ask, else `chart` (`line`) | `select_indicator_intent`: a deterministic keyword heuristic on `current_query` (trend/comparison markers win over "latest"), the same seam as `select_top_emitters_chart_kind` — no LLM call |
 | `get_correlation_metadata` | `grid` | |
@@ -1122,7 +1122,7 @@ full** in `ToolCallRecord.result` (the widget's source and the thread cache's va
   last always kept, with `points_total`/`points_shown`; the relationship also drops the bulky
   `land_use_weight_scan` diagnostic;
 - `get_ghg_composition`: `years` likewise (`years_total`/`years_shown`);
-- `get_country_cumulative_share`: each series' `points` likewise;
+- `get_country_cumulative_share`: each series' `points` likewise, and `remainder_series` (about 175 yearly World totals) is dropped from the model's copy because `summary.rest_of_world` carries what it can quote (Release 24.4);
 - `get_correlation_metadata`: per-source prose and URLs (`methodology`, `citations`,
   `required_citation_format`, `source_urls`, `land_use_license_note`) dropped, licence/coverage/release/
   caveats kept; `get_methodology_notes`: the weight scan dropped;
@@ -1147,7 +1147,7 @@ new field carries real navigation links:
   |---|---|
   | `get_co2_concentration`, `get_temperature_anomaly` | Overview (climate signal) → `/overview`; Climate Correlation → `/climate-correlation` |
   | `get_emissions_temperature_relationship`, `get_ghg_composition` | Climate Correlation → `/climate-correlation`; Overview → `/overview` |
-  | `get_country_cumulative_share` | Climate Correlation (country view) → `/climate-correlation`; Overview (top emitters) → `/overview` |
+  | `get_country_cumulative_share` | A series of OWID shares: Historical Trends `/historical?view=cumulative\|share&countries=…` and, for one country, Country Profile `/country-profile?country=…#cumulative`, carrying only countries flagged `in_expanded_scope` (the view follows the question), then Climate Correlation (country view) → `/climate-correlation`; a ranking or a PRIMAP-hist share: Climate Correlation and Overview (top emitters) → `/overview` |
   | `get_scenario_temperature` | Scenario Comparison → `/scenarios`; Forecasts → `/forecasts` |
   | `get_historical_emissions`, `get_gas_composition_by_decade` | Historical Trends → `/historical` |
   | `get_country_profile` | Country Profile → `/country-profile` |
