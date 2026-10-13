@@ -256,6 +256,8 @@ describe('country shares', () => {
       expect(screen.getByText('Cumulative greenhouse gases (CO₂e) since records began · 2024')).toBeInTheDocument();
       expect(screen.getByText('PRIMAP-hist')).toBeInTheDocument();
       expect(screen.queryByText('Fossil and cement')).toBeNull();
+      expect(screen.getByText("Share of PRIMAP-hist's own total")).toBeInTheDocument(); // not 'Share of world total': it has no world aggregate
+      expect(screen.queryByText('Share of world total')).toBeNull();
     });
 
     it('share_vs_annual is the solid-against-dotted pair for one country', () => {

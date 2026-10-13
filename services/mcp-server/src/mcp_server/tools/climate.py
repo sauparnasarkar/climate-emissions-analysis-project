@@ -283,8 +283,9 @@ async def get_country_cumulative_share(
     only chooses the years a series is shown from, and a ranking rejects it). `since_year=1990` is
     emissions in 1990 to the latest year: each country's cumulative total then minus its total at
     1989. The `summary.since` block carries each country's emitted amount (`emitted_gt` /
-    `emitted_text`), its share of the World's emissions IN THAT PERIOD (`share_of_period_pct`, not the
-    cumulative share) and its rank by emissions in the period; a ranking with `since_year` is the
+    `emitted_text`), its share of the emissions IN THAT PERIOD (`share_of_period_pct`, not the
+    cumulative share; of the World's emissions for OWID, of the source's own total for PRIMAP-hist --
+    `summary.since.basis` says which) and its rank by emissions in the period; a ranking with `since_year` is the
     ranking by emissions in the period (`since_rows`) -- quote those, and say the period ("1990-2024").
     The total counted from the first record is still in the summary, as context only. Omit
     `since_year` for the total since records began. `end_year` (series) or `year` (ranking) can end

@@ -135,7 +135,7 @@ function NoShares({ result }: { result: CorrelationCountryShareResponse }) {
 }
 
 /** What a share result's amounts are, from its own source and gas scope (never assumed to be OWID CO₂): total greenhouse gases are CO₂-equivalent. */
-function shareLabels(result: Pick<CorrelationCountryShareResponse, 'source' | 'gas_scope'>): { unit: string; gas: string; source: string; short: string; shareOf: string } {
+function shareLabels(result: Pick<CorrelationCountryShareResponse, 'source' | 'gas_scope'>): { unit: string; gas: string; source: string; short: string; shareOf: string; totalOf: string } {
   const ghg = result.gas_scope === 'total_ghg';
   const primap = result.source === 'primap_hist';
   return {
@@ -145,6 +145,8 @@ function shareLabels(result: Pick<CorrelationCountryShareResponse, 'source' | 'g
     short: primap ? 'PRIMAP-hist' : 'Fossil and cement',
     // what a share is OF: the World's emissions for OWID; PRIMAP-hist has no world aggregate, so its own total (the summary's `since.basis` says the same)
     shareOf: primap ? "PRIMAP-hist's own total" : "the world's emissions",
+    // the cumulative share's denominator: the World total for OWID, PRIMAP-hist's own total (it has no world aggregate)
+    totalOf: primap ? "PRIMAP-hist's own total" : 'world total',
   };
 }
 
@@ -187,7 +189,7 @@ function ShareFigures({ widget, result }: WidgetProps & { result: CorrelationCou
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 16, margin: '0 0 12px' }}>
       <KpiStat card label={`Cumulative ${L.gas} since records began · ${c.last_year ?? ''}`} value={`${fmtGt(c.last_cumulative_gt)} ${L.unit}`} delta={L.short} deltaDirection="neutral" />
-      <KpiStat card label="Share of world total" value={pct(c.last_share_pct)} delta={c.first_share_pct == null || c.first_share_pct < 0.05 ? undefined : `${pct(c.first_share_pct)} in ${c.first_year}`} deltaDirection="neutral" />
+      <KpiStat card label={`Share of ${L.totalOf}`} value={pct(c.last_share_pct)} delta={c.first_share_pct == null || c.first_share_pct < 0.05 ? undefined : `${pct(c.first_share_pct)} in ${c.first_year}`} deltaDirection="neutral" />
       {c.rank != null && c.rank_of != null && <KpiStat card label={`Rank by cumulative CO₂ · ${c.last_year ?? ''}`} value={`#${c.rank}`} delta={`of ${c.rank_of} countries`} deltaDirection="neutral" />}
     </div>
   );
