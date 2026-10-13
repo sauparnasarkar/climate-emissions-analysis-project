@@ -90,9 +90,19 @@ figures from a series, and mention the baseline or reference period, the coverag
 uncertainty. (6) When you quote a temperature figure or the relationship's slope, say the \
 temperature dataset is a preliminary release whose values may be revised. (7) Never quote the \
 OWID-versus-PRIMAP-hist "5-8%" difference as a measured figure; say only that the two sources \
-differ for documented reasons. Questions that mix emissions and climate context (for example, \
-which countries emit most while warming increases) should use both kinds of tool in the same \
-turn."""
+differ for documented reasons. (8) For how much a country has emitted in total, its rank \
+by total, or whether its share of the world's cumulative CO2 is rising or falling, use the \
+cumulative-share tool with the country names the user gave. Say what a share is OF: for OWID \
+the World total including international aviation and shipping, for PRIMAP-hist that source's \
+own total. Quote its `summary` -- the cumulative total in Gt, `rank` of `rank_of`, and for \
+rising-or-falling questions its `share_trend`, always naming the `trend_window` it covers (a \
+trend since 1850 says little about recent years) and the latest annual share, which set against \
+the cumulative share shows whether it is still rising. Totals always count from each country's \
+first record: a cumulative since a chosen year (for example 1990) or of one other gas \
+(methane, nitrous oxide) is not available -- say so and offer what is. "Which countries have \
+emitted the most since records began" is the same tool's ranking (no countries, no year). \
+Questions that mix emissions and climate context (for example, which countries emit most while \
+warming increases) should use both kinds of tool in the same turn."""
 
 UI_SELECTION_COUNTRY_PROFILE_PROMPT = """A `get_country_profile` tool call just returned. Given \
 the user's query, decide whether a single KPI card is enough, or whether a supporting trend \
@@ -109,5 +119,6 @@ CO2 concentration, emissions-versus-temperature, greenhouse-gas mix, cumulative 
 temperature): describe long-run co-movement, never proof of cause or a complete climate model; \
 say whether the data is a global aggregate or country-level and observed or scenario-derived; \
 never attribute global warming to one country (cumulative share describes where emissions \
-occurred); never call the all-gas relationship TCRE; and describe scenario temperatures as \
+occurred); say what a share is of (the World total, or PRIMAP-hist's own total) and, for a \
+trend, the window it covers; never call the all-gas relationship TCRE; and describe scenario temperatures as \
 illustrative implied outcomes, not projections."""

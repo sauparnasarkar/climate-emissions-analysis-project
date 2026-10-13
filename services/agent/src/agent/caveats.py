@@ -37,6 +37,12 @@ COMPOSITION_NOTE = (
     "international aviation and shipping."
 )
 
+# Country-share answers (Release 24.4): what the share is OF, where the totals count from, and what Rest of world is. Deterministic, shown with every such answer.
+SHARE_BASIS_OWID = "Shares are of the World total, which includes international aviation and shipping (OWID fossil-fuel and cement CO₂, land use excluded)."
+SHARE_BASIS_PRIMAP = "Shares are of PRIMAP-hist's own total: it has no world aggregate and excludes international aviation and shipping."
+SHARE_COUNTED_FROM = "Cumulative totals count from each country's first record, whatever year the chart starts."
+SHARE_REST_OF_WORLD = "Rest of world is the World total minus the countries shown, so it includes international aviation and shipping."
+
 _TEMPERATURE_TOOLS = {"get_temperature_anomaly", "get_emissions_temperature_relationship", "get_scenario_temperature"}
 
 
@@ -63,6 +69,14 @@ def _notes_for(record: ToolCallRecord, result: dict) -> list[str]:
     elif name == "get_country_cumulative_share":
         if isinstance(result.get("interpretation_note"), str):
             notes.append(result["interpretation_note"])
+        summary = result.get("summary") or {}
+        basis = {"owid_co2": SHARE_BASIS_OWID, "primap_hist": SHARE_BASIS_PRIMAP}.get(result.get("source"))  # a basis only for a source we know
+        if basis:
+            notes.append(basis)
+        if summary.get("mode") == "series":
+            notes.append(SHARE_COUNTED_FROM)
+        if summary.get("rest_of_world"):
+            notes.append(SHARE_REST_OF_WORLD)
     elif name == "get_co2_concentration":
         splice = (result.get("details") or {}).get("splice") or {}
         if splice.get("splice_year"):

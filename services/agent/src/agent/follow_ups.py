@@ -20,12 +20,14 @@ from collections.abc import Callable
 from urllib.parse import urlencode
 
 from .state import FollowUpLink, ToolCallRecord
-from .ui_selection import is_error_result
+from .ui_selection import is_error_result, select_share_view
 
 MAX_FOLLOW_UP_LINKS = 3
 # The dashboard's pickers cap a selection at this many countries (climate-dashboard-react constants.ts,
 # MAX_SELECTED_COUNTRIES); a longer list would be truncated by the page anyway.
 MAX_LINK_COUNTRIES = 10
+# Country Profile's anchor for its cumulative section (`CUMULATIVE_ANCHOR` in climate-dashboard-react/src/pages/CountryProfilePage.tsx; pinned by tests).
+COUNTRY_PROFILE_CUMULATIVE_ANCHOR = "cumulative"
 
 _OVERVIEW_SIGNAL = FollowUpLink(label="Open in Overview", route="/overview#climate-signal")
 _OVERVIEW_RELATIONSHIP = FollowUpLink(label="Open in Overview", route="/overview#relationship")
@@ -94,6 +96,26 @@ def _profile(record: ToolCallRecord) -> list[FollowUpLink]:
     return [FollowUpLink(label=label, route=f"/country-profile{_query([('country', country)] if country else [])}")]
 
 
+def _share(record: ToolCallRecord, current_query: str = "") -> list[FollowUpLink]:
+    """The cumulative-share tool (Release 24.4, R12). A SERIES of OWID shares is what Historical Trends' Cumulative / Share views and Country Profile's
+    cumulative section show, so those open with the same countries and the view the answer drew; the page's picker only knows the Expanded set, so only the
+    countries the API flags `in_expanded_scope` are carried (a link must not open a different view than the answer's). A ranking, a PRIMAP-hist share, or a
+    selection with no Expanded country keeps the two fixed links."""
+    r = _result(record)
+    summary = r.get("summary") or {}
+    fixed = [_correlation("country-view"), _OVERVIEW_EMITTERS]
+    if summary.get("mode") != "series" or r.get("source") != "owid_co2":
+        return fixed
+    flagged = [c["name"] for c in summary.get("countries") or [] if isinstance(c, dict) and c.get("name") and c.get("in_expanded_scope") is True][:MAX_LINK_COUNTRIES]
+    if not flagged:
+        return fixed
+    view = "cumulative" if select_share_view(current_query, summary, r.get("source")) == "cumulative_area" else "share"
+    links = [FollowUpLink(label="Open in Historical Trends", route=f"/historical{_query([('view', view), *[('countries', n) for n in flagged]])}")]
+    if len(flagged) == 1:
+        links.append(FollowUpLink(label=f"Open {flagged[0]} in Country Profile", route=f"/country-profile{_query([('country', flagged[0])])}#{COUNTRY_PROFILE_CUMULATIVE_ANCHOR}"))
+    return [*links, *fixed]
+
+
 def _fixed(*links: FollowUpLink) -> Callable[[ToolCallRecord], list[FollowUpLink]]:
     return lambda record: list(links)
 
@@ -104,7 +126,7 @@ _LINKS_BY_TOOL: dict[str, Callable[[ToolCallRecord], list[FollowUpLink]]] = {
     "get_temperature_anomaly": _fixed(_OVERVIEW_SIGNAL, _correlation("global-relationship")),
     "get_emissions_temperature_relationship": _relationship,
     "get_ghg_composition": _fixed(_correlation("gas-composition"), _OVERVIEW_SIGNAL),
-    "get_country_cumulative_share": _fixed(_correlation("country-view"), _OVERVIEW_EMITTERS),
+    "get_country_cumulative_share": _share,
     "get_scenario_temperature": _fixed(_correlation("scenarios"), _SCENARIOS),
     # Emissions-only tools (owner, 2026-10-08: every data answer gets a way into its page)
     "get_historical_emissions": _historical,
@@ -123,16 +145,17 @@ _LINKS_BY_TOOL: dict[str, Callable[[ToolCallRecord], list[FollowUpLink]]] = {
 }
 
 
-def follow_up_links(records: list[ToolCallRecord]) -> list[FollowUpLink]:
+def follow_up_links(records: list[ToolCallRecord], current_query: str = "") -> list[FollowUpLink]:
     """Links for the tools that succeeded this turn: tool-run order, de-duplicated by route (the
-    first label wins), at most MAX_FOLLOW_UP_LINKS."""
+    first label wins), at most MAX_FOLLOW_UP_LINKS. `current_query` is only read by the builders whose link depends on what the user asked (the share tool's view)."""
     out: list[FollowUpLink] = []
     seen: set[str] = set()
     for record in records:
         if is_error_result(record.result):
             continue
         builder = _LINKS_BY_TOOL.get(record.tool_name)
-        for link in builder(record) if builder else []:
+        links = _share(record, current_query) if builder is _share else (builder(record) if builder else [])
+        for link in links:
             if link.route not in seen:
                 seen.add(link.route)
                 out.append(link)

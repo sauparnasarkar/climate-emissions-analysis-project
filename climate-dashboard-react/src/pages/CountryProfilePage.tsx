@@ -37,6 +37,10 @@ const COLUMNS: ColDef<CountryProfileTableRow>[] = [
   { field: 'ghg_intensity', headerName: 'GHG Intensity (kg CO₂e/$ GDP)' },
 ];
 
+// The cumulative section's anchor. A constant (not a literal) because the agent's follow-up links point at `#cumulative` and its tests read `*_ANCHOR` constants
+// from the dashboard source, so a rename here fails there (services/agent follow_ups.py).
+const CUMULATIVE_ANCHOR = 'cumulative';
+
 // Stable labels (SPEC.md §5.19) -- distinct from the ChartCards' own titles, which are always
 // suffixed with the currently-selected country.
 const JUMP_ITEMS: JumpLinkItem[] = [
@@ -47,7 +51,7 @@ const JUMP_ITEMS: JumpLinkItem[] = [
   { id: 'per-capita', label: 'Per Capita', href: '#per-capita', topSection: true },
   { id: 'yoy-change', label: 'YoY Change', href: '#yoy-change' },
   { id: 'key-stats', label: 'Key Statistics', href: '#key-stats' },
-  { id: 'cumulative', label: 'Cumulative', href: '#cumulative' },
+  { id: CUMULATIVE_ANCHOR, label: 'Cumulative', href: `#${CUMULATIVE_ANCHOR}` },
 ];
 
 // Split out so the country-profile fetch only ever starts once the expanded country list
@@ -130,7 +134,7 @@ function CountryProfileContent({ featured, expanded }: { featured: string[]; exp
             <DataTable columns={COLUMNS} rows={data.table} />
           </div>
 
-          <div id="cumulative" style={{ marginTop: 24 }}>
+          <div id={CUMULATIVE_ANCHOR} style={{ marginTop: 24 }}>
             <h2 className="__s9cmpx-headline6">Cumulative contribution</h2>
             {cumulative.loading ? (
               <Spinner />

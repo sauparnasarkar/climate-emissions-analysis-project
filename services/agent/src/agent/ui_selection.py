@@ -157,10 +157,46 @@ def _composition_title(record: ToolCallRecord) -> str:
     return f"Greenhouse-gas mix ({span})" if span else "Greenhouse-gas mix"
 
 
-def _share_title(record: ToolCallRecord) -> str:
+_SHARE_MARKERS = ("share", "percent", "%", "proportion", "fraction", "portion")
+_SHARE_TREND_MARKERS = ("rising", "falling", "increasing", "decreasing", "growing", "shrinking", "trend", "changing", "changed", "going up", "going down")
+_AMOUNT_MARKERS = ("how much", "total", "emitted", "cumulative emissions", "cumulative co", "tonnes", "tons", "gigaton", "megaton", "amount", "so far", "records began")
+
+
+def select_share_view(current_query: str, summary: dict, source: str | None) -> str | None:
+    """Which picture a country-share SERIES gets (Release 24.4, ENHANCEMENTS.md R7): the same deterministic keyword seam as the other selectors, no LLM call.
+
+    - a "share" question about one country that asks about movement ("is India's share rising?") -> `share_vs_annual` (cumulative share against the share of each
+      year's emissions, which is what says whether it is still rising);
+    - any other "share" question -> `share_lines`;
+    - an "amount" question ("how much has China emitted", "cumulative emissions since 1970") -> `cumulative_area`, a stacked area of Gt with Rest of world, which
+      exists only for OWID (a PRIMAP-hist share has no World total to leave a rest of);
+    - anything else keeps the existing `share_lines`.
+    A ranking has no view (None)."""
+    if summary.get("mode") != "series":
+        return None
+    query = f" {current_query.lower()} "
+    countries = summary.get("countries") or []
+    wants_share = any(m in query for m in _SHARE_MARKERS)
+    wants_amount = any(m in query for m in _AMOUNT_MARKERS)
+    if wants_share:
+        trend = any(m in query for m in _SHARE_TREND_MARKERS)
+        if len(countries) == 1 and trend and countries[0].get("last_annual_share_pct") is not None:
+            return "share_vs_annual"
+        return "share_lines"
+    if wants_amount and source == "owid_co2" and summary.get("rest_of_world"):
+        return "cumulative_area"
+    return "share_lines"
+
+
+def _share_title(record: ToolCallRecord, view: str | None = None) -> str:
     s = (record.result or {}).get("summary") or {}
     if s.get("mode") == "series":
         names = [c.get("name") for c in s.get("countries", []) if c.get("name")]
+        if view == "cumulative_area":
+            start = (s.get("trend_window") or [None])[0]
+            return f"Cumulative CO₂ since records began{f', shown from {start}' if start else ''} – {join_countries(names)}"
+        if view == "share_vs_annual":
+            return f"Share of cumulative CO₂ against share of each year's emissions – {join_countries(names)}"
         return f"Cumulative share of emissions – {join_countries(names)}"
     n = s.get("n_rows")
     lead = f"Top {n} countries" if n else "Countries"
@@ -272,11 +308,15 @@ def _build_widget(record: ToolCallRecord, current_query: str) -> WidgetSpec | No
         )
 
     if record.tool_name == "get_country_cumulative_share":
-        series = ((record.result or {}).get("summary") or {}).get("mode") == "series"
+        result = record.result or {}
+        summary = result.get("summary") or {}
+        series = summary.get("mode") == "series"
+        view = select_share_view(current_query, summary, result.get("source"))
         return WidgetSpec(
             intent="chart",
             chart_kind="line" if series else "bar",
-            title=_title_for(record),
+            view=view,
+            title=_share_title(record, view),
             source_tool_call=source,
             props=record.result or {},
         )
