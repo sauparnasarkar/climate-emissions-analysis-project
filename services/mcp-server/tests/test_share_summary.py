@@ -344,3 +344,12 @@ async def test_a_since_ranking_validates_limit_like_every_other_ranking(climate_
     assert len((await get_country_cumulative_share(since_year=1950, limit=1))["since_rows"]) == 1
     assert len((await get_country_cumulative_share(since_year=1950, limit=50))["since_rows"]) == 4  # the stub has four countries: the cap is a ceiling
     assert len((await get_country_cumulative_share(since_year=1950))["since_rows"]) == 4  # the default (15) is within range
+
+
+def test_the_unit_guidance_says_total_greenhouse_gases_are_co2_equivalent():
+    from mcp_server.climate import SHARE_SUMMARY_UNITS
+    from mcp_server.tools.climate import get_country_cumulative_share
+
+    doc = " ".join((get_country_cumulative_share.__doc__ or "").split())
+    assert "for `gas_scope='total_ghg'`" in doc and "CO2-EQUIVALENT: GtCO2e / MtCO2e" in doc and "(GtCO2 or GtCO2e)" in doc
+    assert "MtCO₂e for total greenhouse gases" in SHARE_SUMMARY_UNITS["_mt"] and "GtCO₂e for total greenhouse gases" in SHARE_SUMMARY_UNITS["_gt"]

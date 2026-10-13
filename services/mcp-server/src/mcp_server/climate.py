@@ -168,7 +168,7 @@ def gt_text(mt: float | None, unit: str = "GtCO₂") -> str | None:
 
 # What each field's suffix means. The summary used to carry the BODY's `unit` ("Mt CO2") beside `_gt` fields, which is what mislabelled them.
 SHARE_SUMMARY_UNITS = {
-    "_mt": "MtCO₂ (million tonnes)",
+    "_mt": "MtCO₂ (million tonnes; MtCO₂e for total greenhouse gases)",
     "_gt": "GtCO₂ (billion tonnes; 1 Gt = 1,000 Mt; GtCO₂e for total greenhouse gases)",
     "_pct": "percent",
     "_pp": "percentage points",
