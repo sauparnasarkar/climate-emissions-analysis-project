@@ -494,6 +494,7 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
         if d.duplicated(["country", "year"]).any():
             raise cl.ClimateDataUnavailable(f"correlation_country_share.csv has duplicate country/year rows for source={source}, gas_scope={gas_scope}")
         names = {c["iso3"]: c.get("name", c["iso3"]) for c in doc.get("countries", []) if isinstance(c, dict) and "iso3" in c}
+        expanded = {c["iso3"]: c["expanded"] for c in doc.get("countries", []) if isinstance(c, dict) and "iso3" in c and isinstance(c.get("expanded"), bool)}
         world = _world_by_year(combo)  # OWID: shares are of the World total, so the totals and the remainder come from it, not from summing the rows (Release 24.0)
         cov = combo.get("coverage") if isinstance(combo.get("coverage"), list) else None
         base = dict(schema_version=doc.get("schema_version", 1), generated_at=doc.get("generated_at"), note=doc.get("note") or "", caveats=_strings(doc.get("caveats")),
@@ -514,7 +515,7 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
                 sub = d[(d["country"] == c) & (d["year"] >= lo) & (d["year"] <= hi)].sort_values("year")
                 if sub.empty:
                     notes.append(f"{c} has no rows for this source and gas scope in {lo}-{hi}")
-                series.append(ShareSeries(country=c, name=names[c], points=[SharePoint(year=int(r.year), cumulative_mt=float(r.cumulative_mt), share_pct=float(r.share_pct),
+                series.append(ShareSeries(country=c, name=names[c], in_expanded_scope=expanded.get(c), points=[SharePoint(year=int(r.year), cumulative_mt=float(r.cumulative_mt), share_pct=float(r.share_pct),
                                                                                        **({"annual_mt": float(r.annual_mt), "annual_share_pct": float(r.annual_share_pct)} if has_annual else {})) for r in sub.itertuples()]))
             if not has_annual:
                 notes.append(ANNUAL_PREDATES_NOTE)
@@ -528,7 +529,7 @@ def get_country_share(source: str = "owid_co2", gas_scope: str | None = None, ye
         if sub.empty:
             notes.append(f"no data for {yr}: coverage is {cov[0]}-{cov[1]}" if cov else f"no data for {yr}")
         shown = sub if all_countries else sub.head(limit if limit is not None else SHARE_DEFAULT_LIMIT)
-        rows = [ShareRow(rank=i + 1, country=r.country, name=names.get(r.country, r.country), cumulative_mt=float(r.cumulative_mt), share_pct=float(r.share_pct),
+        rows = [ShareRow(rank=i + 1, country=r.country, name=names.get(r.country, r.country), in_expanded_scope=expanded.get(r.country), cumulative_mt=float(r.cumulative_mt), share_pct=float(r.share_pct),
                          **({"annual_mt": float(r.annual_mt), "annual_share_pct": float(r.annual_share_pct)} if has_annual else {}))
                 for i, r in enumerate(shown.itertuples())]
         total = float(sub["cumulative_mt"].sum()) if not sub.empty else None

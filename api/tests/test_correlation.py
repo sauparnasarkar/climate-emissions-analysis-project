@@ -1088,3 +1088,24 @@ def world_cum_fixture(upto):
     from pipeline.tests.test_country_share import world_cum
 
     return world_cum(upto)
+
+
+# ------------------------------------------------------------------ /country-share: in_expanded_scope (Release 24.2)
+
+
+def test_rows_and_series_say_whether_the_country_is_in_the_expanded_set(api):
+    """The stub crosswalk flags only AAA as expanded (pipeline.tests.test_country_share). The flag is the pipeline's, passed through, not guessed from a name."""
+    rows = {r["country"]: r for r in strict(api.get(CS + "?all_countries=true"))["rows"]}
+    assert rows["AAA"]["in_expanded_scope"] is True and all(rows[c]["in_expanded_scope"] is False for c in ("BBB", "CCC", "DDD"))
+    s = {x["country"]: x for x in strict(api.get(CS + "?countries=AAA&countries=BBB&start_year=1999"))["series"]}
+    assert s["AAA"]["in_expanded_scope"] is True and s["BBB"]["in_expanded_scope"] is False
+
+
+def test_a_file_without_the_expanded_flag_gives_null_not_false(api, climate):
+    doc = json.loads((climate / "correlation_country_share.json").read_text())
+    for c in doc["countries"]:
+        c.pop("expanded", None)
+    (climate / "correlation_country_share.json").write_text(json.dumps(doc))
+    cl.clear_caches()
+    rows = strict(api.get(CS + "?all_countries=true"))["rows"]
+    assert all(r["in_expanded_scope"] is None for r in rows)  # unknown is not "outside the set"
