@@ -8,7 +8,7 @@ import { worldTotals } from '../lib/mapSeries';
 import { computeAutoplayStops } from '../lib/yearStops';
 import { AtmosphericCo2Card, type ConcentrationContext } from '../components/overview/AtmosphericCo2Card';
 import { LeadingEmitters, type MapMode } from '../components/overview/LeadingEmitters';
-import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange } from '../lib/cumulative';
+import { buildCumulative, cumulativeBaseFrom, fmtGt, leaders, positiveRange, worldTotalsFrom, type WorldTotals } from '../lib/cumulative';
 import { KpiStat, ChartCard, SyChart, MultiSelect, Button, InlineAlert, Spinner, Slider, JumpLinks, Table, SegmentedControl, useReducedMotion } from 'design-system';
 import type { JumpLinkItem } from 'design-system/components/JumpLinks/JumpLinks';
 import { api } from '../api/client';
@@ -51,6 +51,8 @@ const JUMP_ITEMS: JumpLinkItem[] = [
 ];
 // The dashboard header is pinned at the top and 68 px tall (App header minHeight; styles.css offsets every anchor by the same 68). The
 // anchor row sticks just below it, so jump targets get that plus the row's own height as their scroll margin.
+// Any country will do: the share endpoint returns the same per-year World totals beside whichever series is asked for, and one country keeps it small.
+const WORLD_TOTALS_PROBE_ISO = 'USA';
 const JUMP_ROW_PX = 52; // the row's height plus a gap on one line; the measured height replaces it where the row wraps (Year control under the links)
 const JUMP_ROW_GAP_PX = 10;
 
@@ -183,7 +185,7 @@ function TierSummaryPanel({ rows, year, mode = 'absolute', cumulativeFrom = null
                 </div>
                 <div>
                   <div className="__s9cmpx-body4" style={WEAK_TEXT}>Share of world total</div>
-                  <div className="__s9cmpx-body2">{`${(row.sharePct ?? 0).toFixed(1)}%`}</div>
+                  <div className="__s9cmpx-body2">{row.sharePct == null ? '—' : `${row.sharePct.toFixed(1)}%`}</div>
                 </div>
               </>
             ) : (
@@ -255,6 +257,7 @@ function AnimatedWorldMap({
   headlineMovers,
   concentration,
   cumulative,
+  world,
   pageYear,
 }: {
   /** The 1970-based series the map plays; the tiers' API totals cover its 1990-and-later part */
@@ -267,6 +270,8 @@ function AnimatedWorldMap({
   concentration: ConcentrationContext | null;
   /** Each country's cumulative CO₂ (Mt) at the last year before the series, from the all-countries snapshot; null while loading or if unavailable */
   cumulative: { byIso: Record<string, number>; from: number | null } | null;
+  /** The World total per year (Mt): the denominator of every "share of the world total" here, so a share matches the Correlation tool's; null while loading or if unavailable (no share is shown then) */
+  world: WorldTotals | null;
   /** The page's shared year and its Play/scrub controls (the sticky Year control drives the same value). */
   pageYear: UseYearAnimationResult;
 }) {
@@ -363,14 +368,14 @@ function AnimatedWorldMap({
   const selectedCum = useMemo(() => groupCum(selectedIndices), [cumMatrix, selectedIndices]); // eslint-disable-line react-hooks/exhaustive-deps
   const cumulativeRow = (title: string, count: number, groupSeries: number[] | null): TierRow => {
     const gt = groupSeries?.[yearIdx] ?? 0;
-    const world = allCum?.[yearIdx] ?? 0;
-    return { tier: title, countries: count, co2Total: 0, pctChange: 0, cumulativeGt: gt, sharePct: world ? (gt / world) * 100 : 0 };
+    const worldMt = world?.cumulativeMt.get(currentYear);
+    return { tier: title, countries: count, co2Total: 0, pctChange: 0, cumulativeGt: gt, sharePct: worldMt ? (gt / (worldMt / 1000)) * 100 : undefined };
   };
 
   // The top-5 leading emitters among ALL countries for the year on screen, in the active mode.
   const topFive = useMemo(
-    () => leaders(activeValues[yearIdx] ?? [], worldMapSeries.countries, worldMapSeries.iso_codes, 5),
-    [activeValues, yearIdx, worldMapSeries],
+    () => leaders(activeValues[yearIdx] ?? [], worldMapSeries.countries, worldMapSeries.iso_codes, 5, (isCumulative ? world?.cumulativeMt : world?.annualMt)?.get(currentYear) ?? null),
+    [activeValues, yearIdx, worldMapSeries, world, isCumulative, currentYear],
   );
 
   // ISO codes of the picker's selection, outlined on the map. Its own memo (and a separate SyChart
@@ -576,6 +581,10 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
   // Each country's cumulative CO₂ just before the map's first year (one all-countries snapshot, ~200 rows): the base for Cumulative mode.
   // If it fails the map simply offers Absolute only.
   const cumulativeQuery = useAsync(async () => api.correlationCountryShare({ year: CLIMATE_SERIES_START_YEAR - 1, allCountries: true }), []);
+  // The World total per year, from the remainder the share endpoint publishes beside any series (one country keeps the response small). If it fails, shares are left
+  // out rather than shown against another total.
+  const worldQuery = useAsync(async () => api.correlationCountryShare({ countries: [WORLD_TOTALS_PROBE_ISO], startYear: CLIMATE_SERIES_START_YEAR }), []);
+  const worldShareTotals = useMemo(() => worldTotalsFrom(worldQuery.data), [worldQuery.data]);
   // The closing Pathways block; if the scenario output is unavailable the section (and its anchor) is simply omitted.
   const scenarioQuery = useAsync(async () => api.correlationScenarioTemperature(), []);
   const pathways = useMemo(() => buildPathways(scenarioQuery.data), [scenarioQuery.data]);
@@ -688,6 +697,7 @@ function OverviewContent({ featured, expanded }: { featured: string[]; expanded:
           expanded={expanded}
           concentration={concentrationContext}
           cumulative={cumulativeBase}
+          world={worldShareTotals}
           pageYear={pageYear}
           allCountriesTier={data.all_countries}
           expandedTier={data.expanded_countries}

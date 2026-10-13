@@ -6,6 +6,7 @@ import { useShareReplay } from '../../hooks/useShareReplay';
 import { SHARE_MEASURES, SHARE_START_YEAR, SHARE_STEP_MS, buildShareFrames, fmtShare, segmentLabel, type ShareCountry, type ShareMeasureId } from '../../lib/shareBars';
 import { BaselineChip } from '../climate/BaselineChip';
 import { PurposeLine } from '../climate/PurposeLine';
+import { shareBasis } from '../../lib/shareBasis';
 import { YearBadge } from './YearBadge';
 
 export const SHARE_ANCHOR = 'share';
@@ -175,7 +176,7 @@ export function ShareSection({ countries, year, pagePlaying }: { countries: stri
           </tbody>
         </table>
         <p className="__s9cmpx-body4" style={{ margin: '10px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
-          {frames.label} · denominator = sum of national emissions, international aviation and shipping excluded. Replay animates {first} → the page year at about a quarter of a second a year and changes nothing else on the page. Same selected countries in both bars, same colours. Shares describe contribution to emissions; no warming is attributed to a country.
+          {frames.label} · {shareBasis(measure.source).footer} Replay animates {first} → the page year at about a quarter of a second a year and changes nothing else on the page. Same selected countries in both bars, same colours. Shares describe contribution to emissions; no warming is attributed to a country.
         </p>
       </>
     );
@@ -205,7 +206,7 @@ export function ShareSection({ countries, year, pagePlaying }: { countries: stri
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 12px', marginBottom: 8 }}>
           {measureControl}
           {frames && (
-            <BaselineChip baseline={`cumulative${frames.cumulativeFrom != null ? ` since ${frames.cumulativeFrom}` : ''}`} source="national sum, bunkers excluded" />
+            <BaselineChip baseline={`cumulative${frames.cumulativeFrom != null ? ` since ${frames.cumulativeFrom}` : ''}`} source={shareBasis(measure.source).chip} />
           )}
         </div>
         {body}

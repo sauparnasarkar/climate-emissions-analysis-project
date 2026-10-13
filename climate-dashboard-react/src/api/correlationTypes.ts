@@ -122,7 +122,7 @@ export interface ShareRow {
   name: string;
   cumulative_mt: number;
   share_pct: number;
-  /** The year's own emissions and share of the national sum; null when the pipeline output predates them (decision 60). */
+  /** The year's own emissions and share of the World total (PRIMAP-hist: of its own country sum); null when the pipeline output predates them (decision 60). */
   annual_mt: number | null;
   annual_share_pct: number | null;
 }
@@ -139,6 +139,20 @@ export interface ShareSeries {
   country: string;
   name: string;
   points: SharePoint[];
+}
+
+/** OWID shares are of the World total (international aviation and shipping included), so the countries' shares sum to less than 100; this is the rest, and the World
+ * total itself, for one year (Release 24.0). Absent for PRIMAP-hist, whose shares sum to 100. */
+export interface ShareRemainder {
+  year: number;
+  world_cumulative_mt: number;
+  world_annual_mt: number;
+  cumulative_mt: number;
+  share_pct: number;
+  annual_mt: number | null;
+  annual_share_pct: number | null;
+  international_transport_cumulative_mt: number | null;
+  international_transport_annual_mt: number | null;
 }
 
 export interface CorrelationCountryShareResponse extends CorrelationEnvelope {
@@ -159,6 +173,9 @@ export interface CorrelationCountryShareResponse extends CorrelationEnvelope {
   annual_total_mt: number | null;
   rows: ShareRow[];
   series: ShareSeries[];
+  /** A ranking's remainder (its year) and a series' remainder per year; null / empty for PRIMAP-hist and for output that predates the World-total basis. */
+  remainder?: ShareRemainder | null;
+  remainder_series?: ShareRemainder[];
   denominator: Record<string, unknown> | null;
   reconciliation: Record<string, unknown> | null;
   details: Record<string, unknown>;
