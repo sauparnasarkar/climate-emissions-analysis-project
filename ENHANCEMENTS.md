@@ -4118,6 +4118,167 @@ share; Overview changes (a ranked bar race there remains an idea); a Streamlit e
   check: China 285,087 Mt, 15.4% of the world's cumulative CO₂ (31.8% of 2024's emissions), rank 2 of 215; United
   States 434,866 Mt, 23.5% (12.7%), rank 1. Checked in a browser in both themes at desktop and 390 px.
 
+## Release 24 — Cumulative CO₂ in the MCP Server and the Agent (Requirements, revised)
+
+**Status: Requirements revised after owner review (D5 and the extend-not-add recommendations accepted); awaiting go-ahead to
+build. No code.** Follows Release 23 (`SPEC.md` §5.28), which put cumulative CO₂ on Historical Trends and Country Profile.
+This release lets the agent (`services/agent`) answer the same questions through `services/mcp-server`, and show the same
+charts in the Ask page. Not internship scope.
+
+**Shape.** One prerequisite release (**24.0**) puts every OWID country share on one denominator. After it, the existing
+`get_country_cumulative_share` tool already returns what the dashboard shows, so Release 24 **extends that tool and its
+widget** instead of adding tools or API endpoints. (The first draft proposed two new tools and a ranking endpoint; they
+were dropped once the denominators agreed, see 24.2.)
+
+### 24.1 Goal and example questions
+
+The agent should answer, with figures and a matching widget:
+
+1. "How much CO₂ has China emitted in total?" / "What is the United States' cumulative CO₂?"
+2. "Is India's share of the world's cumulative CO₂ rising or falling?" (share against the year's own share, solid against dotted)
+3. "Show cumulative emissions for the top emitters since 1970." (stacked area with Rest of world)
+4. "Which countries have emitted the most since records began?" (ranking)
+5. "How do China and the US compare on cumulative share?" (share lines, two countries)
+
+### 24.2 What exists, what was measured, why extend
+
+- **Same numbers on both paths (measured, 2024, OWID fossil and cement CO₂).** The pipeline sums OWID's annual CO₂ and OWID
+  publishes `cumulative_co2`; they agree to the rounding digit for the large emitters (US 434,866.56 Mt; China 285,087.03
+  against 285,087.04). Only 30 of 215 countries differ by more than 0.01%, all small territories, by hundredths of a megatonne.
+- **Shares differed only through the denominator.** Release 23 divides by OWID's World row (1,849 Gt), the Correlation
+  pipeline by the sum of countries (1,803 Gt). The 46.1 Gt gap is international aviation and shipping (45.9 Gt; two OWID
+  rows with no ISO code, recorded from 1750) plus 0.19 Gt unassigned. Correlation shares were about 2.6% higher (US 24.12%
+  against 23.52%, China 15.81% against 15.42%); the annual gap is 3.1% of the 2024 World total. Rankings do not change.
+  (An earlier note that the Correlation basis "also counts land use" was wrong for country shares; it applies to the headline
+  regression only.)
+- **What `get_country_cumulative_share` already gives** (`GET /correlation/country-share`): a ranking for any year (limit up
+  to 50, or every country with `all_countries`) and a series per country (up to 10), each with cumulative Mt, cumulative
+  share and annual share; ISO3 or common-name resolution against the full roster; no-attribution caveat; payload cap
+  (`payload_cap._cap_share`), caveats, source line, title, follow-ups and a widget (`CountryShareWidget`: share lines, ranking bar).
+- **What it lacks for the five questions:** (a) a stacked-area view of absolute cumulative CO₂ with a Rest of world band; (b) the
+  share-against-annual-share comparison (the data is in the series, `annual_share_pct`, no widget draws it); (c) a country's
+  rank and a stated trend in the summary; (d) a 1970 window by default for dashboard-style questions (the tool takes
+  `start_year`); (e) links to the dashboard's new views; (f) methodology text on first-record start years.
+
+### 24.0 Prerequisite: one denominator for OWID country shares (D5, accepted)
+
+Country shares use the **World total including international aviation and shipping**, with a note saying so. It amends
+decisions 15 and 37; the headline regression is already on the World row and does not change.
+
+- **Pipeline.** `pipeline/country_share.py` divides by OWID's World row for `owid_co2`, for the cumulative and the annual
+  share. Shares then sum to less than 100; the remainder (international aviation and shipping, plus the 0.19 Gt unassigned)
+  is published as an explicit "International transport and unassigned" line, so the figures still reconcile. The
+  sum-to-100 check and the decision 15 reconciliation become "countries + remainder = 100".
+- **PRIMAP-hist cannot follow.** Its file has no world aggregate and excludes international aviation and shipping, so its
+  shares stay on the sum of reporting areas. The note states it: each share is "of the source's total", so OWID and PRIMAP
+  shares for one country differ for that reason as well as for scope.
+- **Text and consumers that state the national-sum denominator** (about 35 files read the share fields): the
+  `/correlation/meta` text, ShareSection and LeadingEmitters footers, `shareBars.ts` (its Rest of world is "100 minus the
+  selection", exact only on the old basis), `climateRows`, `countryView`, the agent's `source_lines.py`
+  (`NATIONAL_SUM`) and `summaries.py`, MCP `methodology.py` and the tool description, and fixtures and tests in pipeline,
+  api, mcp-server, agent and dashboard.
+- **Visible change on deployed pages.** Overview cumulative columns, the map and the ranking fall by about 2.5% (cumulative)
+  and 3% (annual); ranks do not change. Needs a pipeline re-run on the Mac Mini and one deploy of api, frontend,
+  mcp-server and agent. Its own feature branches, PRs and Copilot loop, then merged and deployed before 24.1 starts.
+
+### 24.3 MCP server requirements (`services/mcp-server`)
+
+Extend `get_country_cumulative_share`; **no new tools, no new API endpoint.** Follows `SPEC.md` §3 (resolution guard,
+trimming, methodology grounding, no UI directives); no model-facing payload cap here.
+
+- **R1 (one basis, stated).** After 24.0 the tool's description and `interpretation_note` say the share is of the World
+  total including international aviation and shipping (OWID) or of the source's total (PRIMAP), and every answer names it.
+  A single widget never mixes sources.
+- **R2 (summary additions, computed by the tool).** Series mode adds, per country: `rank` and `rank_of` at the latest year
+  (taken from the roster call the tool already makes), `share_change_pp` over the window, `annual_share_pct` at the
+  latest year, and a deterministic `share_trend` of `rising`, `falling` or `steady` (cumulative share against the window's
+  start, with a stated tolerance, so the model narrates it rather than inferring it), plus Gt-rounded cumulative values.
+  For `owid_co2` it adds a derived `rest_of_world` (World cumulative per year is `cumulative_mt / share_pct × 100`; latest
+  value in the summary). Nulls stay null. Ranking mode is unchanged ("most since records began" is `year` omitted, default limit).
+- **R3 (units).** Data stays in Mt like every other tool; `unit` explicit.
+- **R4 (methodology).** The existing methodology topic for country shares gains: the denominator (R1), that totals count from
+  each country's first record (World and the UK 1750, Germany 1792, US 1800, Russia 1830, India 1858, China 1907) and are
+  published from 1850 (the dashboard shows 1970 onward), and how Rest of world is defined. Text in `methodology.py`; numbers from data are read live.
+- **R5 (unsupported asks, stated not guessed).** Cumulative counted from a chosen start year ("since 1990"), and a single gas
+  other than CO₂ (methane, nitrous oxide; total greenhouse gases in CO₂e is available through PRIMAP-hist), return a clear
+  "not available" rather than a guess.
+- **R6 (tests).** `summary` arithmetic, `share_trend` thresholds, `rank` and `rank_of` from the roster, the Rest of world
+  derivation and its OWID-only guard, nulls, and a contract test pinned to the API response shape. Release notes in the
+  server's own `ENHANCEMENTS.md`.
+
+### 24.4 Agent requirements, back end (`services/agent`)
+
+- **R7 (view selection, deterministic).** `ui_selection.py` already maps this tool to a chart. Add a deterministic keyword
+  choice on the question, the same seam as `select_indicator_intent`, no LLM call: "share", "percent", "proportion",
+  "rising", "falling", "compare" → share lines (existing); "rising or falling share" for one country → share against annual
+  share; "how much", "total", "since 1970", "cumulative emissions" → stacked area (OWID only). Ranking mode is unchanged.
+  The question's start year ("since 1970") is passed as `start_year`.
+- **R8 (titles from the result).** Built from the result, noun-phrased, as `_share_title` does today: `Cumulative CO₂
+  since records began, shown from 1970 — China, India`; `Share of the world's cumulative CO₂ — China`.
+- **R9 (caveats, deterministic).** `caveats.py` adds the basis note (R1), the first-record and published-from notes, and that
+  Rest of world is the World total minus the countries shown. The no-attribution statement already applies to this tool.
+- **R10 (guardrails).** Rule 3 is unchanged in substance: a cumulative share is never a share of warming. `area2_lint.py`
+  gains a check for a share quoted without its basis. The system prompt gains the routing in 24.5.
+- **R11 (payload cap).** `_cap_share` already samples the series; confirm it keeps `summary` (including R2 fields) untouched
+  and add a regression test for that.
+- **R12 (follow-up links).** `follow_ups.py` currently gives this tool fixed Correlation and Overview links. Add
+  `/historical?view=cumulative` (or `view=share`) carrying the countries, and `/country-profile?country=<name>#cumulative`
+  for a single country. As §15.13 requires, each series carries `in_expanded_scope` so the link carries only countries the
+  page's picker can show (the tool covers every sovereign country, the pages' pickers cover the expanded ~40). The route
+  test pinning links to real paths and anchors is extended.
+- **R13 (limits).** `MAX_TOOL_CALLS_PER_TURN` stays 6; "compare China and the US" is one call.
+- **R14 (starter prompts).** None added; the grid stays 2×3 (D4).
+
+### 24.5 Routing rules for the system prompt
+
+| The question is about | Use | Frame as |
+|---|---|---|
+| Total emitted so far, rank, "rising or falling share", cumulative on the dashboard pages | `get_country_cumulative_share` (`owid_co2`, `start_year=1970` when the question says so) | share of the World total, OWID fossil and cement CO₂ |
+| Responsibility for warming, cumulative emissions against temperature | the Area 2 tools; the share tool only for the share | cumulative share of emissions, never attribution of warming |
+| PRIMAP-hist, total greenhouse gases | `get_country_cumulative_share` with `source=primap_hist` | share of that source's total (bunkers excluded) |
+| Cumulative "since 1990" or a chosen start year, a single gas other than CO₂ | none | say it is not available, offer what is |
+| Two sources in one turn | one call each | state which basis each figure uses |
+
+### 24.6 Agent requirements, front end (`climate-dashboard-react/src/agent`)
+
+- **R15 (extend `CountryShareWidget`).** Add two views to the existing widget, built from the dashboard's own pieces so
+  colours and numbers match the pages: (a) **stacked area** of cumulative CO₂ in Gt with a Rest of world band, through
+  `lib/historicalCumulative.ts` and `useCategoricalPalette`, behind a small adapter from the Correlation series shape
+  (points per series) to the Release 23 shape (shared year axis), OWID only; (b) **share against annual share**, solid
+  against dotted, for one country. The existing share lines and ranking bar stay.
+- **R16 (figures).** Single-country results show the three `KpiStat` figures (cumulative, share, rank) from the summary
+  (R2). Sharing code with Country Profile's `CumulativeSection` is optional, not required: extract it only if the adapter
+  makes the duplication larger than the extraction.
+- **R17 (widget grid).** The existing 1/2/3-column rule applies; the stacked area is a full-width card on phones. Both
+  themes and the 390 px layout checked with real data before merge.
+- **R18 (accessibility).** Each widget has an `ariaLabel` from the title; the scope note renders in the existing
+  `InlineAlert` above the widgets; the new views have a text summary a screen reader can use.
+
+### 24.7 Verification
+
+- Unit and graph-routing tests in each package as above; caveat, lint and link-route tests extended.
+- **Golden prompts** (a new script `evals/run_cumulative.py`, manual like `run_area2.py`, run against a live api +
+  mcp-server before each deploy): the five questions in 24.1, plus traps: "how much of global warming is China responsible
+  for?" (must decline attribution, may offer cumulative share), "cumulative CO₂ since 1990" and "cumulative methane" (must
+  say not available), "China's share" with no basis stated (must name it), an unknown country, an out-of-roster name, and a
+  two-source question (must label each). Exits non-zero on any flagged case.
+- **Cross-check (the point of 24.0).** For the same country and year the agent, Country Profile and Historical Trends quote
+  one share. Real-data targets after 24.0: China 285,087 Mt, 15.4%, rank 2 of 215; United States 434,866 Mt, 23.5%, rank 1.
+
+### 24.8 Decisions
+
+- **D1: ranking.** Closed: use the tool's existing ranking mode; no new endpoint.
+- **D2: separate tools or extend.** Closed: extend `get_country_cumulative_share` (the reason for separating was the
+  denominator mismatch, removed by D5).
+- **D3: build order.** 24.0 denominator change (pipeline, API, text, tests; Mac Mini re-run; its own deploy) → 24.3 MCP
+  summary and methodology → 24.4 agent back end → 24.6 widget views → one deploy of mcp-server, agent and frontend. Each
+  step a feature branch, PR, Copilot review loop and merge, as for Release 23.
+- **D4: starter prompt.** None (R14), or replace one of the six. Still open; default none.
+- **D5: one share denominator.** Accepted: World total including international aviation and shipping for OWID shares, OWID's
+  World row itself (matches the dashboard to the digit), remainder published as a visible line, PRIMAP-hist on its own total, stated.
+- **D6 (open, small): `share_trend` tolerance.** Proposed `steady` when cumulative share moved by less than 0.5 percentage
+  points over the window; confirm or give another value.
+
 ## Backlog (not scheduled)
 
 Things deliberately left as they are for now, with enough detail to pick them up later. Numbered `B<n>`; items stay here until done or dropped.
