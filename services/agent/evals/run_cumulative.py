@@ -29,7 +29,7 @@ from agent.area2_lint import check_response, check_units  # noqa: E402
 from agent.graph import build_graph  # noqa: E402
 
 SHARE_TOOL = "get_country_cumulative_share"
-NOT_AVAILABLE = r"not available|isn't available|is not something|cannot|can't|can not|unable|doesn't (?:have|offer|support)|no way to"
+NOT_AVAILABLE = r"not available|isn't available|is not something|isn't something|does not have|cannot|can't|can not|unable|doesn't (?:have|offer|support)|no way to"
 
 
 @dataclass
