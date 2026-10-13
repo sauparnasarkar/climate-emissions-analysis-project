@@ -4014,7 +4014,7 @@ profile, then offline.
 
 ## Release 23 — Cumulative CO₂ on Historical Trends and Country Profile
 
-**Status: Merged; deploy recorded below.** `api/` + `climate-dashboard-react`; no notebook, Streamlit or
+**Status: Shipped and deployed 2026-10-13.** Live bundle `index-CR3dr1Hd.js` (was `index-DImHhoGB.js`); **rollback:** `~/dist-prev-release23` on the Mini. Order on the Mini: `git pull --ff-only` (design-system untouched, no pull there), uvicorn kickstarted for the two new endpoints, `DEPLOY_BASE_PATH=/ npm run build`, vitepreview kickstarted. Verified live: both endpoints 200 with data (China: 285,087 Mt, 15.4%, rank 2 of 215), both pages render with no console errors, `/mcp` 403, `/admin` 302. MCP server and agent not restarted. `api/` + `climate-dashboard-react`; no notebook, Streamlit or
 design-system change (the views compose existing `SyChart`, `SegmentedControl`, `KpiStat` and `ChartCard`).
 Three PRs, each through the Copilot review loop: #282 (API), #283 (Historical Trends), #284 (Country
 Profile). Copilot found one real issue (#283): the Cumulative view sorts the stack by size while `SyChart`
