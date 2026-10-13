@@ -24,13 +24,17 @@ _WARMING = re.compile(r"\b(warming|temperature (?:rise|increase|anomaly)|global 
 _PROVE = re.compile(r"\b(prove[sd]?|proven|proof)\b", re.I)
 _GAP = re.compile(r"\b5\s*(?:[-–]|to)\s*8\s*%")
 _SLOPE = re.compile(r"°C per 1,?000 ?Gt", re.I)
+# A country share quoted in the answer's own words must say what it is a share OF (Release 24.4): the World total, the world's emissions, or PRIMAP-hist's own total.
+_PERCENT = re.compile(r"\d(?:\.\d+)?\s*%")
+_SHARE_WORD = re.compile(r"\bshare\b", re.I)
+_BASIS = re.compile(r"\b(?:world|global|PRIMAP|source's total|all countries|all emissions)\b", re.I)
 
 
 def _sentences(text: str) -> list[str]:
     return [s.strip() for s in _SENTENCE.split(text) if s.strip()]
 
 
-def check_response(text: str, scope_notes: list[str] | None = None, *, scenario_answer: bool = False) -> list[str]:
+def check_response(text: str, scope_notes: list[str] | None = None, *, scenario_answer: bool = False, share_answer: bool = False) -> list[str]:
     """Violations found in an answer (empty list = none flagged)."""
     notes = " ".join(scope_notes or [])
     combined = f"{text} {notes}"
@@ -54,4 +58,9 @@ def check_response(text: str, scope_notes: list[str] | None = None, *, scenario_
         violations.append("temperature slope quoted without the preliminary-release note")
     if scenario_answer and not re.search(r"illustrative", combined, re.I):
         violations.append("scenario temperature not labelled illustrative")
+    # Judged on the answer's own text, not the scope notes (which always carry the basis): the sentence that quotes a share must say what it is a share of.
+    if share_answer:
+        for sentence in _sentences(text):
+            if _PERCENT.search(sentence) and _SHARE_WORD.search(sentence) and not _BASIS.search(sentence):
+                violations.append(f"country share quoted without its basis: {sentence!r}")
     return violations

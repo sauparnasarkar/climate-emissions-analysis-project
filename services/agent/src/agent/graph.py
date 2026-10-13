@@ -460,7 +460,7 @@ async def ui_selection_node(state: AgentState, *, llm: BaseChatModel) -> dict[st
     result: dict[str, Any] = {
         "widgets": widgets,
         "scope_notes": scope_notes,
-        "follow_up_links": follow_up_links(state.tool_calls),
+        "follow_up_links": follow_up_links(state.tool_calls, state.current_query),
         "follow_up_prompts": follow_up_prompts(state.tool_calls, state.current_query),
         "kpis": build_kpis(state.tool_calls),
     }

@@ -67,6 +67,12 @@ def _cap_share(result: dict) -> bool:
     for series in result.get("series") or []:
         if isinstance(series, dict):
             changed |= _cap_points(series)
+    # One World-total entry per year (about 175 from 1850): the widget draws Rest of world from them, the model does not need them -- `summary.rest_of_world` and
+    # `summary.world_cumulative_gt` already carry what it can quote. (This runs on the model's copy; the widget keeps the full result.)
+    remainder = result.get("remainder_series")
+    if isinstance(remainder, list) and remainder:
+        result["remainder_series"] = f"omitted from this view ({len(remainder)} yearly World totals); use summary.rest_of_world"
+        changed = True
     return changed
 
 
