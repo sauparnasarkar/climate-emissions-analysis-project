@@ -4014,10 +4014,12 @@ profile, then offline.
 
 ## Release 23 — Cumulative CO₂ on Historical Trends and Country Profile
 
-**Status: Docs-first, not started.** Written before implementation, per the project's convention;
-revise to "Shipped" once merged and deployed. `api/` + `climate-dashboard-react`; no notebook,
-Streamlit or design-system change planned (new views compose existing `SyChart` and card
-components; confirm during build).
+**Status: Merged; deploy recorded below.** `api/` + `climate-dashboard-react`; no notebook, Streamlit or
+design-system change (the views compose existing `SyChart`, `SegmentedControl`, `KpiStat` and `ChartCard`).
+Three PRs, each through the Copilot review loop: #282 (API), #283 (Historical Trends), #284 (Country
+Profile). Copilot found one real issue (#283): the Cumulative view sorts the stack by size while `SyChart`
+colours series by position, so countries swapped colours between views; fixed with `useCategoricalPalette`.
+The section text below was written first; **§23.6 records where the shipped version differs.**
 
 **The ask.** Show cumulative CO₂ as an option on Historical Trends and Country Profile, from 1970
 (the same window the Overview's top-emitters map plays), so the page shows new economies
@@ -4092,6 +4094,29 @@ are unchanged). Values are in Mt; the frontend formats Gt.
 
 MCP tools and the agent's use of cumulative data; the 1750/1970 counting toggle; 100% stacked
 share; Overview changes (a ranked bar race there remains an idea); a Streamlit equivalent.
+
+### 23.6 As shipped: differences from the plan above
+
+- **`GET /historical/cumulative`** returns one shared `years` axis (the World aggregate's years from 1970), a
+  `series` list in request order (`name`, `cumulative_co2`, `share_of_world_cumulative`,
+  `share_of_world_annual`, each aligned to `years`, `null` where OWID has no value) and
+  `world_cumulative_co2`. Not per-country `years` as §23.2 first said. `countries` is capped at 10 (422).
+  A country outside `scope` is a 404; a missing file, or a file without the cumulative columns, is a 503.
+- **`GET /countries/{country}/cumulative`** returns `years`, the three series and `latest`
+  (`year`, `cumulative_co2`, `share_of_world_cumulative`, `rank`, `rank_of`), `latest` being `null` when the
+  country has no value. Rank is among sovereign (iso-coded) countries with a value in `latest.year`.
+- **Hover.** Historical Trends uses `SyChart`'s own unified hover, not the mockup's legend row under the chart.
+- **Colours.** The Cumulative view stacks largest-first but each country keeps its picker-order colour
+  (`hooks/useCategoricalPalette.ts` resolves the theme's categorical palette and re-reads it on a theme change),
+  so a country looks the same in Annual, Cumulative and Share.
+- **Metric selector.** Disabled outside Annual (OWID has no cumulative methane or nitrous oxide). `?view=`
+  selects the view; an unknown value falls back to Annual. Only the active view's request is made.
+- **Country Profile.** The share-of-each-year line renders dotted (`SyChart`'s `dashed` option), not dashed. The
+  section has its own request, so a failure there never blanks the sections above.
+- **Not done, as planned:** MCP tools, the 1750/1970 counting toggle, the 100% stacked share view.
+- **Verification.** API 262 tests (17 new); dashboard 682 (the new view, palette and section tests). Real-data
+  check: China 285,087 Mt, 15.4% of the world's cumulative CO₂ (31.8% of 2024's emissions), rank 2 of 215; United
+  States 434,866 Mt, 23.5% (12.7%), rank 1. Checked in a browser in both themes at desktop and 390 px.
 
 ## Backlog (not scheduled)
 

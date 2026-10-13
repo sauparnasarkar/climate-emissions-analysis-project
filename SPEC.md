@@ -1998,19 +1998,19 @@ cutover checklist); not a curriculum change, same category as the rest of §5.
 | Naming | No `aria-label` on role-less elements; use visually hidden text |
 | Target size | Interactive controls are at least 24 x 24 CSS px |
 
-### 5.28 Cumulative CO₂ on Historical Trends and Country Profile (Release 23, Docs-first)
+### 5.28 Cumulative CO₂ on Historical Trends and Country Profile (Shipped, Release 23, PRs #282, #283, #284)
 
 > Mentor's post-internship expansion — **not internship scope**, not graded. Design, decisions
-> and test plan: `ENHANCEMENTS.md` Release 23.
+> and test plan: `ENHANCEMENTS.md` Release 23 (§23.6 lists where the shipped version differs from the plan).
 
 | Area | Specification |
 |---|---|
 | Source | `data/owid-co2-data.csv`: `cumulative_co2` (Mt), `share_global_cumulative_co2`, `share_global_co2`. Fossil and cement CO₂, excluding land use. The cumulative figure counts from each country's first record; the charts show 1970 onward |
-| `GET /historical/cumulative` | Query `countries` (max 10), `scope` (as `/historical/timeseries`). Per country: `years`, `cumulative_co2`, `share_of_world_cumulative`, `share_of_world_annual`; plus a `world` series. 404 unknown country, 422 over the cap, 503 missing data |
-| `GET /countries/{country}/cumulative` | Same series for one country, plus latest-year cumulative total, share and `rank`/`rank_of` among sovereign (iso-coded) countries |
+| `GET /historical/cumulative` | Query `countries` (max 10), `scope` (as `/historical/timeseries`). One shared `years` axis; per country `cumulative_co2`, `share_of_world_cumulative`, `share_of_world_annual` aligned to it (`null` where OWID has no value); plus `world_cumulative_co2`. 404 country outside `scope`, 422 over the cap, 503 missing file or columns |
+| `GET /countries/{country}/cumulative` | `years` and the three series for one country, plus `latest` (`year`, `cumulative_co2`, `share_of_world_cumulative`, `rank`, `rank_of` among sovereign, iso-coded countries; `null` when the country has no value) |
 | Existing endpoints | `/historical/timeseries`, `/countries/{country}/profile` and `load_raw()` (1990 start) are unchanged |
-| Historical Trends | Chart-card switch Annual / Cumulative / Share of world. Cumulative: stacked area with a grey Rest of world (World minus the countries shown). Share: one line per country. Legend reads the hovered year |
-| Country Profile | Last section `#cumulative`: three figures and a chart of share of the cumulative total (solid) vs share of that year's emissions (dashed) |
+| Historical Trends | Chart-card switch Annual / Cumulative / Share of world. `?view=` selects it; the metric selector is disabled outside Annual. Cumulative: stacked area, largest first, grey Rest of world (World minus the countries shown), each country keeping its picker-order colour. Share: one line per country. The chart's own unified hover reads a year |
+| Country Profile | Last section `#cumulative`: three figures and a chart of share of the cumulative total (solid) vs share of that year's emissions (dotted) |
 | Scope line | States the basis (fossil and cement, counted from first record, shown from 1970) and links to Climate Correlation, whose shares include land use |
 
 ---
