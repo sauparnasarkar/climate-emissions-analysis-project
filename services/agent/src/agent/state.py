@@ -26,7 +26,7 @@ class WidgetSpec(BaseModel):
     chart_kind: Literal["line", "bar", "band", "choropleth"] | None = None
     # Which picture of a multi-view result to draw (Release 24.4): chosen per QUESTION, deterministically, and kept on the widget, never in the tool result (the
     # thread cache reuses a result across questions, which may want a different view). Only `get_country_cumulative_share` series set it.
-    view: Literal["share_lines", "cumulative_area", "share_vs_annual"] | None = None
+    view: Literal["share_lines", "cumulative_area", "share_vs_annual", "emitted_lines"] | None = None
     title: str
     as_of: str | None = None
     source_tool_call: str

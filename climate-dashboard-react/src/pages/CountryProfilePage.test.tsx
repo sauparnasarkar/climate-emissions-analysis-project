@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../api/client';
@@ -219,6 +219,35 @@ describe('CountryProfilePage', () => {
       vi.mocked(api.listCountries).mockResolvedValue(COUNTRIES);
       vi.mocked(api.countryProfile).mockResolvedValue(RESPONSE);
     }
+
+    it('counts from the first record by default and, with "From a year", asks for emissions from that year and relabels the figures', async () => {
+      arrange();
+      const { default: userEvent } = await import('@testing-library/user-event');
+      const user = userEvent.setup();
+      render(<MemoryRouter><CountryProfilePage /></MemoryRouter>);
+      await screen.findByText('285 GtCO₂');
+      expect(screen.getByRole('radio', { name: 'Since records began' })).toBeChecked();
+      expect(screen.getByText('Cumulative CO₂ since records began · 2024')).toBeInTheDocument();
+      vi.mocked(api.countryCumulative).mockResolvedValue({ ...CUMULATIVE, from_year: 1990, years: [1990, 2024], cumulative_co2: [0, 244176], share_of_world_cumulative: [null, 22.9], latest: { year: 2024, cumulative_co2: 244176, share_of_world_cumulative: 22.9, rank: 2, rank_of: 215 } });
+      await user.click(screen.getByRole('radio', { name: 'From a year' }));
+      expect(await screen.findByText('Emitted since 1990 · 2024')).toBeInTheDocument();
+      expect(vi.mocked(api.countryCumulative)).toHaveBeenLastCalledWith('China', 1990);
+      expect(screen.getByText('244 GtCO₂')).toBeInTheDocument();
+      expect(screen.getByText("Share of the world's emissions since 1990")).toBeInTheDocument();
+      expect(screen.getByText('22.9%')).toBeInTheDocument();
+      expect(screen.getByText('Rank by emissions since 1990 · 2024')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { level: 3, name: 'Share of World CO₂ since 1990 — China' })).toBeInTheDocument();
+      expect(screen.getByText(/emissions since 1990: each total minus its total the year before 1990/)).toBeInTheDocument();
+      expect(screen.queryByText(/in 1990$/)).toBeNull(); // no "x% in the first year" delta: the period starts from zero
+    });
+
+    it('opens on ?from= so a link from the Ask page shows the answer\'s numbers', async () => {
+      arrange();
+      render(<MemoryRouter initialEntries={['/country-profile?country=China&from=1990']}><CountryProfilePage /></MemoryRouter>);
+      await screen.findByRole('heading', { name: 'Cumulative contribution' });
+      await waitFor(() => expect(vi.mocked(api.countryCumulative)).toHaveBeenCalledWith('China', 1990));
+      expect(screen.getByRole('radio', { name: 'From a year' })).toBeChecked();
+    });
 
     it('shows the three figures and the share chart for the selected country', async () => {
       arrange();

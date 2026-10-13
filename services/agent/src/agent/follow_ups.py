@@ -20,7 +20,7 @@ from collections.abc import Callable
 from urllib.parse import urlencode
 
 from .state import FollowUpLink, ToolCallRecord
-from .ui_selection import is_error_result, select_share_view
+from .ui_selection import asks_about_share, is_error_result, select_share_view
 
 MAX_FOLLOW_UP_LINKS = 3
 # The dashboard's pickers cap a selection at this many countries (climate-dashboard-react constants.ts,
@@ -28,6 +28,8 @@ MAX_FOLLOW_UP_LINKS = 3
 MAX_LINK_COUNTRIES = 10
 # Country Profile's anchor for its cumulative section (`CUMULATIVE_ANCHOR` in climate-dashboard-react/src/pages/CountryProfilePage.tsx; pinned by tests).
 COUNTRY_PROFILE_CUMULATIVE_ANCHOR = "cumulative"
+# The first year the pages' counting-from choice accepts (`COUNTING_FROM_MIN_YEAR` in climate-dashboard-react/src/hooks/useCountingFrom.ts; pinned by tests).
+COUNTING_FROM_MIN_YEAR = 1970
 
 _OVERVIEW_SIGNAL = FollowUpLink(label="Open in Overview", route="/overview#climate-signal")
 _OVERVIEW_RELATIONSHIP = FollowUpLink(label="Open in Overview", route="/overview#relationship")
@@ -109,10 +111,29 @@ def _share(record: ToolCallRecord, current_query: str = "") -> list[FollowUpLink
     flagged = [c["name"] for c in summary.get("countries") or [] if isinstance(c, dict) and c.get("name") and c.get("in_expanded_scope") is True][:MAX_LINK_COUNTRIES]
     if not flagged:
         return fixed
-    view = "cumulative" if select_share_view(current_query, summary, r.get("source")) == "cumulative_area" else "share"
-    links = [FollowUpLink(label="Open in Historical Trends", route=f"/historical{_query([('view', view), *[('countries', n) for n in flagged]])}")]
+    if summary.get("since"):
+        # a since answer is always drawn from the period's emissions (so its chart is never the share lines), but the page to open follows the QUESTION: with `from=` the
+        # page's Share view is the period's own share, the same quantity as the answer's `share_of_period_pct`
+        view = "share" if asks_about_share(current_query) else "cumulative"
+    else:
+        view = "cumulative" if select_share_view(current_query, summary, r.get("source")) == "cumulative_area" else "share"
+    # A "since YYYY" answer is the emissions of a period: carry `from=` (Release 24.8, the pages' counting-from choice) so the page opens on the answer's numbers
+    # and not on the total since records began. Without a since, the page's default (since records began) is what the answer quoted, so no parameter.
+    since_info = summary.get("since") or {}
+    since_year = since_info.get("year")
+    latest_year = since_info.get("latest_year")
+    if isinstance(since_info.get("end_year"), int) and isinstance(latest_year, int) and since_info["end_year"] != latest_year:
+        # the answer's period ends before the latest data year ("1990 to 2010"), but a page's counting-from choice only has a start: it runs to the latest year and would
+        # show different totals than the answer. Keep the fixed links.
+        return fixed
+    if isinstance(since_year, int) and since_year < COUNTING_FROM_MIN_YEAR:
+        # The tool answers from 1851, but the pages' counting-from choice starts in 1970 (the cumulative views' window): a link would silently open the totals since
+        # records began, numbers that disagree with the answer's. Keep the fixed links.
+        return fixed
+    from_param = [("from", str(since_year))] if isinstance(since_year, int) else []
+    links = [FollowUpLink(label="Open in Historical Trends", route=f"/historical{_query([('view', view), *from_param, *[('countries', n) for n in flagged]])}")]
     if len(flagged) == 1:
-        links.append(FollowUpLink(label=f"Open {flagged[0]} in Country Profile", route=f"/country-profile{_query([('country', flagged[0])])}#{COUNTRY_PROFILE_CUMULATIVE_ANCHOR}"))
+        links.append(FollowUpLink(label=f"Open {flagged[0]} in Country Profile", route=f"/country-profile{_query([('country', flagged[0]), *from_param])}#{COUNTRY_PROFILE_CUMULATIVE_ANCHOR}"))
     return [*links, *fixed]
 
 

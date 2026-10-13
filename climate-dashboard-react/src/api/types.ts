@@ -78,6 +78,10 @@ export interface HistoricalCumulativeResponse {
   years: number[];
   series: CumulativeSeries[];
   world_cumulative_co2: Array<number | null>;
+  /** Set when counting from a year (Release 24.8): the totals are emissions from that year and the share is of the World's emissions in that period. */
+  from_year?: number | null;
+  /** The last year with data (what the "from a year" choice can go up to). */
+  latest_year?: number | null;
 }
 
 /** Latest-year headline figures for a country's cumulative CO2 (SPEC.md §5.28): cumulative_co2 in Mt, share in percent; rank is among sovereign countries with a value in `year`. */
@@ -96,6 +100,8 @@ export interface CountryCumulativeResponse {
   share_of_world_cumulative: Array<number | null>;
   share_of_world_annual: Array<number | null>;
   latest: CountryCumulativeLatest | null;
+  /** As on HistoricalCumulativeResponse: set when counting from a year. */
+  from_year?: number | null;
 }
 
 export interface DecadeGasShare {

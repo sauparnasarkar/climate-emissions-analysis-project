@@ -162,6 +162,12 @@ _SHARE_TREND_MARKERS = ("rising", "falling", "increasing", "decreasing", "growin
 _AMOUNT_MARKERS = ("how much", "total", "emitted", "cumulative emissions", "cumulative co", "tonnes", "tons", "gigaton", "megaton", "amount", "so far", "records began")
 
 
+def asks_about_share(current_query: str) -> bool:
+    """Whether the question is about a SHARE ("what share", "is its percentage rising"), as opposed to an amount. Used to pick the dashboard page's view for a link."""
+    query = f" {current_query.lower()} "
+    return any(m in query for m in _SHARE_MARKERS)
+
+
 def select_share_view(current_query: str, summary: dict, source: str | None) -> str | None:
     """Which picture a country-share SERIES gets (Release 24.4, ENHANCEMENTS.md R7): the same deterministic keyword seam as the other selectors, no LLM call.
 
@@ -171,9 +177,17 @@ def select_share_view(current_query: str, summary: dict, source: str | None) -> 
     - an "amount" question ("how much has China emitted", "cumulative emissions since 1970") -> `cumulative_area`, a stacked area of Gt with Rest of world, which
       exists only for OWID (a PRIMAP-hist share has no World total to leave a rest of);
     - anything else keeps the existing `share_lines`.
-    A ranking has no view (None)."""
+    A ranking has no view (None).
+
+    A "since YYYY" series (`summary.since`, Release 24.7) is ALWAYS drawn from the period's own emissions, whatever the wording: the stacked area from zero (OWID, which
+    has the World total to leave a Rest of world) or `emitted_lines`, one line per country of what it has emitted since the start year in Gt (PRIMAP-hist, which has none).
+    The lifetime-share views (`share_lines`, `share_vs_annual`) plot the cumulative share since records began, a different quantity that would contradict the since answer's
+    figures (its period shares, in `summary.since`), so a share question about a since series does not get them."""
     if summary.get("mode") != "series":
         return None
+    since = summary.get("since")
+    if since:
+        return "cumulative_area" if source == "owid_co2" and since.get("rest_of_world") else "emitted_lines"
     query = f" {current_query.lower()} "
     countries = summary.get("countries") or []
     wants_share = any(m in query for m in _SHARE_MARKERS)
@@ -190,15 +204,22 @@ def select_share_view(current_query: str, summary: dict, source: str | None) -> 
 
 def _share_title(record: ToolCallRecord, view: str | None = None) -> str:
     s = (record.result or {}).get("summary") or {}
+    since = s.get("since") or {}
+    unit = "GtCO₂e" if (record.result or {}).get("gas_scope") == "total_ghg" else "GtCO₂"  # total greenhouse gases are CO2-equivalent
     if s.get("mode") == "series":
         names = [c.get("name") for c in s.get("countries", []) if c.get("name")]
+        if view in ("cumulative_area", "emitted_lines") and since.get("period"):
+            return f"Emitted {since['period']}, {unit} – {join_countries(names)}"
         if view == "cumulative_area":
             start = (s.get("trend_window") or [None])[0]
             return f"Cumulative CO₂ since records began{f', shown from {start}' if start else ''} – {join_countries(names)}"
         if view == "share_vs_annual":
-            return f"Share of cumulative CO₂ against share of each year's emissions – {join_countries(names)}"
+            gas = "greenhouse gases (CO₂e)" if (record.result or {}).get("gas_scope") == "total_ghg" else "CO₂"  # total greenhouse gases are CO2-equivalent
+            return f"Share of cumulative {gas} against share of each year's emissions – {join_countries(names)}"
         return f"Cumulative share of emissions – {join_countries(names)}"
     n = s.get("n_rows")
+    if since.get("period"):
+        return f"{f'Top {n} emitters' if n else 'Emitters'}, {since['period']}, {unit}"
     lead = f"Top {n} countries" if n else "Countries"
     return f"{lead} by cumulative share of emissions ({s.get('year')})"
 

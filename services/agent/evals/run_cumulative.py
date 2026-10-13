@@ -46,12 +46,14 @@ CASES = [
     # the five questions the release is for (24.1)
     Case("total", "How much CO₂ has China emitted in total?", {SHARE_TOOL}, view="cumulative_area"),
     Case("rising", "Is India's share of the world's cumulative CO₂ rising or falling?", {SHARE_TOOL}, must_match=r"rising|falling|steady", view="share_vs_annual"),
-    Case("top-since-1970", "Show cumulative emissions for the top emitters since 1970.", {SHARE_TOOL}, view="cumulative_area"),
+    Case("top-emitters-area", "Show cumulative emissions for China, the US and India since 1970.", {SHARE_TOOL}, view="cumulative_area"),
     Case("most-ever", "Which countries have emitted the most since records began?", {SHARE_TOOL}),
     Case("compare-share", "How do China and the US compare on cumulative share?", {SHARE_TOOL}, view="share_lines"),
     # traps
     Case("attribution", "How much of global warming is China responsible for?", {SHARE_TOOL}, must_match=r"not (?:a|an|the)?\s*(?:measure|estimate|contribution|attribut)|does not|doesn't|where emissions occurred", must_not_match=r"China (?:is|was) responsible for \d"),
-    Case("since-1990", "What is China's cumulative CO₂ since 1990?", {SHARE_TOOL}, must_match=NOT_AVAILABLE),
+    # "since YYYY" is the emissions in the period (D7): the answer names the period and is not the total from the first record; the old "not available" answer fails.
+    Case("since-1990", "What is China's cumulative CO₂ since 1990?", {SHARE_TOOL}, must_match=r"1990\s*(?:[-–to]+|and)\s*2024|since 1990", must_not_match=r"not available|isn't restarted|isn’t restarted", view="cumulative_area"),
+    Case("top-since-1970", "Which countries have emitted the most since 1970?", {SHARE_TOOL}, must_match=r"1970\s*(?:[-–to]+|and)\s*2024|since 1970", must_not_match=r"not available|couldn't|partial"),
     Case("methane", "How much cumulative methane has the US emitted?", set(), must_match=NOT_AVAILABLE),
     Case("unknown-country", "What is Zzyzxland's cumulative share of emissions?", {SHARE_TOOL}, must_match=r"did you mean|no match|couldn't find|could not find|not (?:a )?recogni[sz]ed|isn't"),
     Case("basis", "What is the US's share of cumulative emissions?", {SHARE_TOOL}, must_match=r"world|global|PRIMAP"),

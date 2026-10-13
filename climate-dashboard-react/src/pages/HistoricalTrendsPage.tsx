@@ -8,7 +8,9 @@ import { useCountries } from '../hooks/useCountries';
 import { useSelectedCountries } from '../hooks/useCountrySelection';
 import { useCategoricalPalette } from '../hooks/useCategoricalPalette';
 import { useJumpToHashOnLoad } from '../hooks/useJumpToHashOnLoad';
+import { useCountingFrom } from '../hooks/useCountingFrom';
 import { useUrlChoice } from '../hooks/useUrlChoice';
+import { CountingFromControl } from '../components/CountingFromControl';
 import { GAS_COLUMNS, MAX_SELECTED_COUNTRIES } from '../constants';
 import { cumulativeAreaSeries, shareLineSeries } from '../lib/historicalCumulative';
 import { StickyJumpLinks, useStickyRowReady } from '../components/StickyJumpLinks';
@@ -25,18 +27,23 @@ const VIEW_ITEMS = [
   { value: 'share', label: 'Share of world' },
 ];
 const VIEW_KEYS = VIEW_ITEMS.map((v) => v.value);
-const VIEW_COPY: Record<string, { title: string; purpose: string; yTitle: string }> = {
-  cumulative: {
-    title: 'Cumulative CO₂ Emissions by Country',
-    purpose: "Each band is a country's running total. The full height is the world total, and the grey band is every other country.",
-    yTitle: 'GtCO₂, running total',
-  },
-  share: {
-    title: "Share of the World's Cumulative CO₂",
-    purpose: "A falling line means the country's share of the total is shrinking, even though its own total keeps growing.",
-    yTitle: '% of world cumulative CO₂',
-  },
-};
+interface ViewCopy {
+  title: string;
+  purpose: string;
+  yTitle: string;
+}
+
+/** The chart copy per view; counting from a year (`from`, Release 24.8) says what the figures are: emissions from that year, from zero, not the total since records began. */
+function viewCopy(view: string, from: number | null): ViewCopy {
+  if (view === 'cumulative') {
+    return from == null
+      ? { title: 'Cumulative CO₂ Emissions by Country', purpose: "Each band is a country's running total. The full height is the world total, and the grey band is every other country.", yTitle: 'GtCO₂, running total' }
+      : { title: `CO₂ Emitted Since ${from}, by Country`, purpose: `Each band is the CO₂ a country has emitted since ${from}, counted from zero just before ${from}. The full height is the world's emissions in that period, and the grey band is every other country.`, yTitle: `GtCO₂ emitted since ${from}` };
+  }
+  return from == null
+    ? { title: "Share of the World's Cumulative CO₂", purpose: "A falling line means the country's share of the total is shrinking, even though its own total keeps growing.", yTitle: '% of world cumulative CO₂' }
+    : { title: `Share of the World's CO₂ Emitted Since ${from}`, purpose: `Each line is a country's share of all the CO₂ the world emitted since ${from}: a rising line means it is emitting more than its share of the period so far.`, yTitle: `% of world emissions since ${from}` };
+}
 
 // Stable labels (SPEC.md §5.19) -- distinct from the h2s' own gas-dependent text (e.g. "CO₂
 // Emissions Over Time" vs. "Methane Emissions Over Time"), which would otherwise relabel the
@@ -59,6 +66,7 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
 
   const rootRef = useRef<HTMLDivElement>(null);
   const palette = useCategoricalPalette(rootRef);
+  const [from, setFrom] = useCountingFrom();
   const [viewChoice, setView] = useUrlChoice('view', VIEW_KEYS, 'annual');
   const co2 = gas === 'co2';
   const view = co2 ? viewChoice : 'annual';
@@ -70,8 +78,8 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
     [selectedCountries.join(','), gas, annual],
   );
   const cumulative = useAsync(
-    () => (annual ? Promise.resolve(null) : api.historicalCumulative(selectedCountries)),
-    [selectedCountries.join(','), annual],
+    () => (annual ? Promise.resolve(null) : from == null ? api.historicalCumulative(selectedCountries) : api.historicalCumulative(selectedCountries, from)),
+    [selectedCountries.join(','), annual, from],
   );
   const composition = useAsync(
     () => api.historicalDecadeComposition(selectedCountries),
@@ -118,6 +126,9 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
           <SegmentedControl name="historical-view" items={VIEW_ITEMS} value={view} onChange={setView} />
         </div>
       )}
+      {!annual && (
+        <CountingFromControl name="historical-counting-from" from={from} onChange={setFrom} lastYear={cumulative.data?.latest_year ?? cumulative.data?.years.at(-1) ?? new Date().getFullYear() - 2} />
+      )}
       {selectedCountries.length === 0 ? (
         <InlineAlert variant="warning">Select at least one country.</InlineAlert>
       ) : annual ? (
@@ -142,19 +153,19 @@ function HistoricalTrendsContent({ featured, expanded }: { featured: string[]; e
       ) : cumulative.error ? (
         <InlineAlert variant="warning">{cumulative.error}</InlineAlert>
       ) : cumulative.data ? (
-        <ChartCard title={VIEW_COPY[view].title} headingLevel={3}>
+        <ChartCard title={viewCopy(view, from).title} headingLevel={3}>
           <p className="__s9cmpx-body4" style={{ margin: '0 0 8px', color: 'var(--__s9cmpx-static-text-weak)' }}>
-            <strong>Purpose:</strong> {VIEW_COPY[view].purpose}
+            <strong>Purpose:</strong> {viewCopy(view, from).purpose}
           </p>
           <SyChart
             height={320}
             xTitle="Year"
-            yTitle={VIEW_COPY[view].yTitle}
-            ariaLabel={`${view === 'cumulative' ? 'Stacked area chart of cumulative' : 'Line chart of the share of the world\u2019s cumulative'} CO₂ emissions from ${cumulative.data.years[0]} for ${selectedCountries.join(', ')}`}
+            yTitle={viewCopy(view, from).yTitle}
+            ariaLabel={`${view === 'cumulative' ? (from == null ? 'Stacked area chart of cumulative' : `Stacked area chart of CO\u2082 emitted since ${from},`) : from == null ? 'Line chart of the share of the world\u2019s cumulative' : `Line chart of the share of the world\u2019s CO\u2082 emitted since ${from},`} CO₂ emissions from ${cumulative.data.years[0]} for ${selectedCountries.join(', ')}`}
             series={view === 'cumulative' ? cumulativeAreaSeries(cumulative.data, palette) : shareLineSeries(cumulative.data)}
           />
           <p className="__s9cmpx-body4" style={{ margin: '8px 0 0', color: 'var(--__s9cmpx-static-text-weak)' }}>
-            Fossil and cement CO₂ · OWID · counted from each country&rsquo;s first record, shown from {cumulative.data.years[0]}
+            Fossil and cement CO₂ · OWID · {from == null ? <>counted from each country&rsquo;s first record, shown from {cumulative.data.years[0]}</> : <>emissions since {from}: each total minus its total the year before {from}, so the chart is rebased to zero just before {from} and the first point is {from}&rsquo;s own emissions</>}
             {view === 'cumulative' ? ' · Rest of world = World minus the countries shown' : ''}. Shares are of the World total, international aviation and shipping included, the same as in Climate Correlation, which also offers PRIMAP-hist.{' '}
             <Link to="/climate-correlation">Open in Climate Correlation</Link>
           </p>

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CorrelationCountryShareResponse } from '../api/correlationTypes';
 import { cumulativeAreaSeries } from './historicalCumulative';
-import { shareToCumulative, shareVsAnnualLines } from './shareViews';
+import { shareToCumulative, shareVsAnnualLines, sinceEmittedLines, sinceRebase } from './shareViews';
 
 const pt = (year: number, cumulative_mt: number, share_pct: number, annual_share_pct: number | null = null) => ({ year, cumulative_mt, share_pct, annual_mt: null, annual_share_pct });
 const rem = (year: number, world: number) => ({ year, world_cumulative_mt: world, world_annual_mt: 1, cumulative_mt: 0, share_pct: 0, annual_mt: null, annual_share_pct: null, international_transport_cumulative_mt: null, international_transport_annual_mt: null });
@@ -55,5 +55,65 @@ describe('shareVsAnnualLines', () => {
   it('is null without any annual share or points', () => {
     expect(shareVsAnnualLines(result({ series: [{ country: 'CHN', name: 'China', points: [pt(2000, 1, 1, null)] }] } as never))).toBeNull();
     expect(shareVsAnnualLines(result({ series: [] }))).toBeNull();
+  });
+});
+
+
+describe('"since YYYY": emissions in the period, from zero (Release 24.7)', () => {
+  const summary = { since: { year: 1999, world_base_cumulative_mt: 1500, countries: [{ name: 'China', base_cumulative_mt: 100 }, { name: 'India', base_cumulative_mt: 0 }] } };
+
+  it('reads the base values from the tool summary and is null for anything that is not a since answer', () => {
+    expect(sinceRebase(summary)).toEqual({ base: { China: 100, India: 0 }, world: 1500, fromYear: 1999 });
+    expect(sinceRebase({})).toBeNull();
+    expect(sinceRebase(null)).toBeNull();
+    expect(sinceRebase({ since: { year: 1999, countries: [] } })).toBeNull(); // no per-country bases: nothing to rebase by
+    // PRIMAP-hist has no World total: the per-country bases are enough for its lines, but the stacked area (which needs the World base) is not drawn
+    const noWorld = { since: { year: 1999, countries: [{ name: 'China', base_cumulative_mt: 100 }] } };
+    expect(sinceRebase(noWorld)).toEqual({ base: { China: 100 }, world: null, fromYear: 1999 });
+    expect(shareToCumulative(result(), sinceRebase(noWorld))).toBeNull();
+  });
+
+  it("subtracts each country's cumulative total the year before, and the World's, so every area starts at the period's first year from zero", () => {
+    const d = shareToCumulative(result(), sinceRebase(summary))!;
+    expect(d.series[0].cumulative_co2).toEqual([0, 10, 25]); // China 100/110/125 minus its 100
+    expect(d.series[1].cumulative_co2).toEqual([null, 40, 45]); // India has no value in 1998; its base is 0 (it had emitted nothing before)
+    expect(d.world_cumulative_co2).toEqual([0, 100, 200]); // World 1500/1600/1700 minus 1500
+    const area = cumulativeAreaSeries(d, ['#a', '#b']);
+    expect(area.find((s) => s.name === 'China')!.y).toEqual([0, 0.01, 0.025]); // Gt
+    expect(area.find((s) => s.name === 'Rest of world')!.y[2]).toBeCloseTo((200 - 25 - 45) / 1000); // the World's emissions in the period minus the countries shown
+  });
+
+  it("starts the axis at the period's first year when every selected country's record starts later, with the World's emissions for those early years and nothing stacked for the countries", () => {
+    const late = result({
+      series: [{ country: 'IND', name: 'India', points: [pt(1999, 40, 2, 4), pt(2000, 45, 2.2, 4.5)] }],
+      remainder_series: [rem(1997, 1000), rem(1998, 1500), rem(1999, 1600), rem(2000, 1700)],
+    } as never);
+    const since1998 = { since: { year: 1998, world_base_cumulative_mt: 1400, countries: [{ name: 'India', base_cumulative_mt: 0 }] } };
+    const d = shareToCumulative(late, sinceRebase(since1998))!;
+    expect(d.years).toEqual([1998, 1999, 2000]); // 1998 is the period's first year although India's first point is 1999
+    expect(d.series[0].cumulative_co2).toEqual([null, 40, 45]); // nothing for India in 1998: it adds nothing to the stack
+    expect(d.world_cumulative_co2).toEqual([100, 200, 300]); // the World's emissions in 1998 are there
+    expect(cumulativeAreaSeries(d, ['#a']).find((s) => s.name === 'Rest of world')!.y[0]).toBeCloseTo(0.1); // all of 1998's emissions are Rest of world
+    expect(shareToCumulative(late)!.years).toEqual([1999, 2000]); // without a since: unchanged
+  });
+
+  it('never goes negative when a base exceeds the value (a rounding gap), and an absent rebase changes nothing', () => {
+    const d = shareToCumulative(result(), { base: { China: 999 }, world: 99999 })!;
+    expect(d.series[0].cumulative_co2).toEqual([0, 0, 0]);
+    expect(d.world_cumulative_co2).toEqual([0, 0, 0]);
+    expect(shareToCumulative(result())!.series[0].cumulative_co2).toEqual([100, 110, 125]);
+    expect(shareToCumulative(result(), null)!.world_cumulative_co2).toEqual([1500, 1600, 1700]);
+  });
+
+  it('sinceEmittedLines is one line per country of the period so far in Gt, from zero, for any source (PRIMAP-hist has no World total to stack against)', () => {
+    const primap = result({ source: 'primap_hist', remainder_series: [] });
+    const lines = sinceEmittedLines(primap, sinceRebase(summary))!;
+    expect(lines.map((l) => l.name)).toEqual(['China', 'India']);
+    expect(lines[0].years).toEqual([1998, 1999, 2000]);
+    expect(lines[0].gt).toEqual([0, 0.01, 0.025]); // 100/110/125 Mt minus China's base of 100, in Gt
+    expect(lines[1].gt).toEqual([0.04, 0.045]); // India's points start in 1999; base 0
+    expect(sinceEmittedLines(primap, null)).toBeNull(); // no base values: not a since answer
+    expect(sinceEmittedLines(result({ series: [] }), sinceRebase(summary))).toBeNull();
+    expect(sinceEmittedLines(result({ series: [{ country: 'CHN', name: 'China', points: [] }] } as never), sinceRebase(summary))).toBeNull();
   });
 });

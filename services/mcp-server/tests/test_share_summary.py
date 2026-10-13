@@ -78,7 +78,7 @@ def test_rest_of_world_is_the_world_total_minus_the_countries_shown_and_only_for
 def test_a_start_year_after_the_first_record_is_explained_not_applied():
     b = body([{"country": "CHN", "name": "China", "points": [pt(1990, 1.0, 5.0)]}], cumulative_from=1750)
     s = share_series_summary(b, ROSTER, start_year=1990)
-    assert s["counted_from"] == 1750 and "never restarted" in s["window_note"] and "1750" in s["window_note"]
+    assert s["counted_from"] == 1750 and "since_year=1990" in s["window_note"] and "1750" in s["window_note"] and "EMITTED" in s["window_note"]
     assert "window_note" not in share_series_summary(b, ROSTER, start_year=None) and "window_note" not in share_series_summary(b, ROSTER, start_year=1750)
 
 
@@ -127,7 +127,7 @@ async def test_the_tool_summary_carries_the_new_fields_for_a_series(climate_clie
 async def test_the_tool_explains_a_start_year_instead_of_restarting_the_total(climate_client):
     code = (await get_country_cumulative_share())["rows"][0]["country"]
     out = await get_country_cumulative_share(countries=[code], start_year=1950)
-    assert out["summary"]["counted_from"] == out["cumulative_from"] and "never restarted" in out["summary"]["window_note"]
+    assert out["summary"]["counted_from"] == out["cumulative_from"] and "since_year=1950" in out["summary"]["window_note"]
     assert out["series"][0]["points"][0]["year"] == 1950  # the years shown start there; the total did not
 
 
@@ -170,3 +170,213 @@ async def test_the_tool_summary_has_a_units_map_and_no_single_unit(climate_clien
     for out in (await get_country_cumulative_share(limit=3), await get_country_cumulative_share(countries=["AAA"])):
         assert "unit" not in out["summary"] and out["summary"]["units"]["_gt"].startswith("GtCO₂")
         assert out["unit"] == "Mt CO₂"  # the body is unchanged (its raw values really are Mt; the server's typography pass writes the subscript)
+
+
+# --- "since YYYY": emissions in a period (Release 24.7, D7) ----------------------------------------------------------------------------------------------------------
+
+
+import pytest  # noqa: E402
+
+from mcp_server.climate import SHARE_FIRST_PUBLISHED_YEAR, check_since_year, period_rows, since_ranking_summary, since_series_block, world_total_mt  # noqa: E402
+
+
+def test_since_year_must_leave_a_published_base_year():
+    assert SHARE_FIRST_PUBLISHED_YEAR == 1850
+    check_since_year(1851, 2024)
+    check_since_year(2024, 2024)  # the latest year alone is a valid period
+    for bad in (1850, 1800, 2025):
+        with pytest.raises(ValueError, match="between 1851 and 2024"):
+            check_since_year(bad, 2024)
+
+
+def ranking(year, rows, world=None, total=None):
+    out = {"year": year, "rows": [{"country": c, "name": n, "cumulative_mt": mt, "in_expanded_scope": True} for c, n, mt in rows], "total_cumulative_mt": total, "remainder": None}
+    if world is not None:
+        out["remainder"] = {"world_cumulative_mt": world}
+    return out
+
+
+def test_period_rows_are_the_end_total_minus_the_base_total_ranked_and_a_new_country_starts_from_zero():
+    end = ranking(2024, [("USA", "United States", 434_866.0), ("CHN", "China", 285_087.0), ("NEW", "Newland", 50.0)], world=1_849_000.0)
+    base = ranking(1969, [("USA", "United States", 150_000.0), ("CHN", "China", 10_000.0)], world=900_000.0)  # Newland had no row in 1969
+    rows, world = period_rows(end, base)
+    assert world == 949_000.0
+    assert [(r["country"], r["rank"], r["emitted_mt"]) for r in rows] == [("USA", 1, 284_866.0), ("CHN", 2, 275_087.0), ("NEW", 3, 50.0)]  # Newland: base 0
+    assert rows[0]["emitted_text"] == "284.9 GtCO₂" and rows[0]["share_of_period_pct"] == round(284_866 / 949_000 * 100, 2)
+
+
+def test_a_country_whose_record_ended_emitted_nothing_in_a_later_period_and_never_negative():
+    end = ranking(2024, [("DDD", "Dland", 262.0)], total=262.0)
+    base = ranking(1979, [("DDD", "Dland", 262.0)], total=262.0)
+    rows, world = period_rows(end, base)
+    assert rows[0]["emitted_mt"] == 0.0 and world == 0.0 and rows[0]["share_of_period_pct"] is None  # no World emissions in the period: no share, not a division error
+
+
+def test_the_world_total_is_the_remainders_for_owid_and_the_sum_of_countries_for_primap():
+    assert world_total_mt(ranking(2024, [], world=1_849_000.0, total=1_803_000.0)) == 1_849_000.0
+    assert world_total_mt(ranking(2024, [], total=1_803_000.0)) == 1_803_000.0
+
+
+def test_the_series_block_has_the_period_the_rest_of_world_and_the_widgets_base_values():
+    end = ranking(2024, [("USA", "United States", 434_866.0), ("CHN", "China", 285_087.0)], world=1_849_000.0)
+    base = ranking(1969, [("USA", "United States", 150_000.0), ("CHN", "China", 10_000.0)], world=900_000.0)
+    rows, world = period_rows(end, base)
+    b = since_series_block(rows, world, ["CHN"], 1970, 2024, True, world_total_mt(base))
+    assert b["period"] == "1970–2024" and b["rank_of"] == 2 and b["world_emitted_text"] == "949.0 GtCO₂" and b["world_base_cumulative_mt"] == 900_000.0 and "source_total_emitted_text" not in b
+    assert b["countries"] == [{"country": "CHN", "name": "China", "emitted_mt": 275_087.0, "emitted_gt": 275.1, "emitted_text": "275.1 GtCO₂", "share_of_period_pct": 28.99, "rank": 2, "base_cumulative_mt": 10_000.0}]
+    assert b["rest_of_world"]["emitted_text"] == "673.9 GtCO₂" and "international aviation and shipping" in b["basis"]
+    assert "rest_of_world" not in since_series_block(rows, world, ["CHN"], 1970, 2024, False, 0.0) and "source's own total" in since_series_block(rows, world, ["CHN"], 1970, 2024, False, 0.0)["basis"]
+
+
+def test_the_ranking_summary_names_the_period_and_what_the_rows_shown_leave():
+    end = ranking(2024, [("USA", "United States", 434_866.0), ("CHN", "China", 285_087.0)], world=1_849_000.0)
+    base = ranking(1969, [("USA", "United States", 150_000.0), ("CHN", "China", 10_000.0)], world=900_000.0)
+    rows, world = period_rows(end, base)
+    s = since_ranking_summary(rows, rows[:1], world, 1970, 2024, True)
+    assert s["since"]["period"] == "1970–2024" and s["top"][0]["emitted_text"] == "284.9 GtCO₂" and s["n_rows"] == 1
+    assert s["shown_share_of_period_pct_total"] == 30.02 and s["not_shown_share_of_period_pct"] == 69.98  # 284.9 of the World's 949.0 Gt; the rest includes the other country and international transport
+
+
+# the stub data: AAA 10/yr from 1840, BBB 5/yr from 1900, CCC 1/yr (1950-52 missing), DDD 2/yr until 1970; the World adds 3/yr of international transport
+
+
+async def test_since_a_year_is_the_period_total_and_equals_the_sum_of_the_annual_values(climate_client):
+    out = await get_country_cumulative_share(countries=["AAA"], since_year=1950)
+    c = out["summary"]["since"]["countries"][0]
+    assert c["emitted_mt"] == 510.0 == 10.0 * (2000 - 1950 + 1)  # the cumulative at 2000 minus the cumulative at 1949
+    assert c["emitted_mt"] == pytest.approx(sum(p["annual_mt"] for p in out["series"][0]["points"]))  # the identity, on the points the tool returned
+    assert out["series"][0]["points"][0]["year"] == 1950 and out["summary"]["since"]["period"] == "1950–2000"
+    assert "window_note" not in out["summary"]  # since_year is not a start_year: the window note (which points a start_year caller to since_year) does not apply
+
+
+async def test_a_country_that_started_after_the_base_year_has_a_zero_base_and_emitted_all_it_has(climate_client):
+    s = (await get_country_cumulative_share(countries=["BBB"], since_year=1890))["summary"]["since"]["countries"][0]  # BBB's record starts in 1900
+    assert s["base_cumulative_mt"] == 0.0 and s["emitted_mt"] == 5.0 * (2000 - 1900 + 1)
+
+
+async def test_a_record_that_ended_before_the_period_emitted_nothing_in_it(climate_client):
+    s = (await get_country_cumulative_share(countries=["DDD"], since_year=1980))["summary"]["since"]["countries"][0]  # DDD stopped reporting in 1970
+    assert s["emitted_mt"] == 0.0 and s["share_of_period_pct"] == 0.0
+
+
+async def test_the_period_can_end_early_and_the_world_total_includes_international_transport(climate_client):
+    out = await get_country_cumulative_share(countries=["AAA"], since_year=1950, end_year=1960)
+    since = out["summary"]["since"]
+    assert since["period"] == "1950–1960" and since["countries"][0]["emitted_mt"] == 10.0 * 11
+    countries_1950_60 = sum(10 + (5 if y >= 1900 else 0) + (0 if 1950 <= y <= 1952 else 1) + 2 for y in range(1950, 1961))
+    assert since["world_emitted_gt"] == round((countries_1950_60 + 3.0 * 11) / 1000, 1)  # the World = the countries + 3 Mt/yr of international transport
+    assert since["rest_of_world"]["emitted_gt"] == round((countries_1950_60 + 3.0 * 11 - 110) / 1000, 1)
+
+
+async def test_a_ranking_since_a_year_is_ranked_by_emissions_in_the_period_not_by_the_cumulative_total(climate_client):
+    out = await get_country_cumulative_share(since_year=1950, limit=3)
+    # emitted 1950-2000: AAA 10 x 51 = 510, BBB 5 x 51 = 255, CCC 1 x (51 - 3 missing years) = 48, DDD 2 x 21 (its record ends in 1970) = 42
+    assert out["rows"] == [] and [(r["country"], r["emitted_mt"]) for r in out["since_rows"]] == [("AAA", 510.0), ("BBB", 255.0), ("CCC", 48.0)] and out["since_year"] == 1950
+    s = out["summary"]
+    assert s["mode"] == "ranking" and s["since"]["period"] == "1950–2000" and s["top"][0]["emitted_text"] == "0.5 GtCO₂" and "cumulative_gt" not in s["top"][0]
+    assert s["shown_share_of_period_pct_total"] + s["not_shown_share_of_period_pct"] == pytest.approx(100.0, abs=0.05)
+
+
+async def test_since_year_boundaries_and_misuse_name_what_to_pass(climate_client):
+    for bad in (1850, 2001):
+        with pytest.raises(ValueError, match="between 1851 and 2000"):
+            await get_country_cumulative_share(countries=["AAA"], since_year=bad)
+    await get_country_cumulative_share(countries=["AAA"], since_year=1851)
+    await get_country_cumulative_share(countries=["AAA"], since_year=2000)
+    with pytest.raises(ValueError, match="omit `start_year`"):
+        await get_country_cumulative_share(countries=["AAA"], since_year=1950, start_year=1960)
+    await get_country_cumulative_share(countries=["AAA"], since_year=1950, start_year=1950)  # the same year is fine
+    with pytest.raises(ValueError, match="since_year"):
+        await get_country_cumulative_share(start_year=1970)  # a ranking cannot take start_year: the message says what to pass instead
+    with pytest.raises(ValueError, match="end between 1950 and 2000"):
+        await get_country_cumulative_share(countries=["AAA"], since_year=1950, end_year=1940)
+
+
+async def test_primap_since_is_a_share_of_the_sources_own_total_without_a_rest_of_world(climate_client):
+    out = await get_country_cumulative_share(countries=["AAA"], since_year=1950, source="primap_hist")
+    since = out["summary"]["since"]
+    assert "source's own total" in since["basis"] and "rest_of_world" not in since and since["countries"][0]["emitted_mt"] == 510.0
+
+
+# --- review follow-ups on "since YYYY" (Copilot, Release 24.7): CO2e units, and `year` on a series ----------------------------------------------------------------------
+
+
+def test_total_greenhouse_gas_amounts_are_gtco2e_not_gtco2():
+    from mcp_server.climate import gt_text, gt_unit
+
+    assert gt_unit({"gas_scope": "total_ghg"}) == "GtCO₂e" and gt_unit({"gas_scope": "co2"}) == "GtCO₂" and gt_unit({}) == "GtCO₂"
+    assert gt_text(434_866.0, "GtCO₂e") == "434.9 GtCO₂e" and gt_text(434_866.0) == "434.9 GtCO₂"
+    rows, world = period_rows({**ranking(2024, [("USA", "United States", 434_866.0)], total=500_000.0), "gas_scope": "total_ghg"}, ranking(1969, [], total=100_000.0))
+    assert rows[0]["emitted_text"] == "434.9 GtCO₂e" and since_series_block(rows, world, ["USA"], 1970, 2024, False, 0.0, "GtCO₂e")["source_total_emitted_text"] == "400.0 GtCO₂e"
+    assert since_ranking_summary(rows, rows, world, 1970, 2024, False, "GtCO₂e")["since"]["source_total_emitted_text"] == "400.0 GtCO₂e"
+
+
+async def test_the_tool_says_gtco2e_for_total_greenhouse_gases_in_every_mode(climate_client):
+    kw = {"source": "primap_hist", "gas_scope": "total_ghg"}
+    series = (await get_country_cumulative_share(countries=["AAA"], **kw))["summary"]
+    assert series["countries"][0]["last_cumulative_text"].endswith("GtCO₂e") and "world_cumulative_text" not in series  # PRIMAP-hist has no World total to state
+    ranking_s = (await get_country_cumulative_share(limit=3, **kw))["summary"]
+    assert all(r["cumulative_text"].endswith("GtCO₂e") for r in ranking_s["top"])
+    since = (await get_country_cumulative_share(countries=["AAA"], since_year=1950, **kw))["summary"]["since"]
+    assert since["countries"][0]["emitted_text"].endswith("GtCO₂e") and since["source_total_emitted_text"].endswith("GtCO₂e")
+    assert (await get_country_cumulative_share(since_year=1950, limit=2, **kw))["summary"]["top"][0]["emitted_text"].endswith("GtCO₂e")
+    assert (await get_country_cumulative_share(countries=["AAA"]))["summary"]["countries"][0]["last_cumulative_text"].endswith("GtCO₂")  # OWID stays CO2
+
+
+async def test_a_series_with_since_year_rejects_year_and_points_to_end_year(climate_client):
+    with pytest.raises(ValueError, match="use `end_year`"):
+        await get_country_cumulative_share(countries=["AAA"], since_year=1950, year=1960)
+    out = await get_country_cumulative_share(countries=["AAA"], since_year=1950, end_year=1960)  # the supported way to end the period earlier
+    assert out["summary"]["since"]["period"] == "1950–1960"
+
+
+def test_the_tool_description_qualifies_the_period_share_by_source():
+    from mcp_server.tools.climate import get_country_cumulative_share
+
+    doc = " ".join((get_country_cumulative_share.__doc__ or "").split())
+    assert "of the World's emissions for OWID, of the source's own total for PRIMAP-hist" in doc and "`summary.since.basis` says which" in doc
+
+
+async def test_a_since_ranking_validates_limit_like_every_other_ranking(climate_client):
+    for bad in (0, -3, 51, 500):
+        with pytest.raises(ValueError, match="between 1 and 50"):
+            await get_country_cumulative_share(since_year=1950, limit=bad)
+    assert len((await get_country_cumulative_share(since_year=1950, limit=1))["since_rows"]) == 1
+    assert len((await get_country_cumulative_share(since_year=1950, limit=50))["since_rows"]) == 4  # the stub has four countries: the cap is a ceiling
+    assert len((await get_country_cumulative_share(since_year=1950))["since_rows"]) == 4  # the default (15) is within range
+
+
+def test_the_unit_guidance_says_total_greenhouse_gases_are_co2_equivalent():
+    from mcp_server.climate import SHARE_SUMMARY_UNITS
+    from mcp_server.tools.climate import get_country_cumulative_share
+
+    doc = " ".join((get_country_cumulative_share.__doc__ or "").split())
+    assert "for `gas_scope='total_ghg'`" in doc and "CO2-EQUIVALENT: GtCO2e / MtCO2e" in doc and "(GtCO2 or GtCO2e)" in doc
+    assert "MtCO₂e for total greenhouse gases" in SHARE_SUMMARY_UNITS["_mt"] and "GtCO₂e for total greenhouse gases" in SHARE_SUMMARY_UNITS["_gt"]
+
+
+def test_the_since_block_carries_the_last_data_year_so_a_bounded_period_can_be_told_from_one_to_the_latest():
+    end = ranking(2010, [("USA", "United States", 300_000.0)], world=1_000_000.0)
+    base = ranking(1989, [("USA", "United States", 100_000.0)], world=400_000.0)
+    rows, world = period_rows(end, base)
+    b = since_series_block(rows, world, ["USA"], 1990, 2010, True, world_total_mt(base), latest_year=2024)
+    assert b["end_year"] == 2010 and b["latest_year"] == 2024
+    assert since_series_block(rows, world, ["USA"], 1990, 2010, True, 0.0)["latest_year"] is None  # unknown stays unknown
+
+
+async def test_the_tool_reports_the_latest_year_beside_a_period_that_ends_earlier(climate_client):
+    out = (await get_country_cumulative_share(countries=["AAA"], since_year=1950, end_year=1960))["summary"]["since"]
+    assert out["end_year"] == 1960 and out["latest_year"] == 2000  # the stub's data ends in 2000
+    assert (await get_country_cumulative_share(countries=["AAA"], since_year=1950))["summary"]["since"]["latest_year"] == 2000
+
+
+def test_a_source_without_a_world_total_never_serialises_its_denominator_under_a_world_name():
+    end = {**ranking(2024, [("USA", "United States", 434_866.0)], total=500_000.0), "gas_scope": "co2"}
+    base = ranking(1969, [], total=100_000.0)
+    rows, world = period_rows(end, base)
+    blk = since_series_block(rows, world, ["USA"], 1970, 2024, False, 0.0)
+    assert blk["source_total_emitted_gt"] == 400.0 and not any(k.startswith("world_") for k in blk) and "rest_of_world" not in blk
+    rk = since_ranking_summary(rows, rows, world, 1970, 2024, False)["since"]
+    assert rk["source_total_emitted_gt"] == 400.0 and not any(k.startswith("world_") for k in rk)
+    owid_blk = since_series_block(rows, world, ["USA"], 1970, 2024, True, 100_000.0)
+    assert owid_blk["world_emitted_gt"] == 400.0 and owid_blk["world_base_cumulative_mt"] == 100_000.0 and "source_total_emitted_gt" not in owid_blk

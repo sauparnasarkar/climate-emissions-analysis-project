@@ -67,6 +67,8 @@ CUMULATIVE_QUESTIONS = {
     "Show cumulative emissions for the top emitters since 1970.": {"countries": preview.TOP5, "start_year": 1970},
     "Which countries have emitted the most since records began?": {"limit": 10},
     "How do China and the US compare on cumulative share?": {"countries": ["China", "United States"], "start_year": 1970},
+    "What is China's cumulative CO₂ since 1990?": {"countries": ["China"], "since_year": 1990},
+    "Which countries have emitted the most since 1970?": {"since_year": 1970, "limit": 10},
 }
 
 
