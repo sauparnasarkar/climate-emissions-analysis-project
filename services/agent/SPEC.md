@@ -36,12 +36,14 @@ conversational-agent project that `services/mcp-server` began.
    uses — rather than the Cloudflare-Access-gated public URL + Service Token originally sketched
    in `services/mcp-server/SPEC.md` §8.4 for "the LangGraph agent." See
    [`ARCHITECTURE.md`](ARCHITECTURE.md) for the corrected boundary diagram.
-5. **Public endpoint abuse protection: existing Cloudflare edge rate limit, not new app code.**
+5. **Public endpoint abuse protection: the Cloudflare edge rate limit first, plus in-app admission limits (root Release 25).**
    `syena.io` already has a domain-level Cloudflare rate-limiting rule matching
    `http.request.uri.path contains "/ghg-emissions-analysis"` (50 requests / 10s per IP,
    confirmed live 2026-08-13). `services/agent`'s public endpoint deploys under that same path
    prefix (`labs.syena.io/ghg-emissions-analysis/agent`), so it inherits this protection
-   automatically — no per-app rate-limiting code needed in `services/agent` itself.
+   automatically. **Added 2026-10-14 (root `ENHANCEMENTS.md` Release 25):** the edge rule only stops bursts, so
+   `limits.py` also caps concurrent queries, queries per client per hour and queries per day before any LLM
+   work (`AGENT_MAX_CONCURRENT_QUERIES`, `AGENT_QUERIES_PER_IP_PER_HOUR`, `AGENT_DAILY_QUERY_BUDGET`).
 6. **LLM test hermeticity.** Every LLM node needs `ChatAnthropic`, which needs
    `ANTHROPIC_API_KEY`. The test suite must pass with no key set (matching
    `services/mcp-server`'s own test suite, which needs no external credentials) — so the graph is
@@ -113,8 +115,10 @@ conversational-agent project that `services/mcp-server` began.
     unauthenticated endpoint, not just a UUID nicety.** `MemorySaver` holds full `messages`
     history and `tool_cache` per thread with no eviction, so `server.py` rejects any `thread_id`
     that isn't a well-formed UUID (400) and bounds the number of distinct threads the process
-    will ever track (`MAX_LIVE_THREADS`, 503 once full) — a coarse V1 stopgap, not real LRU/TTL
-    eviction, explicitly flagged for Step 5's security review rather than silently deferred.
+    will ever track (`MAX_LIVE_THREADS`). **Superseded 2026-10-14:** the first version refused new threads with a
+    503 once full, so 1,000 throwaway ids blocked every new conversation until a restart. Now the least
+    recently used thread is evicted together with its saved history (`checkpointer.delete_thread`), and a
+    malformed id is refused before the per-client and daily allowances are charged.
     **A real bug caught by testing this path directly**: the first version's `None`-input branch
     (minting a fresh id for a brand-new conversation — the common case, since every conversation's
     *first* query takes it) returned early without ever registering the minted id or checking the
@@ -868,7 +872,7 @@ hypothetical.
    script that does `security find-generic-password -w` before exec'ing `uvicorn`, so the plist
    file never holds the raw value at all. Not designed further than this — revisit only if the
    deploy's threat model actually changes, not preemptively.
-7. **Per-IP rate limiting inside the agent service** (backlog, added 2026-09-30; not designed in detail,
+7. **Per-IP rate limiting inside the agent service** (**built 2026-10-14 as `limits.py`, root Release 25** — the sketch below is what it was designed from; backlog, added 2026-09-30; not designed in detail,
    not scheduled). Why: every `POST /query` costs a real LLM call, and the only limit in front of it is
    Cloudflare's Free-plan rate-limit rule on the `syena.io` zone (`rate_limit_10`: one rule for the whole
    zone, URI Path matching only, **50 requests / 10 s per IP**, 10 s block — root `ENHANCEMENTS.md`
@@ -924,7 +928,13 @@ is this service's own piece of that.
 
 ### 14.1 Auth
 
-Gated entirely by Cloudflare Access at the edge — a **login** policy (Google as identity
+**Updated 2026-10-14 (root Release 25):** the app now also verifies the Access token itself (`access_auth.py`) when
+`CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set: `GET` and `POST /admin/llm` need a valid
+`Cf-Access-Jwt-Assertion` (RS256, audience, issuer, `exp`) or get a 403, so a dropped edge rule no longer exposes
+the model switch. Unset, it is skipped with one warning. The paragraph below is the original edge design, which
+still applies.
+
+Gated by Cloudflare Access at the edge — a **login** policy (Google as identity
 provider, one allow-listed email), distinct from `services/mcp-server/SPEC.md` §8's Service Auth
 policy for machine clients. Two path rules under one Access application: the SPA hub page
 (`labs.syena.io/ghg-emissions-analysis/admin`) and this service's admin API

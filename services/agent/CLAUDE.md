@@ -52,15 +52,16 @@ design changes here, not just this file.
 - **Admin LLM switch (`SPEC.md` §14).** Which of the two validated provider/model combos is live
   is a runtime, admin-panel-controlled setting, not just an env var — `GET`/`POST /admin/llm`,
   gated at the edge by a Cloudflare Access login policy (Google IdP, one allow-listed account;
-  root `ARCHITECTURE.md` §8), with zero app-level auth code. `get_llm()` itself stays
+  root `ARCHITECTURE.md` §8) and, when `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` are set, by the app's own
+  check of the Access token (`access_auth.py`). `get_llm()` itself stays
   env-var-only; the admin path calls it with an explicit `provider=`/`model=` override instead.
   Switching is an in-process graph rebuild-and-swap (not a restart) that must carry the *same*
   checkpointer and cached MCP tools forward — a naive rebuild with a fresh checkpointer would
   silently drop every live conversation's history.
-- **Public endpoint, no app-layer rate limiting.** The Mac Mini's Cloudflare edge already rate-
-  limits the whole `/ghg-emissions-analysis` path prefix (50 req/10s per IP) — `services/agent`
-  deploys under that same prefix and inherits the protection. Don't add per-app rate-limiting
-  code unless that edge rule changes.
+- **Public endpoint: edge rate limit first, in-app admission limits behind it.** The Cloudflare edge rule
+  (50 req/10s per IP) stops bursts; `limits.py` adds a concurrency cap, a per-client hourly allowance and a daily
+  budget, checked in `/query` before any LLM work (root `ENHANCEMENTS.md` Release 25). A request refused for its
+  own shape (a malformed `thread_id`) must be refused before admission so it cannot use up an allowance.
 - **Own isolated `pyproject.toml`**, same pattern as `services/mcp-server`'s isolation from the
   root `requirements.txt` — this sub-project's deps (`langgraph`, `langchain-mcp-adapters`,
   `langchain-anthropic`) don't belong in the shared notebook/Streamlit dependency set.
@@ -89,7 +90,7 @@ design changes here, not just this file.
   `tool_cache`'s values. Always build checkpointers via `graph.py`'s `_default_checkpointer()`,
   never a bare `MemorySaver()`, if you ever need a second one (e.g. in a test).
 - **`thread_id` is a real input-validation boundary, not a UUID nicety** — `server.py`'s
-  `/query` is public and unauthenticated, and `MemorySaver` never evicts. Any change to
+  `/query` is public and unauthenticated, and `MemorySaver` never evicts on its own, so the registry evicts the least recently used thread and its history. Any change to
   `_validate_and_register_thread_id` needs a direct unit test on the cap/registration behavior,
   not just an HTTP-level test — a registration bug (freshly-minted ids skipping registration
   entirely) is invisible at the HTTP level and only a direct unit test catches it. See `SPEC.md` "Corrections applied" #14.

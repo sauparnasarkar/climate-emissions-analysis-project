@@ -4357,6 +4357,57 @@ basis, refuses attribution, and links to Historical Trends, Country Profile and 
   (one PR not stacked; paginate comment reads; pre-PR invariant tests). **Still open:** `evals/run_cumulative.py` unrun; per-country first-record years not
   exposed; the 1970 answer carries an oddly worded sentence about the temperature record that does not apply to a share question (prompt tweak candidate).
 
+## Release 25 — Fixes from the 2026-10-13 Security Review
+
+**Status: Shipped and deployed 2026-10-14.** PR #301 (one Copilot finding, fixed with a regression test; the
+re-review of the final head found nothing). Touches `services/agent`, `climate-dashboard-react`, the
+`services/mcp-server` and root dependency pins, and `.gitignore`. Deployed to the Mac Mini in this order: pull,
+install the new Python dependencies in both service venvs, add `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` to the
+agent's plist, `npm run build` (bundle `index-BHRobMqA.js`, was `index-COJFS4ln.js`), then bootout/bootstrap of the
+agent and a kickstart of the MCP server. **Rollback:** `~/dist-prev-security` and
+`~/Library/LaunchAgents/com.ghgemissions.agent.plist.bak-20261014` on the Mini. Verified live: a question streams
+to a result, a malformed `thread_id` is a 400, the public admin API redirects to the Access login, a direct request
+to the agent without a token is a 403 (loopback, port 8766), the security headers are on the public site, and
+`/admin` works for the owner while logged in.
+
+Source: an audit-only static review of `api/`, `services/mcp-server`, `services/agent`, `climate-dashboard-react`
+and `pipeline/` (grep and code reading per entry point, `pip-audit` on the three Python environments,
+`npm audit --omit=dev`, a local FastAPI test client for the content-type probe, git history searches for secrets),
+published as an Artifact. No critical or high findings; the live site was not scanned.
+
+### 25.1 Findings and the fix
+
+| # | Sev | Finding | Fix |
+|---|---|---|---|
+| 1 | Medium | Thread registry never evicted: after 1,000 distinct `thread_id`s every new conversation got a 503 until restart, and `MemorySaver` grew with every thread | `_live_thread_ids` is an LRU: at the cap the oldest thread is evicted together with its saved history (`checkpointer.delete_thread`). A running query is never the oldest |
+| 2 | Medium | `/query` is unauthenticated and each call is a paid LLM call; the only brake was the edge's 50 requests / 10 s per IP | `limits.py`: admission before any LLM work — concurrent queries (`AGENT_MAX_CONCURRENT_QUERIES`, 6, 503), per client per hour (`AGENT_QUERIES_PER_IP_PER_HOUR`, 60, 429 with `Retry-After`), per UTC day for the whole service (`AGENT_DAILY_QUERY_BUDGET`, 1500, 503). 0 disables one. Client key is `CF-Connecting-IP`, else the socket peer. A refused request costs nothing; a malformed `thread_id` is refused before admission (the Copilot finding) |
+| 3 | Medium | `POST /admin/llm` had no authentication of its own; the Cloudflare Access path rule was the only gate | `access_auth.py`: with `CF_ACCESS_TEAM_DOMAIN` and `CF_ACCESS_AUD` set, `GET` and `POST /admin/llm` need a valid `Cf-Access-Jwt-Assertion` (RS256 only, audience, issuer, `exp` required, keys from the team's JWKS) or get a 403. Unset, the check is skipped with a one-time warning, so a deploy cannot lock the owner out |
+| 4 | Low | Markdown images in model text were rendered, so a poisoned tool result or crafted question could make the browser fetch a third-party URL | `MarkdownText` maps `img` to its alt text |
+| 5 | Low | Security headers lived only in a Cloudflare dashboard | `src/lib/securityHeaders.ts`, sent by `vite preview` (`nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, a `Permissions-Policy` switching off camera, microphone, geolocation, payment, USB), tested. Same values as the edge rule, so production is unchanged if the edge rule is lost. Not sent from the dev server (the phone-testing iframe frames it) |
+| 6 | Low | `tmp/` (holds a Google OAuth client secret) was untracked but not ignored | `/tmp/` in `.gitignore` |
+| 7 | Low | Indirect Python dependencies with known advisories | Floors: `pyjwt[crypto]>=2.15.0` (a direct dependency of the agent now), `urllib3>=2.8.0`, `langgraph-sdk>=0.4.4`; `pyjwt` and `urllib3` floors in the MCP server; `notebook==7.6.3` in `requirements.txt`. `pip-audit` reports none in all three environments |
+
+### 25.2 Verification
+
+- `services/agent` 308 passing (new: LRU eviction and the flood regression, every limiter path, the client key, the
+  token check including wrong audience, wrong issuer, expired, no `exp`, wrong key and an HS256 token), `api` and
+  `pipeline` 827, `climate-dashboard-react` 731 (new: header set, image blocking), `services/mcp-server` 167,
+  `tsc -b` clean.
+- Cross-site request forgery on the admin endpoint was probed and needs nothing: a `text/plain` POST is a 422,
+  a JSON POST needs a CORS preflight, and the allowed origins are fixed.
+
+### 25.3 Deliberately not changed
+
+- **No `Content-Security-Policy` from the app.** A second CSP intersects with the edge's rather than replacing it,
+  and this app's needs are only confirmed against the live edge policy. The `connect-src` entries it needs are in
+  `ARCHITECTURE.md` §5 ("Security headers").
+- **The API and the agent-to-MCP link stay unauthenticated, on loopback.** Accepted by design (`ARCHITECTURE.md` §9);
+  any process on the Mac Mini can call them.
+- **The edge rate-limit rule stays the first line.** The in-app limits are the backstop; the limit values are guesses
+  to tune from the logs after a few days of real use.
+- Not reviewed: `app.py` (Streamlit), the notebooks, `design-system`, the launchd plists, the real Cloudflare Access
+  and tunnel configuration, and host hardening.
+
 ## Backlog (not scheduled)
 
 Things deliberately left as they are for now, with enough detail to pick them up later. Numbered `B<n>`; items stay here until done or dropped.
