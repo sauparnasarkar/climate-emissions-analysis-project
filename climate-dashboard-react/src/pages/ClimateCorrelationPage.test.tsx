@@ -222,6 +222,18 @@ describe('ClimateCorrelationPage — causal chain and headline relationship', ()
     expect(await screen.findByRole('heading', { level: 3, name: 'How this number was derived' })).toBeInTheDocument();
   });
 
+  it('a #country-view deep link waits for the sections above it, so a late one cannot push the target out of view', async () => {
+    window.history.replaceState(null, '', '/climate-correlation#country-view');
+    let answer!: (r: typeof PAIR) => void;
+    vi.mocked(api.correlationEmissionsTemperature).mockImplementation((o) => (o?.source === 'primap_ghg' ? new Promise((r) => { answer = r as never; }) : Promise.resolve(o?.variant === 'fossil' ? PAIR : HEADLINE_PAIR)) as never);
+    mount('#country-view');
+    await screen.findByRole('heading', { level: 2, name: 'Country view' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(scrollSpy).not.toHaveBeenCalled();
+    await act(async () => answer(ALL_GAS_PAIR as never));
+    await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledWith('country-view'));
+  });
+
   it('a #methodology deep link waits for /meta, then jumps once', async () => {
     window.history.replaceState(null, '', '/climate-correlation#methodology');
     let answer!: (r: typeof META) => void;

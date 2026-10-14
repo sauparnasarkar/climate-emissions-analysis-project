@@ -70,15 +70,16 @@ export default function ClimateCorrelationPage() {
   const derivation = useMemo(() => buildDerivation(climate.headline), [climate.headline]);
   const headline = useMemo(() => (signal ? buildHeadline(signal, fossil.data) : null), [signal, fossil.data]);
 
-  // A deep link waits for the first measurement of the anchor row (its height depends on whether it wrapped) and for the request behind its target:
-  // the climate signal for the chain and relationship, the all-gas or composition request for those sections (the country view is always there).
+  // A deep link waits for the first measurement of the anchor row (its height depends on whether it wrapped) and for everything ABOVE its target to settle:
+  // a section that loads late grows above the target and pushes it down, so jumping earlier lands short (the Country view link from the Ask page landed on the top).
+  // The chain and relationship wait for the climate signal; all-gas and composition also wait for it, as they sit below; the country view, scenarios and methodology wait for all three above plus their own request.
   const { hash } = useLocation();
+  const aboveSettled = climate.done && !allGasQuery.loading && !compositionQuery.loading;
   const targetReady =
-    hash === `#${ALL_GAS_ANCHOR}` ? !allGasQuery.loading
-    : hash === `#${GAS_COMPOSITION_ANCHOR}` ? !compositionQuery.loading
-    : hash === `#${COUNTRY_VIEW_ANCHOR}` ? true
-    : hash === `#${SCENARIOS_ANCHOR}` ? !scenarioQuery.loading
-    : hash === `#${METHODOLOGY_ANCHOR}` ? !metaQuery.loading && climate.done
+    hash === `#${ALL_GAS_ANCHOR}` || hash === `#${GAS_COMPOSITION_ANCHOR}` ? climate.done && !allGasQuery.loading && !compositionQuery.loading
+    : hash === `#${COUNTRY_VIEW_ANCHOR}` ? aboveSettled
+    : hash === `#${SCENARIOS_ANCHOR}` ? aboveSettled && !scenarioQuery.loading
+    : hash === `#${METHODOLOGY_ANCHOR}` ? aboveSettled && !scenarioQuery.loading && !metaQuery.loading
     : climate.done;
   useJumpToHashOnLoad(targetReady && stickyHeight !== null, reduceMotion);
   const jumpItems = [...(signal ? [CHAIN_JUMP, RELATIONSHIP_JUMP] : []), COUNTRY_JUMP, ...(scenarios ? [SCENARIOS_JUMP] : []), METHODOLOGY_JUMP];
