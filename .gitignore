@@ -48,3 +48,6 @@ data/.refresh_row_diff
 !climate-dashboard-react/public/*.pptx
 make_*.py
 .claude/settings.local.json
+
+# Scratch folder: holds a Google OAuth client secret (never commit) and other local-only files
+/tmp/

@@ -1,11 +1,12 @@
 """Direct unit tests for server.py's own logic -- thread_id validation/bounding, progress
 percent, and deploy-prefix normalization -- kept separate from test_server.py's HTTP-level
-tests. Uses monkeypatch on the module-level `_live_thread_ids` set so these tests can't leak
+tests. Uses monkeypatch on the module-level `_live_thread_ids` registry so these tests can't leak
 state into each other or into test_server.py's tests (that set is process-global by design,
 matching MemorySaver's own process-lifetime scope).
 """
 
 import uuid
+from collections import OrderedDict
 
 import pytest
 from fastapi import HTTPException
@@ -15,7 +16,7 @@ from agent import server
 
 @pytest.fixture(autouse=True)
 def _isolated_thread_registry(monkeypatch):
-    monkeypatch.setattr(server, "_live_thread_ids", set())
+    monkeypatch.setattr(server, "_live_thread_ids", OrderedDict())
 
 
 def test_thread_id_none_mints_a_valid_uuid():
@@ -46,23 +47,37 @@ def test_thread_id_reuse_does_not_double_count_against_cap(monkeypatch):
     assert result == thread_id
 
 
-def test_thread_id_cap_rejects_new_thread_once_full(monkeypatch):
-    monkeypatch.setattr(server, "MAX_LIVE_THREADS", 1)
-    server._validate_and_register_thread_id(str(uuid.uuid4()))
-    with pytest.raises(HTTPException) as exc_info:
-        server._validate_and_register_thread_id(str(uuid.uuid4()))
-    assert exc_info.value.status_code == 503
+def test_thread_cap_evicts_the_least_recently_used_thread_instead_of_refusing(monkeypatch):
+    monkeypatch.setattr(server, "MAX_LIVE_THREADS", 2)
+    evicted = []
+    monkeypatch.setattr(server, "_evict_thread", evicted.append)
+    first, second, third = (str(uuid.uuid4()) for _ in range(3))
+    server._validate_and_register_thread_id(first)
+    server._validate_and_register_thread_id(second)
+    server._validate_and_register_thread_id(first)  # first is now the most recently used
+    server._validate_and_register_thread_id(third)  # full: second is the oldest
+    assert evicted == [second]
+    assert list(server._live_thread_ids) == [first, third]
 
 
-def test_freshly_minted_thread_id_is_also_subject_to_the_cap(monkeypatch):
-    # Regression test: the None-input branch must register/count the minted id too -- every new
-    # conversation's first query takes this branch, so a version that returns early without
-    # registering would mean the cap never actually bounds the common case.
-    monkeypatch.setattr(server, "MAX_LIVE_THREADS", 1)
-    server._validate_and_register_thread_id(None)
-    with pytest.raises(HTTPException) as exc_info:
+def test_a_flood_of_throwaway_ids_never_blocks_a_new_conversation(monkeypatch):
+    # Regression test for the 1,000-id lock-out: past the cap every new conversation used to get a 503 until a restart.
+    monkeypatch.setattr(server, "MAX_LIVE_THREADS", 5)
+    monkeypatch.setattr(server, "_evict_thread", lambda _id: None)
+    for _ in range(50):
         server._validate_and_register_thread_id(None)
-    assert exc_info.value.status_code == 503
+    assert len(server._live_thread_ids) == 5
+    server._validate_and_register_thread_id(None)  # still admitted
+
+
+def test_eviction_deletes_the_threads_saved_history():
+    from agent.graph import _default_checkpointer
+
+    server.app.state.checkpointer = _default_checkpointer()
+    seen = []
+    server.app.state.checkpointer.delete_thread = seen.append
+    server._evict_thread("abc")
+    assert seen == ["abc"]
 
 
 def test_progress_percent_caps_at_ninety():

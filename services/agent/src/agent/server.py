@@ -11,18 +11,22 @@ import logging
 import os
 import time
 import uuid
+from collections import OrderedDict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from starlette.background import BackgroundTask
 from fastapi.middleware.cors import CORSMiddleware
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from . import settings
+from .access_auth import require_admin_access
 from .graph import _default_checkpointer, build_graph
+from .limits import QueryLimiter, QuerySlot, client_key
 from .llm import get_llm
 from .mcp_client import get_mcp_tools
 from .tracing import configure_logging, new_trace_id, trace_id_var
@@ -39,8 +43,9 @@ logger = logging.getLogger(__name__)
 # type the way `DataNotFoundError` is, so one fixed fallback message covers the catch-all here.
 QUERY_STREAM_ERROR_MESSAGE = "Something went wrong while processing your query. Please try again."
 
-MAX_LIVE_THREADS = 1000  # SPEC.md §5's client-supplied thread_id keys unbounded server memory
-# (MemorySaver never evicts) -- a coarse V1 cap, not real LRU eviction. Flagged for Step 5.
+MAX_LIVE_THREADS = 1000  # SPEC.md §5's client-supplied thread_id keys server memory (MemorySaver never evicts on its own).
+# At the cap the least recently used thread is evicted, history and all -- refusing new threads instead would let
+# 1,000 throwaway ids block every new conversation until a restart.
 PROGRESS_PERCENT_STEP = 15
 PROGRESS_PERCENT_CAP = 90  # SPEC.md §5: capped until finalize completes, then jumps to 100
 
@@ -78,17 +83,36 @@ class StripDeployPrefixMiddleware:
         await self.app(scope, receive, send)
 
 
-_live_thread_ids: set[str] = set()
+_live_thread_ids: OrderedDict[str, None] = OrderedDict()  # least recently used first
+_query_limiter = QueryLimiter()
+
+
+def _evict_thread(thread_id: str) -> None:
+    checkpointer = getattr(app.state, "checkpointer", None)
+    if checkpointer is not None:
+        checkpointer.delete_thread(thread_id)
+
+
+def _check_thread_id_format(thread_id: str | None) -> None:
+    """Raises 400 for a client-supplied id that is not a well-formed UUID. Split out so `/query` can reject a malformed id BEFORE
+    admission: a request that is refused for its own shape must not use up the client's hourly or the day's allowance."""
+    if thread_id is None:
+        return
+    try:
+        uuid.UUID(thread_id)
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail="thread_id must be a well-formed UUID.") from exc
 
 
 def _validate_and_register_thread_id(thread_id: str | None) -> str:
     """A client-supplied `thread_id` keys unbounded server memory on a public, unauthenticated
     endpoint (`MemorySaver` holds full `messages` history plus `tool_cache` per thread, and
-    nothing evicts) -- so this is a real input-validation boundary, not a UUID nicety. Rejects
-    anything that isn't a well-formed UUID, and bounds the number of distinct threads this
-    process will ever track. `MAX_LIVE_THREADS` is a coarse V1 stopgap, not real LRU
-    eviction/TTL -- deferred deliberately, flagged for Step 5's security review rather than
-    silently left unbounded."""
+    nothing evicts on its own) -- so this is a real input-validation boundary, not a UUID nicety.
+    Rejects anything that isn't a well-formed UUID, and bounds the number of distinct threads this
+    process tracks: past `MAX_LIVE_THREADS` the least recently used thread is evicted (its saved
+    history with it), so a flood of throwaway ids can only forget old conversations, never block
+    new ones. A running query is never the oldest: at most `AGENT_MAX_CONCURRENT_QUERIES` run at once
+    and each just refreshed its own entry."""
     if thread_id is None:
         # A freshly-minted id still goes through the same registration/cap check below -- every
         # new conversation's first query takes this branch, so skipping registration here would
@@ -96,14 +120,15 @@ def _validate_and_register_thread_id(thread_id: str | None) -> str:
         # queries in an existing thread.
         thread_id = str(uuid.uuid4())
     else:
-        try:
-            uuid.UUID(thread_id)
-        except (ValueError, AttributeError, TypeError) as exc:
-            raise HTTPException(status_code=400, detail="thread_id must be a well-formed UUID.") from exc
+        _check_thread_id_format(thread_id)
 
-    if thread_id not in _live_thread_ids and len(_live_thread_ids) >= MAX_LIVE_THREADS:
-        raise HTTPException(status_code=503, detail="Server is at capacity -- try again shortly.")
-    _live_thread_ids.add(thread_id)
+    if thread_id in _live_thread_ids:
+        _live_thread_ids.move_to_end(thread_id)
+        return thread_id
+    while len(_live_thread_ids) >= MAX_LIVE_THREADS:
+        oldest, _ = _live_thread_ids.popitem(last=False)
+        _evict_thread(oldest)
+    _live_thread_ids[thread_id] = None
     return thread_id
 
 
@@ -217,7 +242,7 @@ app.add_middleware(
 )
 
 
-@app.get("/admin/llm", response_model=LlmChoiceResponse)
+@app.get("/admin/llm", response_model=LlmChoiceResponse, dependencies=[Depends(require_admin_access)])
 def get_llm_choice(request: Request) -> LlmChoiceResponse:
     # Reports the live in-memory choice, not the store file -- the two can diverge (a
     # hand-edited file, or a process older than the file), and the live value is the useful
@@ -225,7 +250,7 @@ def get_llm_choice(request: Request) -> LlmChoiceResponse:
     return request.app.state.llm_choice
 
 
-@app.post("/admin/llm", response_model=LlmChoiceResponse)
+@app.post("/admin/llm", response_model=LlmChoiceResponse, dependencies=[Depends(require_admin_access)])
 async def set_llm_choice(body: LlmChoiceRequest, request: Request) -> LlmChoiceResponse:
     allowed = settings.choice_by_id(body.id)
     if allowed is None:
@@ -251,7 +276,7 @@ def _progress_percent(event_count: int) -> int:
     return min(PROGRESS_PERCENT_CAP, PROGRESS_PERCENT_STEP * event_count)
 
 
-async def stream_query(graph: CompiledStateGraph, query: str, thread_id: str, trace_id: str) -> AsyncIterator[dict[str, Any]]:
+async def stream_query(graph: CompiledStateGraph, query: str, thread_id: str, trace_id: str, slot: QuerySlot | None = None) -> AsyncIterator[dict[str, Any]]:
     """Streams SPEC.md §5's progress events, then one final `result` event, over one SSE
     channel. Progress labels come from `tools_node`'s per-superstep update (each `ToolCallRecord`
     already carries its own `progress_label`) via `stream_mode="updates"` -- diffed against what's
@@ -323,6 +348,8 @@ async def stream_query(graph: CompiledStateGraph, query: str, thread_id: str, tr
     finally:
         logger.info("query complete status=%s total_elapsed=%.3fs", status, time.monotonic() - start)
         trace_id_var.reset(token)
+        if slot is not None:
+            slot.release()
 
 
 def get_graph(request: Request) -> CompiledStateGraph:
@@ -335,7 +362,16 @@ def get_graph(request: Request) -> CompiledStateGraph:
 
 
 @app.post("/query")
-async def query(body: QueryRequest, graph: CompiledStateGraph = Depends(get_graph)):
-    thread_id = _validate_and_register_thread_id(body.thread_id)
+async def query(body: QueryRequest, request: Request, graph: CompiledStateGraph = Depends(get_graph)):
+    # Admission first, before a thread is registered or any LLM work starts -- see limits.py. The slot is released by the
+    # stream's own `finally`, and again (idempotently) by the response's background task in case the client disconnects
+    # before the stream ever starts.
+    _check_thread_id_format(body.thread_id)  # a malformed id is refused before it can use up any allowance
+    slot = _query_limiter.acquire(client_key(request))
+    try:
+        thread_id = _validate_and_register_thread_id(body.thread_id)
+    except BaseException:
+        slot.release()
+        raise
     trace_id = new_trace_id()  # per-query, distinct from thread_id (which spans a whole conversation)
-    return EventSourceResponse(stream_query(graph, body.query, thread_id, trace_id))
+    return EventSourceResponse(stream_query(graph, body.query, thread_id, trace_id, slot), background=BackgroundTask(slot.release))

@@ -5,6 +5,7 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { apiRuntimeCachePattern, navigateFallbackDenylist, stripTrailingSlash } from './src/lib/basePath.js'
+import { SECURITY_HEADERS } from './src/lib/securityHeaders.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -222,6 +223,8 @@ export default defineConfig({
   },
   preview: {
     port: 4173,
+    // The production server (src/lib/securityHeaders.ts). Not on `server` (dev): the local phone-testing iframe needs to frame the dev server.
+    headers: SECURITY_HEADERS,
     proxy: { ...apiProxyEntry, ...agentProxyEntry },
     // Vite blocks unrecognized Host headers by default (DNS-rebinding protection) —
     // the Cloudflare Tunnel forwards requests with Host: climate-analytics.syena.io, which needs

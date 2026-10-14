@@ -13,6 +13,10 @@ dependencies = [
     "pydantic>=2.9.0",
     "httpx>=0.28.1",
     "sse-starlette>=2.1.0",
+    "pyjwt[crypto]>=2.15.0",  # verifies the Cloudflare Access token on /admin (access_auth.py); 2.15 also clears the 2.13 advisories
+    # Floors for indirect dependencies, raised past known advisories (pip-audit, 2026-10-13): urllib3 < 2.8.0, langgraph-sdk < 0.4.4
+    "urllib3>=2.8.0",
+    "langgraph-sdk>=0.4.4",
 ]
 
 [project.optional-dependencies]
