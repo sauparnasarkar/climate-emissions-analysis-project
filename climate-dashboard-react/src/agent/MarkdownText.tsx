@@ -85,6 +85,9 @@ export function MarkdownText({ text }: { text: string }) {
           ),
           strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
           table: MarkdownTable,
+          // Never fetch an image named in model text: the answer is text, tables and design-system widgets, and an <img> would make the
+          // browser request whatever URL a poisoned tool result or a crafted question put in the markdown. Show the alt text instead.
+          img: ({ alt }) => (alt ? <span>{alt}</span> : null),
         }}
       >
         {text}

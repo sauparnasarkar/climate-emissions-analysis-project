@@ -7,6 +7,9 @@ dependencies = [
     "mcp>=2.0.0",
     "httpx>=0.28.1",
     "rapidfuzz>=3.9.0",
+    # Floors for indirect dependencies, raised past known advisories (pip-audit, 2026-10-13): pyjwt < 2.15.0, urllib3 < 2.8.0
+    "pyjwt>=2.15.0",
+    "urllib3>=2.8.0",
 ]
 
 [project.optional-dependencies]

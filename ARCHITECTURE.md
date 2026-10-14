@@ -225,6 +225,18 @@ loading/data/error smoke test per page, mocking `api/client.ts` rather than hitt
 backend; `SyChart` is stubbed in page tests (Plotly's own DOM lifecycle is design-system's
 test suite's concern, not this app's).
 
+### Security headers
+
+The dashboard's own server sends `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: strict-origin-when-cross-origin` and a `Permissions-Policy` that switches off
+camera, microphone, geolocation, payment and USB (`src/lib/securityHeaders.ts`, wired into
+`vite preview` in `vite.config.ts`, with a test). They duplicate the Cloudflare edge's
+response-header rule on purpose, so a lost or edited edge rule no longer drops them.
+`Content-Security-Policy` is **not** sent from the app, because a second CSP intersects with the
+edge's rather than replacing it. The edge CSP must allow, in `connect-src`: `'self'`,
+`https://cdn.plot.ly` (the world map's topojson), `https://*.cloudflareaccess.com` (the
+Access-gated `/admin` fetch) and `https://cloudflareinsights.com`.
+
 ## 6. Deploy topology
 
 Everything runs on a single Mac Mini, exposed publicly via Cloudflare Tunnel — no cloud
