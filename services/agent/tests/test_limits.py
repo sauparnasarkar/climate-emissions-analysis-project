@@ -123,3 +123,20 @@ def test_the_query_endpoint_refuses_over_budget_before_any_llm_work(monkeypatch)
         assert server._query_limiter._in_flight == 0  # the first query's slot was given back
     finally:
         server.app.dependency_overrides.clear()
+
+
+def test_a_malformed_thread_id_is_refused_without_using_up_any_allowance(monkeypatch):
+    # Regression (Copilot, PR #301): admission used to run before thread_id validation, so repeated 400s drained the client's
+    # hourly allowance and the global daily budget and then denied valid queries.
+    monkeypatch.setenv("AGENT_QUERIES_PER_IP_PER_HOUR", "2")
+    monkeypatch.setenv("AGENT_DAILY_QUERY_BUDGET", "2")
+    limiter = QueryLimiter()
+    monkeypatch.setattr(server, "_query_limiter", limiter)
+    server.app.dependency_overrides[server.get_graph] = lambda: None
+    try:
+        client = TestClient(server.app)
+        for _ in range(10):
+            assert client.post("/query", json={"query": "hi", "thread_id": "not-a-uuid"}).status_code == 400
+        assert limiter._day_count == 0 and not limiter._per_client and limiter._in_flight == 0
+    finally:
+        server.app.dependency_overrides.clear()

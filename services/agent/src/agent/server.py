@@ -93,6 +93,17 @@ def _evict_thread(thread_id: str) -> None:
         checkpointer.delete_thread(thread_id)
 
 
+def _check_thread_id_format(thread_id: str | None) -> None:
+    """Raises 400 for a client-supplied id that is not a well-formed UUID. Split out so `/query` can reject a malformed id BEFORE
+    admission: a request that is refused for its own shape must not use up the client's hourly or the day's allowance."""
+    if thread_id is None:
+        return
+    try:
+        uuid.UUID(thread_id)
+    except (ValueError, AttributeError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail="thread_id must be a well-formed UUID.") from exc
+
+
 def _validate_and_register_thread_id(thread_id: str | None) -> str:
     """A client-supplied `thread_id` keys unbounded server memory on a public, unauthenticated
     endpoint (`MemorySaver` holds full `messages` history plus `tool_cache` per thread, and
@@ -109,10 +120,7 @@ def _validate_and_register_thread_id(thread_id: str | None) -> str:
         # queries in an existing thread.
         thread_id = str(uuid.uuid4())
     else:
-        try:
-            uuid.UUID(thread_id)
-        except (ValueError, AttributeError, TypeError) as exc:
-            raise HTTPException(status_code=400, detail="thread_id must be a well-formed UUID.") from exc
+        _check_thread_id_format(thread_id)
 
     if thread_id in _live_thread_ids:
         _live_thread_ids.move_to_end(thread_id)
@@ -358,6 +366,7 @@ async def query(body: QueryRequest, request: Request, graph: CompiledStateGraph 
     # Admission first, before a thread is registered or any LLM work starts -- see limits.py. The slot is released by the
     # stream's own `finally`, and again (idempotently) by the response's background task in case the client disconnects
     # before the stream ever starts.
+    _check_thread_id_format(body.thread_id)  # a malformed id is refused before it can use up any allowance
     slot = _query_limiter.acquire(client_key(request))
     try:
         thread_id = _validate_and_register_thread_id(body.thread_id)
